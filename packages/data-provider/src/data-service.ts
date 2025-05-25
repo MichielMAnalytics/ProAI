@@ -782,3 +782,33 @@ export function verifyTwoFactorTemp(
 ): Promise<t.TVerify2FATempResponse> {
   return request.post(endpoints.verifyTwoFactorTemp(), payload);
 }
+
+/* Integrations */
+
+export function getIntegrationsStatus(): Promise<t.TIntegrationsStatusResponse> {
+  return request.get(endpoints.integrationsStatus());
+}
+
+export function getAvailableIntegrations(): Promise<t.TAvailableIntegration[]> {
+  return request.get(endpoints.availableIntegrations());
+}
+
+export function getUserIntegrations(): Promise<t.TUserIntegration[]> {
+  return request.get(endpoints.userIntegrations());
+}
+
+export function createConnectToken(payload: t.TCreateConnectTokenRequest): Promise<t.TCreateConnectTokenResponse> {
+  return request.post(endpoints.createConnectToken(), payload);
+}
+
+export function handleIntegrationCallback(payload: t.TIntegrationCallbackRequest): Promise<t.TIntegrationCallbackResponse> {
+  return request.post(endpoints.integrationCallback(), payload);
+}
+
+export function deleteIntegration(integrationId: string): Promise<t.TDeleteIntegrationResponse> {
+  return request.delete(endpoints.deleteIntegration(integrationId));
+}
+
+export function getMCPConfig(): Promise<t.TMCPConfigResponse> {
+  return request.get(endpoints.mcpConfig());
+}

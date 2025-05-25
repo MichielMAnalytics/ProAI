@@ -277,3 +277,13 @@ export const confirmTwoFactor = () => '/api/auth/2fa/confirm';
 export const disableTwoFactor = () => '/api/auth/2fa/disable';
 export const regenerateBackupCodes = () => '/api/auth/2fa/backup/regenerate';
 export const verifyTwoFactorTemp = () => '/api/auth/2fa/verify-temp';
+
+// Integrations endpoints
+export const integrations = () => '/api/integrations';
+export const integrationsStatus = () => `${integrations()}/status`;
+export const availableIntegrations = () => `${integrations()}/available`;
+export const userIntegrations = () => `${integrations()}/user`;
+export const createConnectToken = () => `${integrations()}/connect-token`;
+export const integrationCallback = () => `${integrations()}/callback`;
+export const deleteIntegration = (integrationId: string) => `${integrations()}/${integrationId}`;
+export const mcpConfig = () => `${integrations()}/mcp-config`;
