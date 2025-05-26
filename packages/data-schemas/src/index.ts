@@ -49,6 +49,12 @@ export type { IPromptGroup, IPromptGroupDocument } from './schema/promptGroup';
 export { default as roleSchema } from './schema/role';
 export type { IRole } from './schema/role';
 
+export { default as schedulerExecutionSchema } from './schema/schedulerExecution';
+export type { ISchedulerExecution } from './schema/schedulerExecution';
+
+export { default as schedulerTaskSchema } from './schema/schedulerTask';
+export type { ISchedulerTask } from './schema/schedulerTask';
+
 export { default as sessionSchema } from './schema/session';
 export type { ISession } from './schema/session';
 
