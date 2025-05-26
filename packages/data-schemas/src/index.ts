@@ -7,6 +7,9 @@ export type { IAgent } from './schema/agent';
 export { default as assistantSchema } from './schema/assistant';
 export type { IAssistant } from './schema/assistant';
 
+export { default as availableIntegrationSchema } from './schema/availableIntegration';
+export type { IAvailableIntegration } from './schema/availableIntegration';
+
 export { default as balanceSchema } from './schema/balance';
 export type { IBalance } from './schema/balance';
 
@@ -66,3 +69,6 @@ export type { ITransaction } from './schema/transaction';
 
 export { default as userSchema } from './schema/user';
 export type { IUser } from './schema/user';
+
+export { default as userIntegrationSchema } from './schema/userIntegration';
+export type { IUserIntegration } from './schema/userIntegration';

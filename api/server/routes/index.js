@@ -1,5 +1,6 @@
 const assistants = require('./assistants');
 const categories = require('./categories');
+const integrations = require('./integrations');
 const tokenizer = require('./tokenizer');
 const endpoints = require('./endpoints');
 const staticRoute = require('./static');
@@ -55,5 +56,6 @@ module.exports = {
   tokenizer,
   assistants,
   categories,
+  integrations,
   staticRoute,
 };

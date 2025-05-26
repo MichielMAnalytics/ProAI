@@ -141,5 +141,8 @@
       "admin/",
       "packages/"
     ]
+  },
+  "dependencies": {
+    "@pipedream/sdk": "^1.6.3"
   }
 }

@@ -46,6 +46,13 @@ export enum QueryKeys {
   health = 'health',
   userTerms = 'userTerms',
   banner = 'banner',
+  // Integrations
+  integrationsStatus = 'integrationsStatus',
+  availableIntegrations = 'availableIntegrations',
+  userIntegrations = 'userIntegrations',
+  appDetails = 'appDetails',
+  appComponents = 'appComponents',
+  mcpConfig = 'mcpConfig',
 }
 
 export enum MutationKeys {
@@ -69,4 +76,11 @@ export enum MutationKeys {
   updateRole = 'updateRole',
   enableTwoFactor = 'enableTwoFactor',
   verifyTwoFactor = 'verifyTwoFactor',
+  // Integrations
+  createConnectToken = 'createConnectToken',
+  integrationCallback = 'integrationCallback',
+  deleteIntegration = 'deleteIntegration',
+  configureComponent = 'configureComponent',
+  runAction = 'runAction',
+  deployTrigger = 'deployTrigger',
 }

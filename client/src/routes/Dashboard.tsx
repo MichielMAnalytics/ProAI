@@ -5,7 +5,7 @@ import {
   CreatePromptForm,
   EmptyPromptPreview,
 } from '~/components/Prompts';
-import { IntegrationsView } from '~/components/Integrations';
+import { IntegrationsView, AppDetailsView } from '~/components/Integrations';
 import DashboardRoute from './Layouts/Dashboard';
 
 const dashboardRoutes = {
@@ -58,6 +58,10 @@ const dashboardRoutes = {
     {
       path: 'integrations',
       element: <IntegrationsView />,
+    },
+    {
+      path: 'integrations/app/:appSlug',
+      element: <AppDetailsView />,
     },
     {
       path: 'prompts/*',

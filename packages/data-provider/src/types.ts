@@ -545,3 +545,183 @@ export type TAcceptTermsResponse = {
 };
 
 export type TBannerResponse = TBanner | null;
+
+/* Integrations */
+
+export type TIntegrationsStatusResponse = {
+  enabled: boolean;
+  service: string;
+  version: string;
+};
+
+export type TAvailableIntegration = {
+  _id?: string;
+  appSlug: string;
+  appName: string;
+  appDescription?: string;
+  appIcon?: string;
+  appCategories?: string[];
+  appUrl?: string;
+  pipedreamAppId?: string;
+  authType?: 'oauth' | 'api_key' | 'basic' | 'none';
+  isActive: boolean;
+  mcpServerTemplate?: {
+    serverName: string;
+    type: 'sse' | 'stdio';
+    url?: string;
+    command?: string;
+    args?: string[];
+    timeout?: number;
+    iconPath?: string;
+  };
+  popularity?: number;
+  lastUpdated?: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+export type TUserIntegration = {
+  _id?: string;
+  userId: string;
+  pipedreamAccountId: string;
+  pipedreamProjectId: string;
+  appSlug: string;
+  appName: string;
+  appDescription?: string;
+  appIcon?: string;
+  appCategories?: string[];
+  isActive: boolean;
+  credentials?: {
+    authProvisionId: string;
+  };
+  mcpServerConfig?: {
+    serverName: string;
+    type: 'sse' | 'stdio';
+    url?: string;
+    command?: string;
+    args?: string[];
+    timeout?: number;
+    iconPath?: string;
+  };
+  lastConnectedAt?: Date;
+  lastUsedAt?: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+export type TCreateConnectTokenRequest = {
+  app?: string;
+  redirect_url?: string;
+};
+
+export type TCreateConnectTokenResponse = {
+  token: string;
+  expires_at: string;
+  connect_link_url: string;
+};
+
+export type TIntegrationCallbackRequest = {
+  account_id: string;
+  external_user_id: string;
+  app?: string;
+};
+
+export type TIntegrationCallbackResponse = {
+  success: boolean;
+  message: string;
+  data: TUserIntegration;
+};
+
+export type TDeleteIntegrationResponse = {
+  success: boolean;
+  message: string;
+  data: TUserIntegration;
+};
+
+export type TMCPConfigResponse = {
+  [serverName: string]: {
+    type: 'sse' | 'stdio';
+    url?: string;
+    command?: string;
+    args?: string[];
+    timeout?: number;
+  };
+};
+
+// App Details and Components Types
+export type TAppDetails = {
+  id: string;
+  name_slug: string;
+  name: string;
+  auth_type: 'oauth' | 'api_key' | 'basic' | 'none';
+  description?: string;
+  img_src?: string;
+  categories?: string[];
+  isConnectable: boolean;
+  hasActions: boolean;
+  hasTriggers: boolean;
+};
+
+export type TComponentProp = {
+  name: string;
+  type: string;
+  label: string;
+  description?: string;
+  required?: boolean;
+  default?: unknown;
+  options?: Array<{ label: string; value: unknown }>;
+};
+
+export type TAppComponent = {
+  name: string;
+  version: string;
+  key: string;
+  description?: string;
+  configurable_props?: TComponentProp[];
+  type?: 'action' | 'trigger';
+};
+
+export type TAppComponents = {
+  actions: TAppComponent[];
+  triggers: TAppComponent[];
+};
+
+export type TConfigureComponentRequest = {
+  componentId: string;
+  propName: string;
+  configuredProps?: Record<string, unknown>;
+  dynamicPropsId?: string;
+};
+
+export type TConfigureComponentResponse = {
+  props: TComponentProp[];
+  dynamicPropsId?: string;
+};
+
+export type TRunActionRequest = {
+  componentId: string;
+  configuredProps?: Record<string, unknown>;
+  dynamicPropsId?: string;
+};
+
+export type TRunActionResponse = {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+};
+
+export type TDeployTriggerRequest = {
+  componentId: string;
+  configuredProps?: Record<string, unknown>;
+  webhookUrl?: string;
+  workflowId?: string;
+  dynamicPropsId?: string;
+};
+
+export type TDeployTriggerResponse = {
+  id: string;
+  name: string;
+  owner_id: string;
+  webhook_url?: string;
+  workflow_id?: string;
+};

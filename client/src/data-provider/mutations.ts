@@ -1026,3 +1026,100 @@ export const useAcceptTermsMutation = (
     onMutate: options?.onMutate,
   });
 };
+
+/* Integrations */
+
+/**
+ * Hook for creating a connect token for Pipedream integration
+ */
+export const useCreateConnectTokenMutation = (
+  options?: t.MutationOptions<t.TCreateConnectTokenResponse, t.TCreateConnectTokenRequest>,
+): UseMutationResult<t.TCreateConnectTokenResponse, unknown, t.TCreateConnectTokenRequest, unknown> => {
+  return useMutation([MutationKeys.createConnectToken], {
+    mutationFn: (variables: t.TCreateConnectTokenRequest) => dataService.createConnectToken(variables),
+    ...(options || {}),
+  });
+};
+
+/**
+ * Hook for handling integration callback after successful connection
+ */
+export const useIntegrationCallbackMutation = (
+  options?: t.MutationOptions<t.TIntegrationCallbackResponse, t.TIntegrationCallbackRequest>,
+): UseMutationResult<t.TIntegrationCallbackResponse, unknown, t.TIntegrationCallbackRequest, unknown> => {
+  const queryClient = useQueryClient();
+  return useMutation([MutationKeys.integrationCallback], {
+    mutationFn: (variables: t.TIntegrationCallbackRequest) => dataService.handleIntegrationCallback(variables),
+    onSuccess: (data, variables, context) => {
+      // Invalidate user integrations to refresh the list
+      queryClient.invalidateQueries([QueryKeys.userIntegrations]);
+      queryClient.invalidateQueries([QueryKeys.mcpConfig]);
+      options?.onSuccess?.(data, variables, context);
+    },
+    onError: options?.onError,
+    onMutate: options?.onMutate,
+  });
+};
+
+/**
+ * Hook for deleting a user integration
+ */
+export const useDeleteIntegrationMutation = (
+  options?: t.MutationOptions<t.TDeleteIntegrationResponse, string>,
+): UseMutationResult<t.TDeleteIntegrationResponse, unknown, string, unknown> => {
+  const queryClient = useQueryClient();
+  return useMutation([MutationKeys.deleteIntegration], {
+    mutationFn: (integrationId: string) => dataService.deleteIntegration(integrationId),
+    onSuccess: (data, variables, context) => {
+      // Invalidate user integrations to refresh the list
+      queryClient.invalidateQueries([QueryKeys.userIntegrations]);
+      queryClient.invalidateQueries([QueryKeys.mcpConfig]);
+      options?.onSuccess?.(data, variables, context);
+    },
+    onError: options?.onError,
+    onMutate: options?.onMutate,
+  });
+};
+
+/**
+ * Hook for configuring a component's props
+ */
+export const useConfigureComponentMutation = (
+  options?: t.MutationOptions<t.TConfigureComponentResponse, t.TConfigureComponentRequest>,
+): UseMutationResult<t.TConfigureComponentResponse, unknown, t.TConfigureComponentRequest, unknown> => {
+  return useMutation([MutationKeys.configureComponent], {
+    mutationFn: (variables: t.TConfigureComponentRequest) => dataService.configureComponent(variables),
+    ...(options || {}),
+  });
+};
+
+/**
+ * Hook for running an action component
+ */
+export const useRunActionMutation = (
+  options?: t.MutationOptions<t.TRunActionResponse, t.TRunActionRequest>,
+): UseMutationResult<t.TRunActionResponse, unknown, t.TRunActionRequest, unknown> => {
+  return useMutation([MutationKeys.runAction], {
+    mutationFn: (variables: t.TRunActionRequest) => dataService.runAction(variables),
+    ...(options || {}),
+  });
+};
+
+/**
+ * Hook for deploying a trigger component
+ */
+export const useDeployTriggerMutation = (
+  options?: t.MutationOptions<t.TDeployTriggerResponse, t.TDeployTriggerRequest>,
+): UseMutationResult<t.TDeployTriggerResponse, unknown, t.TDeployTriggerRequest, unknown> => {
+  const queryClient = useQueryClient();
+  return useMutation([MutationKeys.deployTrigger], {
+    mutationFn: (variables: t.TDeployTriggerRequest) => dataService.deployTrigger(variables),
+    onSuccess: (data, variables, context) => {
+      // Invalidate user integrations to refresh the list
+      queryClient.invalidateQueries([QueryKeys.userIntegrations]);
+      options?.onSuccess?.(data, variables, context);
+    },
+    onError: options?.onError,
+    onMutate: options?.onMutate,
+  });
+};

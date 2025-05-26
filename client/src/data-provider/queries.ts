@@ -530,10 +530,117 @@ export const useGetRandomPrompts = (
 export const useUserTermsQuery = (
   config?: UseQueryOptions<t.TUserTermsResponse>,
 ): QueryObserverResult<t.TUserTermsResponse> => {
-  return useQuery<t.TUserTermsResponse>([QueryKeys.userTerms], () => dataService.getUserTerms(), {
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    refetchOnMount: false,
-    ...config,
-  });
+  return useQuery<t.TUserTermsResponse>(
+    [QueryKeys.userTerms],
+    () => dataService.getUserTerms(),
+    {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      ...config,
+    },
+  );
+};
+
+/* Integrations */
+
+export const useIntegrationsStatusQuery = (
+  config?: UseQueryOptions<t.TIntegrationsStatusResponse>,
+): QueryObserverResult<t.TIntegrationsStatusResponse> => {
+  return useQuery<t.TIntegrationsStatusResponse>(
+    [QueryKeys.integrationsStatus],
+    () => dataService.getIntegrationsStatus(),
+    {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      ...config,
+    },
+  );
+};
+
+export const useAvailableIntegrationsQuery = (
+  config?: UseQueryOptions<t.TAvailableIntegration[]>,
+): QueryObserverResult<t.TAvailableIntegration[]> => {
+  return useQuery<t.TAvailableIntegration[]>(
+    [QueryKeys.availableIntegrations],
+    () => dataService.getAvailableIntegrations(),
+    {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      cacheTime: 30 * 60 * 1000, // 30 minutes
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      ...config,
+    },
+  );
+};
+
+export const useUserIntegrationsQuery = (
+  config?: UseQueryOptions<t.TUserIntegration[]>,
+): QueryObserverResult<t.TUserIntegration[]> => {
+  return useQuery<t.TUserIntegration[]>(
+    [QueryKeys.userIntegrations],
+    () => dataService.getUserIntegrations(),
+    {
+      staleTime: 2 * 60 * 1000, // 2 minutes
+      cacheTime: 10 * 60 * 1000, // 10 minutes
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      ...config,
+    },
+  );
+};
+
+export const useMCPConfigQuery = (
+  config?: UseQueryOptions<t.TMCPConfigResponse>,
+): QueryObserverResult<t.TMCPConfigResponse> => {
+  return useQuery<t.TMCPConfigResponse>(
+    [QueryKeys.mcpConfig],
+    () => dataService.getMCPConfig(),
+    {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      ...config,
+    },
+  );
+};
+
+export const useAppDetailsQuery = (
+  appSlug: string,
+  config?: UseQueryOptions<t.TAppDetails>,
+): QueryObserverResult<t.TAppDetails> => {
+  return useQuery<t.TAppDetails>(
+    [QueryKeys.appDetails, appSlug],
+    () => dataService.getAppDetails(appSlug),
+    {
+      enabled: !!appSlug,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      select: (data: any) => data.data,
+      ...config,
+    },
+  );
+};
+
+export const useAppComponentsQuery = (
+  appSlug: string,
+  type?: string,
+  config?: UseQueryOptions<t.TAppComponents>,
+): QueryObserverResult<t.TAppComponents> => {
+  return useQuery<t.TAppComponents>(
+    [QueryKeys.appComponents, appSlug, type],
+    () => dataService.getAppComponents(appSlug, type),
+    {
+      enabled: !!appSlug,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      select: (data: any) => data.data,
+      ...config,
+    },
+  );
 };

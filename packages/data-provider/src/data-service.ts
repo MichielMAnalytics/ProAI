@@ -782,3 +782,53 @@ export function verifyTwoFactorTemp(
 ): Promise<t.TVerify2FATempResponse> {
   return request.post(endpoints.verifyTwoFactorTemp(), payload);
 }
+
+/* Integrations */
+
+export function getIntegrationsStatus(): Promise<t.TIntegrationsStatusResponse> {
+  return request.get(endpoints.integrationsStatus());
+}
+
+export function getAvailableIntegrations(): Promise<t.TAvailableIntegration[]> {
+  return request.get(endpoints.availableIntegrations());
+}
+
+export function getUserIntegrations(): Promise<t.TUserIntegration[]> {
+  return request.get(endpoints.userIntegrations());
+}
+
+export function createConnectToken(payload: t.TCreateConnectTokenRequest): Promise<t.TCreateConnectTokenResponse> {
+  return request.post(endpoints.createConnectToken(), payload);
+}
+
+export function handleIntegrationCallback(payload: t.TIntegrationCallbackRequest): Promise<t.TIntegrationCallbackResponse> {
+  return request.post(endpoints.integrationCallback(), payload);
+}
+
+export function deleteIntegration(integrationId: string): Promise<t.TDeleteIntegrationResponse> {
+  return request.delete(endpoints.deleteIntegration(integrationId));
+}
+
+export function getMCPConfig(): Promise<t.TMCPConfigResponse> {
+  return request.get(endpoints.mcpConfig());
+}
+
+export function getAppDetails(appSlug: string): Promise<t.TAppDetails> {
+  return request.get(endpoints.appDetails(appSlug));
+}
+
+export function getAppComponents(appSlug: string, type?: string): Promise<t.TAppComponents> {
+  return request.get(endpoints.appComponents(appSlug, type));
+}
+
+export function configureComponent(payload: t.TConfigureComponentRequest): Promise<t.TConfigureComponentResponse> {
+  return request.post(endpoints.configureComponent(), payload);
+}
+
+export function runAction(payload: t.TRunActionRequest): Promise<t.TRunActionResponse> {
+  return request.post(endpoints.runAction(), payload);
+}
+
+export function deployTrigger(payload: t.TDeployTriggerRequest): Promise<t.TDeployTriggerResponse> {
+  return request.post(endpoints.deployTrigger(), payload);
+}
