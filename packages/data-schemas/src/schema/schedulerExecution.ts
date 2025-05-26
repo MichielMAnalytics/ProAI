@@ -49,7 +49,10 @@ const schedulerExecutionSchema: Schema<ISchedulerExecution> = new Schema(
       required: true,
     },
   },
-  { timestamps: true },
+  { 
+    timestamps: true,
+    versionKey: false
+  },
 );
 
 // Indexes for performance (removed duplicate id index since it's already unique in field definition)

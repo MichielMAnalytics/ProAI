@@ -19,6 +19,7 @@ const {
   createYouTubeTools,
   TavilySearchResults,
   createOpenAIImageTools,
+  SchedulerTool,
 } = require('../');
 const { primeFiles: primeCodeFiles } = require('~/server/services/Files/Code/process');
 const { createFileSearchTool, primeFiles: primeSearchFiles } = require('./fileSearch');
@@ -157,6 +158,41 @@ const loadTools = async ({
   };
 
   const customConstructors = {
+    scheduler: async (_toolContextMap) => {
+      const authFields = getAuthFields('scheduler');
+      const authValues = await loadAuthValues({ userId: user, authFields });
+      
+      // Extract conversation context from the request
+      // Try multiple possible locations for conversationId
+      const conversationId = options.req?.body?.conversationId || 
+                           options.req?.body?.conversation_id ||
+                           options.req?.params?.conversationId ||
+                           options.req?.query?.conversationId ||
+                           null;
+      
+      const endpoint = options.req?.body?.endpoint || agent?.provider || endpoint;
+      const model = options.req?.body?.model || agent?.model || model;
+      const modelParameters = options.req?.body?.modelParameters || {};
+      
+      logger.debug(`[SchedulerTool] Creating tool with context:`, {
+        userId: user,
+        conversationId,
+        endpoint,
+        model,
+        hasReq: !!options.req,
+        reqBodyKeys: options.req?.body ? Object.keys(options.req.body) : [],
+      });
+      
+      return new SchedulerTool({
+        ...authValues,
+        userId: user,
+        conversationId,
+        endpoint,
+        model,
+        modelParameters,
+        req: options.req,
+      });
+    },
     serpapi: async (_toolContextMap) => {
       const authFields = getAuthFields('serpapi');
       let envVar = authFields[0] ?? '';
