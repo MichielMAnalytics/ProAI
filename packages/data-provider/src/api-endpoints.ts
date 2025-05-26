@@ -283,6 +283,12 @@ export const integrations = () => '/api/integrations';
 export const integrationsStatus = () => `${integrations()}/status`;
 export const availableIntegrations = () => `${integrations()}/available`;
 export const userIntegrations = () => `${integrations()}/user`;
+export const appDetails = (appSlug: string) => `${integrations()}/app/${appSlug}`;
+export const appComponents = (appSlug: string, type?: string) => 
+  `${integrations()}/app/${appSlug}/components${type ? `?type=${type}` : ''}`;
+export const configureComponent = () => `${integrations()}/component/configure`;
+export const runAction = () => `${integrations()}/action/run`;
+export const deployTrigger = () => `${integrations()}/trigger/deploy`;
 export const createConnectToken = () => `${integrations()}/connect-token`;
 export const integrationCallback = () => `${integrations()}/callback`;
 export const deleteIntegration = (integrationId: string) => `${integrations()}/${integrationId}`;

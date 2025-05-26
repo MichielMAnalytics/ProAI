@@ -385,6 +385,325 @@ const getIntegrationStatus = async (req, res) => {
   }
 };
 
+/**
+ * Get individual app details and metadata
+ */
+const getAppDetails = async (req, res) => {
+  const startTime = Date.now();
+  const userId = req.user?.id;
+  const { appSlug } = req.params;
+  
+  logger.info('=== getAppDetails: Starting request ===');
+  logger.info(`User ID: ${userId}, App Slug: ${appSlug}`);
+  
+  try {
+    if (!userId) {
+      logger.error('No user ID found in request');
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      });
+    }
+
+    if (!appSlug) {
+      logger.error('No app slug provided');
+      return res.status(400).json({
+        success: false,
+        message: 'App slug is required',
+      });
+    }
+    
+    logger.info(`Calling PipedreamService.getAppDetails(${appSlug})`);
+    const appDetails = await PipedreamService.getAppDetails(appSlug);
+    
+    // Enhanced logging to inspect the appDetails object structure
+    logger.info(`AppDetails object received from service for ${appSlug}:`, JSON.stringify(appDetails, null, 2));
+    if (appDetails) {
+      logger.info(`Fields in appDetails for ${appSlug}: id: ${!!appDetails.id}, name_slug: ${!!appDetails.name_slug}, name: ${!!appDetails.name}, img_src: ${!!appDetails.img_src}`);
+    } else {
+      logger.warn(`appDetails object from service is null or undefined for ${appSlug}`);
+    }
+    
+    logger.info(`Retrieved app details for ${appSlug}`);
+    logger.info(`getAppDetails completed in ${Date.now() - startTime}ms`);
+    
+    res.json({
+      success: true,
+      data: appDetails,
+    });
+  } catch (error) {
+    logger.error('=== getAppDetails: Error occurred ===');
+    logger.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      userId,
+      appSlug
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve app details',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get components (actions/triggers) for a specific app
+ */
+const getAppComponents = async (req, res) => {
+  const startTime = Date.now();
+  const userId = req.user?.id;
+  const { appSlug } = req.params;
+  const { type } = req.query; // 'actions', 'triggers', or undefined for both
+  
+  logger.info('=== getAppComponents: Starting request ===');
+  logger.info(`User ID: ${userId}, App Slug: ${appSlug}, Type: ${type}`);
+  
+  try {
+    if (!userId) {
+      logger.error('No user ID found in request');
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      });
+    }
+
+    if (!appSlug) {
+      logger.error('No app slug provided');
+      return res.status(400).json({
+        success: false,
+        message: 'App slug is required',
+      });
+    }
+    
+    logger.info(`Calling PipedreamService.getAppComponents(${appSlug}, ${type})`);
+    const components = await PipedreamService.getAppComponents(appSlug, type);
+    
+    logger.info(`Retrieved ${components?.actions?.length || 0} actions and ${components?.triggers?.length || 0} triggers for ${appSlug}`);
+    logger.info(`getAppComponents completed in ${Date.now() - startTime}ms`);
+    
+    res.json({
+      success: true,
+      data: components,
+    });
+  } catch (error) {
+    logger.error('=== getAppComponents: Error occurred ===');
+    logger.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      userId,
+      appSlug,
+      type
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve app components',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Configure a component's props
+ */
+const configureComponent = async (req, res) => {
+  const startTime = Date.now();
+  const userId = req.user?.id;
+  
+  logger.info('=== configureComponent: Starting request ===');
+  logger.info(`User ID: ${userId}`);
+  logger.info('Request body:', req.body);
+  
+  try {
+    if (!userId) {
+      logger.error('No user ID found in request');
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      });
+    }
+
+    const { componentId, propName, configuredProps, dynamicPropsId } = req.body;
+
+    if (!componentId || !propName) {
+      logger.error('Missing required parameters:', { componentId, propName });
+      return res.status(400).json({
+        success: false,
+        message: 'Component ID and prop name are required',
+      });
+    }
+    
+    logger.info(`Calling PipedreamService.configureComponent`);
+    const configuration = await PipedreamService.configureComponent(userId, {
+      componentId,
+      propName,
+      configuredProps,
+      dynamicPropsId,
+    });
+    
+    logger.info('Component configured successfully');
+    logger.info(`configureComponent completed in ${Date.now() - startTime}ms`);
+    
+    res.json({
+      success: true,
+      data: configuration,
+    });
+  } catch (error) {
+    logger.error('=== configureComponent: Error occurred ===');
+    logger.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      userId,
+      requestBody: req.body
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to configure component',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Run an action component
+ */
+const runAction = async (req, res) => {
+  const startTime = Date.now();
+  const userId = req.user?.id;
+  
+  logger.info('=== runAction: Starting request ===');
+  logger.info(`User ID: ${userId}`);
+  logger.info('Request body:', req.body);
+  
+  try {
+    if (!userId) {
+      logger.error('No user ID found in request');
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      });
+    }
+
+    const { componentId, configuredProps, dynamicPropsId } = req.body;
+
+    if (!componentId) {
+      logger.error('Missing required parameter: componentId');
+      return res.status(400).json({
+        success: false,
+        message: 'Component ID is required',
+      });
+    }
+    
+    logger.info(`Calling PipedreamService.runAction`);
+    const result = await PipedreamService.runAction(userId, {
+      componentId,
+      configuredProps,
+      dynamicPropsId,
+    });
+    
+    logger.info('Action executed successfully');
+    logger.info(`runAction completed in ${Date.now() - startTime}ms`);
+    
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    logger.error('=== runAction: Error occurred ===');
+    logger.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      userId,
+      requestBody: req.body
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to run action',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Deploy a trigger component
+ */
+const deployTrigger = async (req, res) => {
+  const startTime = Date.now();
+  const userId = req.user?.id;
+  
+  logger.info('=== deployTrigger: Starting request ===');
+  logger.info(`User ID: ${userId}`);
+  logger.info('Request body:', req.body);
+  
+  try {
+    if (!userId) {
+      logger.error('No user ID found in request');
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      });
+    }
+
+    const { componentId, configuredProps, webhookUrl, workflowId, dynamicPropsId } = req.body;
+
+    if (!componentId) {
+      logger.error('Missing required parameter: componentId');
+      return res.status(400).json({
+        success: false,
+        message: 'Component ID is required',
+      });
+    }
+
+    if (!webhookUrl && !workflowId) {
+      logger.error('Either webhook URL or workflow ID is required');
+      return res.status(400).json({
+        success: false,
+        message: 'Either webhook URL or workflow ID is required',
+      });
+    }
+    
+    logger.info(`Calling PipedreamService.deployTrigger`);
+    const deployment = await PipedreamService.deployTrigger(userId, {
+      componentId,
+      configuredProps,
+      webhookUrl,
+      workflowId,
+      dynamicPropsId,
+    });
+    
+    logger.info('Trigger deployed successfully');
+    logger.info(`deployTrigger completed in ${Date.now() - startTime}ms`);
+    
+    res.json({
+      success: true,
+      data: deployment,
+    });
+  } catch (error) {
+    logger.error('=== deployTrigger: Error occurred ===');
+    logger.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      userId,
+      requestBody: req.body
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to deploy trigger',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAvailableIntegrations,
   getUserIntegrations,
@@ -393,4 +712,9 @@ module.exports = {
   deleteIntegration,
   getMCPConfig,
   getIntegrationStatus,
+  getAppDetails,
+  getAppComponents,
+  configureComponent,
+  runAction,
+  deployTrigger,
 }; 

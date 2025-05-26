@@ -249,48 +249,168 @@ class PipedreamService {
       if (this.client && hasCredentials) {
         logger.info('Attempting to fetch integrations from Pipedream API...');
         try {
-          // Fetch all apps using pagination
-          let allApps = [];
-          let page = 1;
-          const limit = 100; // Use smaller batches for better performance
-          let hasMore = true;
+          // Use the REST API directly for better pagination support
+          const axios = require('axios');
+          const baseURL = process.env.PIPEDREAM_API_BASE_URL;
+          
+          // For the REST API, we need to authenticate properly
+          // The Pipedream API supports OAuth tokens or API keys
+          let authToken = process.env.PIPEDREAM_API_KEY;
+          
+          // If no API key, we might need to use OAuth with client credentials
+          if (!authToken && process.env.PIPEDREAM_CLIENT_ID && process.env.PIPEDREAM_CLIENT_SECRET) {
+            try {
+              logger.info('No API key found, attempting OAuth authentication...');
+              const tokenResponse = await axios.post(`${baseURL}/oauth/token`, {
+                grant_type: 'client_credentials',
+                client_id: process.env.PIPEDREAM_CLIENT_ID,
+                client_secret: process.env.PIPEDREAM_CLIENT_SECRET,
+              }, {
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+              });
+              
+              authToken = tokenResponse.data.access_token;
+              logger.info('Successfully obtained OAuth token');
+            } catch (oauthError) {
+              logger.error('Failed to obtain OAuth token:', oauthError.message);
+              throw new Error('Failed to authenticate with Pipedream API');
+            }
+          }
+          
+          if (!authToken) {
+            throw new Error('No authentication credentials available for Pipedream API');
+          }
 
-          while (hasMore) {
-            logger.info(`Fetching page ${page} of integrations (limit: ${limit})...`);
+          let allApps = [];
+          let cursor = null;
+          let page = 1;
+          const limit = 100;
+          
+          // Track unique app IDs to detect duplicates
+          const seenAppIds = new Set();
+          const duplicateStats = { total: 0, byPage: {} };
+
+          while (true) {
+            logger.info(`Fetching page ${page} of integrations (limit: ${limit}, cursor: ${cursor || 'none'})...`);
             
-            const response = await this.client.getApps({
-              limit: limit,
-              offset: (page - 1) * limit,
-            });
-            
-            if (response?.data && Array.isArray(response.data)) {
-              allApps = allApps.concat(response.data);
-              logger.info(`Page ${page}: Retrieved ${response.data.length} apps (total so far: ${allApps.length})`);
+            try {
+              const params = {
+                limit: limit,
+              };
               
-              // Check if we got fewer results than the limit, indicating we've reached the end
-              hasMore = response.data.length === limit;
-              page++;
+              if (cursor) {
+                params.after = cursor;
+              }
               
-              // Safety check to prevent infinite loops
-              if (page > 100) { // Max 10,000 apps (100 pages * 100 per page)
-                logger.warn('Reached maximum page limit (100), stopping pagination');
+              const response = await axios.get(`${baseURL}/apps`, {
+                headers: {
+                  'Authorization': `Bearer ${authToken}`,
+                  'Content-Type': 'application/json',
+                },
+                params: params,
+              });
+              
+              const { data, page_info } = response.data;
+              
+              logger.info(`API Response:`, {
+                pageNumber: page,
+                dataLength: data?.length || 0,
+                hasPageInfo: !!page_info,
+                totalCount: page_info?.total_count,
+                startCursor: page_info?.start_cursor,
+                endCursor: page_info?.end_cursor,
+                count: page_info?.count,
+              });
+              
+              if (data && Array.isArray(data)) {
+                // Process apps and check for duplicates
+                let pageDuplicates = 0;
+                const pageApps = [];
+                
+                data.forEach((app, index) => {
+                  if (seenAppIds.has(app.id)) {
+                    pageDuplicates++;
+                    logger.warn(`Duplicate app found on page ${page}, index ${index}:`, {
+                      id: app.id,
+                      slug: app.name_slug,
+                      name: app.name,
+                    });
+                  } else {
+                    seenAppIds.add(app.id);
+                    pageApps.push(app);
+                  }
+                });
+                
+                duplicateStats.byPage[page] = pageDuplicates;
+                duplicateStats.total += pageDuplicates;
+                
+                allApps = allApps.concat(pageApps);
+                
+                logger.info(`Page ${page} processing complete:`, {
+                  pageAppsReceived: data.length,
+                  pageAppsKept: pageApps.length,
+                  pageDuplicates: pageDuplicates,
+                  totalAppsSoFar: allApps.length,
+                  uniqueAppIdsSoFar: seenAppIds.size,
+                });
+                
+                // Check if we should continue pagination
+                if (!page_info?.end_cursor || data.length === 0) {
+                  logger.info('No more pages available, stopping pagination');
+                  break;
+                }
+                
+                // If this page had all duplicates, something is wrong
+                if (data.length > 0 && pageApps.length === 0) {
+                  logger.warn(`Page ${page} contained only duplicates, stopping pagination`);
+                  break;
+                }
+                
+                cursor = page_info.end_cursor;
+                page++;
+                
+                // Safety check
+                if (page > 100) {
+                  logger.warn('Reached maximum page limit (100), stopping pagination');
+                  break;
+                }
+              } else {
+                logger.warn(`Invalid response format on page ${page}`);
                 break;
               }
-            } else {
-              logger.warn(`Page ${page}: Invalid response format, stopping pagination`);
+            } catch (apiError) {
+              logger.error(`Error fetching page ${page}:`, {
+                message: apiError.message,
+                response: apiError.response?.data,
+                status: apiError.response?.status,
+              });
               break;
             }
           }
           
-          logger.info('Pipedream API pagination completed:', {
+          logger.info('Pipedream API pagination completed - FINAL STATS:', {
             totalApps: allApps.length,
-            totalPages: page - 1
+            uniqueAppIds: seenAppIds.size,
+            totalPages: page,
+            duplicateStats: duplicateStats,
+            firstFewApps: allApps.slice(0, 5).map(app => ({
+              id: app.id,
+              slug: app.name_slug,
+              name: app.name,
+            })),
+            lastFewApps: allApps.slice(-5).map(app => ({
+              id: app.id,
+              slug: app.name_slug,
+              name: app.name,
+            })),
           });
 
           if (allApps.length > 0) {
-            // Transform Pipedream apps to our integration format
+            // Transform REST API response to our integration format
             const integrations = allApps.map(app => ({
-              appSlug: app.slug || app.id || app.name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
+              appSlug: app.name_slug || app.slug || app.id,
               appName: app.name,
               appDescription: app.description || `Connect with ${app.name}`,
               appIcon: app.img_src,
@@ -301,11 +421,21 @@ class PipedreamService {
                        app.auth_type === 'keys' ? 'api_key' : 
                        app.auth_type === 'basic' ? 'basic' : 'oauth',
               isActive: true,
-              popularity: 0,
+              popularity: app.featured_weight || 0,
               lastUpdated: new Date(),
             }));
 
             logger.info(`Transformed ${integrations.length} integrations from ${allApps.length} Pipedream apps`);
+            
+            // Check for duplicates in transformed integrations
+            const slugCounts = {};
+            integrations.forEach(int => {
+              slugCounts[int.appSlug] = (slugCounts[int.appSlug] || 0) + 1;
+            });
+            const duplicateSlugs = Object.entries(slugCounts).filter(([_, count]) => count > 1);
+            if (duplicateSlugs.length > 0) {
+              logger.warn('Duplicate slugs found after transformation:', duplicateSlugs);
+            }
             
             if (integrations.length > 0) {
               // Cache the new integrations
@@ -637,20 +767,81 @@ class PipedreamService {
    */
   async cacheAvailableIntegrations(integrations) {
     try {
-      logger.info(`Caching ${integrations.length} integrations in database...`);
+      logger.info(`=== cacheAvailableIntegrations: Starting ===`);
+      logger.info(`Input: ${integrations.length} integrations to cache`);
+      
+      // Log distribution of integrations by various properties
+      const stats = {
+        totalInput: integrations.length,
+        byAuthType: {},
+        byCategoryCount: {},
+        withoutSlug: 0,
+        withoutName: 0,
+        slugLengths: [],
+      };
+      
+      integrations.forEach((int, index) => {
+        // Track auth types
+        stats.byAuthType[int.authType] = (stats.byAuthType[int.authType] || 0) + 1;
+        
+        // Track category counts
+        const catCount = int.appCategories?.length || 0;
+        stats.byCategoryCount[catCount] = (stats.byCategoryCount[catCount] || 0) + 1;
+        
+        // Track missing data
+        if (!int.appSlug) {
+          stats.withoutSlug++;
+          logger.warn(`Integration at index ${index} missing appSlug:`, {
+            appName: int.appName,
+            pipedreamAppId: int.pipedreamAppId,
+          });
+        }
+        if (!int.appName) {
+          stats.withoutName++;
+          logger.warn(`Integration at index ${index} missing appName:`, {
+            appSlug: int.appSlug,
+            pipedreamAppId: int.pipedreamAppId,
+          });
+        }
+        
+        // Track slug lengths
+        if (int.appSlug) {
+          stats.slugLengths.push(int.appSlug.length);
+        }
+      });
+      
+      stats.avgSlugLength = stats.slugLengths.length > 0 
+        ? Math.round(stats.slugLengths.reduce((a, b) => a + b, 0) / stats.slugLengths.length)
+        : 0;
+      stats.maxSlugLength = Math.max(...stats.slugLengths, 0);
+      stats.minSlugLength = Math.min(...stats.slugLengths, Infinity);
+      
+      logger.info('Integration statistics before deduplication:', stats);
       
       // Deduplicate integrations by appSlug (keep the first occurrence)
       const uniqueIntegrations = [];
       const seenSlugs = new Set();
+      const duplicatedSlugs = [];
       
       for (const integration of integrations) {
         if (!seenSlugs.has(integration.appSlug)) {
           seenSlugs.add(integration.appSlug);
           uniqueIntegrations.push(integration);
+        } else {
+          duplicatedSlugs.push({
+            appSlug: integration.appSlug,
+            appName: integration.appName,
+            pipedreamAppId: integration.pipedreamAppId,
+          });
         }
       }
       
-      logger.info(`Deduplicated ${integrations.length} integrations to ${uniqueIntegrations.length} unique integrations`);
+      logger.info(`Deduplication complete:`, {
+        inputCount: integrations.length,
+        uniqueCount: uniqueIntegrations.length,
+        duplicatesRemoved: integrations.length - uniqueIntegrations.length,
+        duplicatedSlugs: duplicatedSlugs.slice(0, 10), // Show first 10 duplicates
+      });
       
       // Validate the first integration to check the structure
       if (uniqueIntegrations.length > 0) {
@@ -738,32 +929,133 @@ class PipedreamService {
         return;
       }
 
-      // Fetch all apps using pagination
+      // Use the REST API directly for better pagination support
+      const axios = require('axios');
+      const baseURL = process.env.PIPEDREAM_API_BASE_URL;
+      
+      // For the REST API, we need to authenticate properly
+      // The Pipedream API supports OAuth tokens or API keys
+      let authToken = process.env.PIPEDREAM_API_KEY;
+      
+      // If no API key, we might need to use OAuth with client credentials
+      if (!authToken && process.env.PIPEDREAM_CLIENT_ID && process.env.PIPEDREAM_CLIENT_SECRET) {
+        try {
+          logger.info('No API key found, attempting OAuth authentication...');
+          const tokenResponse = await axios.post(`${baseURL}/oauth/token`, {
+            grant_type: 'client_credentials',
+            client_id: process.env.PIPEDREAM_CLIENT_ID,
+            client_secret: process.env.PIPEDREAM_CLIENT_SECRET,
+          }, {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          authToken = tokenResponse.data.access_token;
+          logger.info('Successfully obtained OAuth token');
+        } catch (oauthError) {
+          logger.error('Failed to obtain OAuth token:', oauthError.message);
+          throw new Error('Failed to authenticate with Pipedream API');
+        }
+      }
+      
+      if (!authToken) {
+        throw new Error('No authentication credentials available for Pipedream API');
+      }
+
       let allApps = [];
+      let cursor = null;
       let page = 1;
       const limit = 100;
-      let hasMore = true;
+      
+      // Track unique app IDs to detect duplicates
+      const seenAppIds = new Set();
+      const duplicateStats = { total: 0, byPage: {} };
 
-      while (hasMore) {
-        const response = await this.client.getApps({
-          limit: limit,
-          offset: (page - 1) * limit,
-        });
+      while (true) {
+        logger.info(`Background refresh: Fetching page ${page} (limit: ${limit}, cursor: ${cursor || 'none'})...`);
         
-        if (response?.data && Array.isArray(response.data)) {
-          allApps = allApps.concat(response.data);
-          hasMore = response.data.length === limit;
-          page++;
+        try {
+          const params = {
+            limit: limit,
+          };
           
-          if (page > 100) break; // Safety check
-        } else {
+          if (cursor) {
+            params.after = cursor;
+          }
+          
+          const response = await axios.get(`${baseURL}/apps`, {
+            headers: {
+              'Authorization': `Bearer ${authToken}`,
+              'Content-Type': 'application/json',
+            },
+            params: params,
+          });
+          
+          const { data, page_info } = response.data;
+          
+          if (data && Array.isArray(data)) {
+            // Track duplicates on this page
+            let pageDuplicates = 0;
+            const pageApps = [];
+            
+            data.forEach((app) => {
+              if (seenAppIds.has(app.id)) {
+                pageDuplicates++;
+              } else {
+                seenAppIds.add(app.id);
+                pageApps.push(app);
+              }
+            });
+            
+            duplicateStats.byPage[page] = pageDuplicates;
+            duplicateStats.total += pageDuplicates;
+            
+            allApps = allApps.concat(pageApps);
+            
+            logger.info(`Background refresh: Page ${page} complete:`, {
+              pageAppsReceived: data.length,
+              pageAppsKept: pageApps.length,
+              pageDuplicates: pageDuplicates,
+              totalAppsSoFar: allApps.length,
+              uniqueAppIdsSoFar: seenAppIds.size,
+            });
+            
+            // Check if we should continue pagination
+            if (!page_info?.end_cursor || data.length === 0) {
+              break;
+            }
+            
+            // If this page had all duplicates, something is wrong
+            if (data.length > 0 && pageApps.length === 0) {
+              logger.info(`Background refresh: Page ${page} contained only duplicates, stopping pagination`);
+              break;
+            }
+            
+            cursor = page_info.end_cursor;
+            page++;
+            
+            if (page > 100) break; // Safety check
+          } else {
+            logger.warn(`Background refresh: Invalid response on page ${page}`);
+            break;
+          }
+        } catch (apiError) {
+          logger.error(`Background refresh: Error fetching page ${page}:`, apiError.message);
           break;
         }
       }
+      
+      logger.info('Background refresh: Pagination completed - FINAL STATS:', {
+        totalApps: allApps.length,
+        uniqueAppIds: seenAppIds.size,
+        totalPages: page,
+        duplicateStats: duplicateStats,
+      });
 
       if (allApps.length > 0) {
         const integrations = allApps.map(app => ({
-          appSlug: app.slug || app.id || app.name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
+          appSlug: app.name_slug || app.slug || app.id,
           appName: app.name,
           appDescription: app.description || `Connect with ${app.name}`,
           appIcon: app.img_src,
@@ -774,7 +1066,7 @@ class PipedreamService {
                    app.auth_type === 'keys' ? 'api_key' : 
                    app.auth_type === 'basic' ? 'basic' : 'oauth',
           isActive: true,
-          popularity: 0,
+          popularity: app.featured_weight || 0,
           lastUpdated: new Date(),
         }));
 
@@ -818,6 +1110,447 @@ class PipedreamService {
         logger.error('Initial refresh: Failed:', error);
       }
     }, 30000); // 30 seconds delay
+  }
+
+  /**
+   * Get individual app details and metadata
+   */
+  async getAppDetails(appIdentifier) {
+    logger.info(`=== PipedreamService.getAppDetails: Starting for ${appIdentifier} ===`);
+    
+    if (!this.isEnabled()) {
+      logger.warn('Pipedream service is not enabled');
+      return this.getMockAppDetails(appIdentifier);
+    }
+
+    // Check if we have Pipedream credentials
+    const hasCredentials = this.isClientConfigured();
+    
+    if (!hasCredentials || !this.client) {
+      logger.warn('No Pipedream credentials or client not initialized, returning mock data');
+      return this.getMockAppDetails(appIdentifier);
+    }
+
+    try {
+      // First, try to get app details from our cached available integrations
+      // Check if the identifier is a pipedreamAppId (starts with app_) or an appSlug
+      const query = appIdentifier.startsWith('app_') 
+        ? { pipedreamAppId: appIdentifier, isActive: true }
+        : { appSlug: appIdentifier, isActive: true };
+        
+      const cachedIntegration = await AvailableIntegration.findOne(query).lean();
+
+      if (cachedIntegration) {
+        logger.info(`Found cached app details for ${appIdentifier}`);
+        return {
+          id: cachedIntegration.pipedreamAppId,
+          name_slug: cachedIntegration.appSlug,
+          name: cachedIntegration.appName,
+          auth_type: cachedIntegration.authType,
+          description: cachedIntegration.appDescription,
+          img_src: cachedIntegration.appIcon,
+          categories: cachedIntegration.appCategories || [],
+          // Add additional metadata
+          isConnectable: true,
+          hasActions: true,
+          hasTriggers: true,
+        };
+      }
+
+      // If not in cache, try to fetch from Pipedream API
+      logger.info(`Fetching app details from Pipedream API for ${appIdentifier}`);
+      
+      const axios = require('axios');
+      const baseURL = 'https://api.pipedream.com/v1'; // General Pipedream API
+      let authToken = process.env.PIPEDREAM_API_KEY;
+      
+      if (!authToken && process.env.PIPEDREAM_CLIENT_ID && process.env.PIPEDREAM_CLIENT_SECRET) {
+        try {
+          logger.info('Attempting OAuth token for getAppDetails');
+          const tokenResponse = await axios.post(`${baseURL}/oauth/token`, {
+            grant_type: 'client_credentials',
+            client_id: process.env.PIPEDREAM_CLIENT_ID,
+            client_secret: process.env.PIPEDREAM_CLIENT_SECRET,
+          });
+          authToken = tokenResponse.data.access_token;
+          logger.info('OAuth token obtained for getAppDetails');
+        } catch (tokenError) {
+          logger.error(`Failed to get OAuth token for getAppDetails for ${appIdentifier}: ${tokenError.message}`);
+          // Fallback to mock if auth fails, as per existing pattern
+          return this.getMockAppDetails(appIdentifier);
+        }
+      }
+
+      if (!authToken) {
+        logger.error(`No authentication token available for getAppDetails for ${appIdentifier}`);
+        return this.getMockAppDetails(appIdentifier);
+      }
+
+      // The general /apps/{app_id_or_slug} endpoint should be used here.
+      // If appIdentifier is an app_id (e.g., app_w0hvV7), it should work directly.
+      try {
+        const response = await axios.get(`${baseURL}/apps/${appIdentifier}`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        // According to Pipedream REST API for GET /apps/{app_id}, response.data.data is an object
+        if (response.data && response.data.data) {
+          const appData = response.data.data; // Should be an object, not an array for a single app GET
+          logger.info(`Successfully fetched app details from API for ${appIdentifier}:`, appData);
+          return {
+            id: appData.id, // This is the pipedreamAppId
+            name_slug: appData.name_slug, // This is the Pipedream slug
+            name: appData.name,
+            auth_type: appData.auth_type,
+            description: appData.description,
+            img_src: appData.img_src,
+            categories: appData.categories || [],
+            isConnectable: true, // Assuming apps from API are connectable
+            hasActions: true,    // Placeholder, will be determined by getAppComponents
+            hasTriggers: false,  // Triggers are not needed
+          };
+        } else {
+          logger.warn(`No app data found in API response for ${appIdentifier}. Response:`, response.data);
+          return this.getMockAppDetails(appIdentifier);
+        }
+      } catch (apiError) {
+        logger.error(`API error fetching app details for ${appIdentifier}: ${apiError.message}`);
+        if (apiError.response) {
+          logger.error(`API response status: ${apiError.response.status}`);
+          logger.error(`API response data:`, JSON.stringify(apiError.response.data));
+          logger.error(`API response headers:`, JSON.stringify(apiError.response.headers));
+        }
+        return this.getMockAppDetails(appIdentifier);
+      }
+    } catch (error) {
+      // Catch any other errors (e.g., from cache query)
+      logger.error(`Generic error in getAppDetails for ${appIdentifier}: ${error.message}`);
+      return this.getMockAppDetails(appIdentifier);
+    }
+  }
+
+  /**
+   * Get components (actions/triggers) for a specific app
+   */
+  async getAppComponents(appIdentifier, type = null) {
+    logger.info(`=== PipedreamService.getAppComponents: Starting for ${appIdentifier}, type: actions (hardcoded) ===`);
+    
+    if (!this.isEnabled()) {
+      logger.warn('Pipedream service is not enabled');
+      return this.getMockAppComponents(appIdentifier, 'actions');
+    }
+
+    const hasCredentials = this.isClientConfigured();
+    if (!hasCredentials || !this.client) {
+      logger.warn('No Pipedream credentials or client not initialized, returning mock data');
+      return this.getMockAppComponents(appIdentifier, 'actions');
+    }
+
+    try {
+      let pipedreamAppId = appIdentifier;
+      let appNameSlug = appIdentifier;
+      
+      const query = appIdentifier.startsWith('app_') 
+        ? { pipedreamAppId: appIdentifier, isActive: true }
+        : { appSlug: appIdentifier, isActive: true };
+      const cachedIntegration = await AvailableIntegration.findOne(query).lean();
+
+      if (cachedIntegration) {
+        if (cachedIntegration.pipedreamAppId) {
+          pipedreamAppId = cachedIntegration.pipedreamAppId;
+        }
+        appNameSlug = cachedIntegration.appSlug.replace(/^_+/, '');
+        logger.info(`Using pipedreamAppId ${pipedreamAppId} and nameSlug ${appNameSlug} for ${appIdentifier}`);
+      } else {
+        logger.warn(`No cached integration found for ${appIdentifier}, attempting to use as-is.`);
+        if (appIdentifier.startsWith('app_') && appIdentifier.length > 4) {
+           // Attempt to derive a slug if it's an app_id, though this is a guess.
+           // Pipedream SDK typically uses the name slug, not the app_id for getComponents.
+           appNameSlug = appIdentifier.substring(4); 
+        } else {
+          appNameSlug = appIdentifier.replace(/^_+/, '');
+        }
+      }
+
+      const result = { actions: [], triggers: [] }; // Keep structure, but triggers will remain empty
+
+      // Try using the SDK first for actions
+      try {
+        logger.info(`Attempting to fetch actions (components) using SDK for app: ${appNameSlug}`);
+        const componentsResponse = await this.client.getComponents({
+          app: appNameSlug, // SDK uses the name slug for the app
+          limit: 100, // Fetch more components if needed
+        });
+
+        if (componentsResponse && componentsResponse.data) {
+          const components = componentsResponse.data;
+          logger.info(`SDK returned ${components.length} components for ${appNameSlug}`);
+          
+          components.forEach(component => {
+            const key = component.key || '';
+            const name = component.name || '';
+            // Simple heuristic: if it doesn't seem like a trigger, assume it's an action/tool.
+            // Pipedream components can be generic, SDK's getComponents fetches all.
+            // We are interested in actions.
+            if (!(key.includes('trigger') || name.toLowerCase().includes('trigger') || name.includes('New ') || name.includes('Updated '))) {
+              result.actions.push(component);
+            }
+          });
+          
+          logger.info(`SDK call categorized into ${result.actions.length} actions`);
+          return result;
+        }
+      } catch (sdkError) {
+        logger.error(`SDK error fetching components for ${appNameSlug}: ${sdkError.message}. Response: ${sdkError.response?.data ? JSON.stringify(sdkError.response.data) : 'N/A'}`);
+        logger.info(`Falling back to direct API call for actions for ${pipedreamAppId}`);
+      }
+
+      // Fallback to direct API calls for actions if SDK fails or returns no actions
+      const axios = require('axios');
+      const baseURL = 'https://api.pipedream.com/v1';
+      const projectId = process.env.PIPEDREAM_PROJECT_ID;
+      
+      if (!projectId) {
+        logger.error('PIPEDREAM_PROJECT_ID is required for Connect API calls (actions)');
+        return this.getMockAppComponents(appIdentifier, 'actions');
+      }
+      
+      let authToken = process.env.PIPEDREAM_API_KEY;
+      if (!authToken && process.env.PIPEDREAM_CLIENT_ID && process.env.PIPEDREAM_CLIENT_SECRET) {
+        try {
+          const tokenResponse = await axios.post(`${baseURL}/oauth/token`, {
+            grant_type: 'client_credentials',
+            client_id: process.env.PIPEDREAM_CLIENT_ID,
+            client_secret: process.env.PIPEDREAM_CLIENT_SECRET,
+          });
+          authToken = tokenResponse.data.access_token;
+        } catch (tokenError) {
+          logger.error('Failed to get OAuth token for getAppComponents (actions): ', tokenError.message);
+          return this.getMockAppComponents(appIdentifier, 'actions');
+        }
+      }
+
+      if (!authToken) {
+        logger.error('No authentication token available for getAppComponents (actions)');
+        return this.getMockAppComponents(appIdentifier, 'actions');
+      }
+      
+      try {
+        logger.info(`Fetching actions using Connect API for app identifier: ${pipedreamAppId}`);
+        const actionsResponse = await axios.get(`${baseURL}/connect/${projectId}/actions`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+          params: {
+            app: pipedreamAppId, // Connect API for actions uses the app_id (pipedreamAppId)
+            limit: 100,
+          },
+        });
+
+        if (actionsResponse.data && actionsResponse.data.data) {
+          result.actions = actionsResponse.data.data;
+          logger.info(`Connect API found ${result.actions.length} actions for ${pipedreamAppId}`);
+        } else {
+          logger.info(`No actions found via Connect API for ${pipedreamAppId} (empty response)`);
+        }
+      } catch (error) {
+        logger.error(`Error fetching actions via Connect API for ${pipedreamAppId}: ${error.message}`);
+        if (error.response) {
+          logger.error(`API response status: ${error.response.status}`);
+          logger.error(`API response data:`, JSON.stringify(error.response.data));
+          logger.error(`API response headers:`, JSON.stringify(error.response.headers));
+          if (error.response.status === 404) {
+            logger.info(`App ${pipedreamAppId} might have no actions available (404 from Connect API).`);
+          }
+        }
+      }
+      // Triggers are intentionally not fetched.
+      return result;
+
+    } catch (error) {
+      logger.error(`Generic error in getAppComponents for ${appIdentifier}:`, error.message);
+      return this.getMockAppComponents(appIdentifier, 'actions');
+    }
+  }
+
+  /**
+   * Configure a component's props
+   */
+  async configureComponent(userId, options) {
+    logger.info(`=== PipedreamService.configureComponent: Starting for user ${userId} ===`);
+    
+    if (!this.isEnabled()) {
+      throw new Error('Pipedream integration is not enabled');
+    }
+
+    if (!this.client) {
+      throw new Error('Pipedream client not initialized');
+    }
+
+    try {
+      const { componentId, propName, configuredProps, dynamicPropsId } = options;
+
+      const result = await this.client.configureComponent({
+        id: componentId,
+        external_user_id: userId,
+        prop_name: propName,
+        configured_props: configuredProps || {},
+        dynamic_props_id: dynamicPropsId,
+      });
+
+      logger.info(`Successfully configured component ${componentId} for user ${userId}`);
+      return result;
+    } catch (error) {
+      logger.error('Failed to configure component:', error);
+      throw new Error('Failed to configure component');
+    }
+  }
+
+  /**
+   * Run an action component
+   */
+  async runAction(userId, options) {
+    logger.info(`=== PipedreamService.runAction: Starting for user ${userId} ===`);
+    
+    if (!this.isEnabled()) {
+      throw new Error('Pipedream integration is not enabled');
+    }
+
+    if (!this.client) {
+      throw new Error('Pipedream client not initialized');
+    }
+
+    try {
+      const { componentId, configuredProps, dynamicPropsId } = options;
+
+      const result = await this.client.runAction({
+        id: componentId,
+        external_user_id: userId,
+        configured_props: configuredProps || {},
+        dynamic_props_id: dynamicPropsId,
+      });
+
+      logger.info(`Successfully ran action ${componentId} for user ${userId}`);
+      return result;
+    } catch (error) {
+      logger.error('Failed to run action:', error);
+      throw new Error('Failed to run action');
+    }
+  }
+
+  /**
+   * Deploy a trigger component
+   */
+  async deployTrigger(userId, options) {
+    logger.info(`=== PipedreamService.deployTrigger: Starting for user ${userId} ===`);
+    
+    if (!this.isEnabled()) {
+      throw new Error('Pipedream integration is not enabled');
+    }
+
+    if (!this.client) {
+      throw new Error('Pipedream client not initialized');
+    }
+
+    try {
+      const { componentId, configuredProps, webhookUrl, workflowId, dynamicPropsId } = options;
+
+      const deployOptions = {
+        id: componentId,
+        external_user_id: userId,
+        configured_props: configuredProps || {},
+        dynamic_props_id: dynamicPropsId,
+      };
+
+      if (webhookUrl) {
+        deployOptions.webhook_url = webhookUrl;
+      }
+
+      if (workflowId) {
+        deployOptions.workflow_id = workflowId;
+      }
+
+      const result = await this.client.deployTrigger(deployOptions);
+
+      logger.info(`Successfully deployed trigger ${componentId} for user ${userId}`);
+      return result;
+    } catch (error) {
+      logger.error('Failed to deploy trigger:', error);
+      throw new Error('Failed to deploy trigger');
+    }
+  }
+
+  /**
+   * Get mock app details for development/testing
+   */
+  getMockAppDetails(appSlug) {
+    logger.info(`Returning mock app details for ${appSlug}`);
+    
+    return {
+      id: `app_mock_${appSlug}`,
+      name_slug: appSlug,
+      name: appSlug.charAt(0).toUpperCase() + appSlug.slice(1).replace(/_/g, ' '),
+      auth_type: 'oauth',
+      description: `Mock integration for ${appSlug}. This is a development placeholder.`,
+      img_src: `https://via.placeholder.com/64x64?text=${appSlug.charAt(0).toUpperCase()}`,
+      categories: ['Development', 'Mock'],
+      isConnectable: true,
+      hasActions: true,
+      hasTriggers: true,
+    };
+  }
+
+  /**
+   * Get mock app components for development/testing
+   */
+  getMockAppComponents(appSlug, type) {
+    logger.info(`Returning mock components for ${appSlug}, type: actions (hardcoded)`);
+    
+    const result = { actions: [], triggers: [] }; // Keep structure, triggers will be empty
+
+    // Only return actions as triggers are not needed
+    result.actions = [
+      {
+        name: `Send ${appSlug} Message`,
+        version: '1.0.0',
+        key: `${appSlug}-send-message`,
+        description: `Send a message using ${appSlug}`,
+        configurable_props: [
+          {
+            name: 'message',
+            type: 'string',
+            label: 'Message',
+            description: 'The message to send',
+          },
+        ],
+      },
+      {
+        name: `Create ${appSlug} Record`,
+        version: '1.0.0',
+        key: `${appSlug}-create-record`,
+        description: `Create a new record in ${appSlug}`,
+        configurable_props: [
+          {
+            name: 'title',
+            type: 'string',
+            label: 'Title',
+            description: 'The title of the record',
+          },
+          {
+            name: 'content',
+            type: 'string',
+            label: 'Content',
+            description: 'The content of the record',
+          },
+        ],
+      },
+    ];
+    
+    return result;
   }
 }
 

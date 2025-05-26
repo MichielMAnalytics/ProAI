@@ -600,11 +600,46 @@ export const useMCPConfigQuery = (
     [QueryKeys.mcpConfig],
     () => dataService.getMCPConfig(),
     {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      cacheTime: 30 * 60 * 1000, // 30 minutes
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       refetchOnMount: false,
+      ...config,
+    },
+  );
+};
+
+export const useAppDetailsQuery = (
+  appSlug: string,
+  config?: UseQueryOptions<t.TAppDetails>,
+): QueryObserverResult<t.TAppDetails> => {
+  return useQuery<t.TAppDetails>(
+    [QueryKeys.appDetails, appSlug],
+    () => dataService.getAppDetails(appSlug),
+    {
+      enabled: !!appSlug,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      select: (data: any) => data.data,
+      ...config,
+    },
+  );
+};
+
+export const useAppComponentsQuery = (
+  appSlug: string,
+  type?: string,
+  config?: UseQueryOptions<t.TAppComponents>,
+): QueryObserverResult<t.TAppComponents> => {
+  return useQuery<t.TAppComponents>(
+    [QueryKeys.appComponents, appSlug, type],
+    () => dataService.getAppComponents(appSlug, type),
+    {
+      enabled: !!appSlug,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      select: (data: any) => data.data,
       ...config,
     },
   );

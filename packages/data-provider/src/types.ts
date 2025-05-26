@@ -647,3 +647,81 @@ export type TMCPConfigResponse = {
     timeout?: number;
   };
 };
+
+// App Details and Components Types
+export type TAppDetails = {
+  id: string;
+  name_slug: string;
+  name: string;
+  auth_type: 'oauth' | 'api_key' | 'basic' | 'none';
+  description?: string;
+  img_src?: string;
+  categories?: string[];
+  isConnectable: boolean;
+  hasActions: boolean;
+  hasTriggers: boolean;
+};
+
+export type TComponentProp = {
+  name: string;
+  type: string;
+  label: string;
+  description?: string;
+  required?: boolean;
+  default?: unknown;
+  options?: Array<{ label: string; value: unknown }>;
+};
+
+export type TAppComponent = {
+  name: string;
+  version: string;
+  key: string;
+  description?: string;
+  configurable_props?: TComponentProp[];
+  type?: 'action' | 'trigger';
+};
+
+export type TAppComponents = {
+  actions: TAppComponent[];
+  triggers: TAppComponent[];
+};
+
+export type TConfigureComponentRequest = {
+  componentId: string;
+  propName: string;
+  configuredProps?: Record<string, unknown>;
+  dynamicPropsId?: string;
+};
+
+export type TConfigureComponentResponse = {
+  props: TComponentProp[];
+  dynamicPropsId?: string;
+};
+
+export type TRunActionRequest = {
+  componentId: string;
+  configuredProps?: Record<string, unknown>;
+  dynamicPropsId?: string;
+};
+
+export type TRunActionResponse = {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+};
+
+export type TDeployTriggerRequest = {
+  componentId: string;
+  configuredProps?: Record<string, unknown>;
+  webhookUrl?: string;
+  workflowId?: string;
+  dynamicPropsId?: string;
+};
+
+export type TDeployTriggerResponse = {
+  id: string;
+  name: string;
+  owner_id: string;
+  webhook_url?: string;
+  workflow_id?: string;
+};

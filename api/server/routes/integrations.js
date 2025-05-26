@@ -7,6 +7,11 @@ const {
   deleteIntegration,
   getMCPConfig,
   getIntegrationStatus,
+  getAppDetails,
+  getAppComponents,
+  configureComponent,
+  runAction,
+  deployTrigger,
 } = require('~/server/controllers/IntegrationsController');
 const { requireJwtAuth } = require('~/server/middleware');
 
@@ -32,6 +37,41 @@ router.get('/available', requireJwtAuth, getAvailableIntegrations);
  * @access Private
  */
 router.get('/user', requireJwtAuth, getUserIntegrations);
+
+/**
+ * @route GET /api/integrations/app/:appSlug
+ * @desc Get individual app details and metadata
+ * @access Private
+ */
+router.get('/app/:appSlug', requireJwtAuth, getAppDetails);
+
+/**
+ * @route GET /api/integrations/app/:appSlug/components
+ * @desc Get components (actions/triggers) for a specific app
+ * @access Private
+ */
+router.get('/app/:appSlug/components', requireJwtAuth, getAppComponents);
+
+/**
+ * @route POST /api/integrations/component/configure
+ * @desc Configure a component's props
+ * @access Private
+ */
+router.post('/component/configure', requireJwtAuth, configureComponent);
+
+/**
+ * @route POST /api/integrations/action/run
+ * @desc Run an action component
+ * @access Private
+ */
+router.post('/action/run', requireJwtAuth, runAction);
+
+/**
+ * @route POST /api/integrations/trigger/deploy
+ * @desc Deploy a trigger component
+ * @access Private
+ */
+router.post('/trigger/deploy', requireJwtAuth, deployTrigger);
 
 /**
  * @route POST /api/integrations/connect-token

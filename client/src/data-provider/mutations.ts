@@ -1080,3 +1080,46 @@ export const useDeleteIntegrationMutation = (
     onMutate: options?.onMutate,
   });
 };
+
+/**
+ * Hook for configuring a component's props
+ */
+export const useConfigureComponentMutation = (
+  options?: t.MutationOptions<t.TConfigureComponentResponse, t.TConfigureComponentRequest>,
+): UseMutationResult<t.TConfigureComponentResponse, unknown, t.TConfigureComponentRequest, unknown> => {
+  return useMutation([MutationKeys.configureComponent], {
+    mutationFn: (variables: t.TConfigureComponentRequest) => dataService.configureComponent(variables),
+    ...(options || {}),
+  });
+};
+
+/**
+ * Hook for running an action component
+ */
+export const useRunActionMutation = (
+  options?: t.MutationOptions<t.TRunActionResponse, t.TRunActionRequest>,
+): UseMutationResult<t.TRunActionResponse, unknown, t.TRunActionRequest, unknown> => {
+  return useMutation([MutationKeys.runAction], {
+    mutationFn: (variables: t.TRunActionRequest) => dataService.runAction(variables),
+    ...(options || {}),
+  });
+};
+
+/**
+ * Hook for deploying a trigger component
+ */
+export const useDeployTriggerMutation = (
+  options?: t.MutationOptions<t.TDeployTriggerResponse, t.TDeployTriggerRequest>,
+): UseMutationResult<t.TDeployTriggerResponse, unknown, t.TDeployTriggerRequest, unknown> => {
+  const queryClient = useQueryClient();
+  return useMutation([MutationKeys.deployTrigger], {
+    mutationFn: (variables: t.TDeployTriggerRequest) => dataService.deployTrigger(variables),
+    onSuccess: (data, variables, context) => {
+      // Invalidate user integrations to refresh the list
+      queryClient.invalidateQueries([QueryKeys.userIntegrations]);
+      options?.onSuccess?.(data, variables, context);
+    },
+    onError: options?.onError,
+    onMutate: options?.onMutate,
+  });
+};

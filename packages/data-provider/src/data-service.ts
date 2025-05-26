@@ -812,3 +812,23 @@ export function deleteIntegration(integrationId: string): Promise<t.TDeleteInteg
 export function getMCPConfig(): Promise<t.TMCPConfigResponse> {
   return request.get(endpoints.mcpConfig());
 }
+
+export function getAppDetails(appSlug: string): Promise<t.TAppDetails> {
+  return request.get(endpoints.appDetails(appSlug));
+}
+
+export function getAppComponents(appSlug: string, type?: string): Promise<t.TAppComponents> {
+  return request.get(endpoints.appComponents(appSlug, type));
+}
+
+export function configureComponent(payload: t.TConfigureComponentRequest): Promise<t.TConfigureComponentResponse> {
+  return request.post(endpoints.configureComponent(), payload);
+}
+
+export function runAction(payload: t.TRunActionRequest): Promise<t.TRunActionResponse> {
+  return request.post(endpoints.runAction(), payload);
+}
+
+export function deployTrigger(payload: t.TDeployTriggerRequest): Promise<t.TDeployTriggerResponse> {
+  return request.post(endpoints.deployTrigger(), payload);
+}

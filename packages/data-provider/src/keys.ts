@@ -50,6 +50,8 @@ export enum QueryKeys {
   integrationsStatus = 'integrationsStatus',
   availableIntegrations = 'availableIntegrations',
   userIntegrations = 'userIntegrations',
+  appDetails = 'appDetails',
+  appComponents = 'appComponents',
   mcpConfig = 'mcpConfig',
 }
 
@@ -78,4 +80,7 @@ export enum MutationKeys {
   createConnectToken = 'createConnectToken',
   integrationCallback = 'integrationCallback',
   deleteIntegration = 'deleteIntegration',
+  configureComponent = 'configureComponent',
+  runAction = 'runAction',
+  deployTrigger = 'deployTrigger',
 }
