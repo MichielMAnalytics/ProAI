@@ -535,6 +535,7 @@ export type TStartupConfig = {
   interface?: TInterfaceConfig;
   turnstile?: TTurnstileConfig;
   balance?: TBalanceConfig;
+  scheduler?: TSchedulerConfig;
   discordLoginEnabled: boolean;
   facebookLoginEnabled: boolean;
   githubLoginEnabled: boolean;
@@ -593,6 +594,15 @@ export const balanceSchema = z.object({
   refillAmount: z.number().optional().default(10000),
 });
 
+export const schedulerSchema = z.object({
+  notifications: z.object({
+    sound: z.boolean().optional().default(true),
+    volume: z.number().min(0).max(1).optional().default(0.3),
+  }).optional(),
+});
+
+export type TSchedulerConfig = z.infer<typeof schedulerSchema>;
+
 export const configSchema = z.object({
   version: z.string(),
   cache: z.boolean().default(true),
@@ -617,6 +627,7 @@ export const configSchema = z.object({
     })
     .default({ socialLogins: defaultSocialLogins }),
   balance: balanceSchema.optional(),
+  scheduler: schedulerSchema.optional(),
   speech: z
     .object({
       tts: ttsSchema.optional(),

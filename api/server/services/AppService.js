@@ -75,6 +75,7 @@ const AppService = async (app) => {
     config?.registration?.socialLogins ?? configDefaults?.registration?.socialLogins;
   const interfaceConfig = await loadDefaultInterface(config, configDefaults);
   const turnstileConfig = loadTurnstileConfig(config, configDefaults);
+  const schedulerConfig = config?.scheduler ?? {};
 
   const defaultLocals = {
     ocr,
@@ -88,6 +89,7 @@ const AppService = async (app) => {
     interfaceConfig,
     turnstileConfig,
     balance,
+    scheduler: schedulerConfig,
   };
 
   if (!Object.keys(config).length) {

@@ -12,8 +12,10 @@ export interface ISchedulerTask extends Document {
   status: 'pending' | 'running' | 'completed' | 'failed' | 'disabled';
   user: Types.ObjectId;
   conversation_id?: string;
+  parent_message_id?: string;
   endpoint?: string;
   ai_model?: string;
+  agent_id?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -67,11 +69,18 @@ const schedulerTaskSchema: Schema<ISchedulerTask> = new Schema(
     conversation_id: {
       type: String,
     },
+    parent_message_id: {
+      type: String,
+    },
     endpoint: {
       type: String,
     },
     ai_model: {
       type: String,
+    },
+    agent_id: {
+      type: String,
+      required: false,
     },
   },
   { 
@@ -85,5 +94,6 @@ schedulerTaskSchema.index({ user: 1 });
 schedulerTaskSchema.index({ enabled: 1, status: 1 });
 schedulerTaskSchema.index({ next_run: 1 });
 schedulerTaskSchema.index({ user: 1, enabled: 1 });
+schedulerTaskSchema.index({ user: 1, agent_id: 1 });
 
 export default schedulerTaskSchema; 

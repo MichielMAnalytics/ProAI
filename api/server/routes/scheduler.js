@@ -2,6 +2,8 @@ const express = require('express');
 const { requireJwtAuth } = require('~/server/middleware');
 const { sendSchedulerMessage } = require('~/server/controllers/scheduler');
 const SchedulerService = require('~/server/services/SchedulerService');
+const { notificationManager } = require('~/server/services/SchedulerService');
+const { setHeaders } = require('~/server/middleware');
 
 const router = express.Router();
 
@@ -16,6 +18,65 @@ const router = express.Router();
  * @returns {object} Success response
  */
 router.post('/message', requireJwtAuth, sendSchedulerMessage);
+
+/**
+ * SSE endpoint for real-time scheduler notifications
+ * @route GET /scheduler/notifications
+ * @returns {stream} Server-Sent Events stream
+ */
+router.get('/notifications', setHeaders, async (req, res) => {
+  try {
+    // Extract token from query parameter since EventSource doesn't support custom headers
+    const token = req.query.token || req.headers.authorization?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication token required' });
+    }
+    
+    // Manually verify the JWT token
+    const jwt = require('jsonwebtoken');
+    const User = require('~/models/User');
+    
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (error) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+    
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+    
+    const userId = user._id.toString();
+    
+    // Add this connection to the notification manager
+    notificationManager.addConnection(userId, res);
+    
+    // Send initial connection confirmation
+    res.write('data: {"type":"connected","message":"Connected to scheduler notifications"}\n\n');
+    
+    // Keep connection alive with periodic heartbeat
+    const heartbeat = setInterval(() => {
+      try {
+        res.write('data: {"type":"heartbeat"}\n\n');
+      } catch (error) {
+        clearInterval(heartbeat);
+      }
+    }, 30000); // 30 seconds
+    
+    // Clean up on connection close
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      notificationManager.removeConnection(userId, res);
+    });
+    
+  } catch (error) {
+    console.error('Error setting up SSE connection:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 /**
  * Internal endpoint for scheduler to send messages (no authentication required)

@@ -12,6 +12,7 @@ const {
   enableSchedulerTask,
   disableSchedulerTask
 } = require('~/models/SchedulerTask');
+const { getAgent } = require('~/models/Agent'); // Import getAgent to fetch agent details
 
 class SchedulerTool extends Tool {
   static lc_name() {
@@ -24,16 +25,20 @@ class SchedulerTool extends Tool {
     this.override = fields.override ?? false;
     this.userId = fields.userId;
     this.conversationId = fields.conversationId;
+    this.parentMessageId = fields.parentMessageId;
     this.endpoint = fields.endpoint;
     this.model = fields.model;
+    this.req = fields.req;
     
     // Debug logging to see what context we receive
     logger.debug(`[SchedulerTool] Constructor called with:`, {
       userId: this.userId,
       conversationId: this.conversationId,
+      parentMessageId: this.parentMessageId,
       endpoint: this.endpoint,
       model: this.model,
       override: this.override,
+      hasReq: !!this.req,
     });
     
     this.name = 'scheduler';
@@ -76,7 +81,7 @@ class SchedulerTool extends Tool {
     }
   }
 
-  async createTask(data, userId, conversationId, endpoint, model) {
+  async createTask(data, userId, conversationId, parentMessageId, endpoint, model) {
     const { name, schedule, prompt, do_only_once, enabled } = data;
 
     // Validate required fields
@@ -92,6 +97,9 @@ class SchedulerTool extends Tool {
 
     const taskId = `task_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
     
+    const currentEndpoint = endpoint || this.endpoint;
+    const currentModel = model || this.model;
+
     const taskData = {
       id: taskId,
       name,
@@ -103,13 +111,30 @@ class SchedulerTool extends Tool {
       status: 'pending',
       user: userId,
       conversation_id: conversationId,
-      endpoint: endpoint || this.endpoint,
-      ai_model: model || this.model,
+      parent_message_id: parentMessageId,
+      endpoint: currentEndpoint,
     };
+
+    if (currentEndpoint === 'agents') {
+      taskData.agent_id = currentModel; // For agents, model field is the agent_id
+      
+      // Fetch the agent's underlying model
+      try {
+        const agent = await getAgent({ id: currentModel, author: userId });
+        if (agent && agent.model) {
+          taskData.ai_model = agent.model; // Store the agent's underlying model
+        }
+      } catch (error) {
+        logger.warn(`[SchedulerTool] Could not fetch agent ${currentModel} to get underlying model: ${error.message}`);
+        // Continue without the underlying model - it's not critical for task creation
+      }
+    } else {
+      taskData.ai_model = currentModel;
+    }
 
     try {
       const task = await createSchedulerTask(taskData);
-      logger.info(`[SchedulerTool] Created task: ${taskId} (${name})`);
+      logger.info(`[SchedulerTool] Created task: ${taskId} (${name}) for endpoint: ${taskData.endpoint}, agent_id: ${taskData.agent_id}, ai_model: ${taskData.ai_model}, parent_message_id: ${taskData.parent_message_id}`);
       
       return {
         success: true,
@@ -124,8 +149,10 @@ class SchedulerTool extends Tool {
           next_run: task.next_run,
           status: task.status,
           conversation_id: task.conversation_id,
+          parent_message_id: task.parent_message_id,
           endpoint: task.endpoint,
           ai_model: task.ai_model,
+          agent_id: task.agent_id,
         }
       };
     } catch (error) {
@@ -152,8 +179,10 @@ class SchedulerTool extends Tool {
           last_run: task.last_run,
           next_run: task.next_run,
           conversation_id: task.conversation_id,
+          parent_message_id: task.parent_message_id,
           endpoint: task.endpoint,
           ai_model: task.ai_model,
+          agent_id: task.agent_id,
         }))
       };
     } catch (error) {
@@ -191,8 +220,10 @@ class SchedulerTool extends Tool {
           last_run: task.last_run,
           next_run: task.next_run,
           conversation_id: task.conversation_id,
+          parent_message_id: task.parent_message_id,
           endpoint: task.endpoint,
           ai_model: task.ai_model,
+          agent_id: task.agent_id,
           created_at: task.createdAt,
           updated_at: task.updatedAt,
         }
@@ -240,8 +271,10 @@ class SchedulerTool extends Tool {
           status: updatedTask.status,
           next_run: updatedTask.next_run,
           conversation_id: updatedTask.conversation_id,
+          parent_message_id: updatedTask.parent_message_id,
           endpoint: updatedTask.endpoint,
           ai_model: updatedTask.ai_model,
+          agent_id: updatedTask.agent_id,
         }
       };
     } catch (error) {
@@ -325,13 +358,42 @@ class SchedulerTool extends Tool {
     }
   }
 
-  async _call(input) {
+  async _call(input, config) {
     try {
       const { action, ...data } = input;
       
-      // Extract user context from the tool instance
+      // Extract user context from the tool instance and config
       const userId = this.userId;
-      const conversationId = this.conversationId;
+      // Try to get conversationId from config first (like MCP tools), then fall back to instance
+      const conversationId = config?.configurable?.thread_id || 
+                           config?.configurable?.conversationId ||
+                           this.conversationId;
+      
+      // Debug logging to understand message ID flow
+      logger.debug(`[SchedulerTool._call] Available message IDs:`, {
+        'req.body.userMessageId': this.req?.body?.userMessageId,
+        'req.body.overrideUserMessageId': this.req?.body?.overrideUserMessageId,
+        'req.body.parentMessageId': this.req?.body?.parentMessageId,
+        'req.body.messageId': this.req?.body?.messageId,
+        'config.configurable': config?.configurable,
+        'instance.parentMessageId': this.parentMessageId,
+      });
+      
+      // Try to get parentMessageId from various sources
+      // First priority: use the current user message ID
+      let parentMessageId = this.req?.body?.userMessageId || this.req?.body?.overrideUserMessageId;
+      
+      // Fallback to other sources if userMessageId not found
+      if (!parentMessageId) {
+        parentMessageId = this.parentMessageId;
+      }
+      if (!parentMessageId && this.req?.body?.parentMessageId) {
+        parentMessageId = this.req.body.parentMessageId;
+      }
+      if (!parentMessageId && config?.configurable?.parentMessageId) {
+        parentMessageId = config.configurable.parentMessageId;
+      }
+      
       const endpoint = this.endpoint;
       const model = this.model;
       
@@ -339,11 +401,22 @@ class SchedulerTool extends Tool {
         throw new Error('User context not available');
       }
 
-      logger.debug(`[SchedulerTool] Executing action: ${action}`, { userId, conversationId });
+      logger.debug(`[SchedulerTool] Executing action: ${action}`, { 
+        userId, 
+        conversationId, 
+        parentMessageId,
+        userMessageId: this.req?.body?.userMessageId,
+        overrideUserMessageId: this.req?.body?.overrideUserMessageId,
+        configThreadId: config?.configurable?.thread_id,
+        instanceConversationId: this.conversationId,
+        hasConfig: !!config,
+        configKeys: config ? Object.keys(config) : 'no config',
+        configurableKeys: config?.configurable ? Object.keys(config.configurable) : 'no configurable',
+      });
 
       switch (action) {
         case 'create_task':
-          return await this.createTask(data, userId, conversationId, endpoint, model);
+          return await this.createTask(data, userId, conversationId, parentMessageId, endpoint, model);
         
         case 'list_tasks':
           return await this.listTasks(userId);

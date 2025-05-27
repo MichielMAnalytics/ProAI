@@ -4,6 +4,62 @@ const { getConvo, saveConvo } = require('~/models/Conversation');
 const { logger } = require('~/config');
 
 /**
+ * Simple notification manager for SSE connections
+ */
+class NotificationManager {
+  constructor() {
+    this.connections = new Map(); // userId -> Set of response objects
+  }
+
+  addConnection(userId, res) {
+    if (!this.connections.has(userId)) {
+      this.connections.set(userId, new Set());
+    }
+    this.connections.get(userId).add(res);
+    
+    // Clean up when connection closes
+    res.on('close', () => {
+      this.removeConnection(userId, res);
+    });
+    
+    logger.debug(`[NotificationManager] Added SSE connection for user ${userId}`);
+  }
+
+  removeConnection(userId, res) {
+    if (this.connections.has(userId)) {
+      this.connections.get(userId).delete(res);
+      if (this.connections.get(userId).size === 0) {
+        this.connections.delete(userId);
+      }
+    }
+    logger.debug(`[NotificationManager] Removed SSE connection for user ${userId}`);
+  }
+
+  sendNotification(userId, data) {
+    if (this.connections.has(userId)) {
+      const connections = this.connections.get(userId);
+      const message = `data: ${JSON.stringify(data)}\n\n`;
+      
+      connections.forEach(res => {
+        try {
+          res.write(message);
+        } catch (error) {
+          logger.warn(`[NotificationManager] Failed to send notification to user ${userId}:`, error);
+          this.removeConnection(userId, res);
+        }
+      });
+      
+      logger.debug(`[NotificationManager] Sent notification to ${connections.size} connections for user ${userId}`);
+      return connections.size > 0;
+    }
+    return false;
+  }
+}
+
+// Global notification manager instance
+const notificationManager = new NotificationManager();
+
+/**
  * Internal scheduler service for handling scheduler messages without HTTP calls
  */
 class SchedulerService {
@@ -15,30 +71,39 @@ class SchedulerService {
    * @param {string} params.message - The message content
    * @param {string} params.taskId - The task ID that generated this message
    * @param {string} params.taskName - The name of the task
+   * @param {string} [params.parentMessageId] - The parent message ID to maintain conversation thread
    * @returns {Promise<Object>} Success response with message details
    */
-  static async sendSchedulerMessage({ userId, conversationId, message, taskId, taskName }) {
+  static async sendSchedulerMessage({ userId, conversationId, message, taskId, taskName, parentMessageId: providedParentMessageId }) {
     try {
       // Validate required fields
       if (!userId || !conversationId || !message) {
         throw new Error('Missing required fields: userId, conversationId, message');
       }
       
-      // Get the last message in the conversation to set proper parentMessageId
-      let parentMessageId = null;
-      try {
-        const messages = await getMessages({ conversationId, user: userId });
-        if (messages && messages.length > 0) {
-          // Sort messages by createdAt to get the most recent one
-          const sortedMessages = messages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-          parentMessageId = sortedMessages[0].messageId;
-          logger.debug(`Found last message in conversation ${conversationId}: ${parentMessageId}`);
-        } else {
-          logger.debug(`No existing messages found in conversation ${conversationId}, using null parentMessageId`);
+      // Always try to find the last message in the conversation for proper threading
+      let parentMessageId = providedParentMessageId;
+      
+      // Even if a parentMessageId is provided, if it's the NO_PARENT constant, try to find the real parent
+      if (!parentMessageId || parentMessageId === '00000000-0000-0000-0000-000000000000') {
+        try {
+          const messages = await getMessages({ conversationId, user: userId });
+          if (messages && messages.length > 0) {
+            // Sort messages by createdAt to get the most recent one
+            const sortedMessages = messages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            parentMessageId = sortedMessages[0].messageId;
+            logger.debug(`[SchedulerService] Found last message in conversation ${conversationId}: ${parentMessageId}`);
+          } else {
+            logger.debug(`[SchedulerService] No existing messages found in conversation ${conversationId}, using null parentMessageId`);
+            parentMessageId = null;
+          }
+        } catch (error) {
+          logger.warn(`[SchedulerService] Error getting messages for conversation ${conversationId}:`, error);
+          // Continue with null parentMessageId
+          parentMessageId = null;
         }
-      } catch (error) {
-        logger.warn(`Error getting messages for conversation ${conversationId}:`, error);
-        // Continue with null parentMessageId
+      } else {
+        logger.debug(`[SchedulerService] Using provided parentMessageId ${parentMessageId} for conversation ${conversationId}`);
       }
       
       // Create a system message from the scheduler
@@ -93,11 +158,25 @@ class SchedulerService {
       
       logger.info(`Scheduler message sent to user ${userId} in conversation ${conversationId}`);
       
+      // Send real-time notification via SSE if user is connected
+      const wasNotified = notificationManager.sendNotification(userId, {
+        type: 'scheduler_message',
+        messageId: savedMessage.messageId,
+        conversationId: savedMessage.conversationId,
+        taskId,
+        taskName,
+        message: message,
+        timestamp: new Date().toISOString()
+      });
+      
+      logger.debug(`[SchedulerService] SSE notification sent: ${wasNotified} for user ${userId}`);
+      
       return {
         success: true,
         messageId: savedMessage.messageId,
         conversationId: savedMessage.conversationId,
-        message: 'Message delivered successfully'
+        message: 'Message delivered successfully',
+        notified: wasNotified
       };
       
     } catch (error) {
@@ -163,13 +242,14 @@ class SchedulerService {
    * @param {string} params.result - The result content to send
    * @param {string} params.taskType - Type of task (ai, command, api, reminder)
    * @param {boolean} params.success - Whether the task completed successfully
+   * @param {string} [params.parentMessageId] - The parent message ID to maintain conversation thread
    * @returns {Promise<Object>} Success response
    */
   static async sendTaskResult(params) {
-    const { userId, conversationId, taskName, taskId, result, taskType, success } = params;
+    const { userId, conversationId, taskName, taskId, result, taskType, success, parentMessageId } = params;
     
     if (!userId || !conversationId) {
-      logger.warning(`Cannot send message for task ${taskId}: missing userId or conversationId`);
+      logger.warn(`Cannot send message for task ${taskId}: missing userId or conversationId`);
       return { success: false, error: 'Missing userId or conversationId' };
     }
     
@@ -181,7 +261,8 @@ class SchedulerService {
         conversationId,
         message,
         taskId,
-        taskName
+        taskName,
+        parentMessageId
       });
     } catch (error) {
       logger.error(`Error sending task result for task ${taskId}:`, error);
@@ -198,10 +279,11 @@ class SchedulerService {
    * @param {string} params.taskId - ID of the task
    * @param {string} params.notificationType - Type of notification (started, failed, cancelled)
    * @param {string} [params.details] - Optional additional details
+   * @param {string} [params.parentMessageId] - The parent message ID to maintain conversation thread
    * @returns {Promise<Object>} Success response
    */
   static async sendTaskNotification(params) {
-    const { userId, conversationId, taskName, taskId, notificationType, details } = params;
+    const { userId, conversationId, taskName, taskId, notificationType, details, parentMessageId } = params;
     
     if (!userId || !conversationId) {
       return { success: false, error: 'Missing userId or conversationId' };
@@ -215,7 +297,8 @@ class SchedulerService {
         conversationId,
         message,
         taskId,
-        taskName
+        taskName,
+        parentMessageId
       });
     } catch (error) {
       logger.error(`Error sending notification for task ${taskId}:`, error);
@@ -224,4 +307,6 @@ class SchedulerService {
   }
 }
 
-module.exports = SchedulerService; 
+module.exports = SchedulerService;
+module.exports.NotificationManager = NotificationManager;
+module.exports.notificationManager = notificationManager; 

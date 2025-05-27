@@ -162,34 +162,51 @@ const loadTools = async ({
       const authFields = getAuthFields('scheduler');
       const authValues = await loadAuthValues({ userId: user, authFields });
       
-      // Extract conversation context from the request
-      // Try multiple possible locations for conversationId
-      const conversationId = options.req?.body?.conversationId || 
-                           options.req?.body?.conversation_id ||
-                           options.req?.params?.conversationId ||
-                           options.req?.query?.conversationId ||
-                           null;
+      const reqEndpoint = options.req?.body?.endpoint;
+      const reqModel = options.req?.body?.model;
       
-      const endpoint = options.req?.body?.endpoint || agent?.provider || endpoint;
-      const model = options.req?.body?.model || agent?.model || model;
-      const modelParameters = options.req?.body?.modelParameters || {};
+      // Debug logging for request body
+      logger.debug(`[SchedulerTool] Request body keys:`, options.req?.body ? Object.keys(options.req.body) : 'no body');
+      logger.debug(`[SchedulerTool] Request body userMessageId:`, options.req?.body?.userMessageId);
+      logger.debug(`[SchedulerTool] Request body overrideUserMessageId:`, options.req?.body?.overrideUserMessageId);
+      logger.debug(`[SchedulerTool] Request body parentMessageId:`, options.req?.body?.parentMessageId);
+      
+      // Use userMessageId as the parentMessageId for scheduled messages
+      const parentMessageId = options.req?.body?.userMessageId || 
+                            options.req?.body?.overrideUserMessageId || 
+                            options.req?.body?.parentMessageId;
+      
+      // Determine the endpoint and model/agent_id
+      let toolEndpoint, toolModel;
+      
+      if (reqEndpoint === 'agents' || agent) {
+        // In agent context, req.body.model is the agent_id
+        toolEndpoint = 'agents';
+        toolModel = reqModel || agent?.id; // This is the agent_id
+      } else {
+        // In non-agent context, req.body.model is the actual model
+        toolEndpoint = reqEndpoint || endpoint;
+        toolModel = reqModel || model;
+      }
       
       logger.debug(`[SchedulerTool] Creating tool with context:`, {
         userId: user,
-        conversationId,
-        endpoint,
-        model,
+        endpoint: toolEndpoint,
+        model: toolModel,
+        parentMessageId: parentMessageId,
+        userMessageId: options.req?.body?.userMessageId,
+        isAgentContext: toolEndpoint === 'agents',
         hasReq: !!options.req,
-        reqBodyKeys: options.req?.body ? Object.keys(options.req.body) : [],
+        note: 'conversationId will be extracted at call time, parentMessageId from userMessageId',
       });
       
       return new SchedulerTool({
         ...authValues,
         userId: user,
-        conversationId,
-        endpoint,
-        model,
-        modelParameters,
+        conversationId: null, // Will be extracted at call time
+        parentMessageId: parentMessageId,
+        endpoint: toolEndpoint,
+        model: toolModel,
         req: options.req,
       });
     },

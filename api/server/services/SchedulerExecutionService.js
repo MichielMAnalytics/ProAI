@@ -7,6 +7,7 @@ const {
   updateSchedulerExecution 
 } = require('~/models/SchedulerExecution');
 const { updateSchedulerTask, getReadySchedulerTasks } = require('~/models/SchedulerTask');
+const { getAgent } = require('~/models/Agent');
 
 class SchedulerExecutionService {
   constructor() {
@@ -44,6 +45,20 @@ class SchedulerExecutionService {
     
     logger.info(`[SchedulerExecutionService] Starting task execution: ${task.id} (${task.name})`);
     
+    // Find the last message in the conversation for proper threading
+    let lastMessageId = null;
+    try {
+      const { getMessages } = require('~/models/Message');
+      const messages = await getMessages({ conversationId: task.conversation_id, user: task.user.toString() });
+      if (messages && messages.length > 0) {
+        const sortedMessages = messages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        lastMessageId = sortedMessages[0].messageId;
+        logger.debug(`[SchedulerExecutionService] Found last message for notifications: ${lastMessageId}`);
+      }
+    } catch (error) {
+      logger.warn(`[SchedulerExecutionService] Error finding last message: ${error.message}`);
+    }
+    
     // Create execution record
     const execution = await createSchedulerExecution({
       id: executionId,
@@ -62,11 +77,12 @@ class SchedulerExecutionService {
     // Send task start notification
     try {
       await SchedulerService.sendTaskNotification({
-        userId: task.user,
+        userId: task.user.toString(),
         conversationId: task.conversation_id,
         taskId: task.id,
         taskName: task.name,
         notificationType: 'start',
+        parentMessageId: lastMessageId,
       });
     } catch (error) {
       logger.warn(`[SchedulerExecutionService] Failed to send start notification: ${error.message}`);
@@ -101,6 +117,7 @@ class SchedulerExecutionService {
           nextUpdate.next_run = cron.getNextDate();
           nextUpdate.status = 'pending';
           taskStatus = 'pending';
+          logger.info(`[SchedulerExecutionService] Recurring task ${task.id} completed, next run: ${nextUpdate.next_run}`);
         } catch (error) {
           logger.error(`[SchedulerExecutionService] Failed to calculate next run time: ${error.message}`);
           nextUpdate.status = 'failed';
@@ -108,17 +125,20 @@ class SchedulerExecutionService {
         }
       }
       
-      await updateSchedulerTask(task.id, task.user, nextUpdate);
+      logger.debug(`[SchedulerExecutionService] Updating task ${task.id} with:`, nextUpdate);
+      const updatedTask = await updateSchedulerTask(task.id, task.user, nextUpdate);
+      logger.debug(`[SchedulerExecutionService] Task ${task.id} updated successfully, new status: ${updatedTask?.status}`);
 
       // Send task completion notification
       try {
         await SchedulerService.sendTaskResult({
-          userId: task.user,
+          userId: task.user.toString(),
           conversationId: task.conversation_id,
           taskId: task.id,
           taskName: task.name,
           result: result,
           success: true,
+          parentMessageId: lastMessageId,
         });
       } catch (error) {
         logger.warn(`[SchedulerExecutionService] Failed to send completion notification: ${error.message}`);
@@ -144,12 +164,13 @@ class SchedulerExecutionService {
       // Send task failure notification
       try {
         await SchedulerService.sendTaskResult({
-          userId: task.user,
+          userId: task.user.toString(),
           conversationId: task.conversation_id,
           taskId: task.id,
           taskName: task.name,
           result: error.message,
           success: false,
+          parentMessageId: lastMessageId,
         });
       } catch (notificationError) {
         logger.warn(`[SchedulerExecutionService] Failed to send failure notification: ${notificationError.message}`);
@@ -158,29 +179,62 @@ class SchedulerExecutionService {
   }
 
   async executePrompt(task) {
-    const { prompt, endpoint, ai_model, user, conversation_id } = task;
+    const { prompt, endpoint, ai_model, agent_id, conversation_id } = task;
     
     if (!prompt) {
       throw new Error('No prompt provided for task execution');
     }
 
-    logger.info(`[SchedulerExecutionService] Executing prompt for task ${task.id} using ${endpoint}/${ai_model}`);
+    logger.info(`[SchedulerExecutionService] Executing prompt for task ${task.id} using ${endpoint}/${agent_id || ai_model}`);
 
-    // Use the original endpoint from the task, don't fall back to OpenAI for agents
+    // Find the last message in the conversation to maintain thread continuity
+    let parentMessageId = task.parent_message_id;
+    if (!parentMessageId || parentMessageId === '00000000-0000-0000-0000-000000000000') {
+      try {
+        const { getMessages } = require('~/models/Message');
+        const messages = await getMessages({ conversationId: conversation_id, user: task.user.toString() });
+        if (messages && messages.length > 0) {
+          // Sort messages by createdAt to get the most recent one
+          const sortedMessages = messages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+          parentMessageId = sortedMessages[0].messageId;
+          logger.info(`[SchedulerExecutionService] Found last message in conversation ${conversation_id}: ${parentMessageId}`);
+        } else {
+          logger.info(`[SchedulerExecutionService] No existing messages found in conversation ${conversation_id}`);
+          parentMessageId = null;
+        }
+      } catch (error) {
+        logger.warn(`[SchedulerExecutionService] Error getting messages for conversation ${conversation_id}:`, error);
+        parentMessageId = null;
+      }
+    }
+
     const targetEndpoint = endpoint || EModelEndpoint.openAI;
-    const targetModel = ai_model || 'gpt-4o-mini';
+    // For agents, ai_model might be the base model, agent_id is the primary identifier
+    const targetModel = targetEndpoint === EModelEndpoint.agents ? agent_id : (ai_model || 'gpt-4o-mini');
 
-    logger.debug(`[SchedulerExecutionService] Target endpoint: ${targetEndpoint}, Available endpoints:`, Object.keys(this.endpointInitializers));
+    logger.debug(`[SchedulerExecutionService] Target endpoint: ${targetEndpoint}, Target model/agent: ${targetModel}`);
+    logger.debug('[SchedulerExecutionService] Available endpoint initializers:', Object.keys(this.endpointInitializers));
 
-    // Get the appropriate client initializer
     const initializeClient = this.endpointInitializers[targetEndpoint];
     if (!initializeClient) {
       logger.error(`[SchedulerExecutionService] No initializer found for endpoint: ${targetEndpoint}`);
-      logger.error(`[SchedulerExecutionService] Available initializers:`, Object.keys(this.endpointInitializers));
       throw new Error(`Unsupported endpoint: ${targetEndpoint}`);
     }
 
-    // Create a mock response object for endpoints that need it
+    // Load available tools for the agent
+    const { loadAndFormatTools } = require('~/server/services/ToolService');
+    const paths = require('~/config/paths');
+    const availableTools = loadAndFormatTools({
+      directory: paths.structuredTools,
+    });
+
+    // Initialize MCP tools if needed
+    const { getMCPManager } = require('~/config');
+    const mcpManager = getMCPManager(task.user.toString());
+    if (mcpManager) {
+      await mcpManager.mapAvailableTools(availableTools);
+    }
+
     const mockRes = {
       write: () => {},
       end: () => {},
@@ -191,11 +245,10 @@ class SchedulerExecutionService {
       locals: {},
     };
 
-    // Create a mock request object with the necessary context
     const mockReq = {
-      user: { id: user },
+      user: { id: task.user.toString() },
       body: {
-        model: targetModel,
+        model: targetModel, // This will be agent_id if endpoint is agents
         endpoint: targetEndpoint,
         conversationId: conversation_id,
         messages: [
@@ -206,61 +259,68 @@ class SchedulerExecutionService {
         ],
         endpointOption: {
           model_parameters: {
-            model: targetModel,
+            // For agents, the actual model is part of the agentConfig
+            model: targetEndpoint === EModelEndpoint.agents ? null : targetModel,
           },
         },
       },
       app: {
         locals: {
-          availableTools: {},
-          fileStrategy: null,
+          availableTools: availableTools, // Now properly loaded
+          fileStrategy: process.env.CDN_PROVIDER || 'local',
         }
       }
     };
 
-    // Create endpointOption based on the endpoint type
     let endpointOption;
     
     if (targetEndpoint === EModelEndpoint.agents) {
-      // Create the agent configuration first
-      const agentConfig = {
-        id: Constants.EPHEMERAL_AGENT_ID,
-        name: 'Scheduler Agent',
-        model: targetModel,
-        provider: Providers.OPENAI,
-        endpoint: Providers.OPENAI,
-        instructions: 'You are a helpful assistant executing scheduled tasks.',
-        tools: [],
-        model_parameters: {
-          model: targetModel,
-        },
-        // Add other required fields
-        description: 'Ephemeral agent for scheduler tasks',
-        agent_ids: [],
-        tool_resources: {},
-      };
+      if (!agent_id) {
+        throw new Error('agent_id is required for agent tasks');
+      }
+      const agent = await getAgent({ id: agent_id, author: task.user.toString() });
+      if (!agent) {
+        throw new Error(`Agent with ID ${agent_id} not found or not accessible by user.`);
+      }
 
-      // For agents endpoint, we need to provide agent configuration
+      logger.debug(`[SchedulerExecutionService] Agent ${agent_id} has ${agent.tools?.length || 0} tools configured`);
+
+      // Use the fetched agent's configuration
+      const agentConfig = {
+        id: agent.id,
+        name: agent.name,
+        model: agent.model, // The actual underlying model of the agent
+        provider: agent.provider,
+        endpoint: agent.provider, // Assuming agent.provider maps to an endpoint provider
+        instructions: agent.instructions,
+        tools: agent.tools || [],
+        model_parameters: agent.model_parameters || { model: agent.model },
+        description: agent.description,
+        agent_ids: agent.agent_ids || [],
+        tool_resources: agent.tool_resources || {},
+        // Ensure all necessary fields from the original ephemeral agent are here or derived
+      };
+      
+      mockReq.body.model = agent.id; // Ensure the agent_id is passed as model in req.body for AgentClient
+      mockReq.body.endpointOption.model_parameters.model = agent.model; // Pass the agent's actual model
+
       endpointOption = {
         endpoint: targetEndpoint,
-        model: targetModel,
+        model: agent.id, // Pass agent_id as the model for AgentClient initialization
         modelOptions: {
-          model: targetModel,
+          model: agent.model, // The agent's underlying model
         },
         model_parameters: {
-          model: targetModel,
+           model: agent.model, // The agent's underlying model
         },
-        // Create a minimal ephemeral agent configuration with all required fields
         agent: Promise.resolve(agentConfig),
-        // Add required client options with proper structure
         req: mockReq,
         res: mockRes,
-        modelLabel: 'Scheduler Agent',
-        maxContextTokens: 4096,
-        resendFiles: false,
+        modelLabel: agent.name || 'Agent',
+        maxContextTokens: agent.maxContextTokens || 4096, // Use agent's config or default
+        resendFiles: false, 
       };
     } else {
-      // For other endpoints, use standard configuration
       endpointOption = {
         endpoint: targetEndpoint,
         model: targetModel,
@@ -270,17 +330,15 @@ class SchedulerExecutionService {
       };
     }
 
-    logger.debug(`[SchedulerExecutionService] Calling initializeClient with endpoint: ${targetEndpoint}`);
+    logger.debug(`[SchedulerExecutionService] Calling initializeClient for endpoint: ${targetEndpoint}`);
 
     try {
-      // Initialize the client
       const clientResult = await initializeClient({
         req: mockReq,
         res: mockRes,
         endpointOption: endpointOption,
       });
 
-      // Handle different return formats from different endpoints
       const client = clientResult?.client || clientResult;
       
       if (!client) {
@@ -289,27 +347,64 @@ class SchedulerExecutionService {
 
       logger.debug(`[SchedulerExecutionService] Client initialized successfully for ${targetEndpoint}`);
 
-      // Send the message and get response
       await client.sendMessage(prompt, {
-        user: user,
+        user: task.user.toString(),
         conversationId: conversation_id,
-        model: targetModel,
+        parentMessageId: parentMessageId,
+        // For AgentClient, model here should be the agent_id
+        model: targetEndpoint === EModelEndpoint.agents ? agent_id : targetModel,
         endpoint: targetEndpoint,
       });
 
-      // Extract the response from the client's contentParts
+      // For AgentClient, get response from content parts
       const contentParts = client.getContentParts && client.getContentParts();
-      const responseText = contentParts?.[0]?.text;
+      let responseText;
 
-      if (!responseText) {
-        throw new Error('No response received from AI client');
+      if (contentParts && Array.isArray(contentParts) && contentParts.length > 0) {
+        // Extract text from content parts
+        const { ContentTypes } = require('librechat-data-provider');
+        
+        // Find text content parts and combine them
+        const textParts = contentParts
+          .filter(part => part.type === ContentTypes.TEXT)
+          .map(part => {
+            // Handle different text content structures
+            if (typeof part.text === 'string') {
+              return part.text;
+            } else if (part[ContentTypes.TEXT]) {
+              if (typeof part[ContentTypes.TEXT] === 'string') {
+                return part[ContentTypes.TEXT];
+              } else if (part[ContentTypes.TEXT].value) {
+                return part[ContentTypes.TEXT].value;
+              }
+            }
+            return '';
+          })
+          .filter(text => text.length > 0);
+
+        responseText = textParts.join('\n').trim();
+        
+        logger.debug(`[SchedulerExecutionService] Extracted ${textParts.length} text parts from ${contentParts.length} content parts for task ${task.id}`);
       }
 
-      logger.info(`[SchedulerExecutionService] Task ${task.id} completed successfully`);
+      if (!responseText) {
+        // Fallback: try to get the response from the client directly
+        if (client.responseMessage && client.responseMessage.text) {
+          responseText = client.responseMessage.text;
+        } else if (client.finalMessage && client.finalMessage.text) {
+          responseText = client.finalMessage.text;
+        }
+      }
+
+      if (!responseText) {
+        throw new Error('No response received from AI client - content parts were empty or invalid');
+      }
+
+      logger.info(`[SchedulerExecutionService] Task ${task.id} completed successfully with agent ${agent_id || 'N/A'}`);
       return responseText;
 
     } catch (error) {
-      logger.error(`[SchedulerExecutionService] Error executing prompt for task ${task.id}:`, error);
+      logger.error(`[SchedulerExecutionService] Error executing prompt for task ${task.id} with agent ${agent_id || 'N/A'}:`, error);
       throw new Error(`AI execution failed: ${error.message}`);
     }
   }
@@ -372,4 +467,4 @@ class SchedulerExecutionService {
   }
 }
 
-module.exports = SchedulerExecutionService; 
+module.exports = SchedulerExecutionService;

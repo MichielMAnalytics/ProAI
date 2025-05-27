@@ -78,6 +78,7 @@ router.get('/', async function (req, res) {
       turnstile: req.app.locals.turnstileConfig,
       modelSpecs: req.app.locals.modelSpecs,
       balance: req.app.locals.balance,
+      scheduler: req.app.locals.scheduler,
       sharedLinksEnabled,
       publicSharedLinksEnabled,
       analyticsGtmId: process.env.ANALYTICS_GTM_ID,
