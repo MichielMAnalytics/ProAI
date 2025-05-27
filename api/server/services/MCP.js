@@ -54,11 +54,30 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
       const derivedSignal = config?.signal ? AbortSignal.any([config.signal]) : undefined;
       const mcpManager = getMCPManager(config?.configurable?.user_id);
       const provider = (config?.metadata?.provider || _provider)?.toLowerCase();
+      
+      // Add user and conversation context to tool arguments for MCP tools
+      const enhancedArguments = {
+        ...toolArguments,
+        librechat_context: {
+          user_id: config?.configurable?.user_id || req.user?.id,
+          conversation_id: config?.configurable?.thread_id,
+        }
+      };
+      
+      // Debug logging
+      logger.debug(`[MCP] Enhanced arguments for ${toolName}:`, {
+        original: toolArguments,
+        enhanced: enhancedArguments,
+        config_user_id: config?.configurable?.user_id,
+        req_user_id: req.user?.id,
+        thread_id: config?.configurable?.thread_id
+      });
+      
       const result = await mcpManager.callTool({
         serverName,
         toolName,
         provider,
-        toolArguments,
+        toolArguments: enhancedArguments,
         options: {
           userId: config?.configurable?.user_id,
           signal: derivedSignal,

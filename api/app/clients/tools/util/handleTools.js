@@ -19,6 +19,7 @@ const {
   createYouTubeTools,
   TavilySearchResults,
   createOpenAIImageTools,
+  SchedulerTool,
 } = require('../');
 const { primeFiles: primeCodeFiles } = require('~/server/services/Files/Code/process');
 const { createFileSearchTool, primeFiles: primeSearchFiles } = require('./fileSearch');
@@ -157,6 +158,58 @@ const loadTools = async ({
   };
 
   const customConstructors = {
+    scheduler: async (_toolContextMap) => {
+      const authFields = getAuthFields('scheduler');
+      const authValues = await loadAuthValues({ userId: user, authFields });
+      
+      const reqEndpoint = options.req?.body?.endpoint;
+      const reqModel = options.req?.body?.model;
+      
+      // Debug logging for request body
+      logger.debug(`[SchedulerTool] Request body keys:`, options.req?.body ? Object.keys(options.req.body) : 'no body');
+      logger.debug(`[SchedulerTool] Request body userMessageId:`, options.req?.body?.userMessageId);
+      logger.debug(`[SchedulerTool] Request body overrideUserMessageId:`, options.req?.body?.overrideUserMessageId);
+      logger.debug(`[SchedulerTool] Request body parentMessageId:`, options.req?.body?.parentMessageId);
+      
+      // Use userMessageId as the parentMessageId for scheduled messages
+      const parentMessageId = options.req?.body?.userMessageId || 
+                            options.req?.body?.overrideUserMessageId || 
+                            options.req?.body?.parentMessageId;
+      
+      // Determine the endpoint and model/agent_id
+      let toolEndpoint, toolModel;
+      
+      if (reqEndpoint === 'agents' || agent) {
+        // In agent context, req.body.model is the agent_id
+        toolEndpoint = 'agents';
+        toolModel = reqModel || agent?.id; // This is the agent_id
+      } else {
+        // In non-agent context, req.body.model is the actual model
+        toolEndpoint = reqEndpoint || endpoint;
+        toolModel = reqModel || model;
+      }
+      
+      logger.debug(`[SchedulerTool] Creating tool with context:`, {
+        userId: user,
+        endpoint: toolEndpoint,
+        model: toolModel,
+        parentMessageId: parentMessageId,
+        userMessageId: options.req?.body?.userMessageId,
+        isAgentContext: toolEndpoint === 'agents',
+        hasReq: !!options.req,
+        note: 'conversationId will be extracted at call time, parentMessageId from userMessageId',
+      });
+      
+      return new SchedulerTool({
+        ...authValues,
+        userId: user,
+        conversationId: null, // Will be extracted at call time
+        parentMessageId: parentMessageId,
+        endpoint: toolEndpoint,
+        model: toolModel,
+        req: options.req,
+      });
+    },
     serpapi: async (_toolContextMap) => {
       const authFields = getAuthFields('serpapi');
       let envVar = authFields[0] ?? '';

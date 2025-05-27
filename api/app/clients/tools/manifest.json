@@ -1,5 +1,12 @@
 [
   {
+    "name": "Scheduler",
+    "pluginKey": "scheduler",
+    "description": "Schedule and manage automated tasks including AI prompts, API calls, shell commands, and reminders. Supports cron expressions for flexible scheduling.",
+    "icon": "https://i.imgur.com/clock-icon.png",
+    "authConfig": []
+  },
+  {
     "name": "Traversaal",
     "pluginKey": "traversaal_search",
     "description": "Traversaal is a robust search API tailored for LLM Agents. Get an API key here: https://api.traversaal.ai",

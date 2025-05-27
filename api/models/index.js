@@ -38,6 +38,28 @@ const {
 const { getConvoTitle, getConvo, saveConvo, deleteConvos } = require('./Conversation');
 const { getPreset, getPresets, savePreset, deletePresets } = require('./Preset');
 const { createToken, findToken, updateToken, deleteTokens } = require('./Token');
+const {
+  createSchedulerTask,
+  getSchedulerTaskById,
+  getSchedulerTasksByUser,
+  getReadySchedulerTasks,
+  updateSchedulerTask,
+  deleteSchedulerTask,
+  deleteSchedulerTasksByUser,
+  enableSchedulerTask,
+  disableSchedulerTask,
+} = require('./SchedulerTask');
+const {
+  createSchedulerExecution,
+  getSchedulerExecutionById,
+  getSchedulerExecutionsByTask,
+  getSchedulerExecutionsByUser,
+  updateSchedulerExecution,
+  deleteSchedulerExecutionsByTask,
+  deleteSchedulerExecutionsByUser,
+  getRunningSchedulerExecutions,
+  cleanupOldSchedulerExecutions,
+} = require('./SchedulerExecution');
 const Balance = require('./Balance');
 const User = require('./User');
 const Key = require('./Key');
@@ -92,6 +114,27 @@ module.exports = {
   deleteAllUserSessions,
   generateRefreshToken,
   countActiveSessions,
+
+  // Scheduler models
+  createSchedulerTask,
+  getSchedulerTaskById,
+  getSchedulerTasksByUser,
+  getReadySchedulerTasks,
+  updateSchedulerTask,
+  deleteSchedulerTask,
+  deleteSchedulerTasksByUser,
+  enableSchedulerTask,
+  disableSchedulerTask,
+
+  createSchedulerExecution,
+  getSchedulerExecutionById,
+  getSchedulerExecutionsByTask,
+  getSchedulerExecutionsByUser,
+  updateSchedulerExecution,
+  deleteSchedulerExecutionsByTask,
+  deleteSchedulerExecutionsByUser,
+  getRunningSchedulerExecutions,
+  cleanupOldSchedulerExecutions,
 
   User,
   Key,

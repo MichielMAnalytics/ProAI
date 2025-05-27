@@ -27,6 +27,7 @@ const edit = require('./edit');
 const keys = require('./keys');
 const user = require('./user');
 const ask = require('./ask');
+const scheduler = require('./scheduler');
 
 module.exports = {
   ask,
@@ -58,4 +59,5 @@ module.exports = {
   categories,
   integrations,
   staticRoute,
+  scheduler,
 };

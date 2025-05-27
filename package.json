@@ -143,6 +143,8 @@
     ]
   },
   "dependencies": {
-    "@pipedream/sdk": "^1.6.3"
+    "@pipedream/sdk": "^1.6.3",
+    "cron-schedule": "^5.0.4",
+    "node-cron": "^4.0.7"
   }
 }
