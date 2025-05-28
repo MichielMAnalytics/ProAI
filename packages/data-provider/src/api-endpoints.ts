@@ -293,3 +293,8 @@ export const createConnectToken = () => `${integrations()}/connect-token`;
 export const integrationCallback = () => `${integrations()}/callback`;
 export const deleteIntegration = (integrationId: string) => `${integrations()}/${integrationId}`;
 export const mcpConfig = () => `${integrations()}/mcp-config`;
+
+/* User MCP */
+export const userMCPStatus = () => '/api/agents/tools/user-mcp-status';
+export const userMCPTools = () => '/api/agents/tools/user-mcp';
+export const refreshUserMCP = () => '/api/agents/tools/refresh-user-mcp';

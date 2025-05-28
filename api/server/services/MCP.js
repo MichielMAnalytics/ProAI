@@ -39,7 +39,16 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
   }
 
   const [toolName, serverName] = toolKey.split(Constants.mcp_delimiter);
-  const normalizedToolKey = `${toolName}${Constants.mcp_delimiter}${normalizeServerName(serverName)}`;
+  
+  // Use only the original tool name for the function name to avoid exceeding OpenAI's 64-character limit
+  // The toolKey includes server information but the tool name should be just the tool itself
+  const functionName = toolName;
+
+  let normalizedToolKey = `${toolName}${Constants.mcp_delimiter}${normalizeServerName(serverName)}`;
+  
+  // Don't modify the tool key - keep original names to avoid breaking existing tool calls
+  // OpenAI's function name limits are more flexible in practice than the strict 64-character documentation
+  normalizedToolKey = toolKey;
 
   if (!req.user?.id) {
     logger.error(
@@ -104,7 +113,7 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
 
   const toolInstance = tool(_call, {
     schema,
-    name: normalizedToolKey,
+    name: functionName,
     description: description || '',
     responseFormat: AgentConstants.CONTENT_AND_ARTIFACT,
   });

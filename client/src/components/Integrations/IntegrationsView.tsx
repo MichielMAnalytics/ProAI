@@ -12,6 +12,11 @@ import {
   useIntegrationCallbackMutation,
 } from '~/data-provider';
 import type { TAvailableIntegration, TUserIntegration } from 'librechat-data-provider';
+import { useMutation } from '@tanstack/react-query';
+import { dataService } from 'librechat-data-provider';
+import type {
+  TCreateConnectTokenResponse,
+} from 'librechat-data-provider';
 
 export default function IntegrationsView() {
   const localize = useLocalize();
@@ -37,6 +42,10 @@ export default function IntegrationsView() {
     onSuccess: (response) => {
       console.log('Integration created successfully:', response);
       // User integrations will be automatically refreshed due to mutation's onSuccess
+      
+      // Refresh MCP servers to immediately make the new integration available
+      refreshUserMCPMutation.mutate();
+      
       // TODO: Show success toast
     },
     onError: (error) => {
@@ -136,6 +145,18 @@ export default function IntegrationsView() {
     },
   });
 
+  // Refresh user MCP servers mutation
+  const refreshUserMCPMutation = useMutation({
+    mutationFn: () => dataService.refreshUserMCP(),
+    onSuccess: () => {
+      console.log('MCP servers refreshed successfully');
+    },
+    onError: (error) => {
+      console.warn('Failed to refresh MCP servers:', error);
+      // Don't show error to user as this is not critical
+    },
+  });
+
   // Get unique categories
   const categories = useMemo(() => {
     const allCategories = new Set<string>();
@@ -201,7 +222,12 @@ export default function IntegrationsView() {
   // Handle disconnect integration
   const handleDisconnect = (userIntegration: TUserIntegration) => {
     if (userIntegration._id) {
-      deleteIntegrationMutation.mutate(userIntegration._id);
+      deleteIntegrationMutation.mutate(userIntegration._id, {
+        onSuccess: () => {
+          // Refresh MCP servers to immediately remove the disconnected integration
+          refreshUserMCPMutation.mutate();
+        },
+      });
     }
   };
 

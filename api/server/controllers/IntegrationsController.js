@@ -195,6 +195,16 @@ const handleConnectionCallback = async (req, res) => {
       appSlug: integration.appSlug,
       appName: integration.appName
     });
+
+    // Refresh user MCP servers so the new integration is immediately available
+    try {
+      const UserMCPService = require('~/server/services/UserMCPService');
+      await UserMCPService.refreshUserMCPServers(external_user_id);
+      logger.info(`Refreshed MCP servers for user ${external_user_id} after integration creation`);
+    } catch (mcpError) {
+      logger.warn(`Failed to refresh MCP servers for user ${external_user_id}:`, mcpError.message);
+      // Don't fail the integration creation if MCP refresh fails
+    }
     
     const response = {
       success: true,
@@ -249,6 +259,16 @@ const deleteIntegration = async (req, res) => {
       appName: integration.appName,
       isActive: integration.isActive
     });
+
+    // Refresh user MCP servers so the deleted integration is immediately removed
+    try {
+      const UserMCPService = require('~/server/services/UserMCPService');
+      await UserMCPService.refreshUserMCPServers(userId);
+      logger.info(`Refreshed MCP servers for user ${userId} after integration deletion`);
+    } catch (mcpError) {
+      logger.warn(`Failed to refresh MCP servers for user ${userId}:`, mcpError.message);
+      // Don't fail the integration deletion if MCP refresh fails
+    }
     
     const response = {
       success: true,

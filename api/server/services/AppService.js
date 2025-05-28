@@ -76,6 +76,7 @@ const AppService = async (app) => {
   const interfaceConfig = await loadDefaultInterface(config, configDefaults);
   const turnstileConfig = loadTurnstileConfig(config, configDefaults);
   const schedulerConfig = config?.scheduler ?? {};
+  const addUserSpecificMcpFromDb = config?.addUserSpecificMcpFromDb ?? configDefaults?.addUserSpecificMcpFromDb;
 
   const defaultLocals = {
     ocr,
@@ -90,6 +91,7 @@ const AppService = async (app) => {
     turnstileConfig,
     balance,
     scheduler: schedulerConfig,
+    addUserSpecificMcpFromDb,
   };
 
   if (!Object.keys(config).length) {

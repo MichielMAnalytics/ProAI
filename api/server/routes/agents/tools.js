@@ -1,16 +1,31 @@
 const express = require('express');
 const { callTool, verifyToolAuth, getToolCalls } = require('~/server/controllers/tools');
 const { getAvailableTools } = require('~/server/controllers/PluginController');
+const { 
+  getUserMCPTools, 
+  initializeUserMCP, 
+  refreshUserMCP, 
+  getUserMCPStatus 
+} = require('~/server/controllers/UserMCPController');
 const { toolCallLimiter } = require('~/server/middleware/limiters');
+const { requireJwtAuth } = require('~/server/middleware');
 
 const router = express.Router();
+
+/**
+ * Middleware to set the endpoint parameter for agents tools
+ */
+const setAgentsEndpoint = (req, res, next) => {
+  req.query.endpoint = 'agents';
+  next();
+};
 
 /**
  * Get a list of available tools for agents.
  * @route GET /agents/tools
  * @returns {TPlugin[]} 200 - application/json
  */
-router.get('/', getAvailableTools);
+router.get('/', setAgentsEndpoint, getAvailableTools);
 
 /**
  * Get a list of tool calls.
@@ -18,6 +33,34 @@ router.get('/', getAvailableTools);
  * @returns {ToolCallData[]} 200 - application/json
  */
 router.get('/calls', getToolCalls);
+
+/**
+ * Get user-specific MCP tools
+ * @route GET /agents/tools/user-mcp
+ * @returns {TPlugin[]} 200 - application/json
+ */
+router.get('/user-mcp', requireJwtAuth, getUserMCPTools);
+
+/**
+ * Get user MCP status
+ * @route GET /agents/tools/user-mcp-status
+ * @returns {Object} 200 - application/json
+ */
+router.get('/user-mcp-status', requireJwtAuth, getUserMCPStatus);
+
+/**
+ * Initialize user-specific MCP servers
+ * @route POST /agents/tools/initialize-user-mcp
+ * @returns {Object} 200 - application/json
+ */
+router.post('/initialize-user-mcp', requireJwtAuth, initializeUserMCP);
+
+/**
+ * Refresh user-specific MCP servers
+ * @route POST /agents/tools/refresh-user-mcp
+ * @returns {Object} 200 - application/json
+ */
+router.post('/refresh-user-mcp', requireJwtAuth, refreshUserMCP);
 
 /**
  * Verify authentication for a specific tool

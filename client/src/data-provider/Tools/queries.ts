@@ -40,3 +40,35 @@ export const useGetToolCalls = <TData = t.ToolCallResults>(
     },
   );
 };
+
+export const useUserMCPStatusQuery = (
+  config?: UseQueryOptions<{ enabled: boolean; hasUserMCPServers: boolean; userId: string }>,
+): QueryObserverResult<{ enabled: boolean; hasUserMCPServers: boolean; userId: string }> => {
+  return useQuery<{ enabled: boolean; hasUserMCPServers: boolean; userId: string }>(
+    [QueryKeys.userMCPStatus],
+    () => dataService.getUserMCPStatus(),
+    {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      ...config,
+    },
+  );
+};
+
+export const useUserMCPToolsQuery = <TData = t.TPlugin[]>(
+  config?: UseQueryOptions<t.TPlugin[], unknown, TData>,
+): QueryObserverResult<TData> => {
+  return useQuery<t.TPlugin[], unknown, TData>(
+    [QueryKeys.userMCPTools],
+    () => dataService.getUserMCPTools(),
+    {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      staleTime: 2 * 60 * 1000, // 2 minutes
+      ...config,
+    },
+  );
+};

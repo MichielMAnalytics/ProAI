@@ -53,6 +53,9 @@ export enum QueryKeys {
   appDetails = 'appDetails',
   appComponents = 'appComponents',
   mcpConfig = 'mcpConfig',
+  // User MCP
+  userMCPStatus = 'userMCPStatus',
+  userMCPTools = 'userMCPTools',
 }
 
 export enum MutationKeys {

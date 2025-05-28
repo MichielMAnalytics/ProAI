@@ -372,18 +372,19 @@ describe('Pipedream Connect End-to-End Integration', () => {
       );
       
       expect(deletedIntegration).toBeDefined();
-      expect(deletedIntegration.isActive).toBe(false);
+      expect(deletedIntegration.appSlug).toBe(TEST_CONFIG.testApp);
+      expect(deletedIntegration._id.toString()).toBe(testUserIntegration._id.toString());
       
-      // Verify integration is no longer active
+      // Verify integration is completely removed from database
       const remainingIntegrations = await PipedreamUserIntegrations.getUserIntegrations(TEST_CONFIG.testUserId);
-      const activeTestIntegration = remainingIntegrations.find(int => 
-        int.appSlug === TEST_CONFIG.testApp && int.isActive
+      const testIntegrationStillExists = remainingIntegrations.find(int => 
+        int._id.toString() === testUserIntegration._id.toString()
       );
       
-      expect(activeTestIntegration).toBeUndefined();
+      expect(testIntegrationStillExists).toBeUndefined();
       
-      console.log('✓ Integration disconnected successfully');
-      console.log('Remaining active integrations:', remainingIntegrations.filter(int => int.isActive).length);
+      console.log('✓ Integration deleted completely from database');
+      console.log('Remaining integrations:', remainingIntegrations.length);
     }, TEST_CONFIG.testTimeout);
   });
 

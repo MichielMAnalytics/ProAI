@@ -260,13 +260,13 @@ class PipedreamConnect {
   }
 
   /**
-   * Delete user integration (mark as inactive and optionally revoke from Pipedream)
+   * Delete user integration (completely remove from database and optionally revoke from Pipedream)
    * 
    * @param {string} userId - The user ID
    * @param {string} integrationId - The integration ID to delete
    * @param {Object} options - Additional options
    * @param {boolean} options.revokeFromPipedream - Whether to also revoke from Pipedream (default: true)
-   * @returns {Promise<Object>} Updated integration
+   * @returns {Promise<Object>} Deleted integration
    */
   async deleteUserIntegration(userId, integrationId, options = {}) {
     if (!userId || !integrationId) {
@@ -280,18 +280,17 @@ class PipedreamConnect {
         revokeFromPipedream,
       });
 
-      // Find and deactivate the integration
-      const integration = await UserIntegration.findOneAndUpdate(
-        { _id: integrationId, userId },
-        { isActive: false },
-        { new: true }
-      );
+      // First find the integration to get the pipedreamAccountId before deletion
+      const integration = await UserIntegration.findOne({
+        _id: integrationId,
+        userId
+      });
 
       if (!integration) {
         throw new Error('Integration not found or does not belong to user');
       }
 
-      // Optionally revoke from Pipedream
+      // Optionally revoke from Pipedream before deleting
       if (revokeFromPipedream && integration.pipedreamAccountId) {
         try {
           await this.deleteAccount(integration.pipedreamAccountId);
@@ -301,13 +300,23 @@ class PipedreamConnect {
         }
       }
 
+      // Now actually delete the document from the database
+      const deletedIntegration = await UserIntegration.findOneAndDelete({
+        _id: integrationId,
+        userId
+      });
+
+      if (!deletedIntegration) {
+        throw new Error('Failed to delete integration from database');
+      }
+
       logger.info(`PipedreamConnect: Integration deleted successfully`, {
         integrationId,
         userId,
-        appSlug: integration.appSlug,
+        appSlug: deletedIntegration.appSlug,
       });
 
-      return integration;
+      return deletedIntegration;
     } catch (error) {
       logger.error(`PipedreamConnect: Failed to delete integration:`, {
         message: error.message,

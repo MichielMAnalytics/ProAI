@@ -832,3 +832,17 @@ export function runAction(payload: t.TRunActionRequest): Promise<t.TRunActionRes
 export function deployTrigger(payload: t.TDeployTriggerRequest): Promise<t.TDeployTriggerResponse> {
   return request.post(endpoints.deployTrigger(), payload);
 }
+
+/* User MCP */
+
+export function getUserMCPStatus(): Promise<{ enabled: boolean; hasUserMCPServers: boolean; userId: string }> {
+  return request.get(endpoints.userMCPStatus());
+}
+
+export function refreshUserMCP(): Promise<{ success: boolean; message: string; mcpServers: string[] }> {
+  return request.post(endpoints.refreshUserMCP());
+}
+
+export function getUserMCPTools(): Promise<s.TPlugin[]> {
+  return request.get(endpoints.userMCPTools());
+}

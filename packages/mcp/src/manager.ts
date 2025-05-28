@@ -406,6 +406,178 @@ export class MCPManager {
   }
 
   /**
+   * Initialize user-specific MCP servers
+   */
+  public async initializeUserMCP(userMCPServers: t.MCPServers, userId?: string): Promise<void> {
+    if (!userId) {
+      this.logger.warn('[MCP] No userId provided for user MCP initialization');
+      return;
+    }
+
+    this.logger.info(`[MCP][User: ${userId}] Initializing user-specific servers`);
+
+    // Store user MCP configs in the main configs for later access
+    Object.assign(this.mcpConfigs, userMCPServers);
+
+    const entries = Object.entries(userMCPServers);
+    const initializedServers = new Set();
+
+    const connectionResults = await Promise.allSettled(
+      entries.map(async ([serverName, _config], i) => {
+        /** Process env for user-specific connections */
+        const config = this.processMCPEnv ? this.processMCPEnv(_config, userId) : _config;
+        
+        try {
+          // Create user-specific connection
+          const connection = await this.getUserConnection(userId, serverName);
+          
+          if (await connection.isConnected()) {
+            initializedServers.add(i);
+            
+            const serverCapabilities = connection.client.getServerCapabilities();
+            this.logger.info(
+              `[MCP][User: ${userId}][${serverName}] Capabilities: ${JSON.stringify(serverCapabilities)}`,
+            );
+
+            if (serverCapabilities?.tools) {
+              const tools = await connection.client.listTools();
+              if (tools.tools.length) {
+                this.logger.info(
+                  `[MCP][User: ${userId}][${serverName}] Available tools: ${tools.tools
+                    .map((tool) => tool.name)
+                    .join(', ')}`,
+                );
+              }
+            }
+          }
+        } catch (error) {
+          this.logger.error(`[MCP][User: ${userId}][${serverName}] Initialization failed`, error);
+          throw error;
+        }
+      }),
+    );
+
+    const failedConnections = connectionResults.filter(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+
+    this.logger.info(
+      `[MCP][User: ${userId}] Initialized ${initializedServers.size}/${entries.length} user server(s)`,
+    );
+
+    if (failedConnections.length > 0) {
+      this.logger.warn(
+        `[MCP][User: ${userId}] ${failedConnections.length}/${entries.length} user server(s) failed to initialize`,
+      );
+    }
+
+    entries.forEach(([serverName], index) => {
+      if (initializedServers.has(index)) {
+        this.logger.info(`[MCP][User: ${userId}][${serverName}] ✓ Initialized`);
+      } else {
+        this.logger.info(`[MCP][User: ${userId}][${serverName}] ✗ Failed`);
+      }
+    });
+  }
+
+  /**
+   * Loads tools from user-specific connections into the manifest.
+   */
+  public async loadUserManifestTools(manifestTools: t.LCToolManifest, userId: string): Promise<t.LCToolManifest> {
+    if (!userId) {
+      this.logger.warn('[MCP] No userId provided for user manifest tool loading');
+      return manifestTools;
+    }
+
+    const mcpTools: t.LCManifestTool[] = [];
+    const userConnectionMap = this.userConnections.get(userId);
+
+    if (!userConnectionMap) {
+      this.logger.warn(`[MCP][User: ${userId}] No user connections found for manifest loading`);
+      return manifestTools;
+    }
+
+    for (const [serverName, connection] of userConnectionMap.entries()) {
+      try {
+        if ((await connection.isConnected()) !== true) {
+          this.logger.warn(
+            `[MCP][User: ${userId}][${serverName}] Connection not established. Skipping manifest loading.`,
+          );
+          continue;
+        }
+
+        const tools = await connection.fetchTools();
+        for (const tool of tools) {
+          const pluginKey = `${tool.name}${CONSTANTS.mcp_delimiter}${serverName}`;
+          const manifestTool: t.LCManifestTool = {
+            name: tool.name,
+            pluginKey,
+            description: tool.description ?? '',
+            icon: connection.iconPath,
+          };
+          const config = this.mcpConfigs[serverName];
+          if (config?.chatMenu === false) {
+            manifestTool.chatMenu = false;
+          }
+          mcpTools.push(manifestTool);
+        }
+      } catch (error) {
+        this.logger.error(`[MCP][User: ${userId}][${serverName}] Error fetching tools for manifest:`, error);
+      }
+    }
+
+    this.logger.info(`[MCP][User: ${userId}] Loaded ${mcpTools.length} user-specific MCP tools into manifest`);
+    return [...mcpTools, ...manifestTools];
+  }
+
+  /**
+   * Maps user-specific tools from user connections into the provided object.
+   * The object is modified in place.
+   */
+  public async mapUserAvailableTools(availableTools: t.LCAvailableTools, userId: string): Promise<void> {
+    if (!userId) {
+      this.logger.warn('[MCP] No userId provided for user tool mapping');
+      return;
+    }
+
+    const userConnectionMap = this.userConnections.get(userId);
+    if (!userConnectionMap) {
+      this.logger.warn(`[MCP][User: ${userId}] No user connections found for tool mapping`);
+      return;
+    }
+
+    let mappedToolsCount = 0;
+    for (const [serverName, connection] of userConnectionMap.entries()) {
+      try {
+        if ((await connection.isConnected()) !== true) {
+          this.logger.warn(
+            `[MCP][User: ${userId}][${serverName}] Connection not established. Skipping tool mapping.`,
+          );
+          continue;
+        }
+
+        const tools = await connection.fetchTools();
+        for (const tool of tools) {
+          const name = `${tool.name}${CONSTANTS.mcp_delimiter}${serverName}`;
+          availableTools[name] = {
+            type: 'function',
+            ['function']: {
+              name,
+              description: tool.description,
+              parameters: tool.inputSchema as JsonSchemaType,
+            },
+          };
+          mappedToolsCount++;
+        }
+      } catch (error) {
+        this.logger.warn(`[MCP][User: ${userId}][${serverName}] Error fetching tools for mapping:`, error);
+      }
+    }
+
+    this.logger.info(`[MCP][User: ${userId}] Mapped ${mappedToolsCount} user-specific MCP tools to availableTools registry`);
+  }
+
+  /**
    * Calls a tool on an MCP server, using either a user-specific connection
    * (if userId is provided) or an app-level connection. Updates the last activity timestamp
    * for user-specific connections upon successful call initiation.
