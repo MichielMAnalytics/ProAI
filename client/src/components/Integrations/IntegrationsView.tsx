@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLocalize } from '~/hooks';
 import { useAuthContext } from '~/hooks/AuthContext';
-import { Button, Input } from '~/components/ui';
+import { Button, Input, Pagination } from '~/components/ui';
 import { Spinner } from '~/components/svg';
 import IntegrationCard from './IntegrationCard';
 import {
@@ -20,9 +21,14 @@ import type {
 
 export default function IntegrationsView() {
   const localize = useLocalize();
+  const navigate = useNavigate();
   const { user } = useAuthContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(12);
 
   // Fetch data
   const {
@@ -36,6 +42,16 @@ export default function IntegrationsView() {
     isLoading: isLoadingUser,
     refetch: refetchUserIntegrations,
   } = useUserIntegrationsQuery();
+
+  // Reset to first page when search or category changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCategory, itemsPerPage]);
+
+  // Scroll to top when page changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentPage]);
 
   // Mutations
   const integrationCallbackMutation = useIntegrationCallbackMutation({
@@ -177,18 +193,35 @@ export default function IntegrationsView() {
     // Ensure availableIntegrations is an array
     const integrations = Array.isArray(availableIntegrations) ? availableIntegrations : [];
     
+    // If showing "my" integrations, return empty array since we handle this separately
+    if (selectedCategory === 'my') {
+      return [];
+    }
+    
     return integrations.filter((integration) => {
-      const matchesSearch = integration.appName
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-        integration.appDescription?.toLowerCase().includes(searchTerm.toLowerCase());
+      // Search functionality - check both title and description
+      const searchTermLower = searchTerm.trim().toLowerCase();
+      const matchesSearch = searchTermLower === '' || 
+        (integration.appName && integration.appName.toLowerCase().includes(searchTermLower)) ||
+        (integration.appDescription && integration.appDescription.toLowerCase().includes(searchTermLower));
       
+      // Category filtering
       const matchesCategory = selectedCategory === 'all' || 
-        (integration.appCategories && integration.appCategories.includes(selectedCategory));
+        (integration.appCategories && Array.isArray(integration.appCategories) && 
+         integration.appCategories.includes(selectedCategory));
 
+      // Only show active integrations
       return matchesSearch && matchesCategory && integration.isActive;
     });
   }, [availableIntegrations, searchTerm, selectedCategory]);
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredIntegrations.length / itemsPerPage);
+  const paginatedIntegrations = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredIntegrations.slice(startIndex, endIndex);
+  }, [filteredIntegrations, currentPage, itemsPerPage]);
 
   // Check if integration is connected
   const isIntegrationConnected = (appSlug: string) => {
@@ -247,6 +280,25 @@ export default function IntegrationsView() {
     }
   }, [refetchUserIntegrations]);
 
+  // Handle close button - navigate back to chat
+  const handleClose = () => {
+    navigate('/c/new');
+  };
+
+  // Handle escape key to close
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        handleClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
   const isLoading = isLoadingAvailable || isLoadingUser;
 
   if (isLoading) {
@@ -278,103 +330,225 @@ export default function IntegrationsView() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl p-6">
+    <div className="min-h-screen bg-white dark:bg-gray-900">
+      {/* Close button - Fixed to top-right corner */}
+      <button
+        onClick={handleClose}
+        className="fixed top-6 right-6 z-50 flex h-10 w-10 items-center justify-center rounded-full text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-800"
+        aria-label="Close integrations"
+      >
+        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-text-primary">
-          {localize('com_ui_integrations')}
-        </h1>
-        <p className="mt-2 text-text-secondary">
-          Connect your favorite apps and services to enhance your chat experience with MCP integrations.
-        </p>
+      <div className="bg-white dark:bg-gray-900">
+        <div className="mx-auto max-w-7xl px-6 py-8">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+              The Personal Assistant Toolkit
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Add 2,500+ APIs and 10,000+ tools to your Personal Assistant. Connect your accounts securely and revoke access at any time. 
+            </p>
+            
+            {/* All/My Toggle */}
+            <div className="inline-flex rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
+              <button
+                onClick={() => setSelectedCategory('all')}
+                className={`px-6 py-2 text-sm font-medium rounded-md transition-all ${
+                  selectedCategory === 'all' || selectedCategory === 'all'
+                    ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                }`}
+              >
+                All Apps
+              </button>
+              <button
+                onClick={() => setSelectedCategory('my')}
+                className={`px-6 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
+                  selectedCategory === 'my'
+                    ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                }`}
+              >
+                <span>My Apps</span>
+                {userIntegrations.length > 0 && (
+                  <div className="relative">
+                    <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-green-500 rounded-full">
+                      {userIntegrations.length}
+                    </span>
+                    <span className="absolute -inset-1 w-7 h-7 bg-green-400 rounded-full opacity-30 animate-pulse"></span>
+                  </div>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Connected Integrations Section */}
-      {Array.isArray(userIntegrations) && userIntegrations.length > 0 && (
-        <div className="mb-8">
-          <h2 className="mb-4 text-xl font-semibold text-text-primary">
-            {localize('com_ui_integrations_connected')} ({userIntegrations.length})
-          </h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {userIntegrations.map((userIntegration) => {
-              const integration = Array.isArray(availableIntegrations) 
-                ? availableIntegrations.find((ai) => ai.appSlug === userIntegration.appSlug)
-                : null;
-              if (!integration) return null;
-
-              return (
-                <IntegrationCard
-                  key={userIntegration._id}
-                  integration={integration}
-                  isConnected={true}
-                  userIntegration={userIntegration}
-                  onConnect={handleConnect}
-                  onDisconnect={handleDisconnect}
-                  isLoading={deleteIntegrationMutation.isLoading}
-                />
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Available Integrations Section */}
-      <div>
-        <h2 className="mb-4 text-xl font-semibold text-text-primary">
-          {localize('com_ui_integrations_available')} ({filteredIntegrations.length})
-        </h2>
-
-        {/* Search and Filter Controls */}
-        <div className="mb-6 flex flex-col space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0">
-          <div className="flex-1">
-            <Input
-              type="text"
-              placeholder={localize('com_ui_integrations_search')}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full"
-            />
-          </div>
-          <div className="sm:w-48">
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full rounded-md border border-border-light bg-surface-primary px-3 py-2 text-text-primary focus:border-border-heavy focus:outline-none focus:ring-1 focus:ring-border-heavy"
-            >
-              <option value="all">{localize('com_ui_integrations_category_all')}</option>
+      <div className="mx-auto max-w-7xl px-6 py-8">
+        <div className="flex gap-8">
+          {/* Left Sidebar - Categories */}
+          <div className="w-64 flex-shrink-0">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Categories</h3>
+            <div className="space-y-1">
+              <button
+                onClick={() => setSelectedCategory('all')}
+                className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
+                  selectedCategory === 'all'
+                    ? 'bg-blue-50 text-blue-700 font-medium dark:bg-blue-900/30 dark:text-blue-300'
+                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'
+                }`}
+              >
+                All Apps
+              </button>
               {categories.slice(1).map((category) => (
-                <option key={category} value={category}>
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(category)}
+                  className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
+                    selectedCategory === category
+                      ? 'bg-blue-50 text-blue-700 font-medium dark:bg-blue-900/30 dark:text-blue-300'
+                      : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'
+                  }`}
+                >
                   {category}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
+          </div>
+
+          {/* Main Content */}
+          <div className="flex-1">
+            {/* Search Bar */}
+            <div className="mb-6">
+              <div className="relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <Input
+                  type="text"
+                  placeholder="Search apps..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full h-12 pl-12 pr-12 text-base bg-white border-gray-200 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500/20 dark:bg-gray-800 dark:border-gray-700 dark:focus:border-blue-400"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors dark:text-gray-500 dark:hover:text-gray-300"
+                    aria-label="Clear search"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Show My Apps or All Apps */}
+            {selectedCategory === 'my' ? (
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6">
+                  My Apps ({userIntegrations.length})
+                </h2>
+                
+                {userIntegrations.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 px-4">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 dark:bg-gray-800">
+                      <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No connected apps</h3>
+                    <p className="text-gray-500 dark:text-gray-400 text-center max-w-md">
+                      Connect your first app to get started with AI-powered automation.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                    {userIntegrations.map((userIntegration) => {
+                      const integration = Array.isArray(availableIntegrations) 
+                        ? availableIntegrations.find((ai) => ai.appSlug === userIntegration.appSlug)
+                        : null;
+                      if (!integration) return null;
+
+                      return (
+                        <div key={userIntegration._id} className="h-80">
+                          <IntegrationCard
+                            integration={integration}
+                            isConnected={true}
+                            userIntegration={userIntegration}
+                            onConnect={handleConnect}
+                            onDisconnect={handleDisconnect}
+                            isLoading={deleteIntegrationMutation.isLoading}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                {/* Integrations Grid */}
+                {filteredIntegrations.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 px-4">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 dark:bg-gray-800">
+                      <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No integrations found</h3>
+                    <p className="text-gray-500 dark:text-gray-400 text-center max-w-md">
+                      {searchTerm || selectedCategory !== 'all'
+                        ? 'Try adjusting your search criteria or browse all available integrations.'
+                        : 'No integrations are currently available.'}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                      {paginatedIntegrations.map((integration) => (
+                        <div key={integration._id || integration.appSlug} className="h-80">
+                          <IntegrationCard
+                            integration={integration}
+                            isConnected={isIntegrationConnected(integration.appSlug)}
+                            userIntegration={getUserIntegration(integration.appSlug)}
+                            onConnect={handleConnect}
+                            onDisconnect={handleDisconnect}
+                            isLoading={createConnectTokenMutation.isLoading}
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Pagination Controls - Bottom */}
+                    {totalPages > 1 && (
+                      <div className="mt-8">
+                        <Pagination
+                          currentPage={currentPage}
+                          itemsPerPage={itemsPerPage}
+                          totalItems={filteredIntegrations.length}
+                          totalPages={totalPages}
+                          onPageChange={(newPage) => setCurrentPage(newPage)}
+                          onItemsPerPageChange={(newItemsPerPage) => setItemsPerPage(newItemsPerPage)}
+                          showItemsPerPage={true}
+                          className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm dark:bg-gray-800 dark:border-gray-700"
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
-
-        {/* Integrations Grid */}
-        {filteredIntegrations.length === 0 ? (
-          <div className="flex h-64 items-center justify-center">
-            <p className="text-text-secondary">
-              {searchTerm || selectedCategory !== 'all'
-                ? 'No integrations match your search criteria.'
-                : localize('com_ui_integrations_no_available')}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filteredIntegrations.map((integration) => (
-              <IntegrationCard
-                key={integration._id || integration.appSlug}
-                integration={integration}
-                isConnected={isIntegrationConnected(integration.appSlug)}
-                userIntegration={getUserIntegration(integration.appSlug)}
-                onConnect={handleConnect}
-                onDisconnect={handleDisconnect}
-                isLoading={createConnectTokenMutation.isLoading}
-              />
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
