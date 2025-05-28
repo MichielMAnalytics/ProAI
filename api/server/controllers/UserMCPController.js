@@ -92,7 +92,7 @@ const initializeUserMCP = async (req, res) => {
     if (Object.keys(userMCPServers).length > 0) {
       try {
         // Initialize the user-specific MCP servers
-        await mcpManager.initializeUserMCP(userMCPServers);
+        await mcpManager.initializeUserMCP(userMCPServers, userId);
         
         // Map the available tools
         const availableTools = req.app.locals.availableTools || {};
@@ -152,7 +152,7 @@ const refreshUserMCP = async (req, res) => {
     // Reinitialize if there are servers
     if (Object.keys(refreshedServers).length > 0) {
       const mcpManager = getMCPManager(userId);
-      await mcpManager.initializeUserMCP(refreshedServers);
+      await mcpManager.initializeUserMCP(refreshedServers, userId);
       
       const availableTools = req.app.locals.availableTools || {};
       await mcpManager.mapAvailableTools(availableTools);

@@ -1,3 +1,4 @@
+const axios = require('axios');
 const { PipedreamUserIntegrations } = require('./Pipedream');
 const { logger } = require('~/config');
 
@@ -99,10 +100,13 @@ class UserMCPService {
           timeout: mcpServerConfig.timeout || 60000,
           iconPath: mcpServerConfig.iconPath || integration.appIcon,
           chatMenu: true, // Enable in chat menu by default
-          // Add headers for user identification
+          // Add headers for user identification and Pipedream authentication
           headers: {
             'X-User-ID': userId,
             'X-Integration-ID': integration._id.toString(),
+            // Add required Pipedream authentication headers
+            'x-pd-project-id': process.env.PIPEDREAM_PROJECT_ID,
+            'x-pd-environment': process.env.PIPEDREAM_ENVIRONMENT || (process.env.NODE_ENV === 'production' ? 'production' : 'development'),
             ...(mcpServerConfig.headers || {})
           },
           // Mark as user-specific for identification
@@ -111,6 +115,32 @@ class UserMCPService {
           _appSlug: integration.appSlug,
           _appName: integration.appName,
         };
+
+        // Add Authorization header if we can get an access token
+        try {
+          const PipedreamConnect = require('./Pipedream/PipedreamConnect');
+          if (PipedreamConnect.isEnabled()) {
+            // Get access token using OAuth client credentials
+            const baseURL = process.env.PIPEDREAM_API_BASE_URL || 'https://api.pipedream.com/v1';
+            
+            const tokenResponse = await axios.post(`${baseURL}/oauth/token`, {
+              grant_type: 'client_credentials',
+              client_id: process.env.PIPEDREAM_CLIENT_ID,
+              client_secret: process.env.PIPEDREAM_CLIENT_SECRET,
+            }, {
+              headers: { 'Content-Type': 'application/json' },
+            });
+            
+            const accessToken = tokenResponse.data.access_token;
+            if (accessToken) {
+              mcpServers[serverName].headers['Authorization'] = `Bearer ${accessToken}`;
+              logger.info(`UserMCPService: Added Pipedream auth token for server ${serverName}`);
+            }
+          }
+        } catch (authError) {
+          logger.warn(`UserMCPService: Failed to get Pipedream auth token for server ${serverName}:`, authError.message);
+          // Continue without auth token - the MCP server will handle the auth flow
+        }
 
         logger.info(`UserMCPService: Added MCP server ${serverName}:`, {
           type: mcpServers[serverName].type,
