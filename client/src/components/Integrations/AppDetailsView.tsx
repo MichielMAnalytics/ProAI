@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useLocalize } from '~/hooks';
+import { useAuthContext } from '~/hooks/AuthContext';
 import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui';
 import { Spinner } from '~/components/svg';
 import ComponentCard from './ComponentCard';
@@ -11,6 +12,7 @@ import {
   useUserIntegrationsQuery,
   useCreateConnectTokenMutation,
   useDeleteIntegrationMutation,
+  useIntegrationCallbackMutation,
 } from '~/data-provider';
 import type { TAppComponent, TUserIntegration, TAppDetails, TAppComponents } from 'librechat-data-provider';
 
@@ -18,6 +20,7 @@ export default function AppDetailsView() {
   const { appSlug } = useParams<{ appSlug: string }>();
   const navigate = useNavigate();
   const localize = useLocalize();
+  const { user } = useAuthContext();
   const [activeTab, setActiveTab] = useState('overview');
 
   const { 
@@ -47,12 +50,99 @@ export default function AppDetailsView() {
   );
   const isConnected = !!userIntegration;
 
+  // Handle successful connection callback
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('connected') === 'true') {
+      // Remove the query parameter from URL
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+      
+      // Refresh user integrations to show the new connection
+      refetchUserIntegrations();
+      
+      // TODO: Show success toast notification
+      console.log('Integration connected successfully!');
+    }
+  }, [refetchUserIntegrations]);
+
   const createConnectTokenMutation = useCreateConnectTokenMutation({
-    onSuccess: (data) => {
-      window.open(data.connect_link_url, '_blank');
+    onSuccess: async (response) => {
+      console.log('=== Connect Token Response (App Details) ===', response);
+      
+      // The backend returns { success: true, data: { token, expires_at, connect_link_url } }
+      if (response.data?.token) {
+        console.log('Token received, attempting to use Pipedream SDK...');
+        
+        try {
+          // Use dynamic import from main package to avoid module resolution issues
+          // TypeScript workaround: use type assertion to bypass module resolution
+          console.log('Importing Pipedream SDK...');
+          const pipedreamSDK = await import('@pipedream/sdk' as any);
+          console.log('SDK imported:', pipedreamSDK);
+          
+          // Check if browser client is available
+          if (pipedreamSDK.createFrontendClient) {
+            console.log('Creating frontend client...');
+            const pd = pipedreamSDK.createFrontendClient();
+            console.log('Frontend client created:', pd);
+            
+            // Get the app slug from the current request
+            const appSlugForConnection = appDetails?.name_slug;
+            console.log('App slug:', appSlugForConnection);
+            console.log('Token:', response.data.token);
+            
+            console.log('Calling connectAccount...');
+            pd.connectAccount({
+              app: appSlugForConnection,
+              token: response.data.token,
+              onSuccess: (account: any) => {
+                console.log(`Account successfully connected: ${account.id}`);
+                console.log('Account details:', account);
+                
+                // Call our backend to create the user integration record
+                if (user?.id) {
+                  integrationCallbackMutation.mutate({
+                    account_id: account.id,
+                    external_user_id: user.id,
+                    app: appSlugForConnection,
+                  });
+                } else {
+                  console.error('User ID not available for integration callback');
+                }
+              },
+              onError: (err: any) => {
+                console.error(`Connection error: ${err.message}`);
+                console.error('Full error:', err);
+                // TODO: Show error toast
+              }
+            });
+            console.log('connectAccount called successfully');
+          } else {
+            console.error('Frontend client not available in SDK');
+            throw new Error('Frontend client not available in main SDK export');
+          }
+        } catch (error) {
+          console.error('Failed to load or use Pipedream SDK:', error);
+          console.log('Falling back to connect link URL...');
+          
+          // Fallback to opening the connect link URL
+          if (response.data?.connect_link_url) {
+            console.log('Opening connect link:', response.data.connect_link_url);
+            window.open(response.data.connect_link_url, '_blank');
+          } else {
+            console.error('No connect link URL available');
+          }
+          // TODO: Show error toast
+        }
+      } else {
+        console.error('No token in response:', response);
+        // TODO: Show error toast
+      }
     },
     onError: (error) => {
       console.error('Failed to create connect token:', error);
+      // TODO: Show error toast
     },
   });
 
@@ -70,7 +160,8 @@ export default function AppDetailsView() {
     
     createConnectTokenMutation.mutate({
       app: appDetails.name_slug, // Use name_slug from the actual appDetails
-      redirect_url: `${window.location.origin}/d/integrations`,
+      // Use frontend URL for redirect, not backend API endpoint
+      redirect_url: `${window.location.origin}${window.location.pathname}?connected=true`,
     });
   };
 
@@ -78,6 +169,18 @@ export default function AppDetailsView() {
     if (!userIntegration?._id) return;
     deleteIntegrationMutation.mutate(userIntegration._id);
   };
+
+  const integrationCallbackMutation = useIntegrationCallbackMutation({
+    onSuccess: (response) => {
+      console.log('Integration created successfully:', response);
+      // User integrations will be automatically refreshed due to mutation's onSuccess
+      // TODO: Show success toast
+    },
+    onError: (error) => {
+      console.error('Failed to create integration record:', error);
+      // TODO: Show error toast
+    },
+  });
 
   const isLoading = isLoadingDetails || isLoadingComponents;
 

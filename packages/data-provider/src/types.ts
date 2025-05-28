@@ -615,9 +615,12 @@ export type TCreateConnectTokenRequest = {
 };
 
 export type TCreateConnectTokenResponse = {
-  token: string;
-  expires_at: string;
-  connect_link_url: string;
+  success: boolean;
+  data: {
+    token: string;
+    expires_at: string;
+    connect_link_url: string;
+  };
 };
 
 export type TIntegrationCallbackRequest = {

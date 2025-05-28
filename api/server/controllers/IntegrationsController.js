@@ -1,4 +1,9 @@
-const PipedreamService = require('~/server/services/PipedreamService');
+const {
+  PipedreamConnect,
+  PipedreamApps,
+  PipedreamUserIntegrations,
+  PipedreamComponents,
+} = require('~/server/services/Pipedream');
 const { logger } = require('~/config');
 
 /**
@@ -9,8 +14,8 @@ const getAvailableIntegrations = async (req, res) => {
   logger.info('=== getAvailableIntegrations: Starting request ===');
   
   try {
-    logger.info('Calling PipedreamService.getAvailableIntegrations()');
-    const integrations = await PipedreamService.getAvailableIntegrations();
+    logger.info('Calling PipedreamApps.getAvailableIntegrations()');
+    const integrations = await PipedreamApps.getAvailableIntegrations();
     
     logger.info(`Retrieved ${integrations?.length || 0} available integrations`);
     logger.info('Sample integration data:', integrations?.[0] ? {
@@ -60,8 +65,8 @@ const getUserIntegrations = async (req, res) => {
       });
     }
     
-    logger.info(`Calling PipedreamService.getUserIntegrations(${userId})`);
-    const integrations = await PipedreamService.getUserIntegrations(userId);
+    logger.info(`Calling PipedreamUserIntegrations.getUserIntegrations(${userId})`);
+    const integrations = await PipedreamUserIntegrations.getUserIntegrations(userId);
     
     logger.info(`Retrieved ${integrations?.length || 0} user integrations`);
     if (integrations?.length > 0) {
@@ -123,7 +128,7 @@ const createConnectToken = async (req, res) => {
 
     logger.info('Connect token options:', options);
     
-    const tokenData = await PipedreamService.createConnectToken(userId, options);
+    const tokenData = await PipedreamConnect.createConnectToken(userId, options);
     
     logger.info('Connect token created successfully:', {
       hasToken: !!tokenData.token,
@@ -176,31 +181,14 @@ const handleConnectionCallback = async (req, res) => {
       });
     }
 
-    logger.info(`Getting user accounts for external_user_id: ${external_user_id}`);
+    logger.info(`Processing connection callback for external_user_id: ${external_user_id}`);
     
-    // Get account details from Pipedream
-    const accounts = await PipedreamService.getUserAccounts(external_user_id);
-    logger.info(`Retrieved ${accounts?.length || 0} accounts from Pipedream`);
-    
-    const accountData = accounts.find(acc => acc.id === account_id);
-    
-    if (!accountData) {
-      logger.error(`Account not found with ID: ${account_id}`);
-      logger.info('Available account IDs:', accounts?.map(acc => acc.id));
-      return res.status(404).json({
-        success: false,
-        message: 'Account not found',
-      });
-    }
-
-    logger.info('Found account data:', {
-      id: accountData.id,
-      app: accountData.app,
-      app_name: accountData.app_name
+    // Use the new PipedreamConnect service to handle the callback
+    const integration = await PipedreamConnect.handleConnectionCallback({
+      account_id,
+      external_user_id,
+      app,
     });
-
-    // Save integration to our database
-    const integration = await PipedreamService.createUserIntegration(external_user_id, accountData);
     
     logger.info('Integration created/updated successfully:', {
       id: integration._id,
@@ -253,7 +241,7 @@ const deleteIntegration = async (req, res) => {
       });
     }
 
-    const integration = await PipedreamService.deleteUserIntegration(userId, integrationId);
+    const integration = await PipedreamConnect.deleteUserIntegration(userId, integrationId);
     
     logger.info('Integration deleted successfully:', {
       id: integration._id,
@@ -307,7 +295,7 @@ const getMCPConfig = async (req, res) => {
       });
     }
     
-    const mcpConfig = await PipedreamService.generateMCPConfig(userId);
+    const mcpConfig = await PipedreamUserIntegrations.generateMCPConfig(userId);
     
     logger.info('MCP config generated:', {
       serverCount: Object.keys(mcpConfig || {}).length,
@@ -347,7 +335,7 @@ const getIntegrationStatus = async (req, res) => {
   logger.info('=== getIntegrationStatus: Starting request ===');
 
   try {
-    const isEnabled = PipedreamService.isEnabled();
+    const isEnabled = PipedreamConnect.isEnabled();
     
     logger.info('Integration status check:', {
       enabled: isEnabled,
@@ -413,8 +401,8 @@ const getAppDetails = async (req, res) => {
       });
     }
     
-    logger.info(`Calling PipedreamService.getAppDetails(${appSlug})`);
-    const appDetails = await PipedreamService.getAppDetails(appSlug);
+    logger.info(`Calling PipedreamApps.getAppDetails(${appSlug})`);
+    const appDetails = await PipedreamApps.getAppDetails(appSlug);
     
     // Enhanced logging to inspect the appDetails object structure
     logger.info(`AppDetails object received from service for ${appSlug}:`, JSON.stringify(appDetails, null, 2));
@@ -478,8 +466,8 @@ const getAppComponents = async (req, res) => {
       });
     }
     
-    logger.info(`Calling PipedreamService.getAppComponents(${appSlug}, ${type})`);
-    const components = await PipedreamService.getAppComponents(appSlug, type);
+    logger.info(`Calling PipedreamComponents.getAppComponents(${appSlug}, ${type})`);
+    const components = await PipedreamComponents.getAppComponents(appSlug, type);
     
     logger.info(`Retrieved ${components?.actions?.length || 0} actions and ${components?.triggers?.length || 0} triggers for ${appSlug}`);
     logger.info(`getAppComponents completed in ${Date.now() - startTime}ms`);
@@ -537,8 +525,8 @@ const configureComponent = async (req, res) => {
       });
     }
     
-    logger.info(`Calling PipedreamService.configureComponent`);
-    const configuration = await PipedreamService.configureComponent(userId, {
+    logger.info(`Calling PipedreamComponents.configureComponent`);
+    const configuration = await PipedreamComponents.configureComponent(userId, {
       componentId,
       propName,
       configuredProps,
@@ -600,8 +588,8 @@ const runAction = async (req, res) => {
       });
     }
     
-    logger.info(`Calling PipedreamService.runAction`);
-    const result = await PipedreamService.runAction(userId, {
+    logger.info(`Calling PipedreamComponents.runAction`);
+    const result = await PipedreamComponents.runAction(userId, {
       componentId,
       configuredProps,
       dynamicPropsId,
@@ -670,8 +658,8 @@ const deployTrigger = async (req, res) => {
       });
     }
     
-    logger.info(`Calling PipedreamService.deployTrigger`);
-    const deployment = await PipedreamService.deployTrigger(userId, {
+    logger.info(`Calling PipedreamComponents.deployTrigger`);
+    const deployment = await PipedreamComponents.deployTrigger(userId, {
       componentId,
       configuredProps,
       webhookUrl,

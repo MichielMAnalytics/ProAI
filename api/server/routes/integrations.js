@@ -88,6 +88,13 @@ router.post('/connect-token', requireJwtAuth, createConnectToken);
 router.post('/callback', requireJwtAuth, handleConnectionCallback);
 
 /**
+ * @route POST /api/integrations/webhook
+ * @desc Handle Pipedream webhook for account connections (no auth required)
+ * @access Public
+ */
+router.post('/webhook', handleConnectionCallback);
+
+/**
  * @route DELETE /api/integrations/:integrationId
  * @desc Delete user integration
  * @access Private
