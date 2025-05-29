@@ -6,6 +6,7 @@ import {
   agentPermissionsSchema,
   promptPermissionsSchema,
   runCodePermissionsSchema,
+  webSearchPermissionsSchema,
   bookmarkPermissionsSchema,
   multiConvoPermissionsSchema,
   temporaryChatPermissionsSchema,
@@ -66,6 +67,9 @@ const defaultRolesSchema = z.object({
       [PermissionTypes.SCHEDULES]: schedulesPermissionsSchema.extend({
         [Permissions.USE]: z.boolean().default(true),
       }),
+      [PermissionTypes.WEB_SEARCH]: webSearchPermissionsSchema.extend({
+        [Permissions.USE]: z.boolean().default(true),
+      }),
     }),
   }),
   [SystemRoles.USER]: roleSchema.extend({
@@ -103,6 +107,9 @@ export const roleDefaults = defaultRolesSchema.parse({
       [PermissionTypes.SCHEDULES]: {
         [Permissions.USE]: true,
       },
+      [PermissionTypes.WEB_SEARCH]: {
+        [Permissions.USE]: true,
+      },
     },
   },
   [SystemRoles.USER]: {
@@ -117,6 +124,7 @@ export const roleDefaults = defaultRolesSchema.parse({
       [PermissionTypes.SCHEDULES]: {
         [Permissions.USE]: true,
       },
+      [PermissionTypes.WEB_SEARCH]: {},
     },
   },
 });

@@ -32,6 +32,10 @@ export enum PermissionTypes {
    * Type for Scheduler Permissions
    */
   SCHEDULES = 'SCHEDULES',
+  /**
+   * Type for using the "Web Search" feature
+   */
+  WEB_SEARCH = 'WEB_SEARCH',
 }
 
 /**
@@ -88,6 +92,11 @@ export const schedulesPermissionsSchema = z.object({
 });
 export type TSchedulesPermissions = z.infer<typeof schedulesPermissionsSchema>;
 
+export const webSearchPermissionsSchema = z.object({
+  [Permissions.USE]: z.boolean().default(true),
+});
+export type TWebSearchPermissions = z.infer<typeof webSearchPermissionsSchema>;
+
 // Define a single permissions schema that holds all permission types.
 export const permissionsSchema = z.object({
   [PermissionTypes.PROMPTS]: promptPermissionsSchema,
@@ -97,4 +106,5 @@ export const permissionsSchema = z.object({
   [PermissionTypes.TEMPORARY_CHAT]: temporaryChatPermissionsSchema,
   [PermissionTypes.RUN_CODE]: runCodePermissionsSchema,
   [PermissionTypes.SCHEDULES]: schedulesPermissionsSchema,
+  [PermissionTypes.WEB_SEARCH]: webSearchPermissionsSchema,
 });
