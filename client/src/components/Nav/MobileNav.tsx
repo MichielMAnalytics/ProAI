@@ -19,7 +19,7 @@ export default function MobileNav({
   const { title = 'New Chat' } = conversation || {};
 
   return (
-    <div className="bg-token-main-surface-primary sticky top-0 z-10 flex min-h-[40px] items-center justify-center bg-white pl-1 dark:bg-gray-800 dark:text-white md:hidden">
+    <div className="bg-token-main-surface-primary sticky top-0 z-10 flex min-h-[40px] items-center justify-center bg-surface-primary pl-1 dark:bg-surface-primary dark:text-white md:hidden">
       <button
         type="button"
         data-testid="mobile-header-new-chat-button"

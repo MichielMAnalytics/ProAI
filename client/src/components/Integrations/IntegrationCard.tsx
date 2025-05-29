@@ -44,7 +44,7 @@ export default function IntegrationCard({
   return (
     <>
       <div 
-        className="group relative cursor-pointer overflow-hidden rounded-xl bg-white border border-gray-200/60 shadow-sm hover:shadow-lg hover:shadow-gray-900/10 transition-all duration-300 hover:-translate-y-1 dark:bg-gray-800/50 dark:border-gray-700/50 dark:hover:shadow-gray-900/20 flex flex-col h-full"
+        className="group relative cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-surface-primary shadow-sm transition-all duration-300 hover:-translate-y-1 dark:bg-surface-secondary dark:border-gray-700/50 dark:hover:shadow-gray-900/20 flex flex-col h-full"
         onClick={handleCardClick}
       >
         {/* Connected Status Indicator */}
@@ -77,18 +77,18 @@ export default function IntegrationCard({
             </div>
             
             <div className="min-w-0 flex-1">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-lg leading-tight mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-lg leading-tight mb-2 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">
                 {integration.appName}
               </h3>
               
               {/* Badges under title */}
               <div className="flex flex-wrap gap-1.5 mb-3">
                 {integration.appCategories && integration.appCategories.length > 0 && (
-                  <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 border border-blue-200/50 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700/50">
+                  <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 border border-green-200/50 dark:bg-surface-secondary dark:text-gray-300 dark:border-gray-700">
                     {integration.appCategories[0]}
                   </span>
                 )}
-                <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 border border-gray-200/50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700">
+                <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 border border-green-200/50 dark:bg-surface-secondary dark:text-gray-300 dark:border-gray-700">
                   {integration.authType || 'oauth'}
                 </span>
               </div>
@@ -109,7 +109,7 @@ export default function IntegrationCard({
                 <button
                   onClick={handleDisconnect}
                   disabled={isLoading}
-                  className="w-full h-9 px-4 text-sm font-medium border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-400 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-600 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700 dark:hover:border-gray-500"
+                  className="btn btn-neutral w-full h-9 text-sm"
                 >
                   {isLoading ? (
                     <Spinner className="h-4 w-4 mx-auto" />
@@ -121,7 +121,7 @@ export default function IntegrationCard({
                 <button
                   onClick={handleConnect}
                   disabled={isLoading}
-                  className="w-full h-9 px-4 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn btn-primary w-full h-9 text-sm"
                 >
                   {isLoading ? (
                     <Spinner className="h-4 w-4 mx-auto" />

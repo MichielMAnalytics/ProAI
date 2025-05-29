@@ -5,8 +5,9 @@ import { Constants } from 'librechat-data-provider';
 import type { TConversation } from 'librechat-data-provider';
 import { useNavigateToConvo, useMediaQuery, useLocalize } from '~/hooks';
 import { useUpdateConversationMutation } from '~/data-provider';
-import EndpointIcon from '~/components/Endpoints/EndpointIcon';
+import ConvoIcon from '~/components/Endpoints/ConvoIcon';
 import { useGetEndpointsQuery } from '~/data-provider';
+import { useAgentsMapContext, useAssistantsMapContext } from '~/Providers';
 import { NotificationSeverity } from '~/common';
 import { ConvoOptions } from './ConvoOptions';
 import { useToastContext } from '~/Providers';
@@ -33,6 +34,8 @@ export default function Conversation({
   const { showToast } = useToastContext();
   const { navigateToConvo } = useNavigateToConvo();
   const { data: endpointsConfig } = useGetEndpointsQuery();
+  const agentsMap = useAgentsMapContext();
+  const assistantMap = useAssistantsMapContext();
   const currentConvoId = useMemo(() => params.conversationId, [params.conversationId]);
   const updateConvoMutation = useUpdateConversationMutation(currentConvoId ?? '');
   const activeConvos = useRecoilValue(store.allConversationsSelector);
@@ -177,10 +180,13 @@ export default function Conversation({
           isSmallScreen={isSmallScreen}
           localize={localize}
         >
-          <EndpointIcon
+          <ConvoIcon
             conversation={conversation}
             endpointsConfig={endpointsConfig}
-            size={20}
+            agentsMap={agentsMap}
+            assistantMap={assistantMap}
+            containerClassName="relative flex h-5 w-5 items-center justify-center overflow-hidden rounded-full"
+            size={16}
             context="menu-item"
           />
         </ConvoLink>

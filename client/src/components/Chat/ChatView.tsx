@@ -79,7 +79,13 @@ function ChatView({ index = 0 }: { index?: number }) {
       <ChatContext.Provider value={chatHelpers}>
         <AddedChatContext.Provider value={addedChatHelpers}>
           <Presentation>
-            <div className="flex h-full w-full flex-col">
+            <div 
+              className="flex h-full w-full flex-col chat-grid-bg"
+              style={{
+                backgroundSize: '32px 32px',
+                backgroundRepeat: 'repeat'
+              }}
+            >
               {!isLoading && <Header />}
               <>
                 <div

@@ -25,35 +25,47 @@ export function Pagination({
   onItemsPerPageChange,
   className = '',
 }: PaginationProps) {
-  // Calculate visible page numbers
+  // Calculate visible page numbers with fewer pages shown
   const getVisiblePages = (): (number | string)[] => {
-    const delta = 2; // Number of pages to show on each side of current page
+    const delta = 1; // Show only 1 page on each side of current page for cleaner look
     const range: number[] = [];
     const rangeWithDots: (number | string)[] = [];
 
+    // Always show first page
+    if (totalPages > 1) {
+      rangeWithDots.push(1);
+    }
+
+    // Add dots and middle range if needed
+    if (currentPage > 3) {
+      rangeWithDots.push('...');
+    }
+
+    // Add pages around current page
     for (
       let i = Math.max(2, currentPage - delta);
       i <= Math.min(totalPages - 1, currentPage + delta);
       i++
     ) {
-      range.push(i);
-    }
-
-    if (currentPage - delta > 2) {
-      rangeWithDots.push(1, '...');
-    } else {
-      rangeWithDots.push(1);
+      if (i !== 1 && i !== totalPages) {
+        range.push(i);
+      }
     }
 
     rangeWithDots.push(...range);
 
-    if (currentPage + delta < totalPages - 1) {
-      rangeWithDots.push('...', totalPages);
-    } else if (totalPages > 1) {
+    // Add dots and last page if needed
+    if (currentPage < totalPages - 2) {
+      rangeWithDots.push('...');
+    }
+
+    // Always show last page if different from first
+    if (totalPages > 1) {
       rangeWithDots.push(totalPages);
     }
 
-    return rangeWithDots;
+    // Remove duplicates
+    return [...new Set(rangeWithDots)];
   };
 
   const visiblePages = getVisiblePages();
@@ -65,22 +77,22 @@ export function Pagination({
   }
 
   return (
-    <div className={`flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between ${className}`}>
-      {/* Items info and per-page selector */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
-        <div className="text-sm font-medium text-gray-600 dark:text-gray-400">
-          Showing <span className="font-semibold text-gray-900 dark:text-gray-100">{startItem.toLocaleString()}</span> to{' '}
-          <span className="font-semibold text-gray-900 dark:text-gray-100">{endItem.toLocaleString()}</span> of{' '}
-          <span className="font-semibold text-gray-900 dark:text-gray-100">{totalItems.toLocaleString()}</span> results
-        </div>
-        
+    <div className={`flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between ${className} ${className.includes('premium-pagination') ? 'premium-pagination-wrapper' : ''}`}>
+      {/* Items info */}
+      <div className="text-sm text-text-secondary">
+         <span className="font-semibold text-text-primary">{startItem.toLocaleString()}</span>-<span className="font-semibold text-text-primary">{endItem.toLocaleString()}</span> of{' '}
+        <span className="font-semibold text-text-primary">{totalItems.toLocaleString()}</span>
+      </div>
+
+      {/* Pagination controls */}
+      <div className="flex items-center gap-4">
+        {/* Items per page selector */}
         {showItemsPerPage && onItemsPerPageChange && (
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Show:</span>
+          <div className="relative">
             <select
               value={itemsPerPage}
               onChange={(e) => onItemsPerPageChange(Number(e.target.value))}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:focus:border-blue-400"
+              className="appearance-none rounded-lg border-none bg-surface-primary backdrop-blur-sm px-3 py-1.5 pr-8 text-sm font-medium text-text-primary focus:outline-none transition-all duration-200"
             >
               {ITEMS_PER_PAGE_OPTIONS.map((option) => (
                 <option key={option} value={option}>
@@ -88,34 +100,38 @@ export function Pagination({
                 </option>
               ))}
             </select>
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">per page</span>
+            <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+              <svg className="h-4 w-4 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
           </div>
         )}
-      </div>
 
-      {/* Pagination controls */}
-      <div className="flex items-center gap-2">
-        {/* Previous button */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="flex items-center gap-2 px-4 py-2 h-9 text-sm font-medium border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:border-gray-500"
-          aria-label="Go to previous page"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">Previous</span>
-        </Button>
-
-        {/* Page numbers */}
+        {/* Page navigation */}
         <div className="flex items-center gap-1">
+          {/* Previous button */}
+          <button
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+              currentPage === 1
+                ? 'text-text-tertiary cursor-not-allowed'
+                : 'text-text-primary hover:text-text-primary hover:bg-surface-hover'
+            }`}
+            aria-label="Go to previous page"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            <span className="hidden sm:inline"></span>
+          </button>
+
+          {/* Page numbers */}
           {visiblePages.map((page, index) => {
             if (page === '...') {
               return (
                 <div
                   key={`dots-${index}`}
-                  className="flex h-9 w-9 items-center justify-center text-gray-400 dark:text-gray-500"
+                  className="flex h-8 w-8 items-center justify-center text-text-tertiary"
                   aria-hidden="true"
                 >
                   <MoreHorizontal className="h-4 w-4" />
@@ -127,37 +143,37 @@ export function Pagination({
             const isCurrentPage = pageNumber === currentPage;
 
             return (
-              <Button
+              <button
                 key={pageNumber}
-                variant={isCurrentPage ? 'default' : 'outline'}
-                size="sm"
                 onClick={() => onPageChange(pageNumber)}
-                className={`h-9 w-9 p-0 text-sm font-medium ${
+                className={`h-8 w-8 text-sm font-medium rounded-lg transition-all duration-200 ${
                   isCurrentPage
-                    ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 shadow-sm'
-                    : 'border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:border-gray-500'
+                    ? 'bg-surface-primary text-green-600 hover:bg-green-50 dark:bg-surface-primary dark:text-green-400 dark:hover:bg-green-900/10'
+                    : 'text-text-primary hover:text-text-primary hover:bg-surface-hover'
                 }`}
                 aria-label={`Go to page ${pageNumber}`}
                 aria-current={isCurrentPage ? 'page' : undefined}
               >
                 {pageNumber}
-              </Button>
+              </button>
             );
           })}
-        </div>
 
-        {/* Next button */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="flex items-center gap-2 px-4 py-2 h-9 text-sm font-medium border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:border-gray-500"
-          aria-label="Go to next page"
-        >
-          <span className="hidden sm:inline">Next</span>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
+          {/* Next button */}
+          <button
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+              currentPage === totalPages
+                ? 'text-text-tertiary cursor-not-allowed'
+                : 'text-text-primary hover:text-text-primary hover:bg-surface-hover'
+            }`}
+            aria-label="Go to next page"
+          >
+            <span className="hidden sm:inline"></span>
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

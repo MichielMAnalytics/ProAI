@@ -19,6 +19,16 @@ import type {
   TCreateConnectTokenResponse,
 } from 'librechat-data-provider';
 
+// Helper function to format numbers with suffixes
+const formatCount = (count: number): string => {
+  if (count < 10) return count.toString();
+  if (count < 100) return `${Math.floor(count / 10) * 10}+`;
+  if (count < 1000) return `${Math.floor(count / 100) * 100}+`;
+  if (count < 10000) return `${(count / 1000).toFixed(1)}K+`.replace('.0', '');
+  if (count < 100000) return `${Math.floor(count / 1000)}K+`;
+  return `${Math.floor(count / 1000)}K+`;
+};
+
 export default function IntegrationsView() {
   const localize = useLocalize();
   const navigate = useNavigate();
@@ -198,21 +208,83 @@ export default function IntegrationsView() {
       return [];
     }
     
-    return integrations.filter((integration) => {
-      // Search functionality - check both title and description
-      const searchTermLower = searchTerm.trim().toLowerCase();
-      const matchesSearch = searchTermLower === '' || 
-        (integration.appName && integration.appName.toLowerCase().includes(searchTermLower)) ||
-        (integration.appDescription && integration.appDescription.toLowerCase().includes(searchTermLower));
-      
-      // Category filtering
+    // First filter by category and active status
+    const categoryFiltered = integrations.filter((integration) => {
       const matchesCategory = selectedCategory === 'all' || 
         (integration.appCategories && Array.isArray(integration.appCategories) && 
          integration.appCategories.includes(selectedCategory));
-
-      // Only show active integrations
-      return matchesSearch && matchesCategory && integration.isActive;
+      return matchesCategory && integration.isActive;
     });
+
+    // If no search term, return category filtered results
+    if (!searchTerm.trim()) {
+      return categoryFiltered;
+    }
+
+    // Search with relevance scoring
+    const searchTermLower = searchTerm.trim().toLowerCase();
+    
+    const scoredResults = categoryFiltered
+      .map((integration) => {
+        let score = 0;
+        
+        // App name scoring (highest priority)
+        if (integration.appName) {
+          const appNameLower = integration.appName.toLowerCase();
+          if (appNameLower === searchTermLower) {
+            score += 100; // Exact match
+          } else if (appNameLower.startsWith(searchTermLower)) {
+            score += 80; // Starts with
+          } else if (appNameLower.includes(searchTermLower)) {
+            score += 60; // Contains
+          }
+        }
+        
+        // App slug scoring (second priority)
+        if (integration.appSlug) {
+          const appSlugLower = integration.appSlug.toLowerCase();
+          if (appSlugLower === searchTermLower) {
+            score += 90; // Exact match
+          } else if (appSlugLower.startsWith(searchTermLower)) {
+            score += 70; // Starts with
+          } else if (appSlugLower.includes(searchTermLower)) {
+            score += 50; // Contains
+          }
+        }
+        
+        // Categories scoring (third priority)
+        if (integration.appCategories && Array.isArray(integration.appCategories)) {
+          integration.appCategories.forEach(category => {
+            const categoryLower = category.toLowerCase();
+            if (categoryLower === searchTermLower) {
+              score += 40; // Exact match
+            } else if (categoryLower.includes(searchTermLower)) {
+              score += 20; // Contains
+            }
+          });
+        }
+        
+        // Description scoring (lowest priority)
+        if (integration.appDescription) {
+          const descriptionLower = integration.appDescription.toLowerCase();
+          if (descriptionLower.includes(searchTermLower)) {
+            score += 10; // Contains
+          }
+        }
+        
+        return { integration, score };
+      })
+      .filter(item => item.score > 0) // Only include matches
+      .sort((a, b) => {
+        // Sort by score (descending), then by name (ascending)
+        if (b.score !== a.score) {
+          return b.score - a.score;
+        }
+        return (a.integration.appName || '').localeCompare(b.integration.appName || '');
+      })
+      .map(item => item.integration);
+
+    return scoredResults;
   }, [availableIntegrations, searchTerm, selectedCategory]);
 
   // Calculate pagination
@@ -320,7 +392,7 @@ export default function IntegrationsView() {
           <Button
             onClick={() => window.location.reload()}
             variant="outline"
-            className="mt-4"
+            className="mt-4 btn-neutral"
           >
             Retry
           </Button>
@@ -330,7 +402,7 @@ export default function IntegrationsView() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900">
+    <div className="min-h-screen bg-surface-primary dark:bg-surface-primary">
       {/* Close button - Fixed to top-right corner */}
       <button
         onClick={handleClose}
@@ -343,45 +415,106 @@ export default function IntegrationsView() {
       </button>
 
       {/* Header */}
-      <div className="bg-white dark:bg-gray-900">
-        <div className="mx-auto max-w-7xl px-6 py-8">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-              The Personal Assistant Toolkit
+      <div className="integrations-header relative overflow-hidden">
+        {/* Subtle grid pattern overlay */}
+        <div className="absolute inset-0 opacity-60 dark:opacity-45">
+          <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+                <path 
+                  d="M 32 0 L 0 0 0 32" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="0.75" 
+                  className="text-border-light dark:text-border-medium"
+                />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grid)" />
+          </svg>
+        </div>
+
+        <div className="relative mx-auto max-w-7xl px-6 py-12">
+          <div className="text-center max-w-4xl mx-auto">
+            {/* Badge */}
+            <div className="inline-flex items-center rounded-full bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 px-4 py-2 text-base font-medium text-text-primary ring-1 ring-green-200 dark:ring-green-800/50 mb-6 shadow-sm">
+              <svg className="h-5 w-5 mr-3 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span className="text-green-700 dark:text-green-300 font-bold">2,500+</span>
+              <span className="mx-1">Apps &</span>
+              <span className="text-green-700 dark:text-green-300 font-bold">10,000+</span>
+              <span className="ml-1">Tools Available</span>
+            </div>
+
+            {/* Main Title */}
+            <h1 className="text-4xl md:text-5xl font-bold text-text-primary mb-4 leading-tight">
+              The Personal Assistant
+              <br />
+              <span className="text-text-secondary">
+                Toolkit
+              </span>
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Add 2,500+ APIs and 10,000+ tools to your Personal Assistant. Connect your accounts securely and revoke access at any time. 
-            </p>
             
-            {/* All/My Toggle */}
-            <div className="inline-flex rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
+            {/* Subtitle */}
+            <p className="text-lg text-text-secondary mb-8 leading-relaxed max-w-3xl mx-auto">
+              Connect your favorite apps, in a single click, and unlock unlimited possibilities with enterprise-grade security.
+            </p>
+
+            {/* Feature highlights */}
+            <div className="flex flex-wrap justify-center gap-8 mb-8 text-sm">
+              <div className="flex items-center gap-2 text-text-tertiary">
+                <div className="w-1.5 h-1.5 bg-text-tertiary rounded-full"></div>
+                <span>One-click Setup</span>
+              </div>
+              <div className="flex items-center gap-2 text-text-tertiary">
+                <div className="w-1.5 h-1.5 bg-text-tertiary rounded-full"></div>
+                <span>Enterprise-grade security</span>
+              </div>
+              <div className="flex items-center gap-2 text-text-tertiary">
+                <div className="w-1.5 h-1.5 bg-text-tertiary rounded-full"></div>
+                <span>Real-time</span>
+              </div>
+              <div className="flex items-center gap-2 text-text-tertiary">
+                <div className="w-1.5 h-1.5 bg-text-tertiary rounded-full"></div>
+                <span>No coding required</span>
+              </div>
+            </div>
+            
+            {/* Navigation Toggle with sliding animation */}
+            <div className="relative inline-flex items-center p-1 rounded-lg shadow-sm border border-border-light">
               <button
                 onClick={() => setSelectedCategory('all')}
-                className={`px-6 py-2 text-sm font-medium rounded-md transition-all ${
-                  selectedCategory === 'all' || selectedCategory === 'all'
-                    ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
-                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                className={`relative z-10 px-6 py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                  selectedCategory === 'all' || selectedCategory !== 'my'
+                    ? 'text-green-600 dark:text-green-400 border border-green-500 bg-transparent'
+                    : 'text-text-secondary hover:text-text-primary bg-transparent border-none'
                 }`}
               >
-                All Apps
+                <span className="relative z-10 flex items-center gap-2">
+                  All Apps
+                </span>
               </button>
               <button
                 onClick={() => setSelectedCategory('my')}
-                className={`px-6 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
+                className={`relative z-10 px-6 py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
                   selectedCategory === 'my'
-                    ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
-                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                    ? 'text-green-600 dark:text-green-400 border border-green-500 bg-transparent'
+                    : 'text-text-secondary hover:text-text-primary bg-transparent border-none'
                 }`}
               >
-                <span>My Apps</span>
-                {userIntegrations.length > 0 && (
-                  <div className="relative">
-                    <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-green-500 rounded-full">
-                      {userIntegrations.length}
+                <span className="relative z-10 flex items-center gap-2">
+                  My Apps
+                  {userIntegrations.length > 0 && (
+                    <span className={`inline-flex items-center justify-center w-5 h-5 text-xs font-medium rounded-full border ml-2 ${
+                      selectedCategory === 'my' 
+                        ? 'text-green-600 bg-green-50 border-green-200 dark:text-green-400 dark:bg-green-900/20 dark:border-green-400/50' 
+                        : 'text-text-primary bg-surface-tertiary border-border-light'
+                    }`}>
+                      {formatCount(userIntegrations.length)}
                     </span>
-                    <span className="absolute -inset-1 w-7 h-7 bg-green-400 rounded-full opacity-30 animate-pulse"></span>
-                  </div>
-                )}
+                  )}
+                </span>
               </button>
             </div>
           </div>
@@ -392,14 +525,14 @@ export default function IntegrationsView() {
         <div className="flex gap-8">
           {/* Left Sidebar - Categories */}
           <div className="w-64 flex-shrink-0">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Categories</h3>
+            <h3 className="text-sm font-semibold text-text-primary mb-4">Categories</h3>
             <div className="space-y-1">
               <button
                 onClick={() => setSelectedCategory('all')}
-                className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
+                className={`w-full text-left px-3 py-2 text-sm rounded-md transition-all duration-200 ${
                   selectedCategory === 'all'
-                    ? 'bg-blue-50 text-blue-700 font-medium dark:bg-blue-900/30 dark:text-blue-300'
-                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'
+                    ? 'bg-surface-primary border border-green-500 text-green-600 hover:bg-green-50 dark:bg-surface-primary dark:text-green-400 dark:border-green-400 dark:hover:bg-green-900/10'
+                    : 'text-text-primary hover:bg-surface-hover'
                 }`}
               >
                 All Apps
@@ -408,10 +541,10 @@ export default function IntegrationsView() {
                 <button
                   key={category}
                   onClick={() => setSelectedCategory(category)}
-                  className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
+                  className={`w-full text-left px-3 py-2 text-sm rounded-md transition-all duration-200 ${
                     selectedCategory === category
-                      ? 'bg-blue-50 text-blue-700 font-medium dark:bg-blue-900/30 dark:text-blue-300'
-                      : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'
+                      ? 'bg-surface-primary border border-green-500 text-green-600 hover:bg-green-50 dark:bg-surface-primary dark:text-green-400 dark:border-green-400 dark:hover:bg-green-900/10'
+                      : 'text-text-primary hover:bg-surface-hover'
                   }`}
                 >
                   {category}
@@ -424,49 +557,53 @@ export default function IntegrationsView() {
           <div className="flex-1">
             {/* Search Bar */}
             <div className="mb-6">
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500">
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </div>
-                <Input
-                  type="text"
-                  placeholder="Search apps..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full h-12 pl-12 pr-12 text-base bg-white border-gray-200 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500/20 dark:bg-gray-800 dark:border-gray-700 dark:focus:border-blue-400"
-                />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm('')}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors dark:text-gray-500 dark:hover:text-gray-300"
-                    aria-label="Clear search"
-                  >
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <div></div>
+                <div></div>
+                <div className="relative">
+                  <Input
+                    type="text"
+                    placeholder="Search"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full h-12 pl-4 pr-12 text-base bg-surface-primary border-border-light rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500/20 text-text-primary placeholder:text-text-tertiary"
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-green-600 dark:text-green-400">
                     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
-                  </button>
-                )}
+                  </div>
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-12 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary transition-colors"
+                      aria-label="Clear search"
+                    >
+                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Show My Apps or All Apps */}
             {selectedCategory === 'my' ? (
               <div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6">
-                  My Apps ({userIntegrations.length})
+                <h2 className="text-xl font-semibold text-text-primary mb-6">
+                  My Apps ({formatCount(userIntegrations.length)})
                 </h2>
                 
                 {userIntegrations.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 px-4">
-                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 dark:bg-gray-800">
-                      <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-16 h-16 bg-surface-secondary rounded-full flex items-center justify-center mb-4">
+                      <svg className="w-8 h-8 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
                     </div>
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No connected apps</h3>
-                    <p className="text-gray-500 dark:text-gray-400 text-center max-w-md">
+                    <h3 className="text-lg font-medium text-text-primary mb-2">No connected apps</h3>
+                    <p className="text-text-secondary text-center max-w-md">
                       Connect your first app to get started with AI-powered automation.
                     </p>
                   </div>
@@ -479,16 +616,15 @@ export default function IntegrationsView() {
                       if (!integration) return null;
 
                       return (
-                        <div key={userIntegration._id} className="h-80">
-                          <IntegrationCard
-                            integration={integration}
-                            isConnected={true}
-                            userIntegration={userIntegration}
-                            onConnect={handleConnect}
-                            onDisconnect={handleDisconnect}
-                            isLoading={deleteIntegrationMutation.isLoading}
-                          />
-                        </div>
+                        <IntegrationCard
+                          key={userIntegration._id}
+                          integration={integration}
+                          isConnected={true}
+                          userIntegration={userIntegration}
+                          onConnect={handleConnect}
+                          onDisconnect={handleDisconnect}
+                          isLoading={deleteIntegrationMutation.isLoading}
+                        />
                       );
                     })}
                   </div>
@@ -499,13 +635,13 @@ export default function IntegrationsView() {
                 {/* Integrations Grid */}
                 {filteredIntegrations.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 px-4">
-                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 dark:bg-gray-800">
-                      <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-16 h-16 bg-surface-secondary rounded-full flex items-center justify-center mb-4">
+                      <svg className="w-8 h-8 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                     </div>
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No integrations found</h3>
-                    <p className="text-gray-500 dark:text-gray-400 text-center max-w-md">
+                    <h3 className="text-lg font-medium text-text-primary mb-2">No integrations found</h3>
+                    <p className="text-text-secondary text-center max-w-md">
                       {searchTerm || selectedCategory !== 'all'
                         ? 'Try adjusting your search criteria or browse all available integrations.'
                         : 'No integrations are currently available.'}
@@ -515,16 +651,15 @@ export default function IntegrationsView() {
                   <>
                     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                       {paginatedIntegrations.map((integration) => (
-                        <div key={integration._id || integration.appSlug} className="h-80">
-                          <IntegrationCard
-                            integration={integration}
-                            isConnected={isIntegrationConnected(integration.appSlug)}
-                            userIntegration={getUserIntegration(integration.appSlug)}
-                            onConnect={handleConnect}
-                            onDisconnect={handleDisconnect}
-                            isLoading={createConnectTokenMutation.isLoading}
-                          />
-                        </div>
+                        <IntegrationCard
+                          key={integration._id || integration.appSlug}
+                          integration={integration}
+                          isConnected={isIntegrationConnected(integration.appSlug)}
+                          userIntegration={getUserIntegration(integration.appSlug)}
+                          onConnect={handleConnect}
+                          onDisconnect={handleDisconnect}
+                          isLoading={createConnectTokenMutation.isLoading}
+                        />
                       ))}
                     </div>
 
@@ -539,7 +674,6 @@ export default function IntegrationsView() {
                           onPageChange={(newPage) => setCurrentPage(newPage)}
                           onItemsPerPageChange={(newItemsPerPage) => setItemsPerPage(newItemsPerPage)}
                           showItemsPerPage={true}
-                          className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm dark:bg-gray-800 dark:border-gray-700"
                         />
                       </div>
                     )}

@@ -290,7 +290,8 @@ export default function AgentPanel({
                   localize('com_ui_agent')}
               </Button>
               <Button
-                variant="submit"
+                variant="default"
+                className="btn btn-primary"
                 disabled={!agent_id || agentQuery.isInitialLoading}
                 onClick={(e) => {
                   e.preventDefault();

@@ -72,7 +72,7 @@ export default function AppDetailsModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={handleBackdropClick}
     >
-      <div className="relative mx-4 max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-gray-900">
+      <div className="relative mx-4 max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-xl bg-surface-primary shadow-2xl dark:bg-surface-primary">
         {/* Close button */}
         <button
           onClick={onClose}
@@ -112,7 +112,7 @@ export default function AppDetailsModal({
                       {integration.appCategories.slice(0, 3).map((category) => (
                         <span
                           key={category}
-                          className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 border border-blue-200/50 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700/50"
+                          className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 border border-green-200/50 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700/50"
                         >
                           {category}
                         </span>
@@ -126,7 +126,7 @@ export default function AppDetailsModal({
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <div className="mb-6">
-                <TabsList className="inline-flex rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
+                <TabsList className="inline-flex rounded-lg bg-surface-secondary p-1 dark:bg-surface-secondary">
                   <TabsTrigger 
                     value="overview"
                     className="px-6 py-2 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 data-[state=inactive]:hover:text-gray-900 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100 dark:data-[state=inactive]:text-gray-400 dark:data-[state=inactive]:hover:text-gray-200"
@@ -147,7 +147,7 @@ export default function AppDetailsModal({
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                   <div className="space-y-4 flex flex-col">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Connection Status</h3>
-                    <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800 flex-1 flex flex-col">
+                    <div className="rounded-xl border border-gray-200 bg-surface-primary p-6 shadow-sm dark:border-gray-700 dark:bg-surface-secondary flex-1 flex flex-col">
                       {isConnected ? (
                         <div className="space-y-4 flex flex-col h-full">
                           <div className="flex items-center space-x-2">
@@ -169,7 +169,7 @@ export default function AppDetailsModal({
                             <button
                               onClick={handleDisconnect}
                               disabled={isLoading}
-                              className="w-full h-9 px-4 text-sm font-medium border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-400 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-600 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700 dark:hover:border-gray-500"
+                              className="btn btn-neutral w-full h-9 text-sm"
                             >
                               {isLoading ? (
                                 <Spinner className="h-4 w-4 mx-auto" />
@@ -192,7 +192,7 @@ export default function AppDetailsModal({
                             <button
                               onClick={handleConnect}
                               disabled={isLoading}
-                              className="w-full h-9 px-4 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="btn btn-primary w-full h-9 text-sm"
                             >
                               {isLoading ? (
                                 <Spinner className="h-4 w-4 mx-auto" />
@@ -208,12 +208,12 @@ export default function AppDetailsModal({
 
                   <div className="space-y-4 flex flex-col">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">App Information</h3>
-                    <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800 flex-1">
+                    <div className="rounded-xl border border-gray-200 bg-surface-primary p-6 shadow-sm dark:border-gray-700 dark:bg-surface-secondary flex-1">
                       <dl className="space-y-3">
                         <div>
                           <dt className="text-sm font-medium text-gray-600 dark:text-gray-400">Authentication Type</dt>
                           <dd className="mt-1">
-                            <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 border border-gray-200/50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700">
+                            <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 border border-gray-200/50 dark:bg-surface-tertiary dark:text-gray-300 dark:border-gray-700">
                               {integration.authType || 'oauth'}
                             </span>
                           </dd>
@@ -226,7 +226,7 @@ export default function AppDetailsModal({
                             ) : components?.actions && components.actions.length > 0 ? (
                               <button
                                 onClick={() => setActiveTab('actions')}
-                                className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:hover:text-blue-200 rounded-md border border-blue-200/50 dark:border-blue-700/50 transition-all"
+                                className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 hover:text-green-800 dark:text-green-300 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:hover:text-green-200 rounded-md border border-green-200/50 dark:border-green-700/50 transition-all"
                                 title="View tools"
                               >
                                 {components.actions.length}
@@ -246,7 +246,7 @@ export default function AppDetailsModal({
                                 href={integration.appUrl} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
+                                className="text-sm text-green-600 hover:text-green-500 dark:text-green-400 dark:hover:text-green-300"
                               >
                                 {integration.appUrl}
                               </a>
@@ -284,7 +284,7 @@ export default function AppDetailsModal({
                       ))}
                     </div>
                   ) : (
-                    <div className="flex h-32 items-center justify-center rounded-xl border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
+                    <div className="flex h-32 items-center justify-center rounded-xl border border-gray-200 bg-surface-secondary dark:border-gray-700 dark:bg-surface-secondary">
                       <p className="text-gray-600 dark:text-gray-400">No tools available for this app</p>
                     </div>
                   )}

@@ -51,7 +51,7 @@ export default function ComponentCard({ component, type, isConnected, appSlug }:
           href={match[2]}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 underline"
+          className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 underline"
         >
           {match[1]}
         </a>
@@ -72,7 +72,7 @@ export default function ComponentCard({ component, type, isConnected, appSlug }:
   const parsedDescription = parseDescription(component.description || '');
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded-xl border border-gray-200 bg-surface-primary p-6 shadow-sm hover:shadow-md transition-shadow dark:border-gray-700 dark:bg-surface-secondary">
       <div className="mb-4">
         <div className="flex items-start justify-between mb-2">
           <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-tight">
@@ -93,7 +93,7 @@ export default function ComponentCard({ component, type, isConnected, appSlug }:
               href={`https://pipedream.com/apps/${appSlug}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+              className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 transition-colors"
               title="Pipedream Docs"
             >
               <ExternalLink className="h-4 w-4" />
