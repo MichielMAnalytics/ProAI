@@ -274,32 +274,84 @@ export default function AgentConfig({
         )}
         {/* Agent Tools & Actions */}
         <div className="mb-4">
-          <label className={labelClass}>
-            {`${toolsEnabled === true ? localize('com_ui_tools') : ''}
-              ${toolsEnabled === true && actionsEnabled === true ? ' + ' : ''}
-              ${actionsEnabled === true ? localize('com_assistants_actions') : ''}`}
-          </label>
+          <div className="mb-2 flex items-center justify-between">
+            <label className="text-token-text-primary block font-medium">
+              {`${toolsEnabled === true ? localize('com_ui_tools') : ''}
+                ${toolsEnabled === true && actionsEnabled === true ? ' + ' : ''}
+                ${actionsEnabled === true ? localize('com_assistants_actions') : ''}`}
+            </label>
+            {(() => {
+              const validToolsCount = tools?.filter(tool => allTools.find(t => t.pluginKey === tool)).length ?? 0;
+              const validActionsCount = actions?.filter((action) => action.agent_id === agent_id).length ?? 0;
+              const totalCount = validToolsCount + validActionsCount;
+              
+              return totalCount > 0 ? (
+                <span className="rounded-full bg-surface-tertiary px-2 py-1 text-xs text-text-secondary">
+                  {totalCount}
+                </span>
+              ) : null;
+            })()}
+          </div>
           <div className="space-y-2">
-            {tools?.map((func, i) => (
-              <AgentTool
-                key={`${func}-${i}-${agent_id}`}
-                tool={func}
-                allTools={allTools}
-                agent_id={agent_id}
-              />
-            ))}
-            {actions
-              .filter((action) => action.agent_id === agent_id)
-              .map((action, i) => (
-                <Action
-                  key={i}
-                  action={action}
-                  onClick={() => {
-                    setAction(action);
-                    setActivePanel(Panel.actions);
+            {/* Tools and Actions Container with Scrolling */}
+            {(() => {
+              const validTools = tools?.filter(tool => allTools.find(t => t.pluginKey === tool)) ?? [];
+              const validActions = actions?.filter((action) => action.agent_id === agent_id) ?? [];
+              const hasItems = validTools.length > 0 || validActions.length > 0;
+              
+              if (!hasItems) {
+                return (
+                  <div className="rounded-lg border border-dashed border-border-medium bg-surface-primary p-4 text-center">
+                    <p className="text-sm text-text-secondary">
+                      {toolsEnabled && actionsEnabled 
+                        ? 'No tools or actions added yet' 
+                        : toolsEnabled 
+                        ? 'No tools added yet'
+                        : actionsEnabled 
+                        ? 'No actions added yet'
+                        : 'Tools and actions not available'
+                      }
+                    </p>
+                  </div>
+                );
+              }
+              
+              return (
+                <div 
+                  className={cn(
+                    "space-y-2 rounded-lg border border-border-light bg-surface-primary p-2",
+                    (validTools.length + validActions.length) > 4
+                      ? "max-h-60 overflow-y-auto"
+                      : ""
+                  )}
+                  style={{
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: 'rgb(156 163 175) transparent',
                   }}
-                />
-              ))}
+                >
+                  {validTools.map((func, i) => (
+                    <AgentTool
+                      key={`${func}-${i}-${agent_id}`}
+                      tool={func}
+                      allTools={allTools}
+                      agent_id={agent_id}
+                    />
+                  ))}
+                  {validActions.map((action, i) => (
+                    <Action
+                      key={i}
+                      action={action}
+                      onClick={() => {
+                        setAction(action);
+                        setActivePanel(Panel.actions);
+                      }}
+                    />
+                  ))}
+                </div>
+              );
+            })()}
+            
+            {/* Add Tools/Actions Buttons */}
             <div className="flex space-x-2">
               {(toolsEnabled ?? false) && (
                 <button

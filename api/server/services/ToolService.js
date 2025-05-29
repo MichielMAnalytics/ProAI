@@ -504,6 +504,22 @@ async function loadAgentTools({ req, res, agent, tool_resources, openAIApiKey })
   const checkCapability = (capability) => enabledCapabilities.has(capability);
   const areToolsEnabled = checkCapability(AgentCapabilities.tools);
 
+  // Initialize user-specific MCP connections early for agent execution
+  const MCPInitializer = require('~/server/services/MCPInitializer');
+  const mcpInitializer = MCPInitializer.getInstance();
+  const mcpResult = await mcpInitializer.ensureUserMCPReady(
+    req.user.id, 
+    'loadAgentTools', 
+    req.app.locals.availableTools
+  );
+  
+  if (mcpResult.success) {
+    logger.info(`[loadAgentTools] MCP initialization successful for agent ${agent.id}: ${mcpResult.serverCount} servers, ${mcpResult.toolCount} tools in ${mcpResult.duration}ms`);
+  } else {
+    logger.warn(`[loadAgentTools] MCP initialization failed for agent ${agent.id}: ${mcpResult.error}`);
+    // Continue without MCP tools - agent can still work with other tools
+  }
+
   const _agentTools = agent.tools?.filter((tool) => {
     if (tool === Tools.file_search) {
       return checkCapability(AgentCapabilities.file_search);

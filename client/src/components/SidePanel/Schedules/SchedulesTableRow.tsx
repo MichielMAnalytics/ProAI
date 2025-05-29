@@ -1,4 +1,5 @@
 import React from 'react';
+import { Play, Pause, Trash2 } from 'lucide-react';
 import type { TSchedulerTask } from 'librechat-data-provider';
 import { Button, TableCell, TableRow } from '~/components/ui';
 import {
@@ -170,24 +171,28 @@ const SchedulesTableRow: React.FC<SchedulesTableRowProps> = ({ task }) => {
       </TableCell>
       
       <TableCell className="py-2 w-16 sm:w-20">
-        <div className="flex flex-col gap-1 px-1 sm:px-2 items-end">
+        <div className="flex flex-row gap-1 px-1 sm:px-2 items-center justify-end">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleToggle}
-            className="h-5 px-1 sm:px-2 text-xs flex-shrink-0 w-fit"
+            className="h-6 w-6 p-0 flex-shrink-0 flex items-center justify-center"
             title={task.enabled ? 'Disable task' : 'Enable task'}
           >
-            {task.enabled ? 'Disable' : 'Enable'}
+            {task.enabled ? (
+              <Pause className="h-3 w-3" />
+            ) : (
+              <Play className="h-3 w-3" />
+            )}
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleDelete}
-            className="h-5 px-1 sm:px-2 text-xs text-red-600 hover:text-red-700 flex-shrink-0 w-fit"
+            className="h-6 w-6 p-0 text-red-600 hover:text-red-700 flex-shrink-0 flex items-center justify-center"
             title="Delete task"
           >
-            Delete
+            <Trash2 className="h-3 w-3" />
           </Button>
         </div>
       </TableCell>

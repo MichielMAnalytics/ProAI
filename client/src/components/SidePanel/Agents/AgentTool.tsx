@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useFormContext } from 'react-hook-form';
 import type { TPlugin } from 'librechat-data-provider';
 import { useUpdateUserPluginsMutation } from 'librechat-data-provider/react-query';
-import { OGDialog, OGDialogTrigger, Label } from '~/components/ui';
+import { OGDialog, OGDialogTrigger, Label, TooltipAnchor } from '~/components/ui';
 import OGDialogTemplate from '~/components/ui/OGDialogTemplate';
 import { useToastContext } from '~/Providers';
 import { TrashIcon } from '~/components/svg';
@@ -47,27 +47,43 @@ export default function AgentTool({
     return null;
   }
 
+  const toolName = currentTool.name;
+  const isNameTooLong = toolName && toolName.length > 30;
+
   return (
     <OGDialog>
       <div
-        className={cn('flex w-full items-center rounded-lg text-sm', !agent_id ? 'opacity-40' : '')}
+        className={cn(
+          'flex w-full items-center rounded-lg border border-border-light bg-surface-secondary text-sm transition-colors hover:bg-surface-tertiary',
+          !agent_id ? 'opacity-40' : ''
+        )}
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
       >
-        <div className="flex grow items-center">
+        <div className="flex min-w-0 grow items-center">
           {currentTool.icon && (
-            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full">
+            <div className="ml-2 flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full">
               <div
                 className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-center bg-no-repeat dark:bg-white/20"
                 style={{ backgroundImage: `url(${currentTool.icon})`, backgroundSize: 'cover' }}
               />
             </div>
           )}
-          <div
-            className="h-9 grow px-3 py-2"
-            style={{ textOverflow: 'ellipsis', wordBreak: 'break-all', overflow: 'hidden' }}
-          >
-            {currentTool.name}
+          <div className="min-w-0 flex-1 px-3 py-2">
+            {isNameTooLong ? (
+              <TooltipAnchor
+                description={toolName}
+                render={
+                  <div className="truncate text-text-primary">
+                    {toolName}
+                  </div>
+                }
+              />
+            ) : (
+              <div className="truncate text-text-primary">
+                {toolName}
+              </div>
+            )}
           </div>
         </div>
 
@@ -75,9 +91,10 @@ export default function AgentTool({
           <OGDialogTrigger asChild>
             <button
               type="button"
-              className="transition-color flex h-9 w-9 min-w-9 items-center justify-center rounded-lg duration-200 hover:bg-gray-200 dark:hover:bg-gray-700"
+              className="mr-2 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-colors duration-200 hover:bg-red-100 dark:hover:bg-red-900/20"
+              aria-label="Delete tool"
             >
-              <TrashIcon />
+              <TrashIcon className="h-4 w-4 text-red-500" />
             </button>
           </OGDialogTrigger>
         )}
@@ -85,7 +102,6 @@ export default function AgentTool({
       <OGDialogTemplate
         showCloseButton={false}
         title={localize('com_ui_delete_tool')}
-        mainClassName="px-0"
         className="max-w-[450px]"
         main={
           <Label className="text-left text-sm font-medium">
@@ -95,7 +111,7 @@ export default function AgentTool({
         selection={{
           selectHandler: () => removeTool(currentTool.pluginKey),
           selectClasses:
-            'bg-red-700 dark:bg-red-600 hover:bg-red-800 dark:hover:bg-red-800 transition-color duration-200 text-white',
+            'bg-red-700 dark:bg-red-600 hover:bg-red-800 dark:hover:bg-red-800 transition-colors duration-200 text-white',
           selectText: localize('com_ui_delete'),
         }}
       />

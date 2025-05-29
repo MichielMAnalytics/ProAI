@@ -2,6 +2,7 @@ const express = require('express');
 const { requireJwtAuth } = require('~/server/middleware');
 const { sendSchedulerMessage } = require('~/server/controllers/scheduler');
 const SchedulerService = require('~/server/services/SchedulerService');
+const SchedulerExecutionService = require('~/server/services/SchedulerExecutionService');
 const { notificationManager } = require('~/server/services/SchedulerService');
 const { setHeaders } = require('~/server/middleware');
 const { 
@@ -392,6 +393,52 @@ router.post('/internal/notification', async (req, res) => {
   try {
     const result = await SchedulerService.sendTaskNotification(req.body);
     res.json(result);
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * Get scheduler queue status for monitoring
+ * @route GET /scheduler/status
+ * @returns {object} Queue status information
+ */
+router.get('/status', requireJwtAuth, async (req, res) => {
+  try {
+    // Get global scheduler instance (you'll need to make this accessible)
+    // For now, return basic status - this can be enhanced later
+    const status = {
+      scheduler: {
+        isRunning: true, // This would come from the actual scheduler instance
+        lastCheck: new Date().toISOString(),
+      },
+      queue: {
+        main: {
+          size: 0,
+          pending: 0,
+          isPaused: false,
+        },
+        retry: {
+          size: 0,
+          pending: 0,
+          isPaused: false,
+        },
+      },
+      config: {
+        concurrency: parseInt(process.env.SCHEDULER_CONCURRENCY || '3'),
+        taskTimeout: parseInt(process.env.SCHEDULER_TASK_TIMEOUT || '300000'),
+        maxRetries: parseInt(process.env.SCHEDULER_MAX_RETRIES || '3'),
+        shutdownTimeout: parseInt(process.env.SCHEDULER_SHUTDOWN_TIMEOUT || '60000'),
+      }
+    };
+    
+    res.json({
+      success: true,
+      status
+    });
   } catch (error) {
     res.status(500).json({ 
       success: false, 

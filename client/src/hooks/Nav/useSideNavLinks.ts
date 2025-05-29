@@ -59,6 +59,7 @@ export default function useSideNavLinks({
   const Links = useMemo(() => {
     const links: NavLink[] = [];
     if (
+      interfaceConfig.assistants !== false &&
       isAssistantsEndpoint(endpoint) &&
       ((endpoint === EModelEndpoint.assistants &&
         endpointsConfig?.[EModelEndpoint.assistants] &&
@@ -117,13 +118,15 @@ export default function useSideNavLinks({
       });
     }
 
-    links.push({
-      title: 'com_sidepanel_attach_files',
-      label: '',
-      icon: AttachmentIcon,
-      id: 'files',
-      Component: FilesPanel,
-    });
+    if (interfaceConfig.files !== false) {
+      links.push({
+        title: 'com_sidepanel_attach_files',
+        label: '',
+        icon: AttachmentIcon,
+        id: 'files',
+        Component: FilesPanel,
+      });
+    }
 
     if (hasAccessToBookmarks) {
       links.push({
@@ -145,19 +148,25 @@ export default function useSideNavLinks({
       });
     }
 
-    links.push({
-      title: 'com_sidepanel_hide_panel',
-      label: '',
-      icon: ArrowRightToLine,
-      onClick: hidePanel,
-      id: 'hide-panel',
-    });
+    // Show hide panel button by default (when hidePanel is undefined/true)
+    // Hide it only when explicitly set to false
+    if (interfaceConfig.hidePanel !== false) {
+      links.push({
+        title: 'com_sidepanel_hide_panel',
+        label: '',
+        icon: ArrowRightToLine,
+        onClick: hidePanel,
+        id: 'hide-panel',
+      });
+    }
 
     return links;
   }, [
     endpointsConfig,
     interfaceConfig.parameters,
     interfaceConfig.schedules,
+    interfaceConfig.hidePanel,
+    interfaceConfig.files,
     keyProvided,
     endpointType,
     endpoint,

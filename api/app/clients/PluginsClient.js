@@ -91,6 +91,24 @@ class PluginsClient extends OpenAIClient {
       `[PluginsClient] Agent Model: ${model.modelName} | Temp: ${model.temperature} | Functions: ${this.functionsAgent}`,
     );
 
+    // Initialize user-specific MCP connections early for plugins execution
+    if (this.options.req && user) {
+      const MCPInitializer = require('~/server/services/MCPInitializer');
+      const mcpInitializer = MCPInitializer.getInstance();
+      const mcpResult = await mcpInitializer.ensureUserMCPReady(
+        user, 
+        'PluginsClient', 
+        this.options.req.app.locals.availableTools
+      );
+      
+      if (mcpResult.success) {
+        logger.info(`[PluginsClient] MCP initialization successful: ${mcpResult.serverCount} servers, ${mcpResult.toolCount} tools in ${mcpResult.duration}ms`);
+      } else {
+        logger.warn(`[PluginsClient] MCP initialization failed: ${mcpResult.error}`);
+        // Continue without MCP tools - plugins can still work with other tools
+      }
+    }
+
     // Map Messages to Langchain format
     const pastMessages = formatLangChainMessages(this.currentMessages.slice(0, -1), {
       userName: this.options?.name,

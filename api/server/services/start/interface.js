@@ -39,6 +39,10 @@ async function loadDefaultInterface(config, configDefaults, roleName = SystemRol
     temporaryChat: interfaceConfig?.temporaryChat ?? defaults.temporaryChat,
     runCode: interfaceConfig?.runCode ?? defaults.runCode,
     schedules: interfaceConfig?.schedules ?? defaults.schedules,
+    files: interfaceConfig?.files ?? defaults.files,
+    plugins: interfaceConfig?.plugins ?? defaults.plugins,
+    assistants: interfaceConfig?.assistants ?? defaults.assistants,
+    hidePanel: interfaceConfig?.hidePanel ?? defaults.hidePanel,
     customWelcome: interfaceConfig?.customWelcome ?? defaults.customWelcome,
   });
 

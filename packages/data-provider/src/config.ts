@@ -495,6 +495,10 @@ export const intefaceSchema = z
     temporaryChat: z.boolean().optional(),
     runCode: z.boolean().optional(),
     schedules: z.boolean().optional(),
+    files: z.boolean().optional(),
+    plugins: z.boolean().optional(),
+    assistants: z.boolean().optional(),
+    hidePanel: z.boolean().optional(),
   })
   .default({
     endpointsMenu: true,
@@ -509,6 +513,10 @@ export const intefaceSchema = z
     temporaryChat: true,
     runCode: true,
     schedules: true,
+    files: true,
+    plugins: true,
+    assistants: true,
+    hidePanel: true,
   });
 
 export type TInterfaceConfig = z.infer<typeof intefaceSchema>;

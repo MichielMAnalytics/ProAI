@@ -140,47 +140,35 @@ const getAvailableTools = async (req, res) => {
     if (userId && req.app.locals.addUserSpecificMcpFromDb) {
       logger.info('=== Processing user-specific MCP servers ===');
       logger.info(`Loading user MCP servers for endpoint: ${endpoint || 'default'}`);
-      try {
-        const UserMCPService = require('~/server/services/UserMCPService');
+      
+      // Use standardized MCP initialization
+      const MCPInitializer = require('~/server/services/MCPInitializer');
+      const mcpInitializer = MCPInitializer.getInstance();
+      const mcpResult = await mcpInitializer.ensureUserMCPReady(
+        userId, 
+        'PluginController', 
+        req.app.locals.availableTools
+      );
+      
+      if (mcpResult.success) {
+        logger.info(`=== User MCP initialization successful ===`);
+        logger.info(`Servers: ${mcpResult.serverCount}, Tools: ${mcpResult.toolCount}, Duration: ${mcpResult.duration}ms`);
         
-        logger.info(`Getting MCP servers for user ${userId}`);
-        const userMCPServers = await UserMCPService.getUserMCPServers(userId);
-        logger.info(`Found ${Object.keys(userMCPServers).length} user MCP servers:`, Object.keys(userMCPServers));
-        
-        if (Object.keys(userMCPServers).length > 0) {
-          logger.info(`Loading MCP tools for ${Object.keys(userMCPServers).length} user servers for user ${userId}`);
-          
-          // Get user-specific MCP manager and initialize user servers
-          const mcpManager = getMCPManager(userId);
-          logger.info(`Got MCP manager for user ${userId}`);
-          
-          // Add user MCP servers to the manager's configuration
-          logger.info(`Initializing user MCP servers...`);
+        // Load user MCP tools into the manifest using the initialized manager
+        if (mcpResult.mcpManager && mcpResult.serverCount > 0) {
           try {
-            await mcpManager.initializeUserMCP(userMCPServers, userId);
-            logger.info(`User MCP servers initialized successfully`);
-            
-            // Map user MCP tools to the availableTools registry for execution
-            logger.info(`Mapping user MCP tools to availableTools registry...`);
-            await mcpManager.mapUserAvailableTools(req.app.locals.availableTools, userId);
-            logger.info(`User MCP tools mapped to registry`);
-            
-            // Load user MCP tools into the manifest
             logger.info(`Loading user MCP tools into manifest...`);
             const beforeSize = pluginManifest.length;
-            pluginManifest = await mcpManager.loadUserManifestTools(pluginManifest, userId);
+            pluginManifest = await mcpResult.mcpManager.loadUserManifestTools(pluginManifest, userId);
             const afterSize = pluginManifest.length;
             logger.info(`After loading user MCP tools, manifest size: ${beforeSize} -> ${afterSize} (added ${afterSize - beforeSize})`);
-          } catch (mcpError) {
-            logger.warn(`User MCP server initialization failed, but continuing:`, mcpError.message);
-            // Continue even if MCP initialization fails - we'll add tools manually
+          } catch (manifestError) {
+            logger.warn(`Failed to load user MCP tools into manifest:`, manifestError.message);
           }
-        } else {
-          logger.info(`No user MCP servers found for user ${userId}`);
         }
-      } catch (error) {
-        logger.error('Error initializing user MCP servers:', error.message);
-        logger.error('Stack trace:', error.stack);
+      } else {
+        logger.warn(`=== User MCP initialization failed ===`);
+        logger.warn(`Error: ${mcpResult.error}`);
         // Continue without user MCP servers if there's an error
       }
     } else {
