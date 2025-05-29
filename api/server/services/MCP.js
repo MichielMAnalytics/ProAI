@@ -61,26 +61,35 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
   const _call = async (toolArguments, config) => {
     try {
       const derivedSignal = config?.signal ? AbortSignal.any([config.signal]) : undefined;
-      const mcpManager = getMCPManager(config?.configurable?.user_id);
+      
+      // SECURITY FIX: Always use the current user's ID from config, never fallback to req.user.id
+      // req.user.id is from when the tool was created (could be different user for duplicated agents)
+      const currentUserId = config?.configurable?.user_id;
+      
+      if (!currentUserId) {
+        logger.error(`[MCP][${serverName}][${toolName}] No current user ID found in config. Cannot execute MCP tool.`);
+        throw new Error(`Current user ID required for MCP tool execution: ${toolKey}`);
+      }
+      
+      logger.debug(`[MCP] Tool execution context:`, {
+        toolKey,
+        currentUserId,
+        originalReqUserId: req.user?.id,
+        serverName,
+        toolName
+      });
+      
+      const mcpManager = getMCPManager(currentUserId);
       const provider = (config?.metadata?.provider || _provider)?.toLowerCase();
       
       // Add user and conversation context to tool arguments for MCP tools
       const enhancedArguments = {
         ...toolArguments,
         librechat_context: {
-          user_id: config?.configurable?.user_id || req.user?.id,
+          user_id: currentUserId,
           conversation_id: config?.configurable?.thread_id,
         }
       };
-      
-      // Debug logging
-      logger.debug(`[MCP] Enhanced arguments for ${toolName}:`, {
-        original: toolArguments,
-        enhanced: enhancedArguments,
-        config_user_id: config?.configurable?.user_id,
-        req_user_id: req.user?.id,
-        thread_id: config?.configurable?.thread_id
-      });
       
       const result = await mcpManager.callTool({
         serverName,
@@ -88,7 +97,7 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
         provider,
         toolArguments: enhancedArguments,
         options: {
-          userId: config?.configurable?.user_id,
+          userId: currentUserId,
           signal: derivedSignal,
         },
       });

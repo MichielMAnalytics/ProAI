@@ -149,7 +149,7 @@ export type DuplicateAgentBody = {
 };
 
 export type DuplicateAgentMutationOptions = MutationOptions<
-  { agent: Agent; actions: Action[] },
+  { agent: Agent; actions: Action[]; mcp_servers_needed?: string[] },
   Pick<DuplicateAgentBody, 'agent_id'>
 >;
 

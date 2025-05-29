@@ -2231,6 +2231,7 @@ html {
   -webkit-text-fill-color: #ffffff;
   background-clip: content-box;
   -webkit-box-shadow: 0 0 0 50vh #000000 inset;
+  box-shadow: 0 0 0 50vh #000000 inset;
 }
 
 /* SUCCESS BUTTON - Premium Success Design */

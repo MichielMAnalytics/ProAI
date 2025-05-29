@@ -407,7 +407,7 @@ export const updateAgent = ({
 
 export const duplicateAgent = ({
   agent_id,
-}: m.DuplicateAgentBody): Promise<{ agent: a.Agent; actions: a.Action[] }> => {
+}: m.DuplicateAgentBody): Promise<{ agent: a.Agent; actions: a.Action[]; mcp_servers_needed?: string[] }> => {
   return request.post(
     endpoints.agents({
       path: `${agent_id}/duplicate`,

@@ -133,15 +133,15 @@ export const useDeleteAgentMutation = (
  */
 export const useDuplicateAgentMutation = (
   options?: t.DuplicateAgentMutationOptions,
-): UseMutationResult<{ agent: t.Agent; actions: t.Action[] }, Error, t.DuplicateAgentBody> => {
+): UseMutationResult<{ agent: t.Agent; actions: t.Action[]; mcp_servers_needed?: string[] }, Error, t.DuplicateAgentBody> => {
   const queryClient = useQueryClient();
 
-  return useMutation<{ agent: t.Agent; actions: t.Action[] }, Error, t.DuplicateAgentBody>(
+  return useMutation<{ agent: t.Agent; actions: t.Action[]; mcp_servers_needed?: string[] }, Error, t.DuplicateAgentBody>(
     (params: t.DuplicateAgentBody) => dataService.duplicateAgent(params),
     {
       onMutate: options?.onMutate,
       onError: options?.onError,
-      onSuccess: ({ agent, actions }, variables, context) => {
+      onSuccess: ({ agent, actions, mcp_servers_needed }, variables, context) => {
         const listRes = queryClient.getQueryData<t.AgentListResponse>([
           QueryKeys.agents,
           defaultOrderQuery,
@@ -159,7 +159,7 @@ export const useDuplicateAgentMutation = (
 
         queryClient.setQueryData<t.Action[]>([QueryKeys.actions], existingActions.concat(actions));
 
-        return options?.onSuccess?.({ agent, actions }, variables, context);
+        return options?.onSuccess?.({ agent, actions, mcp_servers_needed }, variables, context);
       },
     },
   );

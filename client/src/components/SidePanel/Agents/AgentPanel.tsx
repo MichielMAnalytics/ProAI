@@ -15,6 +15,8 @@ import {
   useCreateAgentMutation,
   useUpdateAgentMutation,
   useGetAgentByIdQuery,
+  useDuplicateAgentMutation,
+  useGetStartupConfig,
 } from '~/data-provider';
 import { useSelectAgent, useLocalize, useAuthContext } from '~/hooks';
 import AgentPanelSkeleton from './AgentPanelSkeleton';
@@ -48,6 +50,7 @@ export default function AgentPanel({
   const agentQuery = useGetAgentByIdQuery(current_agent_id ?? '', {
     enabled: !!(current_agent_id ?? '') && current_agent_id !== Constants.EPHEMERAL_AGENT_ID,
   });
+  const { data: startupConfig } = useGetStartupConfig();
 
   const models = useMemo(() => modelsQuery.data ?? {}, [modelsQuery.data]);
   const methods = useForm<AgentForm>({
@@ -152,6 +155,31 @@ export default function AgentPanel({
     },
   });
 
+  const duplicateAgent = useDuplicateAgentMutation({
+    onSuccess: ({ agent, mcp_servers_needed }) => {
+      // Switch to the new duplicated agent
+      setCurrentAgentId(agent.id);
+      
+      // Log MCP servers that might need to be connected for user awareness
+      if (mcp_servers_needed && mcp_servers_needed.length > 0) {
+        console.log('[Agent Duplication] MCP servers that may need to be connected:', mcp_servers_needed);
+        // Future: Could show a toast or modal directing user to integrations page
+      }
+      
+      showToast({
+        message: localize('com_ui_agent_duplicated'),
+        status: 'success',
+      });
+    },
+    onError: (error) => {
+      console.error(error);
+      showToast({
+        message: localize('com_ui_agent_duplicate_error'),
+        status: 'error',
+      });
+    },
+  });
+
   const onSubmit = useCallback(
     (data: AgentForm) => {
       const tools = data.tools ?? [];
@@ -185,6 +213,59 @@ export default function AgentPanel({
         (typeof _provider === 'string' ? _provider : (_provider as StringOption).value) ?? '';
 
       if (agent_id) {
+        // Check if this is a shared collaborative agent that needs to be duplicated
+        const agent = agentQuery.data;
+        const { instanceProjectId } = startupConfig ?? {};
+        const isSharedGlobal = instanceProjectId && (agent?.projectIds ?? []).includes(instanceProjectId);
+        const isCollaborative = agent?.isCollaborative ?? false;
+        const isUserOwner = agent?.author === user?.id;
+        const isAdmin = user?.role === SystemRoles.ADMIN;
+
+        // If the agent is shared globally, collaborative, and the user doesn't own it and isn't admin,
+        // duplicate it first to create a private copy for the user
+        if (isSharedGlobal && isCollaborative && !isUserOwner && !isAdmin) {
+          duplicateAgent.mutate(
+            { agent_id },
+            {
+              onSuccess: ({ agent: duplicatedAgent }) => {
+                // Filter out MCP tools so users need to connect their own integrations
+                const filteredTools = tools.filter(tool => {
+                  if (typeof tool === 'string') {
+                    // MCP tools contain the delimiter '_mcp_'
+                    return !tool.includes('_mcp_');
+                  }
+                  return true;
+                });
+
+                // After duplication, update the new agent with the changes
+                // and make it non-collaborative since it's now the user's private copy
+                update.mutate({
+                  agent_id: duplicatedAgent.id,
+                  data: {
+                    name,
+                    artifacts,
+                    description,
+                    instructions,
+                    model,
+                    tools: filteredTools, // Use filtered tools without MCP tools
+                    provider,
+                    model_parameters,
+                    agent_ids,
+                    end_after_tools,
+                    hide_sequential_outputs,
+                    recursion_limit,
+                    isCollaborative: false, // Make the private copy non-collaborative
+                    originalAgentId: agent_id, // Track which agent this was duplicated from
+                    projectIds: [], // Ensure the duplicated agent is private (not associated with projects)
+                  },
+                });
+              },
+            },
+          );
+          return;
+        }
+
+        // Otherwise, update the agent normally
         update.mutate({
           agent_id,
           data: {
@@ -227,7 +308,7 @@ export default function AgentPanel({
         recursion_limit,
       });
     },
-    [agent_id, create, update, showToast, localize],
+    [agent_id, agentQuery.data, startupConfig, user?.id, user?.role, duplicateAgent, update, create, showToast, localize],
   );
 
   const handleSelectAgent = useCallback(() => {

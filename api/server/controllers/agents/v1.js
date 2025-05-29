@@ -32,6 +32,38 @@ const systemTools = {
 };
 
 /**
+ * Extract MCP server app slugs from an array of tools
+ * @param {string[]} tools - Array of tool names
+ * @returns {string[]} Array of unique MCP server app slugs
+ */
+const extractMCPServerSlugs = (tools) => {
+  if (!Array.isArray(tools)) {
+    return [];
+  }
+
+  const mcpSlugs = new Set();
+  
+  for (const tool of tools) {
+    if (typeof tool === 'string' && tool.includes('_mcp_')) {
+      // Extract app slug from tool name pattern: TOOL_NAME_mcp_pipedream-APP_SLUG
+      const parts = tool.split('_mcp_');
+      if (parts.length >= 2) {
+        const afterMcp = parts[1];
+        // Handle patterns like 'pipedream-microsoft_outlook' -> 'microsoft_outlook'
+        if (afterMcp.includes('-')) {
+          const appSlug = afterMcp.split('-').slice(1).join('-'); // Take everything after the first dash
+          if (appSlug) {
+            mcpSlugs.add(appSlug);
+          }
+        }
+      }
+    }
+  }
+  
+  return Array.from(mcpSlugs);
+};
+
+/**
  * Creates an Agent.
  * @route POST /Agents
  * @param {ServerRequest} req - The request object.
@@ -63,6 +95,7 @@ const createAgentHandler = async (req, res) => {
       instructions,
       provider,
       model,
+      mcp_servers: extractMCPServerSlugs(agentData.tools),
     });
 
     agentData.id = `agent_${nanoid()}`;
@@ -153,6 +186,12 @@ const updateAgentHandler = async (req, res) => {
   try {
     const id = req.params.id;
     const { projectIds, removeProjectIds, ...updateData } = req.body;
+    
+    // Extract MCP server slugs if tools are being updated
+    if (updateData.tools) {
+      updateData.mcp_servers = extractMCPServerSlugs(updateData.tools);
+    }
+    
     const isAdmin = req.user.role === SystemRoles.ADMIN;
     const existingAgent = await getAgent({ id });
     const isAuthor = existingAgent.author.toString() === req.user.id;
@@ -249,9 +288,34 @@ const duplicateAgentHandler = async (req, res) => {
     }
 
     const newAgentId = `agent_${nanoid()}`;
+    
+    // Remove MCP tools from duplicated agents so users need to connect their own integrations
+    // MCP tools are personal and should not be inherited during duplication
+    if (cloneData.tools && Array.isArray(cloneData.tools)) {
+      const originalToolCount = cloneData.tools.length;
+      const mcpTools = cloneData.tools.filter(tool => typeof tool === 'string' && tool.includes('_mcp_'));
+      
+      cloneData.tools = cloneData.tools.filter(tool => {
+        if (typeof tool === 'string') {
+          // MCP tools contain the delimiter '_mcp_'
+          return !tool.includes('_mcp_');
+        }
+        return true;
+      });
+      
+      if (mcpTools.length > 0) {
+        logger.info(`[/agents/:id/duplicate] Removed ${mcpTools.length} MCP tools during duplication for user ${userId}. User can add their own integrations. Tools removed: ${mcpTools.join(', ')}`);
+      }
+      
+      logger.info(`[/agents/:id/duplicate] Tool count: ${originalToolCount} -> ${cloneData.tools.length} (removed ${originalToolCount - cloneData.tools.length} MCP tools)`);
+    }
+    
     const newAgentData = Object.assign(cloneData, {
       id: newAgentId,
       author: userId,
+      originalAgentId: id,
+      projectIds: [], // Clear project associations - duplicated agents should be private
+      mcp_servers: extractMCPServerSlugs(cloneData.tools), // Extract MCP server slugs for user onboarding
     });
 
     const newActionsList = [];
@@ -302,6 +366,7 @@ const duplicateAgentHandler = async (req, res) => {
     return res.status(201).json({
       agent: newAgent,
       actions: newActionsList,
+      mcp_servers_needed: newAgentData.mcp_servers,
     });
   } catch (error) {
     logger.error('[/Agents/:id/duplicate] Error duplicating Agent:', error);

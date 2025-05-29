@@ -59,11 +59,13 @@ export default function AgentFooter({
       {user?.role === SystemRoles.ADMIN && showButtons && <AdminSettings />}
       {/* Context Button */}
       <div className="flex items-center justify-end gap-2">
-        <DeleteButton
-          agent_id={agent_id}
-          setCurrentAgentId={setCurrentAgentId}
-          createMutation={createMutation}
-        />
+        {(agent?.author === user?.id || user?.role === SystemRoles.ADMIN) && (
+          <DeleteButton
+            agent_id={agent_id}
+            setCurrentAgentId={setCurrentAgentId}
+            createMutation={createMutation}
+          />
+        )}
         {(agent?.author === user?.id || user?.role === SystemRoles.ADMIN) &&
           hasAccessToShareAgents && (
             <ShareAgent
