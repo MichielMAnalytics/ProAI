@@ -298,3 +298,8 @@ export const mcpConfig = () => `${integrations()}/mcp-config`;
 export const userMCPStatus = () => '/api/agents/tools/user-mcp-status';
 export const userMCPTools = () => '/api/agents/tools/user-mcp';
 export const refreshUserMCP = () => '/api/agents/tools/refresh-user-mcp';
+
+/* Scheduler Tasks */
+export const schedulerTasks = () => '/api/scheduler/tasks';
+export const schedulerTask = (taskId: string) => `/api/scheduler/tasks/${taskId}`;
+export const schedulerTaskAction = (taskId: string, action: string) => `/api/scheduler/tasks/${taskId}/${action}`;

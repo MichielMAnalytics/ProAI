@@ -4,8 +4,260 @@ const { sendSchedulerMessage } = require('~/server/controllers/scheduler');
 const SchedulerService = require('~/server/services/SchedulerService');
 const { notificationManager } = require('~/server/services/SchedulerService');
 const { setHeaders } = require('~/server/middleware');
+const { 
+  getSchedulerTasksByUser, 
+  getSchedulerTaskById,
+  updateSchedulerTask,
+  deleteSchedulerTask,
+  enableSchedulerTask,
+  disableSchedulerTask
+} = require('~/models/SchedulerTask');
 
 const router = express.Router();
+
+/**
+ * Get all scheduler tasks for the authenticated user
+ * @route GET /scheduler/tasks
+ * @returns {object} Array of scheduler tasks
+ */
+router.get('/tasks', requireJwtAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const tasks = await getSchedulerTasksByUser(userId);
+    
+    res.json({
+      success: true,
+      tasks: tasks.map(task => ({
+        id: task.id,
+        name: task.name,
+        schedule: task.schedule,
+        prompt: task.prompt,
+        enabled: task.enabled,
+        do_only_once: task.do_only_once,
+        status: task.status,
+        last_run: task.last_run,
+        next_run: task.next_run,
+        conversation_id: task.conversation_id,
+        parent_message_id: task.parent_message_id,
+        endpoint: task.endpoint,
+        ai_model: task.ai_model,
+        agent_id: task.agent_id,
+        created_at: task.createdAt,
+        updated_at: task.updatedAt,
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * Get a specific scheduler task by ID
+ * @route GET /scheduler/tasks/:taskId
+ * @param {string} taskId - The task ID
+ * @returns {object} Scheduler task details
+ */
+router.get('/tasks/:taskId', requireJwtAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { taskId } = req.params;
+    
+    const task = await getSchedulerTaskById(taskId, userId);
+    
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      task: {
+        id: task.id,
+        name: task.name,
+        schedule: task.schedule,
+        prompt: task.prompt,
+        enabled: task.enabled,
+        do_only_once: task.do_only_once,
+        status: task.status,
+        last_run: task.last_run,
+        next_run: task.next_run,
+        conversation_id: task.conversation_id,
+        parent_message_id: task.parent_message_id,
+        endpoint: task.endpoint,
+        ai_model: task.ai_model,
+        agent_id: task.agent_id,
+        created_at: task.createdAt,
+        updated_at: task.updatedAt,
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * Update a scheduler task
+ * @route PUT /scheduler/tasks/:taskId
+ * @param {string} taskId - The task ID
+ * @returns {object} Updated scheduler task
+ */
+router.put('/tasks/:taskId', requireJwtAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { taskId } = req.params;
+    const updateData = req.body;
+    
+    const updatedTask = await updateSchedulerTask(taskId, userId, updateData);
+    
+    if (!updatedTask) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: `Task "${updatedTask.name}" updated successfully`,
+      task: {
+        id: updatedTask.id,
+        name: updatedTask.name,
+        schedule: updatedTask.schedule,
+        prompt: updatedTask.prompt,
+        enabled: updatedTask.enabled,
+        do_only_once: updatedTask.do_only_once,
+        status: updatedTask.status,
+        next_run: updatedTask.next_run,
+        conversation_id: updatedTask.conversation_id,
+        parent_message_id: updatedTask.parent_message_id,
+        endpoint: updatedTask.endpoint,
+        ai_model: updatedTask.ai_model,
+        agent_id: updatedTask.agent_id,
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * Delete a scheduler task
+ * @route DELETE /scheduler/tasks/:taskId
+ * @param {string} taskId - The task ID
+ * @returns {object} Success response
+ */
+router.delete('/tasks/:taskId', requireJwtAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { taskId } = req.params;
+    
+    const result = await deleteSchedulerTask(taskId, userId);
+    
+    if (result.deletedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Task deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * Enable a scheduler task
+ * @route POST /scheduler/tasks/:taskId/enable
+ * @param {string} taskId - The task ID
+ * @returns {object} Updated scheduler task
+ */
+router.post('/tasks/:taskId/enable', requireJwtAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { taskId } = req.params;
+    
+    const task = await enableSchedulerTask(taskId, userId);
+    
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: `Task "${task.name}" enabled successfully`,
+      task: {
+        id: task.id,
+        name: task.name,
+        enabled: task.enabled,
+        status: task.status,
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * Disable a scheduler task
+ * @route POST /scheduler/tasks/:taskId/disable
+ * @param {string} taskId - The task ID
+ * @returns {object} Updated scheduler task
+ */
+router.post('/tasks/:taskId/disable', requireJwtAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { taskId } = req.params;
+    
+    const task = await disableSchedulerTask(taskId, userId);
+    
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: `Task "${task.name}" disabled successfully`,
+      task: {
+        id: task.id,
+        name: task.name,
+        enabled: task.enabled,
+        status: task.status,
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
 
 /**
  * Send a message from the scheduler to a user (requires authentication)

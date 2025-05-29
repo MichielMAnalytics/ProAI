@@ -8,6 +8,7 @@ const {
 } = require('~/models/SchedulerExecution');
 const { updateSchedulerTask, getReadySchedulerTasks } = require('~/models/SchedulerTask');
 const { getAgent } = require('~/models/Agent');
+const paths = require('~/config/paths');
 
 class SchedulerExecutionService {
   constructor() {
@@ -88,6 +89,18 @@ class SchedulerExecutionService {
       logger.warn(`[SchedulerExecutionService] Failed to send start notification: ${error.message}`);
     }
 
+    // Send task status update for schedules panel refresh
+    try {
+      await SchedulerService.sendTaskStatusUpdate({
+        userId: task.user.toString(),
+        taskId: task.id,
+        taskName: task.name,
+        notificationType: 'started',
+      });
+    } catch (error) {
+      logger.warn(`[SchedulerExecutionService] Failed to send status update: ${error.message}`);
+    }
+
     try {
       // Execute the task by sending the prompt to the AI agent
       const result = await this.executePrompt(task);
@@ -144,6 +157,18 @@ class SchedulerExecutionService {
         logger.warn(`[SchedulerExecutionService] Failed to send completion notification: ${error.message}`);
       }
 
+      // Send task status update for schedules panel refresh
+      try {
+        await SchedulerService.sendTaskStatusUpdate({
+          userId: task.user.toString(),
+          taskId: task.id,
+          taskName: task.name,
+          notificationType: 'completed',
+        });
+      } catch (error) {
+        logger.warn(`[SchedulerExecutionService] Failed to send completion status update: ${error.message}`);
+      }
+
       logger.info(`[SchedulerExecutionService] Task execution completed: ${task.id} - Status: ${taskStatus}`);
       
     } catch (error) {
@@ -174,6 +199,19 @@ class SchedulerExecutionService {
         });
       } catch (notificationError) {
         logger.warn(`[SchedulerExecutionService] Failed to send failure notification: ${notificationError.message}`);
+      }
+
+      // Send task status update for schedules panel refresh
+      try {
+        await SchedulerService.sendTaskStatusUpdate({
+          userId: task.user.toString(),
+          taskId: task.id,
+          taskName: task.name,
+          notificationType: 'failed',
+          details: error.message,
+        });
+      } catch (statusError) {
+        logger.warn(`[SchedulerExecutionService] Failed to send failure status update: ${statusError.message}`);
       }
     }
   }
@@ -223,7 +261,6 @@ class SchedulerExecutionService {
 
     // Load available tools for the agent
     const { loadAndFormatTools } = require('~/server/services/ToolService');
-    const paths = require('~/config/paths');
     const availableTools = loadAndFormatTools({
       directory: paths.structuredTools,
     });
@@ -266,6 +303,7 @@ class SchedulerExecutionService {
       },
       app: {
         locals: {
+          paths: paths, // Add the paths configuration
           availableTools: availableTools, // Now properly loaded
           fileStrategy: process.env.CDN_PROVIDER || 'local',
         }

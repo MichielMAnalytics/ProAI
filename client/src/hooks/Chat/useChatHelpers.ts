@@ -212,6 +212,41 @@ export default function useChatHelpers(index = 0, paramId?: string) {
           if (data.conversationId === conversationId) {
             queryClient.invalidateQueries([QueryKeys.messages, data.conversationId]);
           }
+          
+          // Always refresh scheduler tasks when any scheduler notification comes in
+          // This ensures the schedules panel shows updated task status
+          queryClient.invalidateQueries([QueryKeys.schedulerTasks]);
+        } else if (data.type === 'task_status_update' || data.type === 'task_notification') {
+          // Handle task status updates (started, failed, cancelled, etc.)
+          // These don't necessarily create new messages but do update task status
+          queryClient.invalidateQueries([QueryKeys.schedulerTasks]);
+          
+          // Show a brief status notification
+          if (data.taskName && data.notificationType) {
+            const statusMessages = {
+              started: '⏳ Task started',
+              failed: '❌ Task failed', 
+              cancelled: '🚫 Task cancelled',
+              completed: '✅ Task completed',
+              created: '➕ Task created',
+              updated: '✏️ Task updated',
+              deleted: '🗑️ Task deleted',
+              enabled: '▶️ Task enabled',
+              disabled: '⏸️ Task disabled'
+            };
+            
+            const message = statusMessages[data.notificationType] || '📋 Task updated';
+            
+            // Only show toast for certain operations to avoid spam
+            const showToastFor = ['failed', 'created', 'deleted'];
+            if (showToastFor.includes(data.notificationType)) {
+              showToast({
+                message: `${message}: ${data.taskName}`,
+                severity: data.notificationType === 'failed' ? NotificationSeverity.ERROR : NotificationSeverity.SUCCESS,
+                duration: 3000,
+              });
+            }
+          }
         } else if (data.type === 'heartbeat') {
           // Handle heartbeat (keep-alive)
           console.debug('[SchedulerSSE] Heartbeat received');

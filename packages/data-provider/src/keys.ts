@@ -56,6 +56,9 @@ export enum QueryKeys {
   // User MCP
   userMCPStatus = 'userMCPStatus',
   userMCPTools = 'userMCPTools',
+  // Scheduler
+  schedulerTasks = 'schedulerTasks',
+  schedulerTask = 'schedulerTask',
 }
 
 export enum MutationKeys {

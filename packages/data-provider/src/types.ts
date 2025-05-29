@@ -728,3 +728,24 @@ export type TDeployTriggerResponse = {
   webhook_url?: string;
   workflow_id?: string;
 };
+
+// Scheduler Task types
+export type TSchedulerTask = {
+  id: string;
+  name: string;
+  schedule: string;
+  prompt: string;
+  enabled: boolean;
+  do_only_once: boolean;
+  last_run?: Date;
+  next_run?: Date;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'disabled';
+  user: string;
+  conversation_id?: string;
+  parent_message_id?: string;
+  endpoint?: string;
+  ai_model?: string;
+  agent_id?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+};

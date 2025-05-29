@@ -38,6 +38,7 @@ async function loadDefaultInterface(config, configDefaults, roleName = SystemRol
     agents: interfaceConfig?.agents ?? defaults.agents,
     temporaryChat: interfaceConfig?.temporaryChat ?? defaults.temporaryChat,
     runCode: interfaceConfig?.runCode ?? defaults.runCode,
+    schedules: interfaceConfig?.schedules ?? defaults.schedules,
     customWelcome: interfaceConfig?.customWelcome ?? defaults.customWelcome,
   });
 
@@ -48,6 +49,7 @@ async function loadDefaultInterface(config, configDefaults, roleName = SystemRol
     [PermissionTypes.AGENTS]: { [Permissions.USE]: loadedInterface.agents },
     [PermissionTypes.TEMPORARY_CHAT]: { [Permissions.USE]: loadedInterface.temporaryChat },
     [PermissionTypes.RUN_CODE]: { [Permissions.USE]: loadedInterface.runCode },
+    [PermissionTypes.SCHEDULES]: { [Permissions.USE]: loadedInterface.schedules },
   });
   await updateAccessPermissions(SystemRoles.ADMIN, {
     [PermissionTypes.PROMPTS]: { [Permissions.USE]: loadedInterface.prompts },
@@ -56,6 +58,7 @@ async function loadDefaultInterface(config, configDefaults, roleName = SystemRol
     [PermissionTypes.AGENTS]: { [Permissions.USE]: loadedInterface.agents },
     [PermissionTypes.TEMPORARY_CHAT]: { [Permissions.USE]: loadedInterface.temporaryChat },
     [PermissionTypes.RUN_CODE]: { [Permissions.USE]: loadedInterface.runCode },
+    [PermissionTypes.SCHEDULES]: { [Permissions.USE]: loadedInterface.schedules },
   });
 
   let i = 0;

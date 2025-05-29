@@ -28,6 +28,10 @@ export enum PermissionTypes {
    * Type for using the "Run Code" LC Code Interpreter API feature
    */
   RUN_CODE = 'RUN_CODE',
+  /**
+   * Type for Scheduler Permissions
+   */
+  SCHEDULES = 'SCHEDULES',
 }
 
 /**
@@ -79,6 +83,11 @@ export const runCodePermissionsSchema = z.object({
 });
 export type TRunCodePermissions = z.infer<typeof runCodePermissionsSchema>;
 
+export const schedulesPermissionsSchema = z.object({
+  [Permissions.USE]: z.boolean().default(true),
+});
+export type TSchedulesPermissions = z.infer<typeof schedulesPermissionsSchema>;
+
 // Define a single permissions schema that holds all permission types.
 export const permissionsSchema = z.object({
   [PermissionTypes.PROMPTS]: promptPermissionsSchema,
@@ -87,4 +96,5 @@ export const permissionsSchema = z.object({
   [PermissionTypes.MULTI_CONVO]: multiConvoPermissionsSchema,
   [PermissionTypes.TEMPORARY_CHAT]: temporaryChatPermissionsSchema,
   [PermissionTypes.RUN_CODE]: runCodePermissionsSchema,
+  [PermissionTypes.SCHEDULES]: schedulesPermissionsSchema,
 });

@@ -3,6 +3,7 @@ const { Tool } = require('@langchain/core/tools');
 const { parseCronExpression } = require('cron-schedule');
 const { v4: uuidv4 } = require('uuid');
 const { logger } = require('~/config');
+const SchedulerService = require('~/server/services/SchedulerService');
 const { 
   createSchedulerTask, 
   getSchedulerTasksByUser, 
@@ -136,6 +137,21 @@ class SchedulerTool extends Tool {
       const task = await createSchedulerTask(taskData);
       logger.info(`[SchedulerTool] Created task: ${taskId} (${name}) for endpoint: ${taskData.endpoint}, agent_id: ${taskData.agent_id}, ai_model: ${taskData.ai_model}, parent_message_id: ${taskData.parent_message_id}`);
       
+      // Send notification to refresh schedules panel
+      try {
+        await SchedulerService.sendTaskStatusUpdate({
+          userId: userId,
+          taskId: taskId,
+          taskName: name,
+          notificationType: 'created',
+          details: 'New task created via chat interface'
+        });
+        logger.debug(`[SchedulerTool] Sent task creation notification for task ${taskId}`);
+      } catch (notificationError) {
+        logger.warn(`[SchedulerTool] Failed to send task creation notification: ${notificationError.message}`);
+        // Don't fail the task creation if notification fails
+      }
+      
       return {
         success: true,
         message: `Task "${name}" created successfully`,
@@ -258,6 +274,20 @@ class SchedulerTool extends Tool {
         };
       }
 
+      // Send notification to refresh schedules panel
+      try {
+        await SchedulerService.sendTaskStatusUpdate({
+          userId: userId,
+          taskId: taskId,
+          taskName: updatedTask.name,
+          notificationType: 'updated',
+          details: 'Task updated via chat interface'
+        });
+        logger.debug(`[SchedulerTool] Sent task update notification for task ${taskId}`);
+      } catch (notificationError) {
+        logger.warn(`[SchedulerTool] Failed to send task update notification: ${notificationError.message}`);
+      }
+
       return {
         success: true,
         message: `Task "${updatedTask.name}" updated successfully`,
@@ -298,6 +328,20 @@ class SchedulerTool extends Tool {
         };
       }
 
+      // Send notification to refresh schedules panel
+      try {
+        await SchedulerService.sendTaskStatusUpdate({
+          userId: userId,
+          taskId: taskId,
+          taskName: 'Deleted Task',
+          notificationType: 'deleted',
+          details: 'Task deleted via chat interface'
+        });
+        logger.debug(`[SchedulerTool] Sent task deletion notification for task ${taskId}`);
+      } catch (notificationError) {
+        logger.warn(`[SchedulerTool] Failed to send task deletion notification: ${notificationError.message}`);
+      }
+
       return {
         success: true,
         message: `Task deleted successfully`
@@ -323,6 +367,20 @@ class SchedulerTool extends Tool {
         };
       }
 
+      // Send notification to refresh schedules panel
+      try {
+        await SchedulerService.sendTaskStatusUpdate({
+          userId: userId,
+          taskId: taskId,
+          taskName: task.name,
+          notificationType: 'enabled',
+          details: 'Task enabled via chat interface'
+        });
+        logger.debug(`[SchedulerTool] Sent task enable notification for task ${taskId}`);
+      } catch (notificationError) {
+        logger.warn(`[SchedulerTool] Failed to send task enable notification: ${notificationError.message}`);
+      }
+
       return {
         success: true,
         message: `Task "${task.name}" enabled successfully`
@@ -346,6 +404,20 @@ class SchedulerTool extends Tool {
           success: false,
           message: `Task with ID ${taskId} not found`
         };
+      }
+
+      // Send notification to refresh schedules panel
+      try {
+        await SchedulerService.sendTaskStatusUpdate({
+          userId: userId,
+          taskId: taskId,
+          taskName: task.name,
+          notificationType: 'disabled',
+          details: 'Task disabled via chat interface'
+        });
+        logger.debug(`[SchedulerTool] Sent task disable notification for task ${taskId}`);
+      } catch (notificationError) {
+        logger.warn(`[SchedulerTool] Failed to send task disable notification: ${notificationError.message}`);
       }
 
       return {

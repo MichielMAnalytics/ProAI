@@ -305,6 +305,49 @@ class SchedulerService {
       return { success: false, error: error.message };
     }
   }
+
+  /**
+   * Send a task status update notification via SSE without creating a message
+   * This is useful for notifying about task status changes that don't need to appear in chat
+   * @param {Object} params - Status update parameters
+   * @param {string} params.userId - The LibreChat user ID
+   * @param {string} params.taskName - Name of the task
+   * @param {string} params.taskId - ID of the task
+   * @param {string} params.notificationType - Type of notification (started, failed, cancelled, completed)
+   * @param {string} [params.details] - Optional additional details
+   * @returns {Promise<Object>} Success response
+   */
+  static async sendTaskStatusUpdate(params) {
+    const { userId, taskName, taskId, notificationType, details } = params;
+    
+    if (!userId) {
+      return { success: false, error: 'Missing userId' };
+    }
+    
+    try {
+      // Send real-time notification via SSE if user is connected
+      const wasNotified = notificationManager.sendNotification(userId, {
+        type: 'task_status_update',
+        taskId,
+        taskName,
+        notificationType,
+        details,
+        timestamp: new Date().toISOString()
+      });
+      
+      logger.debug(`[SchedulerService] Task status update sent: ${wasNotified} for user ${userId}, task ${taskId}, status: ${notificationType}`);
+      
+      return {
+        success: true,
+        message: 'Status update sent successfully',
+        notified: wasNotified
+      };
+      
+    } catch (error) {
+      logger.error(`Error sending task status update for task ${taskId}:`, error);
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 module.exports = SchedulerService;

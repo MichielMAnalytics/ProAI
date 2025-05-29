@@ -5,12 +5,13 @@ import {
   defaultOrderQuery,
   defaultAssistantsVersion,
 } from 'librechat-data-provider';
-import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import type {
   InfiniteData,
   UseInfiniteQueryOptions,
   QueryObserverResult,
   UseQueryOptions,
+  UseMutationOptions,
 } from '@tanstack/react-query';
 import type t from 'librechat-data-provider';
 import type {
@@ -28,6 +29,7 @@ import type {
   TCheckUserKeyResponse,
   SharedLinksListParams,
   SharedLinksResponse,
+  TSchedulerTask,
 } from 'librechat-data-provider';
 import type { ConversationCursorData } from '~/utils/convos';
 import { findConversationInInfinite } from '~/utils';
@@ -643,4 +645,72 @@ export const useAppComponentsQuery = (
       ...config,
     },
   );
+};
+
+// Scheduler Tasks
+export const useSchedulerTasksQuery = (options?: UseQueryOptions<t.TSchedulerTask[]>) =>
+  useQuery<t.TSchedulerTask[]>({
+    queryKey: [QueryKeys.schedulerTasks],
+    queryFn: () => dataService.getSchedulerTasks(),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    ...options,
+  });
+
+export const useSchedulerTaskQuery = (
+  taskId: string,
+  options?: UseQueryOptions<t.TSchedulerTask>
+) =>
+  useQuery<t.TSchedulerTask>({
+    queryKey: [QueryKeys.schedulerTask, taskId],
+    queryFn: () => dataService.getSchedulerTask(taskId),
+    enabled: !!taskId,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    ...options,
+  });
+
+export const useUpdateSchedulerTaskMutation = (
+  options?: UseMutationOptions<t.TSchedulerTask, unknown, { taskId: string; data: Partial<t.TSchedulerTask> }>
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, data }: { taskId: string; data: Partial<t.TSchedulerTask> }) =>
+      dataService.updateSchedulerTask(taskId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.schedulerTasks] });
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.schedulerTask] });
+    },
+    ...options,
+  });
+};
+
+export const useDeleteSchedulerTaskMutation = (
+  options?: UseMutationOptions<void, unknown, string>
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (taskId: string) => dataService.deleteSchedulerTask(taskId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.schedulerTasks] });
+    },
+    ...options,
+  });
+};
+
+export const useToggleSchedulerTaskMutation = (
+  options?: UseMutationOptions<t.TSchedulerTask, unknown, { taskId: string; enabled: boolean }>
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, enabled }: { taskId: string; enabled: boolean }) =>
+      dataService.toggleSchedulerTask(taskId, enabled),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.schedulerTasks] });
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.schedulerTask] });
+    },
+    ...options,
+  });
 };

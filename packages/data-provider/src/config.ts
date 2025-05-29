@@ -494,6 +494,7 @@ export const intefaceSchema = z
     agents: z.boolean().optional(),
     temporaryChat: z.boolean().optional(),
     runCode: z.boolean().optional(),
+    schedules: z.boolean().optional(),
   })
   .default({
     endpointsMenu: true,
@@ -507,6 +508,7 @@ export const intefaceSchema = z
     agents: true,
     temporaryChat: true,
     runCode: true,
+    schedules: true,
   });
 
 export type TInterfaceConfig = z.infer<typeof intefaceSchema>;

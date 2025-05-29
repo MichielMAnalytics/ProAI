@@ -846,3 +846,25 @@ export function refreshUserMCP(): Promise<{ success: boolean; message: string; m
 export function getUserMCPTools(): Promise<s.TPlugin[]> {
   return request.get(endpoints.userMCPTools());
 }
+
+/* Scheduler Tasks */
+export function getSchedulerTasks(): Promise<t.TSchedulerTask[]> {
+  return request.get(endpoints.schedulerTasks()).then((response: any) => response.tasks || []);
+}
+
+export function getSchedulerTask(taskId: string): Promise<t.TSchedulerTask> {
+  return request.get(endpoints.schedulerTask(taskId)).then((response: any) => response.task);
+}
+
+export function updateSchedulerTask(taskId: string, data: Partial<t.TSchedulerTask>): Promise<t.TSchedulerTask> {
+  return request.put(endpoints.schedulerTask(taskId), data).then((response: any) => response.task);
+}
+
+export function deleteSchedulerTask(taskId: string): Promise<void> {
+  return request.delete(endpoints.schedulerTask(taskId));
+}
+
+export function toggleSchedulerTask(taskId: string, enabled: boolean): Promise<t.TSchedulerTask> {
+  const action = enabled ? 'enable' : 'disable';
+  return request.post(endpoints.schedulerTaskAction(taskId, action)).then((response: any) => response.task);
+}

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { MessageSquareQuote, ArrowRightToLine, Settings2, Bookmark } from 'lucide-react';
+import { MessageSquareQuote, ArrowRightToLine, Settings2, Bookmark, Calendar } from 'lucide-react';
 import {
   isAssistantsEndpoint,
   isAgentsEndpoint,
@@ -12,6 +12,7 @@ import type { TInterfaceConfig, TEndpointsConfig } from 'librechat-data-provider
 import type { NavLink } from '~/common';
 import AgentPanelSwitch from '~/components/SidePanel/Agents/AgentPanelSwitch';
 import BookmarkPanel from '~/components/SidePanel/Bookmarks/BookmarkPanel';
+import SchedulesPanel from '~/components/SidePanel/Schedules/SchedulesPanel';
 import PanelSwitch from '~/components/SidePanel/Builder/PanelSwitch';
 import PromptsAccordion from '~/components/Prompts/PromptsAccordion';
 import Parameters from '~/components/SidePanel/Parameters/Panel';
@@ -40,6 +41,10 @@ export default function useSideNavLinks({
   });
   const hasAccessToBookmarks = useHasAccess({
     permissionType: PermissionTypes.BOOKMARKS,
+    permission: Permissions.USE,
+  });
+  const hasAccessToSchedules = useHasAccess({
+    permissionType: PermissionTypes.SCHEDULES,
     permission: Permissions.USE,
   });
   const hasAccessToAgents = useHasAccess({
@@ -130,6 +135,16 @@ export default function useSideNavLinks({
       });
     }
 
+    if (interfaceConfig.schedules === true && hasAccessToSchedules) {
+      links.push({
+        title: 'com_ui_schedules',
+        label: '',
+        icon: Calendar,
+        id: 'schedules',
+        Component: SchedulesPanel,
+      });
+    }
+
     links.push({
       title: 'com_sidepanel_hide_panel',
       label: '',
@@ -142,12 +157,14 @@ export default function useSideNavLinks({
   }, [
     endpointsConfig,
     interfaceConfig.parameters,
+    interfaceConfig.schedules,
     keyProvided,
     endpointType,
     endpoint,
     hasAccessToAgents,
     hasAccessToPrompts,
     hasAccessToBookmarks,
+    hasAccessToSchedules,
     hasAccessToCreateAgents,
     hidePanel,
   ]);
