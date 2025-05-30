@@ -40,6 +40,8 @@ class NotificationManager {
       const connections = this.connections.get(userId);
       const message = `data: ${JSON.stringify(data)}\n\n`;
       
+      logger.info(`[NotificationManager] Sending notification to user ${userId}:`, data);
+      
       connections.forEach(res => {
         try {
           res.write(message);
@@ -51,6 +53,8 @@ class NotificationManager {
       
       logger.debug(`[NotificationManager] Sent notification to ${connections.size} connections for user ${userId}`);
       return connections.size > 0;
+    } else {
+      logger.warn(`[NotificationManager] No active connections for user ${userId}`);
     }
     return false;
   }

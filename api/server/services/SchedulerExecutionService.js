@@ -240,6 +240,21 @@ class SchedulerExecutionService {
         last_run: startTime,
       });
 
+      // Send notification that task has started
+      try {
+        await SchedulerService.sendTaskStatusUpdate({
+          userId: task.user.toString(),
+          taskId: task.id,
+          taskName: task.name,
+          notificationType: 'started',
+          details: 'Task execution has begun'
+        });
+        logger.debug(`[SchedulerExecutionService] Sent task started notification for task ${task.id}`);
+      } catch (notificationError) {
+        logger.warn(`[SchedulerExecutionService] Failed to send task started notification: ${notificationError.message}`);
+        // Don't fail the task execution if notification fails
+      }
+
       let result;
       
       // Check if we need to use MCP tools (automatic ephemeral agent switch)
@@ -296,6 +311,21 @@ class SchedulerExecutionService {
         parentMessageId: task.parent_message_id,
       });
 
+      // Send notification that task has completed successfully
+      try {
+        await SchedulerService.sendTaskStatusUpdate({
+          userId: task.user.toString(),
+          taskId: task.id,
+          taskName: task.name,
+          notificationType: 'completed',
+          details: `Task completed successfully in ${duration}ms`
+        });
+        logger.debug(`[SchedulerExecutionService] Sent task completed notification for task ${task.id}`);
+      } catch (notificationError) {
+        logger.warn(`[SchedulerExecutionService] Failed to send task completed notification: ${notificationError.message}`);
+        // Don't fail the task execution if notification fails
+      }
+
       logger.info(`[SchedulerExecutionService] Task ${task.id} completed successfully in ${duration}ms`);
       
       return {
@@ -334,6 +364,21 @@ class SchedulerExecutionService {
         taskName: task.name,
         parentMessageId: task.parent_message_id,
       });
+
+      // Send notification that task has failed
+      try {
+        await SchedulerService.sendTaskStatusUpdate({
+          userId: task.user.toString(),
+          taskId: task.id,
+          taskName: task.name,
+          notificationType: 'failed',
+          details: `Task failed after ${duration}ms: ${error.message}`
+        });
+        logger.debug(`[SchedulerExecutionService] Sent task failed notification for task ${task.id}`);
+      } catch (notificationError) {
+        logger.warn(`[SchedulerExecutionService] Failed to send task failed notification: ${notificationError.message}`);
+        // Don't fail the task execution if notification fails
+      }
 
       throw error;
     }
@@ -532,7 +577,7 @@ class SchedulerExecutionService {
       removeListener: () => {},
       locals: {},
     };
-    
+
     // Initialize the agents client directly
     const { initializeClient } = require('~/server/services/Endpoints/agents');
     const { client } = await initializeClient({ 

@@ -219,6 +219,7 @@ export default function useChatHelpers(index = 0, paramId?: string) {
         } else if (data.type === 'task_status_update' || data.type === 'task_notification') {
           // Handle task status updates (started, failed, cancelled, etc.)
           // These don't necessarily create new messages but do update task status
+          console.log('[SchedulerSSE] Received task status update:', data);
           queryClient.invalidateQueries([QueryKeys.schedulerTasks]);
           
           // Show a brief status notification
@@ -238,7 +239,7 @@ export default function useChatHelpers(index = 0, paramId?: string) {
             const message = statusMessages[data.notificationType] || '📋 Task updated';
             
             // Only show toast for certain operations to avoid spam
-            const showToastFor = ['failed', 'created', 'deleted'];
+            const showToastFor = ['started', 'completed', 'failed', 'created', 'deleted'];
             if (showToastFor.includes(data.notificationType)) {
               showToast({
                 message: `${message}: ${data.taskName}`,
