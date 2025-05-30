@@ -36,6 +36,9 @@ class NotificationManager {
   }
 
   sendNotification(userId, data) {
+    logger.debug(`[NotificationManager] Attempting to send notification to user ${userId}`);
+    logger.debug(`[NotificationManager] Active connections:`, Object.keys(this.connections));
+    
     if (this.connections.has(userId)) {
       const connections = this.connections.get(userId);
       const message = `data: ${JSON.stringify(data)}\n\n`;
@@ -55,6 +58,7 @@ class NotificationManager {
       return connections.size > 0;
     } else {
       logger.warn(`[NotificationManager] No active connections for user ${userId}`);
+      logger.debug(`[NotificationManager] Available connection keys:`, Array.from(this.connections.keys()));
     }
     return false;
   }

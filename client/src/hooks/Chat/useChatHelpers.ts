@@ -142,28 +142,37 @@ export default function useChatHelpers(index = 0, paramId?: string) {
   // Set up SSE connection for real-time scheduler notifications
   useEffect(() => {
     if (!isAuthenticated || !token) {
+      console.log('[SchedulerSSE] Not authenticated or no token, skipping SSE setup');
       return;
     }
 
+    console.log('[SchedulerSSE] Setting up SSE connection...');
+
     // Close existing connection if any
     if (sseConnectionRef.current) {
+      console.log('[SchedulerSSE] Closing existing connection');
       sseConnectionRef.current.close();
     }
 
     // Create new SSE connection
-    const eventSource = new EventSource(`/api/scheduler/notifications?token=${encodeURIComponent(token)}`);
+    const sseUrl = `/api/scheduler/notifications?token=${encodeURIComponent(token)}`;
+    console.log('[SchedulerSSE] Connecting to:', sseUrl);
+    const eventSource = new EventSource(sseUrl);
 
     sseConnectionRef.current = eventSource;
 
     eventSource.onopen = () => {
-      console.log('[SchedulerSSE] Connected to scheduler notifications');
+      console.log('[SchedulerSSE] ✅ Connected to scheduler notifications');
     };
 
     eventSource.onmessage = (event) => {
+      console.log('[SchedulerSSE] 📨 Received message:', event.data);
       try {
         const data = JSON.parse(event.data);
+        console.log('[SchedulerSSE] 📨 Parsed message data:', data);
         
         if (data.type === 'scheduler_message') {
+          console.log('[SchedulerSSE] 📅 Processing scheduler message notification');
           // Mark message as seen to avoid duplicate notifications
           if (data.messageId) {
             seenSchedulerMessages.current.add(data.messageId);
@@ -208,18 +217,30 @@ export default function useChatHelpers(index = 0, paramId?: string) {
             duration: 5000,
           });
           
-          // Refresh the conversation data if it matches current conversation
-          if (data.conversationId === conversationId) {
-            queryClient.invalidateQueries([QueryKeys.messages, data.conversationId]);
+          // Force refresh the conversation messages to show the new scheduler message
+          // Use refetchQueries instead of invalidateQueries to force immediate refetch
+          // regardless of the query's refetch settings
+          if (data.conversationId) {
+            console.log('[SchedulerSSE] 🔄 Refreshing messages for conversation:', data.conversationId);
+            console.log('[SchedulerSSE] Current conversation ID:', conversationId);
+            // First try to refetch if it matches current conversation
+            if (data.conversationId === conversationId) {
+              console.log('[SchedulerSSE] ⚡ Refetching current conversation messages');
+              queryClient.refetchQueries([QueryKeys.messages, data.conversationId]);
+            } else {
+              console.log('[SchedulerSSE] 📝 Invalidating background conversation messages');
+              // Also invalidate for background conversations to refresh when user navigates
+              queryClient.invalidateQueries([QueryKeys.messages, data.conversationId]);
+            }
           }
           
           // Always refresh scheduler tasks when any scheduler notification comes in
           // This ensures the schedules panel shows updated task status
           queryClient.invalidateQueries([QueryKeys.schedulerTasks]);
         } else if (data.type === 'task_status_update' || data.type === 'task_notification') {
+          console.log('[SchedulerSSE] 📋 Processing task status update:', data);
           // Handle task status updates (started, failed, cancelled, etc.)
           // These don't necessarily create new messages but do update task status
-          console.log('[SchedulerSSE] Received task status update:', data);
           queryClient.invalidateQueries([QueryKeys.schedulerTasks]);
           
           // Show a brief status notification
@@ -250,18 +271,24 @@ export default function useChatHelpers(index = 0, paramId?: string) {
           }
         } else if (data.type === 'heartbeat') {
           // Handle heartbeat (keep-alive)
-          console.debug('[SchedulerSSE] Heartbeat received');
+          console.debug('[SchedulerSSE] 💓 Heartbeat received');
+        } else if (data.type === 'connected') {
+          console.log('[SchedulerSSE] ✅ Initial connection confirmation received');
+        } else {
+          console.log('[SchedulerSSE] ❓ Unknown message type:', data.type);
         }
       } catch (error) {
-        console.error('[SchedulerSSE] Error parsing SSE message:', error);
+        console.error('[SchedulerSSE] ❌ Error parsing SSE message:', error, 'Raw data:', event.data);
       }
     };
 
     eventSource.onerror = (error) => {
-      console.error('[SchedulerSSE] SSE connection error:', error);
+      console.error('[SchedulerSSE] ❌ SSE connection error:', error);
+      console.error('[SchedulerSSE] EventSource readyState:', eventSource.readyState);
       // Attempt to reconnect after a delay
       setTimeout(() => {
         if (sseConnectionRef.current === eventSource) {
+          console.log('[SchedulerSSE] 🔄 Attempting to reconnect...');
           eventSource.close();
           // Trigger re-connection by updating the effect dependency
         }
@@ -270,6 +297,7 @@ export default function useChatHelpers(index = 0, paramId?: string) {
 
     // Cleanup on unmount or when dependencies change
     return () => {
+      console.log('[SchedulerSSE] 🧹 Cleaning up SSE connection');
       eventSource.close();
       sseConnectionRef.current = null;
     };

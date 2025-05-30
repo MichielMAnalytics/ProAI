@@ -3,7 +3,7 @@ const { Tool } = require('@langchain/core/tools');
 const { parseCronExpression } = require('cron-schedule');
 const { v4: uuidv4 } = require('uuid');
 const { logger } = require('~/config');
-const SchedulerService = require('~/server/services/SchedulerService');
+const SchedulerService = require('~/server/services/Scheduler/SchedulerService');
 const { 
   createSchedulerTask, 
   getSchedulerTasksByUser, 

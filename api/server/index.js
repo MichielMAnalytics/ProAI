@@ -21,7 +21,7 @@ const AppService = require('./services/AppService');
 const staticCache = require('./utils/staticCache');
 const noIndex = require('./middleware/noIndex');
 const routes = require('./routes');
-const SchedulerExecutionService = require('./services/SchedulerExecutionService');
+const SchedulerExecutionService = require('./services/Scheduler/SchedulerExecutionService');
 
 const { PORT, HOST, ALLOW_SOCIAL_LOGIN, DISABLE_COMPRESSION, TRUST_PROXY } = process.env ?? {};
 

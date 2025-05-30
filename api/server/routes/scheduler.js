@@ -1,9 +1,9 @@
 const express = require('express');
 const { requireJwtAuth } = require('~/server/middleware');
 const { sendSchedulerMessage } = require('~/server/controllers/scheduler');
-const SchedulerService = require('~/server/services/SchedulerService');
-const SchedulerExecutionService = require('~/server/services/SchedulerExecutionService');
-const { notificationManager } = require('~/server/services/SchedulerService');
+const SchedulerService = require('~/server/services/Scheduler/SchedulerService');
+const SchedulerExecutionService = require('~/server/services/Scheduler/SchedulerExecutionService');
+const { notificationManager } = require('~/server/services/Scheduler/SchedulerService');
 const { setHeaders } = require('~/server/middleware');
 const { 
   getSchedulerTasksByUser, 
