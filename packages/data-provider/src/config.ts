@@ -1414,6 +1414,8 @@ export enum LocalStorageKeys {
   LAST_CODE_TOGGLE_ = 'LAST_CODE_TOGGLE_',
   /** Last checked toggle for Web Search per conversation ID */
   LAST_WEB_SEARCH_TOGGLE_ = 'LAST_WEB_SEARCH_TOGGLE_',
+  /** Last checked toggle for Scheduler per conversation ID */
+  LAST_SCHEDULER_TOGGLE_ = 'LAST_SCHEDULER_TOGGLE_',
 }
 
 export enum ForkOptions {

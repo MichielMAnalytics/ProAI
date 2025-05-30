@@ -17,6 +17,7 @@ import { Badge } from '~/components/ui';
 import MCPSelect from './MCPSelect';
 import WebSearch from './WebSearch';
 import store from '~/store';
+import SchedulerToggle from './SchedulerToggle';
 
 interface BadgeRowProps {
   showEphemeralBadges?: boolean;
@@ -353,10 +354,11 @@ function BadgeRow({
           />
         </div>
       )}
-      {showEphemeralBadges === true && (
+      {showEphemeralBadges && (
         <>
           <WebSearch conversationId={conversationId} />
           <CodeInterpreter conversationId={conversationId} />
+          <SchedulerToggle conversationId={conversationId} />
           <MCPSelect conversationId={conversationId} />
         </>
       )}

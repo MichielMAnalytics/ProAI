@@ -8,7 +8,7 @@ const {
   updateSchedulerExecution 
 } = require('~/models/SchedulerExecution');
 const { updateSchedulerTask, getReadySchedulerTasks } = require('~/models/SchedulerTask');
-const { getAgent } = require('~/models/Agent');
+const { loadAgent, getAgent } = require('~/models/Agent');
 const paths = require('~/config/paths');
 
 class SchedulerExecutionService {
@@ -21,41 +21,47 @@ class SchedulerExecutionService {
       timeout: parseInt(process.env.SCHEDULER_TASK_TIMEOUT || '300000'), // 5 minute timeout per task
       throwOnTimeout: true,
       intervalCap: 10, // Max 10 tasks per interval
-      interval: 60000, // 1 minute interval for rate limiting
+      interval: 60000, // 1 minute interval
     });
 
-    // Separate queue for retries with lower concurrency
+    // Initialize retry queue with lower concurrency
     this.retryQueue = new PQueue({ 
-      concurrency: 1,
-      timeout: parseInt(process.env.SCHEDULER_RETRY_TIMEOUT || '180000'), // 3 minute timeout for retries
+      concurrency: parseInt(process.env.SCHEDULER_RETRY_CONCURRENCY || '1'), // More conservative for retries
+      timeout: parseInt(process.env.SCHEDULER_TASK_TIMEOUT || '300000'),
+      throwOnTimeout: true,
     });
 
-    // Queue event handlers
-    this.taskQueue.on('add', () => {
-      logger.debug(`[SchedulerExecutionService] Task added to queue. Queue size: ${this.taskQueue.size}, Pending: ${this.taskQueue.pending}`);
-    });
-
-    this.taskQueue.on('active', () => {
-      logger.debug(`[SchedulerExecutionService] Task started. Active: ${this.taskQueue.pending}, Waiting: ${this.taskQueue.size}`);
-    });
-
-    this.taskQueue.on('completed', (result) => {
-      logger.debug(`[SchedulerExecutionService] Task completed. Queue size: ${this.taskQueue.size}, Pending: ${this.taskQueue.pending}`);
-    });
-
-    this.taskQueue.on('error', (error) => {
-      logger.error(`[SchedulerExecutionService] Task queue error:`, error);
-    });
-
-    // Import endpoint initializers dynamically to avoid circular dependencies
-    this.endpointInitializers = {};
+    this.isRunning = false;
+    this.schedulerInterval = null;
+    this.shutdownTimeout = null;
+    this.maxRetries = parseInt(process.env.SCHEDULER_MAX_RETRIES || '3');
     
+    // Initialize endpoint initializers dynamically to avoid circular dependencies
+    this.endpointInitializers = {};
+    this.initializeEndpointClients();
+    
+    // Bind queue event handlers
+    this.setupQueueHandlers();
+    
+    logger.info('[SchedulerExecutionService] Initialized with concurrency:', {
+      taskConcurrency: this.taskQueue.concurrency,
+      retryConcurrency: this.retryQueue.concurrency,
+      maxRetries: this.maxRetries,
+      taskTimeout: this.taskQueue.timeout,
+      availableEndpoints: Object.keys(this.endpointInitializers),
+    });
+  }
+
+  /**
+   * Initialize endpoint client initializers
+   */
+  initializeEndpointClients() {
     try {
-      const { initializeClient: initOpenAIClient } = require('~/server/services/Endpoints/openAI/initialize');
-      const { initializeClient: initCustomClient } = require('~/server/services/Endpoints/custom/initialize');
-      const { initializeClient: initAnthropicClient } = require('~/server/services/Endpoints/anthropic/initialize');
-      const { initializeClient: initGoogleClient } = require('~/server/services/Endpoints/google/initialize');
-      const { initializeClient: initAgentsClient } = require('~/server/services/Endpoints/agents/initialize');
+      const { initializeClient: initOpenAIClient } = require('~/server/services/Endpoints/openAI');
+      const { initializeClient: initCustomClient } = require('~/server/services/Endpoints/custom');
+      const { initializeClient: initAnthropicClient } = require('~/server/services/Endpoints/anthropic');
+      const { initializeClient: initGoogleClient } = require('~/server/services/Endpoints/google');
+      const { initializeClient: initAgentsClient } = require('~/server/services/Endpoints/agents');
       
       this.endpointInitializers = {
         [EModelEndpoint.openAI]: initOpenAIClient,
@@ -66,89 +72,126 @@ class SchedulerExecutionService {
         [EModelEndpoint.agents]: initAgentsClient,
       };
       
-      logger.debug('[SchedulerExecutionService] Endpoint initializers loaded:', Object.keys(this.endpointInitializers));
+      logger.info('[SchedulerExecutionService] Endpoint initializers loaded:', Object.keys(this.endpointInitializers));
     } catch (error) {
       logger.error('[SchedulerExecutionService] Error loading endpoint initializers:', error);
+      this.endpointInitializers = {};
     }
-    
-    this.isRunning = false;
   }
 
   /**
-   * Calculate task priority based on various factors
-   * Higher number = higher priority
+   * Initialize client for a specific endpoint
+   */
+  async initializeClient({ req, res, endpointOption }) {
+    const endpoint = endpointOption.endpoint;
+    const initializeClientFn = this.endpointInitializers[endpoint];
+    
+    if (!initializeClientFn) {
+      throw new Error(`No initializer found for endpoint: ${endpoint}`);
+    }
+    
+    return await initializeClientFn({ req, res, endpointOption });
+  }
+
+  setupQueueHandlers() {
+    // Main queue handlers
+    this.taskQueue.on('add', () => {
+      logger.debug(`[SchedulerExecutionService] Task added to queue. Size: ${this.taskQueue.size}, Pending: ${this.taskQueue.pending}`);
+    });
+
+    this.taskQueue.on('active', () => {
+      logger.debug(`[SchedulerExecutionService] Task started. Size: ${this.taskQueue.size}, Pending: ${this.taskQueue.pending}`);
+    });
+
+    this.taskQueue.on('completed', (result) => {
+      logger.debug(`[SchedulerExecutionService] Task completed. Size: ${this.taskQueue.size}, Pending: ${this.taskQueue.pending}`);
+    });
+
+    this.taskQueue.on('error', (error, task) => {
+      logger.error(`[SchedulerExecutionService] Task queue error:`, error);
+    });
+
+    // Retry queue handlers  
+    this.retryQueue.on('error', (error, task) => {
+      logger.error(`[SchedulerExecutionService] Retry queue error:`, error);
+    });
+  }
+
+  /**
+   * Calculate priority for task execution
+   * Higher priority = executed sooner
    */
   calculatePriority(task) {
-    let priority = 0;
+    const now = new Date();
+    const nextRun = new Date(task.next_run);
+    const overdue = Math.max(0, now - nextRun); // milliseconds overdue
     
-    // Higher priority for one-time tasks
+    // Base priority: more overdue = higher priority
+    let priority = Math.floor(overdue / 60000); // 1 point per minute overdue
+    
+    // Boost priority for one-time tasks
     if (task.do_only_once) {
-      priority += 10;
+      priority += 100;
     }
     
-    // Higher priority for older tasks (avoid starvation)
-    const taskAge = Date.now() - new Date(task.createdAt || task.next_run).getTime();
-    const ageHours = taskAge / (1000 * 60 * 60);
-    priority += Math.min(ageHours, 24); // Max 24 points for age
-    
-    // Higher priority for failed tasks that are being retried
+    // Lower priority for tasks that have failed recently
     if (task.status === 'failed') {
-      priority += 5;
+      priority -= 50;
     }
     
-    return Math.round(priority);
+    return priority;
   }
 
   /**
-   * Check if an error is retriable
+   * Determine if an error is retriable
    */
   isRetriableError(error) {
-    const retriableErrors = [
-      'timeout',
-      'network',
-      'rate limit',
-      'temporary',
-      'service unavailable',
-      'too many requests',
-      'connection reset',
+    const nonRetriablePatterns = [
+      /authentication/i,
+      /unauthorized/i,
+      /forbidden/i,
+      /not found/i,
+      /invalid.*key/i,
+      /invalid.*token/i,
+      /malformed/i,
+      /syntax.*error/i,
     ];
     
-    const errorMessage = error.message?.toLowerCase() || '';
-    return retriableErrors.some(retryError => errorMessage.includes(retryError));
+    return !nonRetriablePatterns.some(pattern => pattern.test(error.message));
   }
 
   /**
-   * Execute a task with retry logic
+   * Execute task with retry logic
    */
   async executeTaskWithRetry(task, attempt = 1) {
-    const maxRetries = parseInt(process.env.SCHEDULER_MAX_RETRIES || '3');
-    
     try {
-      logger.info(`[SchedulerExecutionService] Executing task ${task.id} (attempt ${attempt}/${maxRetries})`);
       const result = await this.executeTask(task);
       return result;
     } catch (error) {
-      logger.error(`[SchedulerExecutionService] Task ${task.id} failed on attempt ${attempt}:`, error);
+      logger.error(`[SchedulerExecutionService] Task ${task.id} failed on attempt ${attempt}:`, error.message);
       
-      if (attempt < maxRetries && this.isRetriableError(error)) {
-        const backoffDelay = Math.min(Math.pow(2, attempt) * 1000, 30000); // Exponential backoff, max 30s
-        logger.info(`[SchedulerExecutionService] Retrying task ${task.id} in ${backoffDelay}ms`);
+      if (attempt < this.maxRetries && this.isRetriableError(error)) {
+        // Exponential backoff: 2^attempt * 1000ms
+        const delay = Math.pow(2, attempt) * 1000;
+        logger.info(`[SchedulerExecutionService] Retrying task ${task.id} in ${delay}ms (attempt ${attempt + 1}/${this.maxRetries})`);
         
-        // Schedule retry with exponential backoff
-        await new Promise(resolve => setTimeout(resolve, backoffDelay));
+        // Schedule retry
+        setTimeout(() => {
+          this.retryQueue.add(() => this.executeTaskWithRetry(task, attempt + 1), {
+            priority: this.calculatePriority(task) - attempt * 10, // Lower priority for retries
+          });
+        }, delay);
         
-        // Add to retry queue instead of main queue
-        return this.retryQueue.add(() => this.executeTaskWithRetry(task, attempt + 1), {
-          priority: this.calculatePriority(task) + 100, // Higher priority for retries
-        });
+        return { success: false, retry: true, attempt, error: error.message };
+      } else {
+        logger.error(`[SchedulerExecutionService] Task ${task.id} failed after all retries:`, error.message);
+        throw error;
       }
-      
-      throw error;
     }
   }
 
   /**
-   * Get queue status for monitoring
+   * Get current queue status
    */
   getQueueStatus() {
     return {
@@ -165,528 +208,529 @@ class SchedulerExecutionService {
     };
   }
 
+  /**
+   * Execute a single scheduler task
+   */
   async executeTask(task) {
-    const executionId = `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const executionId = `exec_${task.id}_${Date.now()}`;
+    const startTime = new Date();
     
-    logger.info(`[SchedulerExecutionService] Starting task execution: ${task.id} (${task.name})`);
-    
-    // Find the last message in the conversation for proper threading
-    let lastMessageId = null;
-    try {
-      const { getMessages } = require('~/models/Message');
-      const messages = await getMessages({ conversationId: task.conversation_id, user: task.user.toString() });
-      if (messages && messages.length > 0) {
-        const sortedMessages = messages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        lastMessageId = sortedMessages[0].messageId;
-        logger.debug(`[SchedulerExecutionService] Found last message for notifications: ${lastMessageId}`);
-      }
-    } catch (error) {
-      logger.warn(`[SchedulerExecutionService] Error finding last message: ${error.message}`);
-    }
+    logger.info(`[SchedulerExecutionService] Starting execution: ${executionId} for task ${task.id} (${task.name})`);
     
     // Create execution record
     const execution = await createSchedulerExecution({
       id: executionId,
       task_id: task.id,
-      start_time: new Date(),
-      status: 'running',
       user: task.user,
-    });
-
-    // Update task status
-    await updateSchedulerTask(task.id, task.user, {
       status: 'running',
-      last_run: new Date(),
+      start_time: startTime,
+      context: {
+        task_name: task.name,
+        prompt: task.prompt.substring(0, 500), // Truncate for storage
+        endpoint: task.endpoint,
+        ai_model: task.ai_model,
+        agent_id: task.agent_id,
+      }
     });
 
-    // Send task start notification
     try {
-      await SchedulerService.sendTaskNotification({
-        userId: task.user.toString(),
-        conversationId: task.conversation_id,
-        taskId: task.id,
-        taskName: task.name,
-        notificationType: 'start',
-        parentMessageId: lastMessageId,
+      // Update task status to running
+      await updateSchedulerTask(task.id, task.user, { 
+        status: 'running',
+        last_run: startTime,
       });
-    } catch (error) {
-      logger.warn(`[SchedulerExecutionService] Failed to send start notification: ${error.message}`);
-    }
 
-    // Send task status update for schedules panel refresh
-    try {
-      await SchedulerService.sendTaskStatusUpdate({
-        userId: task.user.toString(),
-        taskId: task.id,
-        taskName: task.name,
-        notificationType: 'started',
-      });
-    } catch (error) {
-      logger.warn(`[SchedulerExecutionService] Failed to send status update: ${error.message}`);
-    }
-
-    try {
-      // Execute the task by sending the prompt to the AI agent
-      const result = await this.executePrompt(task);
+      let result;
       
-      // Update execution with success
-      await updateSchedulerExecution(executionId, task.user, {
-        end_time: new Date(),
-        status: 'completed',
-        output: result,
-      });
-
-      // Update task status
-      let taskStatus = 'completed';
-      let nextUpdate = { status: taskStatus };
+      // Check if we need to use MCP tools (automatic ephemeral agent switch)
+      const shouldUseEphemeralAgent = await this.shouldUseEphemeralAgent(task);
       
-      // If it's a one-time task, disable it
-      if (task.do_only_once) {
-        nextUpdate.enabled = false;
-        nextUpdate.status = 'disabled';
-        taskStatus = 'disabled';
-        logger.info(`[SchedulerExecutionService] One-time task ${task.id} completed, disabling it`);
+      if (shouldUseEphemeralAgent) {
+        logger.info(`[SchedulerExecutionService] Using ephemeral agent for task ${task.id} due to MCP tools`);
+        result = await this.executeWithEphemeralAgent(task);
       } else {
+        logger.info(`[SchedulerExecutionService] Using direct endpoint for task ${task.id}`);
+        result = await this.executePrompt(task);
+      }
+
+      const endTime = new Date();
+      const duration = endTime - startTime;
+
+      // Update execution record with success
+      await updateSchedulerExecution(executionId, task.user, {
+        status: 'completed',
+        end_time: endTime,
+        duration,
+        result: typeof result === 'string' ? result : JSON.stringify(result),
+      });
+
+      // Update task status and schedule next run if recurring
+      const updateData = { 
+        status: 'completed',
+        last_run: endTime,
+      };
+
+      if (!task.do_only_once) {
         // Calculate next run time for recurring tasks
-        try {
-          const { parseCronExpression } = require('cron-schedule');
-          const cron = parseCronExpression(task.schedule);
-          nextUpdate.next_run = cron.getNextDate();
-          nextUpdate.status = 'pending';
-          taskStatus = 'pending';
-          logger.info(`[SchedulerExecutionService] Recurring task ${task.id} completed, next run: ${nextUpdate.next_run}`);
-        } catch (error) {
-          logger.error(`[SchedulerExecutionService] Failed to calculate next run time: ${error.message}`);
-          nextUpdate.status = 'failed';
-          taskStatus = 'failed';
+        const cronTime = this.calculateNextRun(task.schedule);
+        if (cronTime) {
+          updateData.next_run = cronTime;
+          updateData.status = 'pending';
+        } else {
+          updateData.enabled = false; // Disable if we can't calculate next run
         }
+      } else {
+        // Disable one-time tasks after execution
+        updateData.enabled = false;
       }
+
+      await updateSchedulerTask(task.id, task.user, updateData);
+
+      // Send the result as a message to the user
+      await SchedulerService.sendSchedulerMessage({
+        userId: task.user,
+        conversationId: task.conversation_id,
+        message: typeof result === 'string' ? result : JSON.stringify(result),
+        taskId: task.id,
+        taskName: task.name,
+        parentMessageId: task.parent_message_id,
+      });
+
+      logger.info(`[SchedulerExecutionService] Task ${task.id} completed successfully in ${duration}ms`);
       
-      logger.debug(`[SchedulerExecutionService] Updating task ${task.id} with:`, nextUpdate);
-      const updatedTask = await updateSchedulerTask(task.id, task.user, nextUpdate);
-      logger.debug(`[SchedulerExecutionService] Task ${task.id} updated successfully, new status: ${updatedTask?.status}`);
-
-      // Send task completion notification
-      try {
-        await SchedulerService.sendTaskResult({
-          userId: task.user.toString(),
-          conversationId: task.conversation_id,
-          taskId: task.id,
-          taskName: task.name,
-          result: result,
-          success: true,
-          parentMessageId: lastMessageId,
-        });
-      } catch (error) {
-        logger.warn(`[SchedulerExecutionService] Failed to send completion notification: ${error.message}`);
-      }
-
-      // Send task status update for schedules panel refresh
-      try {
-        await SchedulerService.sendTaskStatusUpdate({
-          userId: task.user.toString(),
-          taskId: task.id,
-          taskName: task.name,
-          notificationType: 'completed',
-        });
-      } catch (error) {
-        logger.warn(`[SchedulerExecutionService] Failed to send completion status update: ${error.message}`);
-      }
-
-      logger.info(`[SchedulerExecutionService] Task execution completed: ${task.id} - Status: ${taskStatus}`);
+      return {
+        success: true,
+        executionId,
+        duration,
+        result,
+      };
       
     } catch (error) {
-      logger.error(`[SchedulerExecutionService] Task execution failed: ${task.id} - ${error.message}`);
+      const endTime = new Date();
+      const duration = endTime - startTime;
       
-      // Update execution with failure
+      logger.error(`[SchedulerExecutionService] Task execution failed: ${task.id} -`, error.message);
+
+      // Update execution record with failure
       await updateSchedulerExecution(executionId, task.user, {
-        end_time: new Date(),
         status: 'failed',
+        end_time: endTime,
+        duration,
         error: error.message,
       });
 
       // Update task status
       await updateSchedulerTask(task.id, task.user, {
         status: 'failed',
+        last_run: endTime,
       });
 
-      // Send task failure notification
-      try {
-        await SchedulerService.sendTaskResult({
-          userId: task.user.toString(),
-          conversationId: task.conversation_id,
-          taskId: task.id,
-          taskName: task.name,
-          result: error.message,
-          success: false,
-          parentMessageId: lastMessageId,
-        });
-      } catch (notificationError) {
-        logger.warn(`[SchedulerExecutionService] Failed to send failure notification: ${notificationError.message}`);
-      }
+      // Send failure notification
+      await SchedulerService.sendSchedulerMessage({
+        userId: task.user,
+        conversationId: task.conversation_id,
+        message: `Task execution failed: ${error.message}`,
+        taskId: task.id,
+        taskName: task.name,
+        parentMessageId: task.parent_message_id,
+      });
 
-      // Send task status update for schedules panel refresh
-      try {
-        await SchedulerService.sendTaskStatusUpdate({
-          userId: task.user.toString(),
-          taskId: task.id,
-          taskName: task.name,
-          notificationType: 'failed',
-          details: error.message,
-        });
-      } catch (statusError) {
-        logger.warn(`[SchedulerExecutionService] Failed to send failure status update: ${statusError.message}`);
-      }
-      
-      // Re-throw error for retry logic
       throw error;
     }
   }
 
-  async executePrompt(task) {
-    const { prompt, endpoint, ai_model, agent_id, conversation_id } = task;
-    
-    if (!prompt) {
-      throw new Error('No prompt provided for task execution');
-    }
-
-    logger.info(`[SchedulerExecutionService] Executing prompt for task ${task.id} using ${endpoint}/${agent_id || ai_model}`);
-
-    // Find the last message in the conversation to maintain thread continuity
-    let parentMessageId = task.parent_message_id;
-    if (!parentMessageId || parentMessageId === '00000000-0000-0000-0000-000000000000') {
-      try {
-        const { getMessages } = require('~/models/Message');
-        const messages = await getMessages({ conversationId: conversation_id, user: task.user.toString() });
-        if (messages && messages.length > 0) {
-          // Sort messages by createdAt to get the most recent one
-          const sortedMessages = messages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-          parentMessageId = sortedMessages[0].messageId;
-          logger.info(`[SchedulerExecutionService] Found last message in conversation ${conversation_id}: ${parentMessageId}`);
-        } else {
-          logger.info(`[SchedulerExecutionService] No existing messages found in conversation ${conversation_id}`);
-          parentMessageId = null;
-        }
-      } catch (error) {
-        logger.warn(`[SchedulerExecutionService] Error getting messages for conversation ${conversation_id}:`, error);
-        parentMessageId = null;
-      }
-    }
-
-    const targetEndpoint = endpoint || EModelEndpoint.openAI;
-    // For agents, ai_model might be the base model, agent_id is the primary identifier
-    const targetModel = targetEndpoint === EModelEndpoint.agents ? agent_id : (ai_model || 'gpt-4o-mini');
-
-    logger.debug(`[SchedulerExecutionService] Target endpoint: ${targetEndpoint}, Target model/agent: ${targetModel}`);
-
-    const initializeClient = this.endpointInitializers[targetEndpoint];
-    if (!initializeClient) {
-      logger.error(`[SchedulerExecutionService] No initializer found for endpoint: ${targetEndpoint}`);
-      throw new Error(`Unsupported endpoint: ${targetEndpoint}`);
-    }
-
-    // Initialize basic tools and MCP for all endpoints
-    const { loadAndFormatTools } = require('~/server/services/ToolService');
-    let availableTools = loadAndFormatTools({
-      directory: paths.structuredTools,
-    });
-
-    // Initialize user-specific MCP connections using the standardized pattern
-    const MCPInitializer = require('~/server/services/MCPInitializer');
-    const mcpInitializer = MCPInitializer.getInstance();
-    const mcpResult = await mcpInitializer.ensureUserMCPReady(
-      task.user.toString(), 
-      'SchedulerExecutionService', 
-      availableTools
-    );
-    
-    if (mcpResult.success) {
-      logger.info(`[SchedulerExecutionService] MCP initialization successful: ${mcpResult.serverCount} servers, ${mcpResult.toolCount} tools in ${mcpResult.duration}ms`);
-    } else {
-      logger.warn(`[SchedulerExecutionService] MCP initialization failed for user ${task.user.toString()}: ${mcpResult.error}`);
-      // Continue without MCP tools - this is not critical for task execution
-    }
-
-    let agent = null;
-    let agentTools = [];
-
-    if (targetEndpoint === EModelEndpoint.agents && agent_id) {
-      // Load agent and its tools
-      agent = await getAgent({ id: agent_id, author: task.user.toString() });
-      if (!agent) {
-        throw new Error(`Agent with ID ${agent_id} not found or not accessible by user.`);
-      }
-
-      logger.debug(`[SchedulerExecutionService] Loading tools for agent ${agent_id} with ${agent.tools?.length || 0} configured tools`);
-
-      // Create proper mock request for agent tool loading
-      const mockToolReq = {
-        user: { id: task.user.toString() },
-        body: {
-          model: agent_id,
-          endpoint: targetEndpoint,
-        },
-        app: {
-          locals: {
-            paths: paths,
-            availableTools: availableTools, // Pass the MCP-enhanced tools
-            fileStrategy: process.env.CDN_PROVIDER || 'local',
-          }
-        }
-      };
-
-      const mockToolRes = {
-        write: () => {},
-        end: () => {},
-        status: () => mockToolRes,
-        json: () => mockToolRes,
-        send: () => mockToolRes,
-        setHeader: () => {},
-        locals: {},
-      };
-
-      try {
-        // Load agent-specific tools including MCP
-        const { loadAgentTools } = require('~/server/services/ToolService');
-        const toolResult = await loadAgentTools({
-          req: mockToolReq,
-          res: mockToolRes,
-          agent: agent,
-          tool_resources: agent.tool_resources || {},
-        });
-
-        agentTools = toolResult.tools || [];
-        logger.info(`[SchedulerExecutionService] Loaded ${agentTools.length} tools for agent ${agent_id}`);
-
-        // Log the tool names for debugging
-        const toolNames = agentTools.map(tool => tool.name).join(', ');
-        logger.debug(`[SchedulerExecutionService] Available tools: ${toolNames}`);
-
-        // Log detailed tool information
-        agentTools.forEach(tool => {
-          logger.debug(`[SchedulerExecutionService] Tool details: ${tool.name} - ${tool.description || 'No description'} - MCP: ${tool.mcp || false}`);
-        });
-
-        // Also merge agent tools into availableTools for the mock request
-        agentTools.forEach(tool => {
-          if (tool.name) {
-            availableTools[tool.name] = {
-              type: 'function',
-              function: {
-                name: tool.name,
-                description: tool.description || '',
-                parameters: tool.schema ? require('zod-to-json-schema').zodToJsonSchema(tool.schema) : {}
-              }
-            };
-          }
-        });
-
-        logger.debug(`[SchedulerExecutionService] Total availableTools after merging: ${Object.keys(availableTools).length}`);
-
-      } catch (error) {
-        logger.error(`[SchedulerExecutionService] Error loading agent tools: ${error.message}`);
-        // Continue with basic tools
-      }
-    }
-
-    const mockRes = {
-      write: () => {},
-      end: () => {},
-      status: () => mockRes,
-      json: () => mockRes,
-      send: () => mockRes,
-      setHeader: () => {},
-      locals: {},
-    };
-
-    const mockReq = {
-      user: { id: task.user.toString() },
+  /**
+   * Create a mock request object for agent initialization
+   */
+  createMockRequest(task) {
+    return {
+      user: { 
+        id: task.user.toString() // Ensure user ID is a string, not ObjectId
+      },
       body: {
-        model: targetModel, // This will be agent_id if endpoint is agents
-        endpoint: targetEndpoint,
-        conversationId: conversation_id,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          }
-        ],
-        endpointOption: {
-          model_parameters: {
-            // For agents, the actual model is part of the agentConfig
-            model: targetEndpoint === EModelEndpoint.agents ? null : targetModel,
-          },
-        },
+        endpoint: task.endpoint || EModelEndpoint.openAI,
+        model: task.ai_model || task.agent_id,
+        userMessageId: null, // Not available in scheduler context
+        parentMessageId: task.parent_message_id,
+        conversationId: task.conversation_id,
+        promptPrefix: task.prompt,
+        ephemeralAgent: null, // Will be set if needed
       },
       app: {
         locals: {
-          paths: paths,
-          availableTools: availableTools, // MCP-enhanced tools
-          fileStrategy: process.env.CDN_PROVIDER || 'local',
+          availableTools: {}, // Will be populated during initialization
+          fileStrategy: global.fileStrategy || null,
         }
       }
     };
+  }
 
-    let endpointOption;
-    
-    if (targetEndpoint === EModelEndpoint.agents) {
-      if (!agent) {
-        throw new Error('Agent not loaded for agent endpoint');
-      }
+  /**
+   * Create a mock response object for client initialization
+   */
+  createMockResponse() {
+    return {
+      write: () => {},
+      end: () => {},
+      status: () => this.createMockResponse(),
+      json: () => this.createMockResponse(),
+      send: () => this.createMockResponse(),
+      setHeader: () => {},
+      locals: {},
+    };
+  }
 
-      // Use the fetched agent's configuration - keep original tool names (strings) in tools array
-      const agentConfig = {
-        id: agent.id,
-        name: agent.name,
-        model: agent.model, // The actual underlying model of the agent
-        provider: agent.provider,
-        endpoint: agent.provider, // Assuming agent.provider maps to an endpoint provider
-        instructions: agent.instructions,
-        tools: agent.tools || [], // Keep original tool names (strings), not tool objects
-        model_parameters: agent.model_parameters || { model: agent.model },
-        description: agent.description,
-        agent_ids: agent.agent_ids || [],
-        tool_resources: agent.tool_resources || {},
-        // Add additional properties that AgentClient expects
-        attachments: [],
-        toolContextMap: {},
-        maxContextTokens: agent.maxContextTokens || 4096,
-        // Pass the loaded tool objects separately (this is the key!)
-        loadedTools: agentTools,
-      };
-      
-      logger.debug(`[SchedulerExecutionService] Agent config tools: ${JSON.stringify(agent.tools)} | Loaded tools count: ${agentTools.length}`);
-      
-      mockReq.body.model = agent.id; // Ensure the agent_id is passed as model in req.body for AgentClient
-      mockReq.body.endpointOption.model_parameters.model = agent.model; // Pass the agent's actual model
-
-      endpointOption = {
-        endpoint: targetEndpoint,
-        model: agent.id, // Pass agent_id as the model for AgentClient initialization
-        modelOptions: {
-          model: agent.model, // The agent's underlying model
-        },
-        model_parameters: {
-           model: agent.model, // The agent's underlying model
-        },
-        agent: Promise.resolve(agentConfig),
-        req: mockReq,
-        res: mockRes,
-        modelLabel: agent.name || 'Agent',
-        maxContextTokens: agent.maxContextTokens || 4096, // Use agent's config or default
-        resendFiles: false, 
-      };
-    } else {
-      endpointOption = {
-        endpoint: targetEndpoint,
-        model: targetModel,
-        modelOptions: {
-          model: targetModel,
-        },
-      };
+  /**
+   * Determine if we should use ephemeral agent pattern for a task
+   * Only switch to ephemeral agent for non-agent tasks that have MCP tools
+   */
+  async shouldUseEphemeralAgent(task) {
+    // If task already has an agent_id, it's a real agent task - don't convert it
+    if (task.agent_id) {
+      logger.info(`[SchedulerExecutionService] Task ${task.id} has agent_id ${task.agent_id}, using real agent`);
+      return false;
     }
+    
+    // For non-agent tasks, check if user has MCP tools
+    const MCPInitializer = require('~/server/services/MCPInitializer');
+    const mcpInitializer = MCPInitializer.getInstance();
+    
+    const mcpResult = await mcpInitializer.ensureUserMCPReady(
+      task.user, 
+      'SchedulerExecutionService.shouldUseEphemeralAgent',
+      {}
+    );
+    
+    if (mcpResult.toolCount > 0) {
+      logger.info(`[SchedulerExecutionService] Found ${mcpResult.toolCount} MCP tools for user ${task.user}, switching to ephemeral agent`);
+      return true;
+    }
+    
+    return false;
+  }
 
-    logger.debug(`[SchedulerExecutionService] Calling initializeClient for endpoint: ${targetEndpoint}`);
-
-    try {
-      const clientResult = await initializeClient({
-        req: mockReq,
-        res: mockRes,
-        endpointOption: endpointOption,
-      });
-
-      const client = clientResult?.client || clientResult;
-      
-      if (!client) {
-        throw new Error(`Failed to initialize client for ${targetEndpoint}`);
-      }
-
-      logger.debug(`[SchedulerExecutionService] Client initialized successfully for ${targetEndpoint}`);
-
-      // Add a more explicit prompt for scheduled tasks
-      const enhancedPrompt = `[SCHEDULED TASK EXECUTION]: ${prompt}
-
-You are executing a scheduled task. Please perform the requested action using your available tools. This is not a conversation about scheduling - you should actually execute the task.`;
-
-      await client.sendMessage(enhancedPrompt, {
-        user: task.user.toString(),
-        conversationId: conversation_id,
-        parentMessageId: parentMessageId,
-        // For AgentClient, model here should be the agent_id
-        model: targetEndpoint === EModelEndpoint.agents ? agent_id : targetModel,
-        endpoint: targetEndpoint,
-      });
-
-      // For AgentClient, get response from content parts
-      const contentParts = client.getContentParts && client.getContentParts();
-      let responseText;
-
-      if (contentParts && Array.isArray(contentParts) && contentParts.length > 0) {
-        // Extract text from content parts
-        const { ContentTypes } = require('librechat-data-provider');
-        
-        // Find text content parts and combine them
-        const textParts = contentParts
-          .filter(part => part.type === ContentTypes.TEXT)
-          .map(part => {
-            // Handle different text content structures
-            if (typeof part.text === 'string') {
-              return part.text;
-            } else if (part[ContentTypes.TEXT]) {
-              if (typeof part[ContentTypes.TEXT] === 'string') {
-                return part[ContentTypes.TEXT];
-              } else if (part[ContentTypes.TEXT].value) {
-                return part[ContentTypes.TEXT].value;
-              }
-            }
-            return '';
-          })
-          .filter(text => text.length > 0);
-
-        responseText = textParts.join('\n').trim();
-        
-        logger.debug(`[SchedulerExecutionService] Extracted ${textParts.length} text parts from ${contentParts.length} content parts for task ${task.id}`);
-      }
-
-      if (!responseText) {
-        // Fallback: try to get the response from the client directly
-        if (client.responseMessage && client.responseMessage.text) {
-          responseText = client.responseMessage.text;
-        } else if (client.finalMessage && client.finalMessage.text) {
-          responseText = client.finalMessage.text;
+  /**
+   * Execute task using ephemeral agent pattern (for MCP tools support)
+   * This uses the direct client approach, bypassing HTTP middleware
+   */
+  async executeWithEphemeralAgent(task) {
+    logger.info(`[SchedulerExecutionService] Using direct agents client for task ${task.id}`);
+    
+    // Create mock request structure for agent initialization
+    const mockReq = this.createMockRequest(task);
+    
+    // Initialize MCP tools and populate availableTools
+    const MCPInitializer = require('~/server/services/MCPInitializer');
+    const mcpInitializer = MCPInitializer.getInstance();
+    
+    const mcpResult = await mcpInitializer.ensureUserMCPReady(
+      task.user, 
+      'SchedulerExecutionService.executeWithEphemeralAgent',
+      mockReq.app.locals.availableTools
+    );
+    
+    if (!mcpResult.success) {
+      logger.warn(`[SchedulerExecutionService] MCP initialization failed: ${mcpResult.error}`);
+    } else {
+      logger.info(`[SchedulerExecutionService] MCP initialized: ${mcpResult.serverCount} servers, ${mcpResult.toolCount} tools`);
+    }
+    
+    // Extract MCP server names from available tools
+    const mcpServerNames = [];
+    const availableToolKeys = Object.keys(mockReq.app.locals.availableTools);
+    logger.debug(`[SchedulerExecutionService] Available tool keys: ${availableToolKeys.join(', ')}`);
+    
+    for (const toolKey of availableToolKeys) {
+      if (toolKey.includes(Constants.mcp_delimiter)) {
+        const serverName = toolKey.split(Constants.mcp_delimiter)[1];
+        if (serverName && !mcpServerNames.includes(serverName)) {
+          mcpServerNames.push(serverName);
+          logger.debug(`[SchedulerExecutionService] Extracted MCP server name: ${serverName} from tool: ${toolKey}`);
         }
       }
-
-      if (!responseText) {
-        throw new Error('No response received from AI client - content parts were empty or invalid');
+    }
+    
+    logger.info(`[SchedulerExecutionService] Found MCP server names: ${mcpServerNames.join(', ')}`);
+    logger.info(`[SchedulerExecutionService] Total available tools: ${availableToolKeys.length}`);
+    
+    if (mcpServerNames.length === 0) {
+      logger.warn(`[SchedulerExecutionService] No MCP server names extracted despite ${availableToolKeys.length} available tools. MCP delimiter: ${Constants.mcp_delimiter}`);
+      // Log a few tool keys for debugging
+      logger.debug(`[SchedulerExecutionService] Sample tool keys: ${availableToolKeys.slice(0, 5).join(', ')}`);
+    }
+    
+    // Set up ephemeral agent configuration
+    const underlyingEndpoint = task.endpoint || EModelEndpoint.openAI;
+    const underlyingModel = task.ai_model || 'gpt-4o-mini';
+    
+    // Create ephemeral agent configuration
+    const ephemeralAgent = {
+      scheduler: true,
+      execute_code: false,
+      web_search: false,
+      mcp: mcpServerNames
+    };
+    
+    // Set up request body for agent loading
+    mockReq.body = {
+      ...mockReq.body,
+      text: task.prompt,
+      endpoint: underlyingEndpoint,
+      model: underlyingModel,
+      conversationId: task.conversation_id,
+      parentMessageId: task.parent_message_id,
+      ephemeralAgent: ephemeralAgent,
+      endpointOption: {
+        endpoint: underlyingEndpoint,
+        model: underlyingModel,
+        model_parameters: { model: underlyingModel }
       }
+    };
+    
+    // Debug: Log the ephemeral agent configuration
+    logger.info(`[SchedulerExecutionService] Ephemeral agent config:`, {
+      scheduler: ephemeralAgent.scheduler,
+      mcpServers: ephemeralAgent.mcp,
+      availableToolsCount: Object.keys(mockReq.app.locals.availableTools).length
+    });
+    
+    // Load ephemeral agent using the loadAgent function
+    const agent = await loadAgent({
+      req: mockReq,
+      agent_id: Constants.EPHEMERAL_AGENT_ID,
+      endpoint: underlyingEndpoint,
+      model_parameters: { model: underlyingModel }
+    });
+    
+    if (!agent) {
+      throw new Error('Failed to load ephemeral agent');
+    }
+    
+    logger.info(`[SchedulerExecutionService] Loaded ephemeral agent with ${agent.tools?.length || 0} tools: ${agent.tools?.join(', ') || 'none'}`);
+    
+    // Log MCP tools specifically
+    const mcpTools = agent.tools?.filter(tool => tool.includes(Constants.mcp_delimiter)) || [];
+    logger.info(`[SchedulerExecutionService] Ephemeral agent MCP tools (${mcpTools.length}): ${mcpTools.join(', ')}`);
+    
+    if (mcpTools.length === 0 && mcpServerNames.length > 0) {
+      logger.error(`[SchedulerExecutionService] Expected MCP tools but agent has none. Server names: ${mcpServerNames.join(', ')}, Available tools: ${availableToolKeys.length}`);
+    }
+    
+    // Create proper endpointOption for agents endpoint
+    const endpointOption = {
+      endpoint: EModelEndpoint.agents,
+      model: underlyingModel,
+      model_parameters: { model: underlyingModel },
+      agent: Promise.resolve(agent), // Agents endpoint expects a promise
+    };
+    
+    // Create minimal mock response for client initialization
+    const mockRes = {
+      write: () => {},
+      end: () => {},
+      on: () => {},
+      removeListener: () => {},
+      locals: {},
+    };
+    
+    // Initialize the agents client directly
+    const { initializeClient } = require('~/server/services/Endpoints/agents');
+    const { client } = await initializeClient({ 
+      req: mockReq, 
+      res: mockRes, 
+      endpointOption 
+    });
+    
+    if (!client) {
+      throw new Error('Failed to initialize agents client');
+    }
+    
+    logger.debug(`[SchedulerExecutionService] AgentClient initialized successfully`);
+    
+    // Execute using the client's sendMessage method
+    const response = await client.sendMessage(task.prompt, {
+      user: task.user,
+      conversationId: task.conversation_id,
+      parentMessageId: task.parent_message_id,
+      onProgress: (data) => {
+        logger.debug(`[SchedulerExecutionService] Agent progress for task ${task.id}:`, data?.text?.substring(0, 100));
+      }
+    });
+    
+    if (!response) {
+      throw new Error('No response received from agent');
+    }
+    
+    logger.info(`[SchedulerExecutionService] Agent execution completed for task ${task.id}`);
+    
+    // Extract response text from agent response
+    let resultText = '';
+    if (response.text) {
+      resultText = response.text;
+    } else if (response.content && Array.isArray(response.content)) {
+      // Handle AgentClient content array format
+      resultText = response.content
+        .filter(part => part.type === 'text')
+        .map(part => part.text || part.content?.text || part.content)
+        .filter(Boolean)
+        .join('\n');
+    } else if (response.content) {
+      resultText = response.content;
+    } else {
+      resultText = 'Agent task completed successfully';
+    }
+    
+    return resultText;
+  }
 
-      logger.info(`[SchedulerExecutionService] Task ${task.id} completed successfully with agent ${agent_id || 'N/A'}`);
-      return responseText;
+  /**
+   * Execute a prompt using the configured AI model/agent
+   */
+  async executePrompt(task) {
+    logger.info(`[SchedulerExecutionService] Executing prompt for task ${task.id}: ${task.name}`);
+    logger.debug(`[SchedulerExecutionService] Task details:`, {
+      endpoint: task.endpoint,
+      ai_model: task.ai_model,
+      agent_id: task.agent_id,
+      promptLength: task.prompt?.length,
+    });
 
+    const mockReq = this.createMockRequest(task);
+    const mockRes = this.createMockResponse();
+    let agent = null;
+    let endpoint = task.endpoint || EModelEndpoint.openAI;
+    let model = task.ai_model;
+
+    // Load agent if this task uses an agent
+    if (task.agent_id && endpoint === EModelEndpoint.agents) {
+      agent = await loadAgent({
+        req: mockReq,
+        agent_id: task.agent_id,
+        endpoint: endpoint,
+        model_parameters: { model: task.ai_model }
+      });
+      
+      if (!agent) {
+        // Try to get agent details for error context
+        const agentDetails = await getAgent({ id: task.agent_id });
+        if (agentDetails) {
+          logger.warn(`[SchedulerExecutionService] Agent ${task.agent_id} found but not accessible for user ${task.user}`);
+        } else {
+          logger.warn(`[SchedulerExecutionService] Agent ${task.agent_id} not found, falling back to direct model execution`);
+        }
+        
+        // Fall back to the agent's underlying model if available
+        if (agentDetails && agentDetails.model) {
+          endpoint = agentDetails.provider || EModelEndpoint.openAI;
+          model = agentDetails.model;
+          logger.info(`[SchedulerExecutionService] Using fallback: endpoint=${endpoint}, model=${model}`);
+        } else {
+          // Last resort fallback
+          endpoint = EModelEndpoint.openAI;
+          model = 'gpt-4o-mini';
+          logger.info(`[SchedulerExecutionService] Using default fallback: endpoint=${endpoint}, model=${model}`);
+        }
+      } else {
+        logger.info(`[SchedulerExecutionService] Loaded agent ${task.agent_id} successfully`);
+        model = agent.model;
+      }
+    }
+
+    // Initialize the appropriate client
+    const { client } = await this.initializeClient({
+      req: mockReq,
+      res: mockRes,
+      endpointOption: {
+        endpoint: endpoint,
+        model: model,
+        agent_id: agent?.id,
+        model_parameters: agent?.model_parameters || {},
+        ...(agent && endpoint === EModelEndpoint.agents && { agent: Promise.resolve(agent) }),
+      }
+    });
+
+    if (!client) {
+      throw new Error(`Failed to initialize ${endpoint} client`);
+    }
+
+    logger.debug(`[SchedulerExecutionService] Client initialized for endpoint: ${endpoint}, model: ${model}`);
+
+    // Execute the prompt using the client's sendMessage method with just the text
+    const response = await client.sendMessage(task.prompt, {
+      user: task.user,
+      conversationId: task.conversation_id,
+      parentMessageId: task.parent_message_id,
+      onProgress: (data) => {
+        // Log progress for debugging but don't send to UI
+        logger.debug(`[SchedulerExecutionService] Progress for task ${task.id}:`, data.text?.substring(0, 100));
+      }
+    });
+
+    if (!response) {
+      throw new Error('No response received from AI model');
+    }
+
+    logger.info(`[SchedulerExecutionService] Prompt execution completed for task ${task.id}`);
+
+    // Extract response text
+    let resultText = '';
+    if (response.text) {
+      resultText = response.text;
+    } else if (response.content && Array.isArray(response.content)) {
+      // Handle AgentClient content array format
+      resultText = response.content
+        .filter(part => part.type === 'text')
+        .map(part => part.text || part.content?.text || part.content)
+        .filter(Boolean)
+        .join('\n');
+    } else if (response.content) {
+      resultText = response.content;
+    } else if (response.message) {
+      resultText = response.message.content || response.message;
+    } else {
+      resultText = JSON.stringify(response);
+    }
+
+    return resultText;
+  }
+
+  /**
+   * Calculate next run time using cron expression
+   */
+  calculateNextRun(cronExpression) {
+    try {
+      const { parseCronExpression } = require('cron-schedule');
+      const cron = parseCronExpression(cronExpression);
+      return cron.getNextDate();
     } catch (error) {
-      logger.error(`[SchedulerExecutionService] Error executing prompt for task ${task.id} with agent ${agent_id || 'N/A'}:`, error);
-      throw new Error(`AI execution failed: ${error.message}`);
+      logger.error(`[SchedulerExecutionService] Failed to calculate next run for cron: ${cronExpression}`, error);
+      return null;
     }
   }
 
+  /**
+   * Get tasks that are ready for execution
+   */
   async getReadyTasks() {
     try {
       return await getReadySchedulerTasks();
     } catch (error) {
-      logger.error(`[SchedulerExecutionService] Error fetching ready tasks:`, error);
+      logger.error('[SchedulerExecutionService] Error fetching ready tasks:', error);
       return [];
     }
   }
 
+  /**
+   * Start the scheduler
+   */
   async startScheduler() {
     if (this.isRunning) {
       logger.warn('[SchedulerExecutionService] Scheduler is already running');
       return;
     }
 
+    logger.info('[SchedulerExecutionService] Starting scheduler...');
     this.isRunning = true;
-    logger.info(`[SchedulerExecutionService] Starting scheduler with concurrency limit: ${this.taskQueue.concurrency}`);
 
     const schedulerLoop = async () => {
       if (!this.isRunning) {
@@ -697,75 +741,87 @@ You are executing a scheduled task. Please perform the requested action using yo
         const readyTasks = await this.getReadyTasks();
         
         if (readyTasks.length > 0) {
-          logger.info(`[SchedulerExecutionService] Found ${readyTasks.length} ready tasks, adding to queue`);
+          logger.info(`[SchedulerExecutionService] Found ${readyTasks.length} ready tasks`);
           
-          // Add tasks to queue with priority instead of executing all simultaneously
-          readyTasks.forEach(task => {
+          for (const task of readyTasks) {
             const priority = this.calculatePriority(task);
-            logger.debug(`[SchedulerExecutionService] Adding task ${task.id} to queue with priority ${priority}`);
             
-            this.taskQueue.add(() => this.executeTaskWithRetry(task), {
-              priority: priority,
-            }).catch(error => {
-              logger.error(`[SchedulerExecutionService] Task ${task.id} failed after all retries:`, error);
-            });
-          });
-          
-          // Log queue status for monitoring
-          const queueStatus = this.getQueueStatus();
-          logger.info(`[SchedulerExecutionService] Queue status - Main: ${queueStatus.main.pending} active, ${queueStatus.main.size} waiting | Retry: ${queueStatus.retry.pending} active, ${queueStatus.retry.size} waiting`);
+            this.taskQueue.add(
+              () => this.executeTaskWithRetry(task),
+              { 
+                priority,
+                // Add task metadata for debugging
+                meta: {
+                  taskId: task.id,
+                  taskName: task.name,
+                  userId: task.user,
+                }
+              }
+            );
+          }
+        } else {
+          logger.debug('[SchedulerExecutionService] No ready tasks found');
         }
       } catch (error) {
         logger.error('[SchedulerExecutionService] Error in scheduler loop:', error);
       }
-
-      // Schedule next check in 30 seconds
-      if (this.isRunning) {
-        setTimeout(schedulerLoop, 30000);
-      }
     };
 
-    // Start the scheduler loop
-    schedulerLoop();
+    // Run immediately, then every 30 seconds
+    await schedulerLoop();
+    this.schedulerInterval = setInterval(schedulerLoop, 30000);
+    
+    logger.info('[SchedulerExecutionService] Scheduler started successfully');
   }
 
+  /**
+   * Stop the scheduler
+   */
   async stopScheduler() {
     logger.info('[SchedulerExecutionService] Stopping scheduler...');
     this.isRunning = false;
     
-    // Gracefully shutdown task queues
-    try {
-      logger.info('[SchedulerExecutionService] Waiting for active tasks to complete...');
-      
-      // Pause queues to prevent new tasks
-      this.taskQueue.pause();
-      this.retryQueue.pause();
-      
-      // Wait for active tasks to complete (with timeout)
-      const shutdownTimeout = parseInt(process.env.SCHEDULER_SHUTDOWN_TIMEOUT || '60000'); // 1 minute default
-      const startTime = Date.now();
-      
-      while ((this.taskQueue.pending > 0 || this.retryQueue.pending > 0) && 
-             (Date.now() - startTime) < shutdownTimeout) {
-        logger.debug(`[SchedulerExecutionService] Waiting for ${this.taskQueue.pending + this.retryQueue.pending} active tasks...`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-      
-      if (this.taskQueue.pending > 0 || this.retryQueue.pending > 0) {
-        logger.warn(`[SchedulerExecutionService] Shutdown timeout reached. ${this.taskQueue.pending + this.retryQueue.pending} tasks may be terminated.`);
+    // Clear the interval
+    if (this.schedulerInterval) {
+      clearInterval(this.schedulerInterval);
+      this.schedulerInterval = null;
+    }
+
+    // Wait for current tasks to complete or timeout
+    const shutdownTimeout = parseInt(process.env.SCHEDULER_SHUTDOWN_TIMEOUT || '60000');
+    
+    const waitForQueues = new Promise((resolve) => {
+      const checkQueues = () => {
+        if (this.taskQueue.size === 0 && this.taskQueue.pending === 0 && 
+            this.retryQueue.size === 0 && this.retryQueue.pending === 0) {
+          resolve();
       } else {
-        logger.info('[SchedulerExecutionService] All active tasks completed successfully');
+          logger.debug(`[SchedulerExecutionService] Waiting for queues to empty: main(${this.taskQueue.size}/${this.taskQueue.pending}), retry(${this.retryQueue.size}/${this.retryQueue.pending})`);
+          setTimeout(checkQueues, 1000);
       }
+      };
+      checkQueues();
+    });
       
-      // Clear any remaining queued tasks
+    this.shutdownTimeout = setTimeout(() => {
+      logger.warn('[SchedulerExecutionService] Shutdown timeout reached, forcing stop');
       this.taskQueue.clear();
       this.retryQueue.clear();
-      
-    } catch (error) {
-      logger.error('[SchedulerExecutionService] Error during shutdown:', error);
+    }, shutdownTimeout);
+
+    try {
+      await Promise.race([
+        waitForQueues,
+        new Promise(resolve => setTimeout(resolve, shutdownTimeout))
+      ]);
+    } finally {
+      if (this.shutdownTimeout) {
+        clearTimeout(this.shutdownTimeout);
+        this.shutdownTimeout = null;
+      }
     }
-    
-    logger.info('[SchedulerExecutionService] Scheduler stopped');
+
+    logger.info('[SchedulerExecutionService] Scheduler stopped successfully');
   }
 }
 

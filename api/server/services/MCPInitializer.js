@@ -1,5 +1,6 @@
 const { getMCPManager } = require('~/config');
 const { logger } = require('~/config');
+const { Constants } = require('librechat-data-provider');
 
 /**
  * MCPInitializer - Standardized MCP initialization utility
@@ -241,7 +242,7 @@ class MCPInitializer {
         // Store the MCP tools for caching (extract only the MCP tools added)
         const allToolKeys = Object.keys(availableTools);
         for (const toolKey of allToolKeys) {
-          if (toolKey.includes('|-|')) { // MCP delimiter
+          if (toolKey.includes(Constants.mcp_delimiter)) { // MCP delimiter
             mcpTools[toolKey] = availableTools[toolKey];
           }
         }

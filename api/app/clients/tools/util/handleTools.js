@@ -175,6 +175,12 @@ const loadTools = async ({
       logger.debug(`[SchedulerTool] Request body userMessageId:`, options.req?.body?.userMessageId);
       logger.debug(`[SchedulerTool] Request body overrideUserMessageId:`, options.req?.body?.overrideUserMessageId);
       logger.debug(`[SchedulerTool] Request body parentMessageId:`, options.req?.body?.parentMessageId);
+      logger.debug(`[SchedulerTool] Request body ephemeralAgent:`, options.req?.body?.ephemeralAgent);
+      logger.debug(`[SchedulerTool] Request body endpointOption:`, options.req?.body?.endpointOption ? {
+        endpoint: options.req?.body?.endpointOption?.endpoint,
+        model: options.req?.body?.endpointOption?.model,
+        model_parameters: options.req?.body?.endpointOption?.model_parameters
+      } : 'none');
       
       // Use userMessageId as the parentMessageId for scheduled messages
       const parentMessageId = options.req?.body?.userMessageId || 
@@ -184,14 +190,23 @@ const loadTools = async ({
       // Determine the endpoint and model/agent_id
       let toolEndpoint, toolModel;
       
-      if (reqEndpoint === 'agents' || agent) {
-        // In agent context, req.body.model is the agent_id
+      logger.info(`[SchedulerTool] Detection logic - reqEndpoint: ${reqEndpoint}, reqModel: ${reqModel}, hasAgent: ${!!(agent && agent.id)}, agentId: ${agent?.id}`);
+      
+      if (agent && agent.id && agent.id !== 'ephemeral') {
+        // Real agent context - we have an actual agent object with a real ID (not ephemeral)
         toolEndpoint = 'agents';
-        toolModel = reqModel || agent?.id; // This is the agent_id
-      } else {
-        // In non-agent context, req.body.model is the actual model
+        toolModel = agent.id; // This is the agent_id
+        logger.info(`[SchedulerTool] Using real agent: ${agent.id}`);
+      } else if (agent && agent.id === 'ephemeral') {
+        // Ephemeral agent context - extract underlying endpoint and model from request
         toolEndpoint = reqEndpoint || endpoint;
         toolModel = reqModel || model;
+        logger.info(`[SchedulerTool] Ephemeral agent detected - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+      } else {
+        // Non-agent context - use the underlying endpoint
+        toolEndpoint = reqEndpoint || endpoint;
+        toolModel = reqModel || model;
+        logger.info(`[SchedulerTool] Using non-agent context - endpoint: ${toolEndpoint}, model: ${toolModel}`);
       }
       
       logger.debug(`[SchedulerTool] Creating tool with context:`, {
@@ -200,7 +215,9 @@ const loadTools = async ({
         model: toolModel,
         parentMessageId: parentMessageId,
         userMessageId: options.req?.body?.userMessageId,
-        isAgentContext: toolEndpoint === 'agents',
+        requestEndpoint: reqEndpoint,
+        requestModel: reqModel,
+        hasAgent: !!agent,
         hasReq: !!options.req,
         note: 'conversationId will be extracted at call time, parentMessageId from userMessageId',
       });

@@ -46,6 +46,7 @@ export type TEphemeralAgent = {
   mcp?: string[];
   web_search?: boolean;
   execute_code?: boolean;
+  scheduler?: boolean;
 };
 
 export type TPayload = Partial<TMessage> &

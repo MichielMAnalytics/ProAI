@@ -103,7 +103,8 @@ export const isEphemeralAgent = (
   const hasMCPSelected = (ephemeralAgent?.mcp?.length ?? 0) > 0;
   const hasCodeSelected = (ephemeralAgent?.execute_code ?? false) === true;
   const hasSearchSelected = (ephemeralAgent?.web_search ?? false) === true;
-  return hasMCPSelected || hasCodeSelected || hasSearchSelected;
+  const hasSchedulerSelected = (ephemeralAgent?.scheduler ?? false) === true;
+  return hasMCPSelected || hasCodeSelected || hasSearchSelected || hasSchedulerSelected;
 };
 
 export const isParamEndpoint = (

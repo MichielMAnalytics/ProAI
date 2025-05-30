@@ -116,14 +116,18 @@ class SchedulerTool extends Tool {
       endpoint: currentEndpoint,
     };
 
+    logger.info(`[SchedulerTool] Creating task with endpoint: ${currentEndpoint}, model: ${currentModel}`);
+
     if (currentEndpoint === 'agents') {
-      taskData.agent_id = currentModel; // For agents, model field is the agent_id
+      taskData.agent_id = currentModel; // For agents endpoint, model is the agent_id
+      logger.info(`[SchedulerTool] Setting agent_id: ${currentModel}`);
       
       // Fetch the agent's underlying model
       try {
         const agent = await getAgent({ id: currentModel, author: userId });
         if (agent && agent.model) {
           taskData.ai_model = agent.model; // Store the agent's underlying model
+          logger.info(`[SchedulerTool] Set ai_model from agent: ${agent.model}`);
         }
       } catch (error) {
         logger.warn(`[SchedulerTool] Could not fetch agent ${currentModel} to get underlying model: ${error.message}`);
@@ -131,6 +135,7 @@ class SchedulerTool extends Tool {
       }
     } else {
       taskData.ai_model = currentModel;
+      logger.info(`[SchedulerTool] Setting ai_model: ${currentModel}`);
     }
 
     try {
