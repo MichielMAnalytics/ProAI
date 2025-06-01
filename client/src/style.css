@@ -2211,9 +2211,9 @@ html {
 :global(.dark) .shimmer {
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255) 25%,
-    rgba(129, 130, 134, 0.18) 50%,
-    rgb(255, 255, 255) 75%
+    rgba(240, 240, 240) 25%,
+    rgba(114, 115, 119, 0.18) 50%,
+    rgb(240, 240, 240) 75%
   );
   background-size: 200% 100%;
   background-clip: text;
