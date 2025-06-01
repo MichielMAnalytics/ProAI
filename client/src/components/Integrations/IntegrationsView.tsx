@@ -354,7 +354,8 @@ export default function IntegrationsView() {
 
   // Handle close button - navigate back to chat
   const handleClose = () => {
-    navigate('/c/new');
+    // Force a page refresh to ensure new tools are loaded
+    window.location.href = '/c/new';
   };
 
   // Handle escape key to close

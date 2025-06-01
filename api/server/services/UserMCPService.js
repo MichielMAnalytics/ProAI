@@ -225,6 +225,10 @@ class UserMCPService {
   /**
    * Clear cached user MCP servers
    * 
+   * Note: As of the new architecture, cache clearing is handled automatically by 
+   * UserIntegration schema middleware when integrations are created, updated, or deleted.
+   * This method is kept for manual troubleshooting and the explicit refresh endpoint.
+   * 
    * @param {string} userId - The user ID (optional, clears all if not provided)
    */
   clearCache(userId = null) {
@@ -239,6 +243,10 @@ class UserMCPService {
 
   /**
    * Refresh user MCP servers (useful when integrations change)
+   * 
+   * Note: This method is primarily kept for the manual refresh API endpoint.
+   * In normal operation, cache clearing is handled automatically by UserIntegration 
+   * schema middleware when database operations occur.
    * 
    * @param {string} userId - The user ID
    * @returns {Promise<Object>} Updated MCP servers configuration

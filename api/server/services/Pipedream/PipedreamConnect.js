@@ -310,6 +310,17 @@ class PipedreamConnect {
         throw new Error('Failed to delete integration from database');
       }
 
+      // TEMPORARY: Manual cache clearing until middleware is fixed
+      try {
+        const MCPInitializer = require('~/server/services/MCPInitializer');
+        const UserMCPService = require('~/server/services/UserMCPService');
+        MCPInitializer.clearUserCache(userId);
+        UserMCPService.clearCache(userId);
+        logger.info(`[PipedreamConnect] 🔧 MANUAL cache clear for user ${userId} after integration deletion`);
+      } catch (cacheError) {
+        logger.warn(`[PipedreamConnect] Failed to clear cache manually:`, cacheError.message);
+      }
+
       logger.info(`PipedreamConnect: Integration deleted successfully`, {
         integrationId,
         userId,

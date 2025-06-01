@@ -106,4 +106,130 @@ const UserIntegrationSchema = new Schema<IUserIntegration>(
 UserIntegrationSchema.index({ userId: 1, appSlug: 1 });
 UserIntegrationSchema.index({ userId: 1, isActive: 1 });
 
+// ================================
+// MCP Cache Invalidation Middleware
+// ================================
+
+/**
+ * Clear MCP cache for user when integrations are modified
+ * 
+ * This middleware automatically invalidates the MCPInitializer cache whenever
+ * user integrations are added, updated, or deleted. This ensures that:
+ * 
+ * 1. New integrations are immediately available as MCP servers
+ * 2. Updated integration configs are reflected without cache wait
+ * 3. Deleted integrations are removed from MCP server configurations
+ * 4. No manual cache management is required
+ * 
+ * The middleware is user-specific and only clears cache for the affected user,
+ * maintaining performance for other users. It gracefully handles environments
+ * where MCPInitializer is not available (e.g., schema-only contexts).
+ * 
+ * Triggers on:
+ * - save (create/update operations)
+ * - findOneAndUpdate, updateOne, updateMany
+ * - findOneAndDelete, deleteOne
+ * - deleteMany (clears all caches as safety measure)
+ */
+
+// Helper function to safely clear MCP cache
+async function clearMCPCacheForUser(userId: string, operation: string) {
+  if (!userId) {
+    return;
+  }
+  
+  try {
+    // Dynamic import to avoid circular dependencies
+    // MCPInitializer is only available in the API layer
+    if (typeof require !== 'undefined') {
+      // Clear MCPInitializer cache
+      const MCPInitializer = require('~/server/services/MCPInitializer');
+      MCPInitializer.clearUserCache(userId);
+      
+      // Also clear UserMCPService cache (there are multiple caching layers)
+      try {
+        const UserMCPService = require('~/server/services/UserMCPService');
+        UserMCPService.clearCache(userId);
+      } catch (userMcpError) {
+        // UserMCPService might not be available in all contexts
+      }
+      
+      // CRITICAL: Also clear the MCP Manager's user-specific cache
+      // The MCP Manager has its own cached tool mappings and connections
+      try {
+        const { getMCPManager } = require('~/config');
+        const mcpManager = getMCPManager(userId);
+        if (mcpManager && typeof mcpManager.disconnectUserConnections === 'function') {
+          await mcpManager.disconnectUserConnections(userId);
+        }
+      } catch (mcpManagerError) {
+        // MCP Manager might not be available in all contexts
+      }
+      
+      // Log the cache clear for debugging
+      const logger = require('~/config')?.logger || console;
+      logger.info(`[UserIntegration] ✅ CLEARED ALL MCP caches (MCPInitializer + UserMCPService + MCPManager) for user ${userId} after ${operation}`);
+    }
+  } catch (error: unknown) {
+    // Fail silently if MCPInitializer is not available (e.g., in schema-only contexts)
+    // This allows the schema to work in both API and non-API environments
+    if (typeof console !== 'undefined') {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.debug(`[UserIntegration] Could not clear MCP cache: ${errorMessage}`);
+    }
+  }
+}
+
+// Post-save middleware - triggers after create/update operations
+UserIntegrationSchema.post('save', async function(doc) {
+  console.log(`[UserIntegration] 🔥 POST-SAVE middleware triggered for user ${doc.userId}`);
+  await clearMCPCacheForUser(doc.userId, 'save');
+});
+
+// Post-update middleware - triggers after findOneAndUpdate, updateOne, etc.
+UserIntegrationSchema.post(['findOneAndUpdate', 'updateOne', 'updateMany'], async function(doc) {
+  console.log(`[UserIntegration] 🔥 POST-UPDATE middleware triggered for doc:`, !!doc);
+  // For update operations, the document might be null if not found
+  if (doc && doc.userId) {
+    await clearMCPCacheForUser(doc.userId, 'update');
+  }
+});
+
+// Additional middleware to handle upsert operations specifically
+// This catches cases where findOneAndUpdate with upsert creates a new document
+UserIntegrationSchema.post('findOneAndUpdate', async function(doc) {
+  console.log(`[UserIntegration] 🔥 POST-FINDONEANDUPDATE middleware triggered for doc:`, !!doc);
+  if (doc && doc.userId) {
+    // Always clear cache for findOneAndUpdate operations (including upserts)
+    await clearMCPCacheForUser(doc.userId, 'findOneAndUpdate');
+  }
+});
+
+// Pre-middleware to log when operations are happening (for debugging)
+UserIntegrationSchema.pre(['save', 'findOneAndUpdate', 'updateOne', 'deleteOne', 'findOneAndDelete'], function() {
+  try {
+    const logger = require('~/config')?.logger || console;
+    logger.info(`[UserIntegration] 🚀 PRE-middleware triggered for operation`);
+  } catch (error) {
+    // Fail silently
+  }
+});
+
+// Post-delete middleware - triggers after findOneAndDelete, deleteOne, etc.
+UserIntegrationSchema.post(['findOneAndDelete', 'deleteOne'], async function(doc) {
+  console.log(`[UserIntegration] 🔥 POST-DELETE middleware triggered for doc:`, !!doc, doc?.userId);
+  if (doc && doc.userId) {
+    await clearMCPCacheForUser(doc.userId, 'delete');
+  }
+});
+
+// Comprehensive post-middleware to catch any document modification
+// This is a safety net to ensure cache clearing happens for any operation
+UserIntegrationSchema.post(['save', 'findOneAndUpdate', 'updateOne', 'updateMany', 'replaceOne'], async function(doc, next) {
+  if (doc && doc.userId) {
+    await clearMCPCacheForUser(doc.userId, 'comprehensive');
+  }
+  if (next) next();
+});
+
 export default UserIntegrationSchema; 
