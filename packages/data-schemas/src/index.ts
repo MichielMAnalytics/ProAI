@@ -8,7 +8,9 @@ export { default as assistantSchema } from './schema/assistant';
 export type { IAssistant } from './schema/assistant';
 
 export { default as availableIntegrationSchema } from './schema/availableIntegration';
+export { default as appComponentsSchema } from './schema/appComponents';
 export type { IAvailableIntegration } from './schema/availableIntegration';
+export type { IAppComponent } from './schema/appComponents';
 
 export { default as balanceSchema } from './schema/balance';
 export type { IBalance } from './schema/balance';

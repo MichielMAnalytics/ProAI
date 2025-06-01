@@ -1,5 +1,6 @@
 const axios = require('axios');
 const PipedreamConnect = require('./PipedreamConnect');
+const { AppComponents } = require('~/models');
 const { logger } = require('~/config');
 
 /**
@@ -11,6 +12,11 @@ const { logger } = require('~/config');
  * - Running actions
  * - Deploying triggers
  * - Component metadata and documentation
+ * 
+ * CACHING STRATEGY:
+ * - Fresh Cache (6h default): Return immediately, no API calls
+ * - Stale Cache (24h default): Return immediately + background refresh
+ * - Expired Cache (7d default): Force refresh from API
  */
 class PipedreamComponents {
   constructor() {
@@ -56,13 +62,14 @@ class PipedreamComponents {
   }
 
   /**
-   * Get components (actions/triggers) for a specific app
+   * Get components (actions/triggers) for a specific app with caching
    * 
    * @param {string} appIdentifier - App slug or ID
    * @param {string} type - Component type ('actions', 'triggers', or null for both)
    * @returns {Promise<Object>} Object with actions and triggers arrays
    */
   async getAppComponents(appIdentifier, type = null) {
+    const startTime = Date.now();
     logger.info(`PipedreamComponents: Getting components for app ${appIdentifier}, type: ${type || 'all'}`);
     
     if (!this.isEnabled()) {
@@ -71,11 +78,63 @@ class PipedreamComponents {
     }
 
     try {
+      // Check cache first
+      const query = { appSlug: appIdentifier, isActive: true };
+      if (type === 'actions') {
+        query.componentType = 'action';
+      } else if (type === 'triggers') {
+        query.componentType = 'trigger';
+      }
+
+      const cached = await AppComponents.find(query).lean();
+      
+      if (cached && cached.length > 0) {
+        const cacheAge = Date.now() - new Date(cached[0].updatedAt || cached[0].createdAt).getTime();
+        const cacheAgeSeconds = Math.floor(cacheAge / 1000);
+        
+        // Cache duration settings (in seconds) - shorter than integrations since components change more frequently
+        const CACHE_FRESH_DURATION = parseInt(process.env.PIPEDREAM_COMPONENTS_CACHE_FRESH_DURATION) || 21600; // 6h
+        const CACHE_STALE_DURATION = parseInt(process.env.PIPEDREAM_COMPONENTS_CACHE_STALE_DURATION) || 86400; // 24h
+        const CACHE_MAX_AGE = parseInt(process.env.PIPEDREAM_COMPONENTS_CACHE_MAX_AGE) || 604800; // 7d
+        
+        const isFresh = cacheAgeSeconds < CACHE_FRESH_DURATION;
+        const isStale = cacheAgeSeconds > CACHE_STALE_DURATION;
+        const isExpired = cacheAgeSeconds > CACHE_MAX_AGE;
+        
+        logger.info('PipedreamComponents: Cache analysis', {
+          app: appIdentifier,
+          ageHours: Math.floor(cacheAgeSeconds / 3600),
+          isFresh,
+          isStale,
+          isExpired,
+          cachedCount: cached.length,
+        });
+        
+        // If cache is fresh, return immediately
+        if (isFresh) {
+          const result = this.formatCachedComponents(cached, type);
+          logger.info(`PipedreamComponents: Returning ${result.actions.length} cached actions for ${appIdentifier} in ${Date.now() - startTime}ms`);
+          return result;
+        }
+        
+        // If cache is expired, force refresh
+        if (isExpired) {
+          logger.info('PipedreamComponents: Cache expired, forcing refresh');
+        } else if (isStale) {
+          // For stale cache, return cached data and refresh in background
+          logger.info('PipedreamComponents: Cache stale, returning cached data and refreshing in background');
+          setImmediate(() => this.refreshComponentsInBackground(appIdentifier));
+          const result = this.formatCachedComponents(cached, type);
+          return result;
+        }
+      }
+
+      // Fetch fresh data from API
       const result = { actions: [], triggers: [] };
 
       // We focus on actions only as per the requirements
       if (!type || type === 'actions') {
-        result.actions = await this.getActions(appIdentifier);
+        result.actions = await this.fetchActionsFromAPI(appIdentifier);
       }
 
       // Triggers are intentionally not implemented as they're not needed
@@ -83,22 +142,69 @@ class PipedreamComponents {
         logger.info('PipedreamComponents: Triggers are not implemented, returning empty array');
       }
 
-      logger.info(`PipedreamComponents: Retrieved ${result.actions.length} actions for ${appIdentifier}`);
+      // Cache the fresh data
+      if (result.actions.length > 0) {
+        await this.cacheComponents(appIdentifier, result.actions, 'action');
+      }
+
+      logger.info(`PipedreamComponents: Retrieved ${result.actions.length} actions for ${appIdentifier} in ${Date.now() - startTime}ms`);
       return result;
     } catch (error) {
       logger.error(`PipedreamComponents: Error getting components for ${appIdentifier}:`, error.message);
+      
+      // Try to return cached data as fallback
+      try {
+        const query = { appSlug: appIdentifier, isActive: true };
+        if (type === 'actions') query.componentType = 'action';
+        else if (type === 'triggers') query.componentType = 'trigger';
+        
+        const cached = await AppComponents.find(query).lean();
+        if (cached && cached.length > 0) {
+          logger.info('PipedreamComponents: Returning cached data as error fallback');
+          return this.formatCachedComponents(cached, type);
+        }
+      } catch (cacheError) {
+        logger.error('PipedreamComponents: Failed to retrieve cached data:', cacheError.message);
+      }
+      
       return this.getMockAppComponents(appIdentifier, type);
     }
   }
 
   /**
-   * Get actions for a specific app
+   * Format cached components into the expected structure
+   */
+  formatCachedComponents(cached, type) {
+    const result = { actions: [], triggers: [] };
+    
+    cached.forEach(component => {
+      const formatted = {
+        name: component.name,
+        version: component.version,
+        key: component.key,
+        description: component.description,
+        configurable_props: component.configurable_props || [],
+        ...component.metadata,
+      };
+      
+      if (component.componentType === 'action' && (!type || type === 'actions')) {
+        result.actions.push(formatted);
+      } else if (component.componentType === 'trigger' && (!type || type === 'triggers')) {
+        result.triggers.push(formatted);
+      }
+    });
+    
+    return result;
+  }
+
+  /**
+   * Get actions for a specific app from API
    * 
    * @param {string} appIdentifier - App slug or ID
    * @returns {Promise<Array>} Array of actions
    */
-  async getActions(appIdentifier) {
-    logger.info(`PipedreamComponents: Getting actions for app ${appIdentifier}`);
+  async fetchActionsFromAPI(appIdentifier) {
+    logger.info(`PipedreamComponents: Fetching actions for app ${appIdentifier} from API`);
 
     try {
       // First try using the SDK client
@@ -155,8 +261,66 @@ class PipedreamComponents {
       logger.info(`PipedreamComponents: No actions found for ${appIdentifier}`);
       return [];
     } catch (error) {
-      logger.error(`PipedreamComponents: Error getting actions for ${appIdentifier}:`, error.message);
+      logger.error(`PipedreamComponents: Error fetching actions for ${appIdentifier}:`, error.message);
       return [];
+    }
+  }
+
+  /**
+   * Cache components in database
+   */
+  async cacheComponents(appSlug, components, componentType) {
+    try {
+      logger.info(`PipedreamComponents: Caching ${components.length} ${componentType}s for ${appSlug}`);
+      
+      // Clear existing cache for this app and component type
+      await AppComponents.deleteMany({ appSlug, componentType });
+      
+      // Prepare components for insertion
+      const componentsToCache = components.map(component => ({
+        appSlug,
+        componentType,
+        componentId: component.id || component.key || `${appSlug}-${component.name}`,
+        name: component.name,
+        version: component.version || '1.0.0',
+        key: component.key || component.name,
+        description: component.description,
+        configurable_props: component.configurable_props || [],
+        metadata: {
+          id: component.id,
+          ...component,
+        },
+        isActive: true,
+        lastUpdated: new Date(),
+      }));
+      
+      // Insert new components
+      if (componentsToCache.length > 0) {
+        await AppComponents.insertMany(componentsToCache, { ordered: false });
+      }
+      
+      logger.info(`PipedreamComponents: Successfully cached ${componentsToCache.length} ${componentType}s for ${appSlug}`);
+    } catch (error) {
+      logger.error(`PipedreamComponents: Failed to cache ${componentType}s for ${appSlug}:`, error.message);
+    }
+  }
+
+  /**
+   * Refresh components cache in background
+   */
+  async refreshComponentsInBackground(appIdentifier) {
+    try {
+      logger.info(`PipedreamComponents: Starting background refresh for ${appIdentifier}`);
+      const actions = await this.fetchActionsFromAPI(appIdentifier);
+      
+      if (actions.length > 0) {
+        await this.cacheComponents(appIdentifier, actions, 'action');
+        logger.info(`PipedreamComponents: Background refresh completed for ${appIdentifier}: ${actions.length} actions`);
+      } else {
+        logger.info(`PipedreamComponents: Background refresh completed for ${appIdentifier}: no actions found`);
+      }
+    } catch (error) {
+      logger.error(`PipedreamComponents: Background refresh failed for ${appIdentifier}:`, error.message);
     }
   }
 

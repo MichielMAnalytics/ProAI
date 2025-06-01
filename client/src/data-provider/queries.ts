@@ -638,6 +638,8 @@ export const useAppComponentsQuery = (
     () => dataService.getAppComponents(appSlug, type),
     {
       enabled: !!appSlug,
+      staleTime: 10 * 60 * 1000, // 10 minutes - longer than user integrations since components change less frequently
+      cacheTime: 30 * 60 * 1000, // 30 minutes
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       refetchOnMount: false,

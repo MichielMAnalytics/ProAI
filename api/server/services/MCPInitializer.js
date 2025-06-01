@@ -3,11 +3,38 @@ const { logger } = require('~/config');
 const { Constants } = require('librechat-data-provider');
 
 /**
- * MCPInitializer - Standardized MCP initialization utility
+ * MCPInitializer - Centralized MCP initialization and cache management
  * 
- * Provides a consistent pattern for initializing user-specific MCP servers
- * across different contexts (web UI, scheduler, APIs, etc.) with smart caching
- * to prevent redundant initialization attempts while maintaining user-specific isolation.
+ * This service is the SINGLE SOURCE OF TRUTH for all MCP-related caching and initialization.
+ * It coordinates multiple underlying services to maintain consistency and avoid the 
+ * anti-pattern of multiple overlapping caches.
+ * 
+ * Architecture:
+ * 
+ * 1. **MCPInitializer** (this service) - High-level orchestration & result caching
+ *    - Caches initialization results and tool mappings
+ *    - Prevents redundant initialization attempts
+ *    - Coordinates cache clearing across all layers
+ * 
+ * 2. **UserMCPService** - Database-to-config conversion & server list caching
+ *    - Converts user integrations to MCP server configurations
+ *    - Caches server configuration lists
+ *    - Managed by MCPInitializer
+ * 
+ * 3. **MCPManager** - Low-level connection management & connection pooling
+ *    - Manages WebSocket/SSE connections to MCP servers
+ *    - Pools connections for performance
+ *    - Managed by MCPInitializer
+ * 
+ * Cache Invalidation:
+ * - Use MCPInitializer.clearUserCache(userId) for user-specific clearing
+ * - Use MCPInitializer.clearAllCaches() for system-wide clearing
+ * - All other cache clearing methods are internal implementation details
+ * 
+ * Usage:
+ * - UserIntegration schema middleware automatically calls clearUserCache() on changes
+ * - Controllers use ensureUserMCPReady() for initialization
+ * - No direct interaction with UserMCPService or MCPManager caches needed
  */
 class MCPInitializer {
   constructor() {
@@ -71,23 +98,77 @@ class MCPInitializer {
   /**
    * Clear user initialization cache (useful for configuration changes)
    * 
+   * This is the SINGLE SOURCE OF TRUTH for MCP cache clearing.
+   * It internally coordinates clearing all related caches to maintain consistency.
+   * 
    * @param {string} userId - The user ID
    */
   static clearUserCache(userId) {
     const instance = MCPInitializer.getInstance();
+    
+    // 1. Clear MCPInitializer's own cache
     instance.userInitializationCache.delete(userId);
     instance.pendingInitializations.delete(userId);
-    logger.info(`[MCPInitializer] Cleared cache for user ${userId}`);
+    
+    // 2. Clear UserMCPService cache (if available)
+    try {
+      const UserMCPService = require('~/server/services/UserMCPService');
+      UserMCPService.clearCache(userId);
+    } catch (error) {
+      // UserMCPService might not be available in all contexts
+    }
+    
+    // 3. Disconnect MCPManager user connections (if available)
+    try {
+      const { getMCPManager } = require('~/config');
+      const mcpManager = getMCPManager(userId);
+      if (mcpManager && typeof mcpManager.disconnectUserConnections === 'function') {
+        // Use async/await pattern but don't block the main flow
+        mcpManager.disconnectUserConnections(userId).catch((error) => {
+          logger.warn(`[MCPInitializer] Failed to disconnect user connections for user ${userId}:`, error.message);
+        });
+      }
+    } catch (error) {
+      // MCPManager might not be available in all contexts
+    }
+    
+    logger.info(`[MCPInitializer] ✅ Cleared ALL MCP caches (MCPInitializer + UserMCPService + MCPManager) for user ${userId}`);
   }
 
   /**
    * Clear all caches (useful for system restart scenarios)
+   * 
+   * This coordinates clearing all MCP-related caches system-wide.
    */
   static clearAllCaches() {
     const instance = MCPInitializer.getInstance();
+    
+    // 1. Clear MCPInitializer's own caches
     instance.userInitializationCache.clear();
     instance.pendingInitializations.clear();
-    logger.info(`[MCPInitializer] Cleared all caches`);
+    
+    // 2. Clear UserMCPService cache (if available)
+    try {
+      const UserMCPService = require('~/server/services/UserMCPService');
+      UserMCPService.clearCache(); // No userId = clear all
+    } catch (error) {
+      // UserMCPService might not be available in all contexts
+    }
+    
+    // 3. Disconnect all MCPManager connections (if available)
+    try {
+      const { getMCPManager } = require('~/config');
+      const mcpManager = getMCPManager();
+      if (mcpManager && typeof mcpManager.disconnectAll === 'function') {
+        mcpManager.disconnectAll().catch((error) => {
+          logger.warn(`[MCPInitializer] Failed to disconnect all connections:`, error.message);
+        });
+      }
+    } catch (error) {
+      // MCPManager might not be available in all contexts
+    }
+    
+    logger.info(`[MCPInitializer] ✅ Cleared ALL MCP caches system-wide`);
   }
 
   /**
@@ -145,13 +226,22 @@ class MCPInitializer {
         logger.info(`[MCPInitializer][${context}] Using cached MCP initialization for user ${userId} (age: ${Math.floor((Date.now() - cached.timestamp) / 1000)}s)`);
         
         // Apply cached tools to current availableTools registry
+        let reportedToolCount = 0;
         if (cached.mcpTools && Object.keys(cached.mcpTools).length > 0) {
+          const toolsBefore = Object.keys(availableTools).length;
           Object.assign(availableTools, cached.mcpTools);
-          logger.debug(`[MCPInitializer][${context}] Applied ${Object.keys(cached.mcpTools).length} cached MCP tools to availableTools`);
+          const toolsAfter = Object.keys(availableTools).length;
+          const newlyAppliedCount = toolsAfter - toolsBefore;
+          
+          // Report the total number of MCP tools available for this user, not just newly applied
+          reportedToolCount = Object.keys(cached.mcpTools).length;
+          
+          logger.debug(`[MCPInitializer][${context}] Applied ${Object.keys(cached.mcpTools).length} cached MCP tools to availableTools (${newlyAppliedCount} newly added, ${reportedToolCount} total for user)`);
         }
 
         return {
           ...cached,
+          toolCount: reportedToolCount, // Report total MCP tools for user, not just newly applied
           duration: Date.now() - startTime,
           cached: true,
         };

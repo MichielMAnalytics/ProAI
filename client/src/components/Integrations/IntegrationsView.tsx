@@ -29,6 +29,67 @@ const formatCount = (count: number): string => {
   return `${Math.floor(count / 1000)}K+`;
 };
 
+// Custom priority apps - these will appear first in the "all apps" view
+const PRIORITY_APPS = [
+  'linkedin',
+  'googlesheets',
+  'google_calendar',
+  'slack',
+  'notion',
+  'github',
+  'salesforce_rest_api',
+  'hubspot',
+  'discord',
+  'gmail',
+  'calendar',
+  'zoom',
+  'stripe',
+  'trello',
+  'telegram',
+  'asana',
+  'zoho_mail',
+  'supabase',
+  'shopify_developer_app',
+  'microsoft_teams',
+  'strava',
+  'google_drive',
+  'dropbox',
+  'reddit',
+  'telegram',
+  'coinbase',
+  'coinmarketcap',
+  'alchemy'
+
+];
+
+// Custom sorting function for integrations
+const sortIntegrationsWithPriority = (integrations: TAvailableIntegration[]): TAvailableIntegration[] => {
+  return integrations.sort((a, b) => {
+    const aSlug = a.appSlug || '';
+    const bSlug = b.appSlug || '';
+    
+    // Get priority indices using exact matching (-1 if not in priority list)
+    const aPriorityIndex = PRIORITY_APPS.indexOf(aSlug);
+    const bPriorityIndex = PRIORITY_APPS.indexOf(bSlug);
+    
+    // If both are priority apps, sort by priority order
+    if (aPriorityIndex !== -1 && bPriorityIndex !== -1) {
+      return aPriorityIndex - bPriorityIndex;
+    }
+    
+    // If only one is priority, priority comes first
+    if (aPriorityIndex !== -1 && bPriorityIndex === -1) {
+      return -1;
+    }
+    if (aPriorityIndex === -1 && bPriorityIndex !== -1) {
+      return 1;
+    }
+    
+    // If neither is priority, sort alphabetically by name
+    return (a.appName || '').localeCompare(b.appName || '');
+  });
+};
+
 export default function IntegrationsView() {
   const localize = useLocalize();
   const navigate = useNavigate();
@@ -216,9 +277,9 @@ export default function IntegrationsView() {
       return matchesCategory && integration.isActive;
     });
 
-    // If no search term, return category filtered results
+    // If no search term, apply custom priority sorting and return
     if (!searchTerm.trim()) {
-      return categoryFiltered;
+      return sortIntegrationsWithPriority(categoryFiltered);
     }
 
     // Search with relevance scoring

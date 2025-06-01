@@ -142,33 +142,14 @@ async function clearMCPCacheForUser(userId: string, operation: string) {
     // Dynamic import to avoid circular dependencies
     // MCPInitializer is only available in the API layer
     if (typeof require !== 'undefined') {
-      // Clear MCPInitializer cache
+      // SIMPLIFIED ARCHITECTURE: Use MCPInitializer as single source of truth
+      // MCPInitializer will internally handle all necessary cache clearing
       const MCPInitializer = require('~/server/services/MCPInitializer');
       MCPInitializer.clearUserCache(userId);
       
-      // Also clear UserMCPService cache (there are multiple caching layers)
-      try {
-        const UserMCPService = require('~/server/services/UserMCPService');
-        UserMCPService.clearCache(userId);
-      } catch (userMcpError) {
-        // UserMCPService might not be available in all contexts
-      }
-      
-      // CRITICAL: Also clear the MCP Manager's user-specific cache
-      // The MCP Manager has its own cached tool mappings and connections
-      try {
-        const { getMCPManager } = require('~/config');
-        const mcpManager = getMCPManager(userId);
-        if (mcpManager && typeof mcpManager.disconnectUserConnections === 'function') {
-          await mcpManager.disconnectUserConnections(userId);
-        }
-      } catch (mcpManagerError) {
-        // MCP Manager might not be available in all contexts
-      }
-      
       // Log the cache clear for debugging
       const logger = require('~/config')?.logger || console;
-      logger.info(`[UserIntegration] ✅ CLEARED ALL MCP caches (MCPInitializer + UserMCPService + MCPManager) for user ${userId} after ${operation}`);
+      logger.info(`[UserIntegration] ✅ CLEARED MCP cache via MCPInitializer for user ${userId} after ${operation}`);
     }
   } catch (error: unknown) {
     // Fail silently if MCPInitializer is not available (e.g., in schema-only contexts)

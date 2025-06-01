@@ -65,6 +65,7 @@ const User = require('./User');
 const Key = require('./Key');
 const UserIntegration = require('./UserIntegration');
 const AvailableIntegration = require('./AvailableIntegration');
+const AppComponents = require('./AppComponents');
 
 module.exports = {
   comparePassword,
@@ -141,4 +142,5 @@ module.exports = {
   Balance,
   UserIntegration,
   AvailableIntegration,
+  AppComponents,
 };
