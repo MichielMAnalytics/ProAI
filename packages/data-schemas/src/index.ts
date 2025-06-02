@@ -27,6 +27,9 @@ export type { IConversationTag } from './schema/conversationTag';
 export { default as convoSchema } from './schema/convo';
 export type { IConversation } from './schema/convo';
 
+export { default as enterpriseContactSchema } from './schema/enterpriseContact';
+export type { IEnterpriseContact } from './schema/enterpriseContact';
+
 export { default as fileSchema } from './schema/file';
 export type { IMongoFile } from './schema/file';
 

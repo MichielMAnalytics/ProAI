@@ -3,7 +3,9 @@ import { ViolationTypes, ErrorTypes, alternateName } from 'librechat-data-provid
 import type { TOpenAIMessage } from 'librechat-data-provider';
 import type { LocalizeFunction } from '~/common';
 import { formatJSON, extractJson, isJson } from '~/utils/json';
+import { useNavigate } from 'react-router-dom';
 import useLocalize from '~/hooks/useLocalize';
+import { Button } from '~/components/ui';
 import CodeBlock from './CodeBlock';
 
 const localizedErrorPrefix = 'com_error';
@@ -82,10 +84,52 @@ const errorMessages = {
   },
   token_balance: (json: TTokenBalance) => {
     const { balance, tokenCost, promptTokens, generations } = json;
-    const message = `Insufficient Funds! Balance: ${balance}. Prompt tokens: ${promptTokens}. Cost: ${tokenCost}.`;
+    
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const navigate = useNavigate();
+    
+    const handleUpgrade = () => {
+      navigate('/pricing');
+    };
+    
     return (
       <>
-        {message}
+        <div className="mb-4">
+          <div 
+            className="rounded-lg p-4 mb-4 border"
+            style={{
+              backgroundColor: 'var(--surface-secondary)',
+              borderColor: 'var(--border-light)'
+            }}
+          >
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5" style={{ color: 'var(--text-secondary)' }} viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3 flex-1">
+                <h3 className="text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>
+                  You've reached your credit limit
+                </h3>
+                <p className="text-sm mb-3" style={{ color: 'var(--text-secondary)' }}>
+                  Upgrade to Pro to get 100,000 credits per month and continue your conversations without interruption.
+                </p>
+                <div className="text-xs mb-3" style={{ color: 'var(--text-tertiary)' }}>
+                  Balance: {balance} • Cost: {tokenCost} • Tokens: {promptTokens}
+                </div>
+                <div>
+                  <button
+                    onClick={handleUpgrade}
+                    className="btn btn-primary px-4 py-2 text-sm"
+                  >
+                    Upgrade to Pro →
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         {generations && (
           <>
             <br />

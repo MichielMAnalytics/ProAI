@@ -1,0 +1,541 @@
+import React, { useState, useEffect } from 'react';
+import { Check, ArrowRight, Crown, Zap, ChevronDown } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuthContext } from '~/hooks';
+
+const PricingPage = () => {
+  const navigate = useNavigate();
+  const { token, isAuthenticated } = useAuthContext();
+  const [searchParams] = useSearchParams();
+  const [selectedProCredits, setSelectedProCredits] = useState(100000);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [openFaqItems, setOpenFaqItems] = useState<Set<number>>(new Set());
+  const [checkoutStatus, setCheckoutStatus] = useState<'success' | 'canceled' | null>(null);
+
+  // Check for success/cancel parameters
+  useEffect(() => {
+    if (searchParams.get('success') === 'true') {
+      setCheckoutStatus('success');
+    } else if (searchParams.get('canceled') === 'true') {
+      setCheckoutStatus('canceled');
+    }
+  }, [searchParams]);
+
+  // Check authentication status
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/login');
+    }
+  }, [isAuthenticated, navigate]);
+
+  // Clear status after showing it
+  useEffect(() => {
+    if (checkoutStatus) {
+      const timer = setTimeout(() => {
+        setCheckoutStatus(null);
+        // Clean up URL parameters
+        navigate('/pricing', { replace: true });
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [checkoutStatus, navigate]);
+
+  const creditOptions = [
+    { credits: 100000, price: 20 },
+    { credits: 200000, price: 35 },
+    { credits: 400000, price: 60 },
+    { credits: 800000, price: 100 },
+    { credits: 1200000, price: 140 },
+    { credits: 2000000, price: 200 },
+    { credits: 3000000, price: 280 },
+    { credits: 4000000, price: 350 },
+  ];
+
+  const selectedOption = creditOptions.find(option => option.credits === selectedProCredits);
+
+  const faqItems = [
+    {
+      question: "What is Eve and how does it work?",
+      answer: "Eve is an automation platform that provides extensive access to 2700+ apps and 10,000+ tools with no vendor lock-in. You can connect and automate workflows across different services while maintaining full control over your data and integrations."
+    },
+    {
+      question: "What does the free plan include?",
+      answer: "The free plan includes 5000 credits per month, access to 2700+ apps and 10,000+ tools, access to all state of the art large language models, and unlimited tasks. It's designed to help you get started and explore Eve's capabilities."
+    },
+    {
+      question: "How much does it cost to use?",
+      answer: "Free users have a limited number of AI credits. Paid users have more AI credits. You can start with our generous free tier and upgrade to Pro when you need additional credits and features like custom apps/tools and priority support."
+    },
+    {
+      question: "What are credits?",
+      answer: "Credits are units that measure your usage of the AI. Credit consumption varies based on the model used - more sophisticated models require more credits. Using tools and integrations also increases credit usage. A typical conversation uses 1000-2000 credits depending on length, complexity, model choice, and tool usage."
+    },
+    {
+      question: "Can I change my Pro plan credits anytime?",
+      answer: "Yes, you can upgrade or downgrade your Pro plan credits at any time. Changes will be reflected in your next billing cycle, and you'll be charged the prorated amount."
+    },
+    {
+      question: "How does Enterprise pricing work?",
+      answer: "Enterprise pricing is customized based on your organization's specific needs, team size, and usage requirements. Contact our sales team for a personalized quote and demo tailored to your requirements."
+    }
+  ];
+
+  const toggleFaqItem = (index: number) => {
+    const newOpenItems = new Set(openFaqItems);
+    if (newOpenItems.has(index)) {
+      newOpenItems.delete(index);
+    } else {
+      newOpenItems.add(index);
+    }
+    setOpenFaqItems(newOpenItems);
+  };
+
+  const handleUpgradeToPro = async () => {
+    if (!isAuthenticated || !token) {
+      // Redirect to login if not authenticated
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          credits: selectedProCredits,
+        }),
+      });
+
+      if (!response.ok) {
+        // Try to parse error response
+        let errorMessage = 'Failed to create checkout session';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          // If response is not JSON, use status text or generic message
+          if (response.status === 401) {
+            errorMessage = 'You need to be logged in to upgrade';
+            navigate('/login');
+            return;
+          } else if (response.status === 403) {
+            errorMessage = 'You do not have permission to perform this action';
+          } else {
+            errorMessage = `Server error: ${response.status} ${response.statusText}`;
+          }
+        }
+        throw new Error(errorMessage);
+      }
+
+      const { url } = await response.json();
+      
+      // Redirect to Stripe Checkout
+      window.location.href = url;
+    } catch (error) {
+      console.error('Error upgrading to Pro:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to start checkout: ${errorMessage}`);
+    }
+  };
+
+  const handleContactSales = () => {
+    navigate('/contact');
+  };
+
+  const handleBackToChat = () => {
+    navigate('/c/new');
+  };
+
+  const formatCredits = (credits: number) => {
+    if (credits >= 1000000) {
+      return `${credits / 1000000}M`;
+    } else if (credits >= 1000) {
+      return `${credits / 1000}K`;
+    }
+    return credits.toString();
+  };
+
+  return (
+    <div className="min-h-screen py-12 px-4" style={{
+      background: 'var(--surface-primary)',
+      minHeight: '100vh'
+    }}>
+      <div className="max-w-6xl mx-auto">
+        {/* Checkout Status Banner */}
+        {checkoutStatus && (
+          <div className={`mb-8 p-4 rounded-lg border ${
+            checkoutStatus === 'success' 
+              ? 'bg-green-50 border-green-200' 
+              : 'bg-yellow-50 border-yellow-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                {checkoutStatus === 'success' ? (
+                  <svg className="w-5 h-5 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-yellow-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                )}
+                <div>
+                  {checkoutStatus === 'success' ? (
+                    <>
+                      <p className="font-semibold text-green-800">Payment Successful!</p>
+                      <p className="text-sm text-green-700">Welcome to Eve Pro! Your subscription is now active.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-semibold text-yellow-800">Payment Canceled</p>
+                      <p className="text-sm text-yellow-700">No worries! You can upgrade to Pro anytime.</p>
+                    </>
+                  )}
+                </div>
+              </div>
+              <button 
+                onClick={() => setCheckoutStatus(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Header */}
+        <div className="text-center mb-16">
+          <div className="w-12 h-12 mx-auto mb-6 rounded-lg" style={{
+            background: 'linear-gradient(135deg, var(--green-500) 0%, var(--green-600) 100%)'
+          }}></div>
+          <h1 className="text-4xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
+            Pricing
+          </h1>
+          <p className="text-lg max-w-2xl mx-auto" style={{ color: 'var(--text-secondary)' }}>
+            Start for free. Upgrade to get the capacity that exactly matches your team's needs.
+          </p>
+        </div>
+
+        {/* Pricing Cards */}
+        <div className="grid lg:grid-cols-3 gap-8 max-w-5xl mx-auto mb-16">
+          {/* Free Tier */}
+          <div 
+            className="p-8 relative flex flex-col h-full rounded-2xl"
+            style={{
+              backgroundColor: 'var(--surface-secondary)',
+              border: '1px solid var(--border-light)'
+            }}
+          >
+            <div className="mb-8">
+              <h3 className="text-2xl font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                Free
+              </h3>
+              <div className="text-4xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
+                $0
+                <span className="text-lg font-normal" style={{ color: 'var(--text-secondary)' }}>
+                  /month
+                </span>
+              </div>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>For getting started</p>
+            </div>
+
+            <div className="mb-8">
+              <div className="text-sm font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>
+                5000 credits /month
+              </div>
+            </div>
+
+            <div className="mb-8 flex-grow">
+              <div className="text-sm font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>
+                Get started with:
+              </div>
+              <ul className="space-y-3">
+                <li className="flex items-center text-sm">
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <span style={{ color: 'var(--text-secondary)' }}>Access 2700+ apps and 10,000+ tools</span>
+                </li>
+                <li className="flex items-center text-sm">
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <span style={{ color: 'var(--text-secondary)' }}>Access to all state of the art large language models</span>
+                </li>
+                <li className="flex items-center text-sm">
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <span style={{ color: 'var(--text-secondary)' }}>Unlimited tasks</span>
+                </li>
+              </ul>
+            </div>
+
+            <button
+              onClick={handleBackToChat}
+              className="btn btn-secondary w-full h-12 text-sm font-medium mt-auto"
+            >
+              Current Plan
+            </button>
+          </div>
+
+          {/* Pro Tier */}
+          <div 
+            className="p-8 relative flex flex-col h-full rounded-2xl"
+            style={{
+              backgroundColor: 'var(--surface-secondary)',
+              border: '2px solid var(--green-500)'
+            }}
+          >
+            <div className="flex items-center gap-2 mb-8">
+              <h3 className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+                Pro
+              </h3>
+              <span 
+                className="px-3 py-1 rounded-full text-xs font-semibold text-white"
+                style={{ 
+                  background: 'linear-gradient(135deg, var(--green-500) 0%, var(--green-600) 100%)'
+                }}
+              >
+                POPULAR
+              </span>
+            </div>
+
+            <div className="mb-2">
+              <div className="text-4xl font-bold" style={{ color: 'var(--text-primary)' }}>
+                ${selectedOption?.price}
+                <span className="text-lg font-normal" style={{ color: 'var(--text-secondary)' }}>
+                  /month
+                </span>
+              </div>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>For more projects and usage</p>
+            </div>
+
+            <div className="mb-8 relative">
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="w-full h-12 px-4 text-left rounded-lg border flex items-center justify-between"
+                style={{
+                  borderColor: 'var(--border-medium)',
+                  backgroundColor: 'var(--surface-primary)',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                <span>{formatCredits(selectedProCredits)} credits / month</span>
+                <ChevronDown className="h-4 w-4" style={{ 
+                  color: 'var(--text-secondary)',
+                  transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s'
+                }} />
+              </button>
+
+              {isDropdownOpen && (
+                <div 
+                  className="absolute top-full left-0 right-0 mt-1 rounded-lg border shadow-lg z-10 max-h-64 overflow-y-auto"
+                  style={{
+                    backgroundColor: 'var(--surface-primary)',
+                    borderColor: 'var(--border-medium)',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)'
+                  }}
+                >
+                  {creditOptions.map((option) => (
+                    <button
+                      key={option.credits}
+                      onClick={() => {
+                        setSelectedProCredits(option.credits);
+                        setIsDropdownOpen(false);
+                      }}
+                      className="w-full px-4 py-3 text-left transition-colors"
+                      style={{
+                        color: selectedProCredits === option.credits ? 'var(--green-600)' : 'var(--text-primary)',
+                        backgroundColor: selectedProCredits === option.credits ? 'var(--surface-hover)' : 'transparent'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (selectedProCredits !== option.credits) {
+                          e.currentTarget.style.backgroundColor = 'var(--surface-hover)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedProCredits !== option.credits) {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }
+                      }}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span>{formatCredits(option.credits)} credits / month</span>
+                        {selectedProCredits === option.credits && (
+                          <Check className="h-4 w-4" style={{ color: 'var(--green-600)' }} />
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mb-8 flex-grow">
+              <div className="text-sm font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>
+                Everything in Free, plus:
+              </div>
+              <ul className="space-y-3">
+                <li className="flex items-center text-sm">
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <span style={{ color: 'var(--text-secondary)' }}>{formatCredits(selectedProCredits)} credits / month</span>
+                </li>
+                <li className="flex items-center text-sm">
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <span style={{ color: 'var(--text-secondary)' }}>Request custom apps and tools</span>
+                </li>
+                <li className="flex items-center text-sm">
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <span style={{ color: 'var(--text-secondary)' }}>Priority support</span>
+                </li>
+              </ul>
+            </div>
+
+            <button
+              onClick={handleUpgradeToPro}
+              className="btn btn-primary w-full h-12 text-sm font-semibold mt-auto"
+            >
+              Upgrade
+            </button>
+          </div>
+
+          {/* Enterprise Tier */}
+          <div 
+            className="p-8 relative flex flex-col h-full rounded-2xl"
+            style={{
+              backgroundColor: 'var(--surface-secondary)',
+              border: '1px solid var(--border-light)'
+            }}
+          >
+            <div className="flex items-center gap-2 mb-8">
+              <h3 className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+                Enterprise
+              </h3>
+              <Crown className="h-5 w-5" style={{ color: 'var(--text-secondary)' }} />
+            </div>
+
+            <div className="mb-8">
+              <div className="text-3xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
+                Custom Pricing
+              </div>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>For teams and organizations</p>
+            </div>
+
+            <div className="mb-8">
+              <div className="text-sm font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>
+                Unlimited credits
+              </div>
+            </div>
+
+            <div className="mb-8 flex-grow">
+              <div className="text-sm font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>
+                Everything in Pro, plus:
+              </div>
+              <ul className="space-y-3">
+                <li className="flex items-center text-sm">
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <span style={{ color: 'var(--text-secondary)' }}>Unlimited credits</span>
+                </li>
+                <li className="flex items-center text-sm">
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <span style={{ color: 'var(--text-secondary)' }}>Team collaboration tools</span>
+                </li>
+                <li className="flex items-center text-sm">
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <span style={{ color: 'var(--text-secondary)' }}>Advanced analytics</span>
+                </li>
+                <li className="flex items-center text-sm">
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <span style={{ color: 'var(--text-secondary)' }}>Dedicated support</span>
+                </li>
+                <li className="flex items-center text-sm">
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <span style={{ color: 'var(--text-secondary)' }}>SSO & advanced security</span>
+                </li>
+              </ul>
+            </div>
+
+            <button
+              onClick={handleContactSales}
+              className="btn btn-secondary w-full h-12 text-sm font-semibold mt-auto flex items-center justify-center gap-2"
+            >
+              Contact Us
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* FAQ Section */}
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl font-bold text-center mb-8" style={{ color: 'var(--text-primary)' }}>
+            Frequently Asked Questions
+          </h2>
+          
+          <div className="space-y-4">
+            {faqItems.map((item, index) => (
+              <div 
+                key={index}
+                className="rounded-lg border"
+                style={{
+                  backgroundColor: 'var(--surface-secondary)',
+                  borderColor: 'var(--border-light)'
+                }}
+              >
+                <button
+                  onClick={() => toggleFaqItem(index)}
+                  className="w-full px-6 py-4 text-left flex items-center justify-between transition-colors hover:bg-opacity-80"
+                  style={{
+                    color: 'var(--text-primary)',
+                    backgroundColor: 'transparent'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--surface-hover)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                >
+                  <h3 className="text-lg font-semibold">{item.question}</h3>
+                  <ChevronDown 
+                    className="h-5 w-5 transition-transform duration-200 flex-shrink-0 ml-4"
+                    style={{
+                      color: 'var(--text-secondary)',
+                      transform: openFaqItems.has(index) ? 'rotate(180deg)' : 'rotate(0deg)'
+                    }}
+                  />
+                </button>
+                
+                <div 
+                  className="overflow-hidden transition-all duration-300 ease-in-out"
+                  style={{
+                    maxHeight: openFaqItems.has(index) ? '200px' : '0px',
+                    opacity: openFaqItems.has(index) ? 1 : 0
+                  }}
+                >
+                  <div className="px-6 pb-4">
+                    <p style={{ color: 'var(--text-secondary)' }}>
+                      {item.answer}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Back to Chat */}
+        <div className="text-center mt-12">
+          <button
+            onClick={handleBackToChat}
+            className="btn btn-neutral px-4 py-2 text-sm"
+          >
+            ← Back to Chat
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default PricingPage; 

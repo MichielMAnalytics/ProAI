@@ -9,6 +9,8 @@ import {
   TwoFactorScreen,
 } from '~/components/Auth';
 import { AuthContextProvider } from '~/hooks/AuthContext';
+import PricingPage from '~/components/Pricing/PricingPage';
+import ContactPage from '~/components/Contact/ContactPage';
 import RouteErrorBoundary from './RouteErrorBoundary';
 import StartupLayout from './Layouts/Startup';
 import LoginLayout from './Layouts/Login';
@@ -74,6 +76,14 @@ export const router = createBrowserRouter([
         ],
       },
       dashboardRoutes,
+      {
+        path: 'pricing',
+        element: <PricingPage />,
+      },
+      {
+        path: 'contact',
+        element: <ContactPage />,
+      },
       {
         path: '/',
         element: <Root />,
