@@ -25,9 +25,9 @@ class StripeService {
    * Create a Stripe checkout session for subscription
    * @param {Object} params - Checkout session parameters
    * @param {string} params.priceId - Stripe price ID
-   * @param {string} params.userEmail - User's email address
-   * @param {string} params.userId - User's ID for metadata
-   * @param {string} params.credits - Number of credits for this plan
+   * @param {string} params.userEmail - User's email
+   * @param {string} params.userId - User's ID
+   * @param {number} params.credits - Credit amount for reference
    * @returns {Promise<Object>} Checkout session
    */
   async createCheckoutSession({ priceId, userEmail, userId, credits }) {
@@ -37,38 +37,45 @@ class StripeService {
 
     try {
       const baseUrl = this.getBaseUrl();
-      
+      const successUrl = `${baseUrl}/pricing?success=true`;
+      const cancelUrl = `${baseUrl}/pricing?canceled=true`;
+
+      // Debug logging
+      logger.info('Stripe checkout session URLs:', {
+        baseUrl,
+        successUrl,
+        cancelUrl,
+        domainServer: process.env.DOMAIN_SERVER
+      });
+
       const session = await this.stripe.checkout.sessions.create({
         payment_method_types: ['card'],
-        mode: 'subscription',
         line_items: [
           {
             price: priceId,
             quantity: 1,
           },
         ],
+        mode: 'subscription',
+        success_url: successUrl,
+        cancel_url: cancelUrl,
         customer_email: userEmail,
         metadata: {
           userId,
-          credits,
-          plan: 'pro',
+          credits: credits.toString(),
         },
-        subscription_data: {
-          metadata: {
-            userId,
-            credits,
-            plan: 'pro',
-          },
-        },
-        success_url: `${baseUrl}/pricing?success=true`,
-        cancel_url: `${baseUrl}/pricing?canceled=true`,
         allow_promotion_codes: true,
+        billing_address_collection: 'required',
       });
 
-      logger.info(`Checkout session created for user ${userId}: ${session.id}`);
+      logger.info('Stripe checkout session created:', {
+        sessionId: session.id,
+        url: session.url
+      });
+
       return session;
     } catch (error) {
-      logger.error('Error creating checkout session:', error);
+      logger.error('Error creating Stripe checkout session:', error);
       throw error;
     }
   }

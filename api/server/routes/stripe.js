@@ -271,4 +271,18 @@ async function handlePaymentFailed(invoice) {
   }
 }
 
+/**
+ * Debug endpoint to check configuration
+ */
+router.get('/debug-config', (req, res) => {
+  const baseUrl = process.env.DOMAIN_SERVER || 'http://localhost:3080';
+  res.json({
+    baseUrl,
+    domainServer: process.env.DOMAIN_SERVER,
+    nodeEnv: process.env.NODE_ENV,
+    successUrl: `${baseUrl}/pricing?success=true`,
+    cancelUrl: `${baseUrl}/pricing?canceled=true`
+  });
+});
+
 module.exports = router; 
