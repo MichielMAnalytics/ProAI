@@ -64,8 +64,8 @@ RUN uv --version
 WORKDIR /app
 # Install only production deps
 RUN npm ci --omit=dev
-# Fix sharp for ARM64
-RUN npm install --platform=linux --os=linux --libc=musl --cpu=arm64 sharp --save-optional || true
+# Fix sharp for multiple platforms (auto-detects correct architecture)
+RUN npm install sharp --save-optional || true
 COPY api ./api
 COPY config ./config
 COPY --from=data-provider-build /app/packages/data-provider/dist ./packages/data-provider/dist
