@@ -53,7 +53,16 @@ class BalanceService {
         valueKey: transactionId // Use valueKey field for Stripe transaction ID
       }).lean();
       
-      return !!existingTransaction;
+      if (existingTransaction) {
+        logger.info(`Duplicate transaction detected and blocked: ${transactionId}`, {
+          existingTransactionId: existingTransaction._id,
+          existingUserId: existingTransaction.user,
+          createdAt: existingTransaction.createdAt
+        });
+        return true;
+      }
+      
+      return false;
     } catch (error) {
       logger.error('Error checking duplicate transaction:', error);
       return false; // Default to false to not block legitimate transactions

@@ -135,38 +135,47 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   try {
     const event = stripeService.verifyWebhookSignature(req.body, signature);
     
-    logger.info(`Webhook event received: ${event.type}`);
+    logger.info(`Webhook event received: ${event.type}`, { eventId: event.id });
 
-    switch (event.type) {
-      case 'checkout.session.completed':
-        await handleCheckoutCompleted(event.data.object);
-        break;
-      
-      case 'customer.subscription.created':
-        await handleSubscriptionCreated(event.data.object);
-        break;
-      
-      case 'customer.subscription.updated':
-        await handleSubscriptionUpdated(event.data.object);
-        break;
-      
-      case 'customer.subscription.deleted':
-        await handleSubscriptionDeleted(event.data.object);
-        break;
-      
-      case 'invoice.payment_succeeded':
-        await handlePaymentSucceeded(event.data.object);
-        break;
-      
-      case 'invoice.payment_failed':
-        await handlePaymentFailed(event.data.object);
-        break;
-      
-      default:
-        logger.info(`Unhandled event type: ${event.type}`);
-    }
-
+    // Respond to Stripe immediately to prevent retries
     res.json({ received: true });
+
+    // Process webhook asynchronously to prevent Stripe retries
+    setImmediate(async () => {
+      try {
+        switch (event.type) {
+          case 'checkout.session.completed':
+            await handleCheckoutCompleted(event.data.object);
+            break;
+          
+          case 'customer.subscription.created':
+            await handleSubscriptionCreated(event.data.object);
+            break;
+          
+          case 'customer.subscription.updated':
+            await handleSubscriptionUpdated(event.data.object);
+            break;
+          
+          case 'customer.subscription.deleted':
+            await handleSubscriptionDeleted(event.data.object);
+            break;
+          
+          case 'invoice.payment_succeeded':
+            await handlePaymentSucceeded(event.data.object);
+            break;
+          
+          case 'invoice.payment_failed':
+            await handlePaymentFailed(event.data.object);
+            break;
+          
+          default:
+            logger.info(`Unhandled event type: ${event.type}`);
+        }
+      } catch (processingError) {
+        logger.error('Error processing webhook asynchronously:', processingError);
+      }
+    });
+
   } catch (error) {
     logger.error('Webhook error:', error);
     res.status(400).json({
@@ -184,7 +193,7 @@ async function handleCheckoutCompleted(session) {
     const userId = metadata?.userId || client_reference_id;
     
     if (!userId) {
-      logger.error('No userId found in checkout session metadata');
+      logger.error('No userId found in checkout session metadata', { sessionId: session.id });
       return;
     }
 
@@ -217,11 +226,14 @@ async function handleCheckoutCompleted(session) {
       priceId
     });
     
+    // Use session ID for transaction ID to prevent duplicates
+    const transactionId = `checkout_${session.id}`;
+    
     // Add credits to user balance
     const result = await BalanceService.addCredits({
       userId,
       credits,
-      transactionId: `checkout_${session.id}`,
+      transactionId,
       stripeData: {
         customerId: customer,
         priceId,
@@ -233,18 +245,20 @@ async function handleCheckoutCompleted(session) {
     if (result.success) {
       logger.info(`Credits successfully added: ${credits} credits for user ${userId}`, {
         transactionId: result.transaction,
-        newBalance: result.newBalance
+        newBalance: result.newBalance,
+        sessionId: session.id
       });
     } else {
       logger.warn(`Failed to add credits: ${result.reason}`, {
         userId,
         credits,
-        sessionId: session.id
+        sessionId: session.id,
+        transactionId
       });
     }
     
   } catch (error) {
-    logger.error('Error handling checkout completion:', error);
+    logger.error('Error handling checkout completion:', error, { sessionId: session.id });
   }
 }
 
@@ -254,10 +268,40 @@ async function handleCheckoutCompleted(session) {
 async function handleSubscriptionCreated(subscription) {
   try {
     const { customer, metadata, items } = subscription;
-    const userId = metadata?.userId;
+    let userId = metadata?.userId;
+    
+    // If userId not in subscription metadata, try to get it from recent checkout sessions
+    if (!userId) {
+      try {
+        const stripe = stripeService.stripe;
+        const sessions = await stripe.checkout.sessions.list({
+          customer: customer,
+          limit: 10,
+        });
+        
+        // Find recent session with userId in metadata
+        const recentSession = sessions.data.find(session => 
+          session.metadata?.userId && 
+          Date.now() - new Date(session.created * 1000).getTime() < 600000 // Within last 10 minutes
+        );
+        
+        if (recentSession) {
+          userId = recentSession.metadata.userId;
+          logger.info(`Retrieved userId from recent checkout session: ${userId}`, {
+            subscriptionId: subscription.id,
+            sessionId: recentSession.id
+          });
+        }
+      } catch (error) {
+        logger.error('Error retrieving userId from checkout sessions:', error);
+      }
+    }
     
     if (!userId) {
-      logger.error('No userId found in subscription metadata');
+      logger.error('No userId found in subscription metadata or recent checkout sessions', {
+        subscriptionId: subscription.id,
+        customerId: customer
+      });
       return;
     }
 
