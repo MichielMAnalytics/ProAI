@@ -47,9 +47,10 @@ class BalanceService {
    */
   static async isDuplicateTransaction(transactionId) {
     try {
+      // Use valueKey field to store Stripe transaction ID - this is what it's designed for
       const existingTransaction = await Transaction.findOne({
-        'metadata.stripeTransactionId': transactionId,
-        context: 'stripe_payment'
+        context: 'stripe_payment',
+        valueKey: transactionId // Use valueKey field for Stripe transaction ID
       }).lean();
       
       return !!existingTransaction;
@@ -126,23 +127,15 @@ class BalanceService {
         return { success: false, reason: 'Invalid user' };
       }
 
-      // 5. Create transaction record with metadata for audit trail
+      // 5. Create transaction record for audit trail
       const transaction = await Transaction.create({
         user: userId,
-        tokenType: 'credit_topup',
+        tokenType: 'credits',
         rawAmount: credits, // Positive value for credit addition
         context: 'stripe_payment',
-        model: 'stripe_pro_subscription',
+        model: `stripe_credits_${credits}`, // More descriptive model name
+        valueKey: transactionId, // Use valueKey for Stripe transaction ID - proper field for this purpose
         endpointTokenConfig: {},
-        metadata: {
-          stripeTransactionId: transactionId,
-          stripeCustomerId: stripeData.customerId,
-          stripeSubscriptionId: stripeData.subscriptionId,
-          stripePriceId: stripeData.priceId,
-          paymentMethod: 'stripe',
-          timestamp: new Date().toISOString(),
-          userEmail: user.email,
-        }
       });
 
       logger.info(`Credits added successfully: ${credits} credits for user ${userId}`, {
