@@ -64,6 +64,7 @@ export default function AgentConfig({
     capabilities: true,
     modelSelection: true,
     instructions: true,
+    agentId: true,
   };
 
   // Granular capability items visibility controls

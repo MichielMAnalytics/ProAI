@@ -267,17 +267,9 @@ const updateAgent = async (searchParameter, updateData, updatingUserId = null) =
     if (Object.keys(directUpdates).length > 0 && versions && versions.length > 0) {
       const duplicateVersion = isDuplicateVersion(updateData, versionData, versions);
       if (duplicateVersion) {
-        const error = new Error(
-          'Duplicate version: This would create a version identical to an existing one',
-        );
-        error.statusCode = 409;
-        error.details = {
-          duplicateVersion,
-          versionIndex: versions.findIndex(
-            (v) => JSON.stringify(duplicateVersion) === JSON.stringify(v),
-          ),
-        };
-        throw error;
+        // Instead of throwing an error, return the current agent unchanged
+        // This provides a more graceful user experience when saving without changes
+        return currentAgent.toObject();
       }
     }
 
