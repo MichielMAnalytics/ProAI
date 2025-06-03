@@ -30,6 +30,8 @@ const domains = {
 };
 
 const isProduction = process.env.NODE_ENV === 'production';
+// Temporary: Allow HTTP cookies in production until HTTPS is implemented
+const useSecureCookies = process.env.NODE_ENV === 'production' && process.env.ENABLE_HTTPS === 'true';
 const genericVerificationMessage = 'Please check your email to verify your email address.';
 
 /**
@@ -374,13 +376,13 @@ const setAuthTokens = async (userId, res, sessionId = null) => {
     res.cookie('refreshToken', refreshToken, {
       expires: new Date(refreshTokenExpires),
       httpOnly: true,
-      secure: isProduction,
+      secure: useSecureCookies,
       sameSite: 'strict',
     });
     res.cookie('token_provider', 'librechat', {
       expires: new Date(refreshTokenExpires),
       httpOnly: true,
-      secure: isProduction,
+      secure: useSecureCookies,
       sameSite: 'strict',
     });
     return token;
@@ -418,13 +420,13 @@ const setOpenIDAuthTokens = (tokenset, res) => {
     res.cookie('refreshToken', tokenset.refresh_token, {
       expires: expirationDate,
       httpOnly: true,
-      secure: isProduction,
+      secure: useSecureCookies,
       sameSite: 'strict',
     });
     res.cookie('token_provider', 'openid', {
       expires: expirationDate,
       httpOnly: true,
-      secure: isProduction,
+      secure: useSecureCookies,
       sameSite: 'strict',
     });
     return tokenset.access_token;
