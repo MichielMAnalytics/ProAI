@@ -626,29 +626,70 @@ async function handlePaymentSucceeded(invoice, eventId) {
     if (!subscriptionId) {
       // For subscription invoices, try to extract from invoice lines
       if (invoice.lines?.data?.length > 0) {
+        // Look for subscription line items (type: 'subscription')
         const subscriptionLine = invoice.lines.data.find(line => 
           line.type === 'subscription' && line.subscription
         );
         if (subscriptionLine) {
           subscriptionId = subscriptionLine.subscription;
-          logger.debug(`Extracted subscription ID from invoice line`, {
+          logger.debug(`Extracted subscription ID from subscription line item`, {
             eventId,
             invoiceId,
             subscriptionId,
-            lineType: subscriptionLine.type
+            lineType: subscriptionLine.type,
+            lineId: subscriptionLine.id
           });
+        } else {
+          // Also check if any line items have subscription references (for recurring billing)
+          const lineWithSubscription = invoice.lines.data.find(line => line.subscription);
+          if (lineWithSubscription) {
+            subscriptionId = lineWithSubscription.subscription;
+            logger.debug(`Extracted subscription ID from line item with subscription reference`, {
+              eventId,
+              invoiceId,
+              subscriptionId,
+              lineType: lineWithSubscription.type,
+              lineId: lineWithSubscription.id
+            });
+          }
         }
       }
       
-      // If still no subscription ID and this is a subscription-related billing reason,
-      // try to get it from the subscription_details if available
-      if (!subscriptionId && invoice.subscription_details) {
-        subscriptionId = invoice.subscription_details.subscription;
-        if (subscriptionId) {
-          logger.debug(`Extracted subscription ID from subscription_details`, {
+      // If still no subscription ID, try to correlate with recent subscriptions for this customer
+      if (!subscriptionId && invoice.billing_reason === 'subscription_create') {
+        try {
+          const stripe = stripeService.stripe;
+          const recentSubscriptions = await stripe.subscriptions.list({
+            customer: customer,
+            limit: 5,
+            created: {
+              gte: Math.floor((Date.now() - 300000) / 1000), // Last 5 minutes
+            },
+          });
+          
+          if (recentSubscriptions.data.length > 0) {
+            // Find subscription created around the same time as this invoice
+            const matchingSubscription = recentSubscriptions.data.find(sub => 
+              Math.abs(sub.created - invoice.created) < 60 // Within 60 seconds
+            );
+            
+            if (matchingSubscription) {
+              subscriptionId = matchingSubscription.id;
+              logger.debug(`Correlated subscription ID from recent customer subscriptions`, {
+                eventId,
+                invoiceId,
+                subscriptionId,
+                subscriptionCreated: new Date(matchingSubscription.created * 1000),
+                invoiceCreated: new Date(invoice.created * 1000),
+                timeDiff: Math.abs(matchingSubscription.created - invoice.created)
+              });
+            }
+          }
+        } catch (error) {
+          logger.warn('Error correlating subscription from recent subscriptions:', error, {
             eventId,
             invoiceId,
-            subscriptionId
+            customerId: customer
           });
         }
       }
