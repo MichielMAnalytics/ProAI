@@ -28,9 +28,10 @@ class StripeService {
    * @param {string} params.userEmail - User's email
    * @param {string} params.userId - User's ID
    * @param {number} params.credits - Credit amount for reference
+   * @param {string} [params.idempotencyKey] - Optional idempotency key
    * @returns {Promise<Object>} Checkout session
    */
-  async createCheckoutSession({ priceId, userEmail, userId, credits }) {
+  async createCheckoutSession({ priceId, userEmail, userId, credits, idempotencyKey }) {
     if (!this.stripe) {
       throw new Error('Stripe not initialized');
     }
@@ -48,10 +49,11 @@ class StripeService {
         priceId,
         userEmail,
         userId,
-        credits
+        credits,
+        idempotencyKey
       });
 
-      const session = await this.stripe.checkout.sessions.create({
+      const sessionOptions = {
         mode: 'subscription',
         payment_method_types: ['card'],
         customer_email: userEmail,
@@ -80,7 +82,14 @@ class StripeService {
         automatic_tax: {
           enabled: true,
         },
-      });
+      };
+
+      // Add idempotency key if provided
+      const requestOptions = idempotencyKey ? {
+        idempotencyKey
+      } : {};
+
+      const session = await this.stripe.checkout.sessions.create(sessionOptions, requestOptions);
 
       return session;
     } catch (error) {

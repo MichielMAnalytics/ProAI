@@ -3,6 +3,8 @@ const { requireJwtAuth } = require('~/server/middleware');
 const stripeService = require('~/server/services/StripeService');
 const BalanceService = require('~/server/services/BalanceService');
 const { logger } = require('~/config');
+const mongoose = require('mongoose');
+const { Transaction } = require('~/models/Transaction');
 
 const router = express.Router();
 
@@ -26,6 +28,14 @@ router.post('/create-checkout-session', requireJwtAuth, async (req, res) => {
     const { credits } = req.body;
     const { user } = req;
 
+    // Log the request for debugging
+    logger.info(`Checkout session requested by user ${user._id}`, {
+      userId: user._id,
+      userEmail: user.email,
+      credits,
+      timestamp: new Date().toISOString()
+    });
+
     if (!credits || !PRICE_IDS[credits]) {
       return res.status(400).json({
         error: 'Invalid credit amount',
@@ -40,11 +50,56 @@ router.post('/create-checkout-session', requireJwtAuth, async (req, res) => {
       });
     }
 
+    // Check for existing active checkout sessions for this user/credit combination
+    // to prevent duplicate sessions (idempotency)
+    try {
+      const stripe = stripeService.stripe;
+      const existingSessions = await stripe.checkout.sessions.list({
+        limit: 10,
+        created: {
+          gte: Math.floor((Date.now() - 30 * 60 * 1000) / 1000), // Last 30 minutes
+        },
+      });
+
+      // Find recent session for this user with same credit amount
+      const recentSession = existingSessions.data.find(session => 
+        session.metadata?.userId === user._id.toString() &&
+        session.metadata?.credits === credits.toString() &&
+        session.status === 'open' // Only consider open sessions
+      );
+
+      if (recentSession) {
+        logger.info(`Returning existing checkout session for user ${user._id}`, {
+          sessionId: recentSession.id,
+          credits,
+          createdAt: new Date(recentSession.created * 1000)
+        });
+        
+        return res.json({
+          sessionId: recentSession.id,
+          url: recentSession.url,
+        });
+      }
+    } catch (error) {
+      logger.warn('Error checking for existing sessions, creating new one:', error);
+      // Continue to create new session if check fails
+    }
+
+    // Create new session with idempotency key
+    const idempotencyKey = `checkout_${user._id}_${credits}_${Date.now()}`;
+    
     const session = await stripeService.createCheckoutSession({
       priceId,
       userEmail: user.email,
       userId: user._id.toString(),
       credits: credits.toString(),
+      idempotencyKey
+    });
+
+    logger.info(`New checkout session created for user ${user._id}`, {
+      sessionId: session.id,
+      credits,
+      idempotencyKey
     });
 
     res.json({
@@ -135,7 +190,39 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   try {
     const event = stripeService.verifyWebhookSignature(req.body, signature);
     
-    logger.info(`Webhook event received: ${event.type}`, { eventId: event.id });
+    logger.info(`Webhook event received: ${event.type}`, { 
+      eventId: event.id,
+      created: new Date(event.created * 1000),
+      livemode: event.livemode
+    });
+
+    // CRITICAL: Check if we've already processed this exact event
+    const eventTransactionId = `stripe_event_${event.id}`;
+    const isDuplicateEvent = await BalanceService.isDuplicateTransaction(eventTransactionId);
+    
+    if (isDuplicateEvent) {
+      logger.warn(`Duplicate Stripe event blocked: ${event.id}`, {
+        eventType: event.type,
+        eventId: event.id
+      });
+      return res.json({ received: true, status: 'duplicate_event_ignored' });
+    }
+
+    // Create a marker transaction to track that we've processed this event
+    try {
+      await Transaction.create({
+        user: new mongoose.Types.ObjectId(), // Placeholder user ID
+        tokenType: 'credits',
+        rawAmount: 0,
+        context: 'stripe_event_tracking',
+        model: `event_${event.type}`,
+        valueKey: eventTransactionId,
+        endpointTokenConfig: {},
+      });
+    } catch (error) {
+      // If marker creation fails, log but continue processing
+      logger.warn('Failed to create event tracking marker:', error);
+    }
 
     // Respond to Stripe immediately to prevent retries
     res.json({ received: true });
@@ -145,34 +232,37 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       try {
         switch (event.type) {
           case 'checkout.session.completed':
-            await handleCheckoutCompleted(event.data.object);
+            await handleCheckoutCompleted(event.data.object, event.id);
             break;
           
           case 'customer.subscription.created':
-            await handleSubscriptionCreated(event.data.object);
+            await handleSubscriptionCreated(event.data.object, event.id);
             break;
           
           case 'customer.subscription.updated':
-            await handleSubscriptionUpdated(event.data.object);
+            await handleSubscriptionUpdated(event.data.object, event.id);
             break;
           
           case 'customer.subscription.deleted':
-            await handleSubscriptionDeleted(event.data.object);
+            await handleSubscriptionDeleted(event.data.object, event.id);
             break;
           
           case 'invoice.payment_succeeded':
-            await handlePaymentSucceeded(event.data.object);
+            await handlePaymentSucceeded(event.data.object, event.id);
             break;
           
           case 'invoice.payment_failed':
-            await handlePaymentFailed(event.data.object);
+            await handlePaymentFailed(event.data.object, event.id);
             break;
           
           default:
-            logger.info(`Unhandled event type: ${event.type}`);
+            logger.info(`Unhandled event type: ${event.type}`, { eventId: event.id });
         }
       } catch (processingError) {
-        logger.error('Error processing webhook asynchronously:', processingError);
+        logger.error('Error processing webhook asynchronously:', processingError, {
+          eventId: event.id,
+          eventType: event.type
+        });
       }
     });
 
@@ -187,13 +277,27 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 /**
  * Handle successful checkout session
  */
-async function handleCheckoutCompleted(session) {
+async function handleCheckoutCompleted(session, eventId) {
   try {
-    const { customer, client_reference_id, metadata } = session;
+    const { customer, client_reference_id, metadata, payment_status } = session;
+    
+    // CRITICAL: Only process if payment was actually successful
+    if (payment_status !== 'paid') {
+      logger.info(`Checkout session not yet paid, skipping credit addition`, {
+        sessionId: session.id,
+        eventId,
+        paymentStatus: payment_status
+      });
+      return;
+    }
+    
     const userId = metadata?.userId || client_reference_id;
     
     if (!userId) {
-      logger.error('No userId found in checkout session metadata', { sessionId: session.id });
+      logger.error('No userId found in checkout session metadata', { 
+        sessionId: session.id,
+        eventId 
+      });
       return;
     }
 
@@ -222,12 +326,14 @@ async function handleCheckoutCompleted(session) {
 
     logger.info(`Checkout completed for user ${userId}, credits: ${credits}`, {
       sessionId: session.id,
+      eventId,
       customerId: customer,
-      priceId
+      priceId,
+      paymentStatus: payment_status
     });
     
-    // Use session ID for transaction ID to prevent duplicates
-    const transactionId = `checkout_${session.id}`;
+    // Use BOTH session ID AND event ID for transaction ID to prevent duplicates
+    const transactionId = `checkout_${session.id}_event_${eventId}`;
     
     // Add credits to user balance
     const result = await BalanceService.addCredits({
@@ -238,6 +344,7 @@ async function handleCheckoutCompleted(session) {
         customerId: customer,
         priceId,
         sessionId: session.id,
+        eventId,
         type: 'initial_subscription'
       }
     });
@@ -246,26 +353,31 @@ async function handleCheckoutCompleted(session) {
       logger.info(`Credits successfully added: ${credits} credits for user ${userId}`, {
         transactionId: result.transaction,
         newBalance: result.newBalance,
-        sessionId: session.id
+        sessionId: session.id,
+        eventId
       });
     } else {
       logger.warn(`Failed to add credits: ${result.reason}`, {
         userId,
         credits,
         sessionId: session.id,
+        eventId,
         transactionId
       });
     }
     
   } catch (error) {
-    logger.error('Error handling checkout completion:', error, { sessionId: session.id });
+    logger.error('Error handling checkout completion:', error, { 
+      sessionId: session.id,
+      eventId 
+    });
   }
 }
 
 /**
  * Handle subscription creation
  */
-async function handleSubscriptionCreated(subscription) {
+async function handleSubscriptionCreated(subscription, eventId) {
   try {
     const { customer, metadata, items } = subscription;
     let userId = metadata?.userId;
@@ -331,7 +443,7 @@ async function handleSubscriptionCreated(subscription) {
 /**
  * Handle subscription updates
  */
-async function handleSubscriptionUpdated(subscription) {
+async function handleSubscriptionUpdated(subscription, eventId) {
   try {
     const { userId } = subscription.metadata;
     
@@ -347,7 +459,7 @@ async function handleSubscriptionUpdated(subscription) {
 /**
  * Handle subscription deletion
  */
-async function handleSubscriptionDeleted(subscription) {
+async function handleSubscriptionDeleted(subscription, eventId) {
   try {
     const { userId } = subscription.metadata;
     
@@ -363,7 +475,7 @@ async function handleSubscriptionDeleted(subscription) {
 /**
  * Handle successful payment (recurring billing)
  */
-async function handlePaymentSucceeded(invoice) {
+async function handlePaymentSucceeded(invoice, eventId) {
   try {
     const { customer, subscription: subscriptionId, id: invoiceId } = invoice;
     
@@ -451,7 +563,7 @@ async function handlePaymentSucceeded(invoice) {
 /**
  * Handle failed payment
  */
-async function handlePaymentFailed(invoice) {
+async function handlePaymentFailed(invoice, eventId) {
   try {
     const { customer, subscription: subscriptionId, id: invoiceId } = invoice;
     
