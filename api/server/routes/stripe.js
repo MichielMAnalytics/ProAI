@@ -618,7 +618,41 @@ async function handleSubscriptionDeleted(subscription, eventId) {
  */
 async function handlePaymentSucceeded(invoice, eventId) {
   try {
-    const { customer, subscription: subscriptionId, id: invoiceId } = invoice;
+    // Enhanced subscription ID extraction following Stripe best practices
+    let subscriptionId = invoice.subscription;
+    const { customer, id: invoiceId } = invoice;
+    
+    // If subscription ID is not directly available, try alternative extraction methods
+    if (!subscriptionId) {
+      // For subscription invoices, try to extract from invoice lines
+      if (invoice.lines?.data?.length > 0) {
+        const subscriptionLine = invoice.lines.data.find(line => 
+          line.type === 'subscription' && line.subscription
+        );
+        if (subscriptionLine) {
+          subscriptionId = subscriptionLine.subscription;
+          logger.debug(`Extracted subscription ID from invoice line`, {
+            eventId,
+            invoiceId,
+            subscriptionId,
+            lineType: subscriptionLine.type
+          });
+        }
+      }
+      
+      // If still no subscription ID and this is a subscription-related billing reason,
+      // try to get it from the subscription_details if available
+      if (!subscriptionId && invoice.subscription_details) {
+        subscriptionId = invoice.subscription_details.subscription;
+        if (subscriptionId) {
+          logger.debug(`Extracted subscription ID from subscription_details`, {
+            eventId,
+            invoiceId,
+            subscriptionId
+          });
+        }
+      }
+    }
     
     logger.debug(`Processing invoice payment`, {
       eventId,
