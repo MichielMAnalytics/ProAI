@@ -45,6 +45,8 @@ async function loadDefaultInterface(config, configDefaults, roleName = SystemRol
     hidePanel: interfaceConfig?.hidePanel ?? defaults.hidePanel,
     webSearch: interfaceConfig?.webSearch ?? defaults.webSearch,
     customWelcome: interfaceConfig?.customWelcome ?? defaults.customWelcome,
+    settingsTabs: interfaceConfig?.settingsTabs ?? defaults.settingsTabs,
+    agentPanel: interfaceConfig?.agentPanel ?? defaults.agentPanel,
   });
 
   await updateAccessPermissions(roleName, {

@@ -505,6 +505,73 @@ export const intefaceSchema = z
     assistants: z.boolean().optional(),
     hidePanel: z.boolean().optional(),
     webSearch: z.boolean().optional(),
+    // Settings tab controls
+    settingsTabs: z
+      .object({
+        general: z.boolean().optional().default(true),
+        chat: z.boolean().optional().default(true),
+        speech: z.boolean().optional().default(true),
+        beta: z.boolean().optional().default(true),
+        data: z.boolean().optional().default(true),
+        commands: z.boolean().optional().default(true),
+        account: z.boolean().optional().default(true),
+        // Granular controls for General tab items
+        generalItems: z
+          .object({
+            theme: z.boolean().optional().default(true),
+            language: z.boolean().optional().default(true),
+            userMsgMarkdown: z.boolean().optional().default(true),
+            autoScroll: z.boolean().optional().default(true),
+            hideSidePanel: z.boolean().optional().default(true),
+            archivedChats: z.boolean().optional().default(true),
+          })
+          .optional(),
+        // Granular controls for Account tab items
+        accountItems: z
+          .object({
+            displayUsername: z.boolean().optional().default(true),
+            avatar: z.boolean().optional().default(true),
+            twoFactorAuth: z.boolean().optional().default(true),
+            backupCodes: z.boolean().optional().default(true),
+            deleteAccount: z.boolean().optional().default(true),
+          })
+          .optional(),
+      })
+      .optional(),
+    // Agent panel section controls
+    agentPanel: z
+      .object({
+        // Hide the actions section in agent builder (keeps capability enabled)
+        actions: z.boolean().optional().default(true),
+        // Hide the tools section in agent builder (keeps capability enabled)  
+        tools: z.boolean().optional().default(true),
+        // Hide the capabilities section in agent builder
+        capabilities: z.boolean().optional().default(true),
+        // Hide the model selection section in agent builder
+        modelSelection: z.boolean().optional().default(true),
+        // Hide the instructions section in agent builder
+        instructions: z.boolean().optional().default(true),
+        // Hide the version button in agent builder
+        version: z.boolean().optional().default(true),
+        // Hide the agent ID display under the agent name
+        agentId: z.boolean().optional().default(true),
+        // Granular controls for individual capability sections
+        capabilityItems: z
+          .object({
+            // Hide the code execution capability section
+            codeExecution: z.boolean().optional().default(true),
+            // Hide the web search capability section
+            webSearch: z.boolean().optional().default(true),
+            // Hide the file context/OCR capability section
+            fileContext: z.boolean().optional().default(true),
+            // Hide the artifacts capability section
+            artifacts: z.boolean().optional().default(true),
+            // Hide the file search capability section
+            fileSearch: z.boolean().optional().default(true),
+          })
+          .optional(),
+      })
+      .optional(),
   })
   .default({
     endpointsMenu: true,

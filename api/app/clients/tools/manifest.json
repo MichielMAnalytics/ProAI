@@ -3,7 +3,7 @@
     "name": "Scheduler",
     "pluginKey": "scheduler",
     "description": "Schedule and manage automated tasks including AI prompts, API calls, shell commands, and reminders. Supports cron expressions for flexible scheduling.",
-    "icon": "https://i.imgur.com/clock-icon.png",
+    "icon": "https://imgur.com/ea4EMbJ.png",
     "authConfig": []
   },
   {

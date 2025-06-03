@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { MessageSquare, Command } from 'lucide-react';
 import { SettingsTabValues } from 'librechat-data-provider';
@@ -7,6 +7,7 @@ import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@
 import { GearIcon, DataIcon, SpeechIcon, UserIcon, ExperimentIcon } from '~/components/svg';
 import { General, Chat, Speech, Beta, Commands, Data, Account } from './SettingsTabs';
 import { useMediaQuery, useLocalize, TranslationKeys } from '~/hooks';
+import { useGetStartupConfig } from '~/data-provider';
 import { cn } from '~/utils';
 
 export default function Settings({ open, onOpenChange }: TDialogProps) {
@@ -14,17 +15,84 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
   const localize = useLocalize();
   const [activeTab, setActiveTab] = useState(SettingsTabValues.GENERAL);
   const tabRefs = useRef({});
+  const { data: startupConfig } = useGetStartupConfig();
+
+  const settingsTabsConfig = startupConfig?.interface?.settingsTabs || {
+    general: true,
+    chat: true,
+    speech: true,
+    beta: true,
+    data: true,
+    commands: true,
+    account: true,
+  };
+
+  const allSettingsTabs: {
+    value: SettingsTabValues;
+    icon: React.JSX.Element;
+    label: TranslationKeys;
+    configKey: keyof typeof settingsTabsConfig;
+  }[] = [
+    {
+      value: SettingsTabValues.GENERAL,
+      icon: <GearIcon />,
+      label: 'com_nav_setting_general',
+      configKey: 'general',
+    },
+    {
+      value: SettingsTabValues.CHAT,
+      icon: <MessageSquare className="icon-sm" />,
+      label: 'com_nav_setting_chat',
+      configKey: 'chat',
+    },
+    {
+      value: SettingsTabValues.BETA,
+      icon: <ExperimentIcon />,
+      label: 'com_nav_setting_beta',
+      configKey: 'beta',
+    },
+    {
+      value: SettingsTabValues.COMMANDS,
+      icon: <Command className="icon-sm" />,
+      label: 'com_nav_commands',
+      configKey: 'commands',
+    },
+    {
+      value: SettingsTabValues.SPEECH,
+      icon: <SpeechIcon className="icon-sm" />,
+      label: 'com_nav_setting_speech',
+      configKey: 'speech',
+    },
+    {
+      value: SettingsTabValues.DATA,
+      icon: <DataIcon />,
+      label: 'com_nav_setting_data',
+      configKey: 'data',
+    },
+    {
+      value: SettingsTabValues.ACCOUNT,
+      icon: <UserIcon />,
+      label: 'com_nav_setting_account',
+      configKey: 'account',
+    },
+  ];
+
+  const settingsTabs = useMemo(() => {
+    return allSettingsTabs.filter(tab => settingsTabsConfig[tab.configKey] !== false);
+  }, [settingsTabsConfig]);
+
+  const tabs = useMemo(() => {
+    return settingsTabs.map(tab => tab.value);
+  }, [settingsTabs]);
+
+  // Ensure activeTab is valid for the current available tabs
+  useMemo(() => {
+    if (!tabs.includes(activeTab) && tabs.length > 0) {
+      setActiveTab(tabs[0]);
+    }
+  }, [tabs, activeTab]);
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
-    const tabs = [
-      SettingsTabValues.GENERAL,
-      SettingsTabValues.CHAT,
-      SettingsTabValues.BETA,
-      SettingsTabValues.COMMANDS,
-      SettingsTabValues.SPEECH,
-      SettingsTabValues.DATA,
-      SettingsTabValues.ACCOUNT,
-    ];
     const currentIndex = tabs.indexOf(activeTab);
 
     switch (event.key) {
@@ -46,48 +114,6 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
         break;
     }
   };
-
-  const settingsTabs: {
-    value: SettingsTabValues;
-    icon: React.JSX.Element;
-    label: TranslationKeys;
-  }[] = [
-    {
-      value: SettingsTabValues.GENERAL,
-      icon: <GearIcon />,
-      label: 'com_nav_setting_general',
-    },
-    {
-      value: SettingsTabValues.CHAT,
-      icon: <MessageSquare className="icon-sm" />,
-      label: 'com_nav_setting_chat',
-    },
-    {
-      value: SettingsTabValues.BETA,
-      icon: <ExperimentIcon />,
-      label: 'com_nav_setting_beta',
-    },
-    {
-      value: SettingsTabValues.COMMANDS,
-      icon: <Command className="icon-sm" />,
-      label: 'com_nav_commands',
-    },
-    {
-      value: SettingsTabValues.SPEECH,
-      icon: <SpeechIcon className="icon-sm" />,
-      label: 'com_nav_setting_speech',
-    },
-    {
-      value: SettingsTabValues.DATA,
-      icon: <DataIcon />,
-      label: 'com_nav_setting_data',
-    },
-    {
-      value: SettingsTabValues.ACCOUNT,
-      icon: <UserIcon />,
-      label: 'com_nav_setting_account',
-    },
-  ];
 
   const handleTabChange = (value: string) => {
     setActiveTab(value as SettingsTabValues);
@@ -186,27 +212,41 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
                     ))}
                   </Tabs.List>
                   <div className="overflow-auto sm:w-full sm:max-w-none md:pr-0.5 md:pt-0.5">
-                    <Tabs.Content value={SettingsTabValues.GENERAL}>
-                      <General />
-                    </Tabs.Content>
-                    <Tabs.Content value={SettingsTabValues.CHAT}>
-                      <Chat />
-                    </Tabs.Content>
-                    <Tabs.Content value={SettingsTabValues.BETA}>
-                      <Beta />
-                    </Tabs.Content>
-                    <Tabs.Content value={SettingsTabValues.COMMANDS}>
-                      <Commands />
-                    </Tabs.Content>
-                    <Tabs.Content value={SettingsTabValues.SPEECH}>
-                      <Speech />
-                    </Tabs.Content>
-                    <Tabs.Content value={SettingsTabValues.DATA}>
-                      <Data />
-                    </Tabs.Content>
-                    <Tabs.Content value={SettingsTabValues.ACCOUNT}>
-                      <Account />
-                    </Tabs.Content>
+                    {settingsTabsConfig.general !== false && (
+                      <Tabs.Content value={SettingsTabValues.GENERAL}>
+                        <General />
+                      </Tabs.Content>
+                    )}
+                    {settingsTabsConfig.chat !== false && (
+                      <Tabs.Content value={SettingsTabValues.CHAT}>
+                        <Chat />
+                      </Tabs.Content>
+                    )}
+                    {settingsTabsConfig.beta !== false && (
+                      <Tabs.Content value={SettingsTabValues.BETA}>
+                        <Beta />
+                      </Tabs.Content>
+                    )}
+                    {settingsTabsConfig.commands !== false && (
+                      <Tabs.Content value={SettingsTabValues.COMMANDS}>
+                        <Commands />
+                      </Tabs.Content>
+                    )}
+                    {settingsTabsConfig.speech !== false && (
+                      <Tabs.Content value={SettingsTabValues.SPEECH}>
+                        <Speech />
+                      </Tabs.Content>
+                    )}
+                    {settingsTabsConfig.data !== false && (
+                      <Tabs.Content value={SettingsTabValues.DATA}>
+                        <Data />
+                      </Tabs.Content>
+                    )}
+                    {settingsTabsConfig.account !== false && (
+                      <Tabs.Content value={SettingsTabValues.ACCOUNT}>
+                        <Account />
+                      </Tabs.Content>
+                    )}
                   </div>
                 </Tabs.Root>
               </div>

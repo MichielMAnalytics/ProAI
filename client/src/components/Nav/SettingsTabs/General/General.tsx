@@ -8,6 +8,7 @@ import AutoScrollSwitch from './AutoScrollSwitch';
 import ArchivedChats from './ArchivedChats';
 import ToggleSwitch from '../ToggleSwitch';
 import { Dropdown } from '~/components';
+import { useGetStartupConfig } from '~/data-provider';
 import store from '~/store';
 
 const toggleSwitchConfigs = [
@@ -124,8 +125,17 @@ export const LangSelector = ({
 
 function General() {
   const { theme, setTheme } = useContext(ThemeContext);
-
+  const { data: startupConfig } = useGetStartupConfig();
   const [langcode, setLangcode] = useRecoilState(store.lang);
+
+  const generalItemsConfig = startupConfig?.interface?.settingsTabs?.generalItems || {
+    theme: true,
+    language: true,
+    userMsgMarkdown: true,
+    autoScroll: true,
+    hideSidePanel: true,
+    archivedChats: true,
+  };
 
   const changeTheme = useCallback(
     (value: string) => {
@@ -152,25 +162,51 @@ function General() {
 
   return (
     <div className="flex flex-col gap-3 p-1 text-sm text-text-primary">
-      <div className="pb-3">
-        <ThemeSelector theme={theme} onChange={changeTheme} />
-      </div>
-      <div className="pb-3">
-        <LangSelector langcode={langcode} onChange={changeLang} />
-      </div>
-      {toggleSwitchConfigs.map((config) => (
-        <div key={config.key} className="pb-3">
+      {generalItemsConfig.theme !== false && (
+        <div className="pb-3">
+          <ThemeSelector theme={theme} onChange={changeTheme} />
+        </div>
+      )}
+      {generalItemsConfig.language !== false && (
+        <div className="pb-3">
+          <LangSelector langcode={langcode} onChange={changeLang} />
+        </div>
+      )}
+      {generalItemsConfig.userMsgMarkdown !== false && (
+        <div className="pb-3">
           <ToggleSwitch
-            stateAtom={config.stateAtom}
-            localizationKey={config.localizationKey}
-            hoverCardText={config.hoverCardText}
-            switchId={config.switchId}
+            stateAtom={store.enableUserMsgMarkdown}
+            localizationKey="com_nav_user_msg_markdown"
+            hoverCardText={undefined}
+            switchId="enableUserMsgMarkdown"
           />
         </div>
-      ))}
-      <div className="pb-3">
-        <ArchivedChats />
-      </div>
+      )}
+      {generalItemsConfig.autoScroll !== false && (
+        <div className="pb-3">
+          <ToggleSwitch
+            stateAtom={store.autoScroll}
+            localizationKey="com_nav_auto_scroll"
+            hoverCardText={undefined}
+            switchId="autoScroll"
+          />
+        </div>
+      )}
+      {generalItemsConfig.hideSidePanel !== false && (
+        <div className="pb-3">
+          <ToggleSwitch
+            stateAtom={store.hideSidePanel}
+            localizationKey="com_nav_hide_panel"
+            hoverCardText={undefined}
+            switchId="hideSidePanel"
+          />
+        </div>
+      )}
+      {generalItemsConfig.archivedChats !== false && (
+        <div className="pb-3">
+          <ArchivedChats />
+        </div>
+      )}
     </div>
   );
 }

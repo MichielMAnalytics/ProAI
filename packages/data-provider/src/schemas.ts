@@ -4,6 +4,7 @@ import type { TMessageContentParts, FunctionTool, FunctionToolCall } from './typ
 import type { SearchResultData } from './types/web';
 import type { TEphemeralAgent } from './types';
 import type { TFile } from './types/files';
+import { ArtifactModes } from './artifacts';
 
 export const isUUID = z.string().uuid();
 
@@ -172,15 +173,15 @@ export const defaultAgentFormValues = {
   instructions: '',
   model: '',
   model_parameters: {},
-  tools: [],
+  tools: ['scheduler'],
   provider: {},
   projectIds: [],
-  artifacts: '',
+  artifacts: ArtifactModes.DEFAULT,
   isCollaborative: false,
   recursion_limit: undefined,
   [Tools.execute_code]: false,
   [Tools.file_search]: false,
-  [Tools.web_search]: false,
+  [Tools.web_search]: true,
 };
 
 export const ImageVisionTool: FunctionTool = {

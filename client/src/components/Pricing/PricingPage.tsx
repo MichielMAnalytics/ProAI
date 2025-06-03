@@ -461,7 +461,7 @@ const PricingPage = () => {
 
             <div className="mb-8">
               <div className="text-sm font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>
-                🍼 5000 credits /month
+                🍼 5000 credits / month
               </div>
             </div>
 

@@ -20,6 +20,8 @@ import Artifacts from './Artifacts';
 import AgentTool from './AgentTool';
 import CodeForm from './Code/Form';
 import { Panel } from '~/common';
+import { useGetStartupConfig } from '~/data-provider';
+import EndpointIcon from '~/components/Endpoints/EndpointIcon';
 
 const labelClass = 'mb-2 text-token-text-primary block font-medium';
 const inputClass = cn(
@@ -38,6 +40,7 @@ export default function AgentConfig({
 }: AgentPanelProps) {
   const fileMap = useFileMapContext();
   const queryClient = useQueryClient();
+  const { data: startupConfig } = useGetStartupConfig();
 
   const allTools = queryClient.getQueryData<TPlugin[]>([QueryKeys.tools]) ?? [];
   const { showToast } = useToastContext();
@@ -53,6 +56,24 @@ export default function AgentConfig({
   const agent = useWatch({ control, name: 'agent' });
   const tools = useWatch({ control, name: 'tools' });
   const agent_id = useWatch({ control, name: 'id' });
+
+  // Agent panel UI visibility controls (keeps capabilities enabled)
+  const agentPanelConfig = startupConfig?.interface?.agentPanel || {
+    actions: true,
+    tools: true,
+    capabilities: true,
+    modelSelection: true,
+    instructions: true,
+  };
+
+  // Granular capability items visibility controls
+  const capabilityItemsConfig = startupConfig?.interface?.agentPanel?.capabilityItems || {
+    codeExecution: true,
+    webSearch: true,
+    fileContext: true,
+    artifacts: true,
+    fileSearch: true,
+  };
 
   const toolsEnabled = useMemo(
     () => agentsConfig?.capabilities?.includes(AgentCapabilities.tools) ?? false,
@@ -201,15 +222,17 @@ export default function AgentConfig({
               />
             )}
           />
-          <Controller
-            name="id"
-            control={control}
-            render={({ field }) => (
-              <p className="h-3 text-xs italic text-text-secondary" aria-live="polite">
-                {field.value}
-              </p>
-            )}
-          />
+          {agentPanelConfig.agentId !== false && (
+            <Controller
+              name="id"
+              control={control}
+              render={({ field }) => (
+                <p className="h-3 text-xs italic text-text-secondary" aria-live="polite">
+                  {field.value}
+                </p>
+              )}
+            />
+          )}
         </div>
         {/* Description */}
         <div className="mb-4">
@@ -234,164 +257,170 @@ export default function AgentConfig({
           />
         </div>
         {/* Instructions */}
-        <Instructions />
+        {agentPanelConfig.instructions !== false && <Instructions />}
         {/* Model and Provider */}
-        <div className="mb-4">
-          <label className={labelClass} htmlFor="provider">
-            {localize('com_ui_model')} <span className="text-red-500">*</span>
-          </label>
-          <button
-            type="button"
-            onClick={() => setActivePanel(Panel.model)}
-            className="btn btn-neutral border-token-border-light relative h-10 w-full rounded-lg font-medium"
-            aria-haspopup="true"
-            aria-expanded="false"
-          >
-            <div className="flex w-full items-center gap-2">
-              {Icon && (
-                <div className="shadow-stroke relative flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white text-black dark:bg-white">
-                  <Icon
-                    className="h-2/3 w-2/3"
-                    endpoint={providerValue as string}
-                    endpointType={endpointType}
-                    iconURL={endpointIconURL}
-                  />
-                </div>
-              )}
-              <span>{model != null && model ? model : localize('com_ui_select_model')}</span>
-            </div>
-          </button>
-        </div>
-        {(codeEnabled ||
-          fileSearchEnabled ||
-          artifactsEnabled ||
-          ocrEnabled ||
-          webSearchEnabled) && (
+        {agentPanelConfig.modelSelection !== false && (
+          <div className="mb-4">
+            <label className={labelClass} htmlFor="provider">
+              {localize('com_ui_model')} <span className="text-red-500">*</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setActivePanel(Panel.model)}
+              className="btn btn-neutral border-token-border-light relative h-10 w-full rounded-lg font-medium"
+              aria-haspopup="true"
+              aria-expanded="false"
+            >
+              <div className="flex w-full items-center gap-2">
+                {Icon && (
+                  <div className="shadow-stroke relative flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white text-black dark:bg-white">
+                    <Icon
+                      className="h-2/3 w-2/3"
+                      endpoint={providerValue as string}
+                      endpointType={endpointType}
+                      iconURL={endpointIconURL}
+                    />
+                  </div>
+                )}
+                <span>{model != null && model ? model : localize('com_ui_select_model')}</span>
+              </div>
+            </button>
+          </div>
+        )}
+        {agentPanelConfig.capabilities !== false && (
+          (capabilityItemsConfig.codeExecution !== false && codeEnabled) ||
+          (capabilityItemsConfig.fileSearch !== false && fileSearchEnabled) ||
+          (capabilityItemsConfig.artifacts !== false && artifactsEnabled) ||
+          (capabilityItemsConfig.fileContext !== false && ocrEnabled) ||
+          (capabilityItemsConfig.webSearch !== false && webSearchEnabled)
+        ) && (
           <div className="mb-4 flex w-full flex-col items-start gap-3">
             <label className="text-token-text-primary block font-medium">
               {localize('com_assistants_capabilities')}
             </label>
             {/* Code Execution */}
-            {codeEnabled && <CodeForm agent_id={agent_id} files={code_files} />}
+            {capabilityItemsConfig.codeExecution !== false && codeEnabled && <CodeForm agent_id={agent_id} files={code_files} />}
             {/* Web Search */}
-            {webSearchEnabled && <SearchForm />}
+            {capabilityItemsConfig.webSearch !== false && webSearchEnabled && <SearchForm />}
             {/* File Context (OCR) */}
-            {ocrEnabled && <FileContext agent_id={agent_id} files={context_files} />}
+            {capabilityItemsConfig.fileContext !== false && ocrEnabled && <FileContext agent_id={agent_id} files={context_files} />}
             {/* Artifacts */}
-            {artifactsEnabled && <Artifacts />}
+            {capabilityItemsConfig.artifacts !== false && artifactsEnabled && <Artifacts />}
             {/* File Search */}
-            {fileSearchEnabled && <FileSearch agent_id={agent_id} files={knowledge_files} />}
+            {capabilityItemsConfig.fileSearch !== false && fileSearchEnabled && <FileSearch agent_id={agent_id} files={knowledge_files} />}
           </div>
         )}
         {/* Agent Tools & Actions */}
-        <div className="mb-4">
-          <div className="mb-2 flex items-center justify-between">
-            <label className="text-token-text-primary block font-medium">
-              {`${toolsEnabled === true ? localize('com_ui_tools') : ''}
-                ${toolsEnabled === true && actionsEnabled === true ? ' + ' : ''}
-                ${actionsEnabled === true ? localize('com_assistants_actions') : ''}`}
-            </label>
-            {(() => {
-              const validToolsCount = tools?.filter(tool => allTools.find(t => t.pluginKey === tool)).length ?? 0;
-              const validActionsCount = actions?.filter((action) => action.agent_id === agent_id).length ?? 0;
-              const totalCount = validToolsCount + validActionsCount;
-              
-              return totalCount > 0 ? (
-                <span className="rounded-full bg-surface-tertiary px-2 py-1 text-xs text-text-secondary">
-                  {totalCount}
-                </span>
-              ) : null;
-            })()}
-          </div>
-          <div className="space-y-2">
-            {/* Tools and Actions Container with Scrolling */}
-            {(() => {
-              const validTools = tools?.filter(tool => allTools.find(t => t.pluginKey === tool)) ?? [];
-              const validActions = actions?.filter((action) => action.agent_id === agent_id) ?? [];
-              const hasItems = validTools.length > 0 || validActions.length > 0;
-              
-              if (!hasItems) {
+        {(agentPanelConfig.tools !== false || agentPanelConfig.actions !== false) && (
+          <div className="mb-4">
+            <div className="mb-2 flex items-center justify-between">
+              <label className="text-token-text-primary block font-medium">
+                {`${toolsEnabled === true && agentPanelConfig.tools !== false ? localize('com_ui_tools') : ''}
+                  ${toolsEnabled === true && agentPanelConfig.tools !== false && actionsEnabled === true && agentPanelConfig.actions !== false ? ' + ' : ''}
+                  ${actionsEnabled === true && agentPanelConfig.actions !== false ? localize('com_assistants_actions') : ''}`}
+              </label>
+              {(() => {
+                const validToolsCount = agentPanelConfig.tools !== false ? tools?.filter(tool => allTools.find(t => t.pluginKey === tool)).length ?? 0 : 0;
+                const validActionsCount = agentPanelConfig.actions !== false ? actions?.filter((action) => action.agent_id === agent_id).length ?? 0 : 0;
+                const totalCount = validToolsCount + validActionsCount;
+                
+                return totalCount > 0 ? (
+                  <span className="rounded-full bg-surface-tertiary px-2 py-1 text-xs text-text-secondary">
+                    {totalCount}
+                  </span>
+                ) : null;
+              })()}
+            </div>
+            <div className="space-y-2">
+              {/* Tools and Actions Container with Scrolling */}
+              {(() => {
+                const validTools = agentPanelConfig.tools !== false ? tools?.filter(tool => allTools.find(t => t.pluginKey === tool)) ?? [] : [];
+                const validActions = agentPanelConfig.actions !== false ? actions?.filter((action) => action.agent_id === agent_id) ?? [] : [];
+                const hasItems = validTools.length > 0 || validActions.length > 0;
+                
+                if (!hasItems) {
+                  return (
+                    <div className="rounded-lg border border-dashed border-border-medium bg-surface-primary p-4 text-center">
+                      <p className="text-sm text-text-secondary">
+                        {toolsEnabled && agentPanelConfig.tools !== false && actionsEnabled && agentPanelConfig.actions !== false
+                          ? 'No tools or actions added yet' 
+                          : toolsEnabled && agentPanelConfig.tools !== false
+                          ? 'No tools added yet'
+                          : actionsEnabled && agentPanelConfig.actions !== false
+                          ? 'No actions added yet'
+                          : 'Tools and actions not available'
+                        }
+                      </p>
+                    </div>
+                  );
+                }
+                
                 return (
-                  <div className="rounded-lg border border-dashed border-border-medium bg-surface-primary p-4 text-center">
-                    <p className="text-sm text-text-secondary">
-                      {toolsEnabled && actionsEnabled 
-                        ? 'No tools or actions added yet' 
-                        : toolsEnabled 
-                        ? 'No tools added yet'
-                        : actionsEnabled 
-                        ? 'No actions added yet'
-                        : 'Tools and actions not available'
-                      }
-                    </p>
+                  <div 
+                    className={cn(
+                      "space-y-2 rounded-lg border border-border-light bg-surface-primary p-2",
+                      (validTools.length + validActions.length) > 4
+                        ? "max-h-60 overflow-y-auto"
+                        : ""
+                    )}
+                    style={{
+                      scrollbarWidth: 'thin',
+                      scrollbarColor: 'rgb(156 163 175) transparent',
+                    }}
+                  >
+                    {agentPanelConfig.tools !== false && validTools.map((func, i) => (
+                      <AgentTool
+                        key={`${func}-${i}-${agent_id}`}
+                        tool={func}
+                        allTools={allTools}
+                        agent_id={agent_id}
+                      />
+                    ))}
+                    {agentPanelConfig.actions !== false && validActions.map((action, i) => (
+                      <Action
+                        key={i}
+                        action={action}
+                        onClick={() => {
+                          setAction(action);
+                          setActivePanel(Panel.actions);
+                        }}
+                      />
+                    ))}
                   </div>
                 );
-              }
+              })()}
               
-              return (
-                <div 
-                  className={cn(
-                    "space-y-2 rounded-lg border border-border-light bg-surface-primary p-2",
-                    (validTools.length + validActions.length) > 4
-                      ? "max-h-60 overflow-y-auto"
-                      : ""
-                  )}
-                  style={{
-                    scrollbarWidth: 'thin',
-                    scrollbarColor: 'rgb(156 163 175) transparent',
-                  }}
-                >
-                  {validTools.map((func, i) => (
-                    <AgentTool
-                      key={`${func}-${i}-${agent_id}`}
-                      tool={func}
-                      allTools={allTools}
-                      agent_id={agent_id}
-                    />
-                  ))}
-                  {validActions.map((action, i) => (
-                    <Action
-                      key={i}
-                      action={action}
-                      onClick={() => {
-                        setAction(action);
-                        setActivePanel(Panel.actions);
-                      }}
-                    />
-                  ))}
-                </div>
-              );
-            })()}
-            
-            {/* Add Tools/Actions Buttons */}
-            <div className="flex space-x-2">
-              {(toolsEnabled ?? false) && (
-                <button
-                  type="button"
-                  onClick={() => setShowToolDialog(true)}
-                  className="btn btn-neutral border-token-border-light relative h-9 w-full rounded-lg font-medium"
-                  aria-haspopup="dialog"
-                >
-                  <div className="flex w-full items-center justify-center gap-2">
-                    {localize('com_assistants_add_tools')}
-                  </div>
-                </button>
-              )}
-              {(actionsEnabled ?? false) && (
-                <button
-                  type="button"
-                  disabled={!agent_id}
-                  onClick={handleAddActions}
-                  className="btn btn-neutral border-token-border-light relative h-9 w-full rounded-lg font-medium"
-                  aria-haspopup="dialog"
-                >
-                  <div className="flex w-full items-center justify-center gap-2">
-                    {localize('com_assistants_add_actions')}
-                  </div>
-                </button>
-              )}
+              {/* Add Tools/Actions Buttons */}
+              <div className="flex space-x-2">
+                {(toolsEnabled ?? false) && agentPanelConfig.tools !== false && (
+                  <button
+                    type="button"
+                    onClick={() => setShowToolDialog(true)}
+                    className="btn btn-neutral border-token-border-light relative h-9 w-full rounded-lg font-medium"
+                    aria-haspopup="dialog"
+                  >
+                    <div className="flex w-full items-center justify-center gap-2">
+                      {localize('com_assistants_add_tools')}
+                    </div>
+                  </button>
+                )}
+                {(actionsEnabled ?? false) && agentPanelConfig.actions !== false && (
+                  <button
+                    type="button"
+                    disabled={!agent_id}
+                    onClick={handleAddActions}
+                    className="btn btn-neutral border-token-border-light relative h-9 w-full rounded-lg font-medium"
+                    aria-haspopup="dialog"
+                  >
+                    <div className="flex w-full items-center justify-center gap-2">
+                      {localize('com_assistants_add_actions')}
+                    </div>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
       <ToolSelectDialog
         isOpen={showToolDialog}

@@ -2,7 +2,7 @@ import { useWatch, useFormContext } from 'react-hook-form';
 import { SystemRoles, Permissions, PermissionTypes } from 'librechat-data-provider';
 import type { AgentForm, AgentPanelProps } from '~/common';
 import { useLocalize, useAuthContext, useHasAccess } from '~/hooks';
-import { useUpdateAgentMutation } from '~/data-provider';
+import { useUpdateAgentMutation, useGetStartupConfig } from '~/data-provider';
 import AdvancedButton from './Advanced/AdvancedButton';
 import DuplicateAgent from './DuplicateAgent';
 import AdminSettings from './AdminSettings';
@@ -26,12 +26,18 @@ export default function AgentFooter({
 }) {
   const localize = useLocalize();
   const { user } = useAuthContext();
+  const { data: startupConfig } = useGetStartupConfig();
 
   const methods = useFormContext<AgentForm>();
 
   const { control } = methods;
   const agent = useWatch({ control, name: 'agent' });
   const agent_id = useWatch({ control, name: 'id' });
+
+  // Agent panel UI visibility controls
+  const agentPanelConfig = startupConfig?.interface?.agentPanel || {
+    version: true,
+  };
 
   const hasAccessToShareAgents = useHasAccess({
     permissionType: PermissionTypes.AGENTS,
@@ -55,7 +61,7 @@ export default function AgentFooter({
   return (
     <div className="mb-1 flex w-full flex-col gap-2">
       {showButtons && <AdvancedButton setActivePanel={setActivePanel} />}
-      {showButtons && agent_id && <VersionButton setActivePanel={setActivePanel} />}
+      {showButtons && agent_id && agentPanelConfig.version !== false && <VersionButton setActivePanel={setActivePanel} />}
       {user?.role === SystemRoles.ADMIN && showButtons && <AdminSettings />}
       {/* Context Button */}
       <div className="flex items-center justify-end gap-2">
