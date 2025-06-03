@@ -231,18 +231,37 @@ router.post('/webhook', async (req, res) => {
         eventUserId = event.data.object.metadata?.userId;
       } else if (event.type.startsWith('invoice.')) {
         // For invoice events, get user from subscription metadata
-        if (event.data.object.subscription) {
+        const invoice = event.data.object;
+        if (invoice.subscription) {
           try {
             const stripe = stripeService.stripe;
-            const subscription = await stripe.subscriptions.retrieve(event.data.object.subscription);
+            const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
             eventUserId = subscription.metadata?.userId;
+            
+            logger.debug(`Extracted user ID from subscription for invoice event`, {
+              eventId: event.id,
+              invoiceId: invoice.id,
+              subscriptionId: invoice.subscription,
+              userId: eventUserId
+            });
           } catch (error) {
-            logger.warn('Could not retrieve subscription for invoice event:', error);
+            logger.warn('Could not retrieve subscription for invoice event:', error, {
+              eventId: event.id,
+              subscriptionId: invoice.subscription
+            });
           }
+        } else {
+          logger.warn('Invoice event has no subscription ID', {
+            eventId: event.id,
+            invoiceId: invoice.id
+          });
         }
       }
     } catch (error) {
-      logger.warn('Error extracting user ID from event:', error);
+      logger.warn('Error extracting user ID from event:', error, {
+        eventId: event.id,
+        eventType: event.type
+      });
     }
 
     // Create a marker transaction to track that we've processed this event
@@ -554,8 +573,47 @@ async function handlePaymentSucceeded(invoice, eventId) {
   try {
     const { customer, subscription: subscriptionId, id: invoiceId } = invoice;
     
+    logger.debug(`Processing invoice payment`, {
+      eventId,
+      invoiceId,
+      customerId: customer,
+      subscriptionId,
+      hasSubscription: !!subscriptionId,
+      billingReason: invoice.billing_reason
+    });
+    
     if (!subscriptionId) {
-      logger.info('Payment succeeded for non-subscription invoice, skipping credit top-up');
+      logger.info('Payment succeeded for non-subscription invoice, skipping credit top-up', {
+        eventId,
+        invoiceId,
+        customerId: customer,
+        billingReason: invoice.billing_reason
+      });
+      return;
+    }
+
+    // CRITICAL SECURITY: Prevent double crediting for initial subscription payment
+    // Initial subscription credits are handled by checkout.session.completed
+    // Only process recurring billing cycles here
+    if (invoice.billing_reason === 'subscription_create') {
+      logger.info('Skipping initial subscription invoice - credits already added via checkout completion', {
+        eventId,
+        invoiceId,
+        subscriptionId,
+        billingReason: invoice.billing_reason
+      });
+      return;
+    }
+
+    // Only process recurring subscription invoices
+    if (invoice.billing_reason !== 'subscription_cycle') {
+      logger.info('Skipping non-recurring invoice payment', {
+        eventId,
+        invoiceId,
+        subscriptionId,
+        billingReason: invoice.billing_reason,
+        supportedReasons: ['subscription_cycle']
+      });
       return;
     }
 
@@ -564,8 +622,20 @@ async function handlePaymentSucceeded(invoice, eventId) {
     try {
       const stripe = stripeService.stripe;
       subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      
+      logger.debug(`Retrieved subscription for invoice`, {
+        eventId,
+        subscriptionId,
+        subscriptionStatus: subscription.status,
+        hasMetadata: !!subscription.metadata,
+        userId: subscription.metadata?.userId
+      });
     } catch (error) {
-      logger.error('Error retrieving subscription for payment:', error);
+      logger.error('Error retrieving subscription for payment:', error, {
+        eventId,
+        subscriptionId,
+        invoiceId
+      });
       return;
     }
     
@@ -575,7 +645,9 @@ async function handlePaymentSucceeded(invoice, eventId) {
       logger.error('No userId found in subscription metadata for payment', {
         subscriptionId,
         invoiceId,
-        customerId: customer
+        customerId: customer,
+        eventId,
+        metadata: subscription.metadata
       });
       return;
     }
@@ -588,7 +660,9 @@ async function handlePaymentSucceeded(invoice, eventId) {
       logger.error(`Unable to determine credit amount for payment price ID: ${priceId}`, {
         subscriptionId,
         invoiceId,
-        userId
+        userId,
+        eventId,
+        priceId
       });
       return;
     }
@@ -597,7 +671,9 @@ async function handlePaymentSucceeded(invoice, eventId) {
       subscriptionId,
       invoiceId,
       customerId: customer,
-      priceId
+      priceId,
+      eventId,
+      billingReason: invoice.billing_reason
     });
     
     // Add credits to user balance for successful billing cycle
@@ -610,7 +686,8 @@ async function handlePaymentSucceeded(invoice, eventId) {
         customerId: customer,
         priceId,
         subscriptionStatus: subscription.status,
-        type: 'recurring_payment'
+        type: 'recurring_payment',
+        billingReason: invoice.billing_reason
       }
     });
 
@@ -619,19 +696,24 @@ async function handlePaymentSucceeded(invoice, eventId) {
         transactionId: result.transaction,
         newBalance: result.newBalance,
         subscriptionId,
-        invoiceId
+        invoiceId,
+        eventId
       });
     } else {
       logger.error(`Failed to process recurring payment: ${result.reason}`, {
         userId,
         credits,
         subscriptionId,
-        invoiceId
+        invoiceId,
+        eventId
       });
     }
     
   } catch (error) {
-    logger.error('Error handling payment success:', error);
+    logger.error('Error handling payment success:', error, {
+      eventId,
+      invoiceId: invoice.id
+    });
   }
 }
 
