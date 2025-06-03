@@ -183,18 +183,32 @@ router.post('/create-portal-session', requireJwtAuth, async (req, res) => {
 /**
  * Stripe webhook handler
  * This endpoint should NOT require authentication as it's called by Stripe
+ * Raw body parsing is handled in index.js middleware
  */
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+router.post('/webhook', async (req, res) => {
   const signature = req.headers['stripe-signature'];
   
   try {
     const event = stripeService.verifyWebhookSignature(req.body, signature);
     
+    // Check event age - ignore very old events (more than 2 hours)
+    const eventAge = Date.now() - (event.created * 1000);
+    
     logger.info(`Webhook event received: ${event.type}`, { 
       eventId: event.id,
       created: new Date(event.created * 1000),
+      ageMinutes: Math.round(eventAge / 60000),
       livemode: event.livemode
     });
+
+    if (eventAge > 7200000) { // 2 hours
+      logger.warn(`Ignoring old webhook event`, {
+        eventId: event.id,
+        eventType: event.type,
+        ageHours: Math.round(eventAge / 3600000)
+      });
+      return res.json({ received: true, status: 'old_event_ignored' });
+    }
 
     // CRITICAL: Check if we've already processed this exact event
     const eventTransactionId = `stripe_event_${event.id}`;
@@ -281,6 +295,17 @@ async function handleCheckoutCompleted(session, eventId) {
   try {
     const { customer, client_reference_id, metadata, payment_status } = session;
     
+    // Log session details for debugging
+    logger.info(`Processing checkout session`, {
+      sessionId: session.id,
+      eventId,
+      paymentStatus: payment_status,
+      customerId: customer,
+      clientRefId: client_reference_id,
+      metadata: metadata,
+      created: new Date(session.created * 1000)
+    });
+    
     // CRITICAL: Only process if payment was actually successful
     if (payment_status !== 'paid') {
       logger.info(`Checkout session not yet paid, skipping credit addition`, {
@@ -294,10 +319,24 @@ async function handleCheckoutCompleted(session, eventId) {
     const userId = metadata?.userId || client_reference_id;
     
     if (!userId) {
-      logger.error('No userId found in checkout session metadata', { 
+      logger.error('No userId found in checkout session metadata - this might be an old session from before metadata fix', { 
         sessionId: session.id,
-        eventId 
+        eventId,
+        metadata: metadata,
+        clientRefId: client_reference_id,
+        created: new Date(session.created * 1000)
       });
+      
+      // For very old sessions (more than 1 hour), just ignore them
+      const sessionAge = Date.now() - (session.created * 1000);
+      if (sessionAge > 3600000) { // 1 hour
+        logger.info(`Ignoring old checkout session without proper metadata`, {
+          sessionId: session.id,
+          ageMinutes: Math.round(sessionAge / 60000)
+        });
+        return;
+      }
+      
       return;
     }
 
