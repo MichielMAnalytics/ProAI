@@ -45,37 +45,46 @@ class StripeService {
         baseUrl,
         successUrl,
         cancelUrl,
-        domainServer: process.env.DOMAIN_SERVER
+        priceId,
+        userEmail,
+        userId,
+        credits
       });
 
       const session = await this.stripe.checkout.sessions.create({
+        mode: 'subscription',
         payment_method_types: ['card'],
+        customer_email: userEmail,
+        client_reference_id: userId, // Backup way to identify user
         line_items: [
           {
             price: priceId,
             quantity: 1,
           },
         ],
-        mode: 'subscription',
         success_url: successUrl,
         cancel_url: cancelUrl,
-        customer_email: userEmail,
         metadata: {
-          userId,
+          userId: userId,
           credits: credits.toString(),
+          userEmail: userEmail,
         },
-        allow_promotion_codes: true,
+        subscription_data: {
+          metadata: {
+            userId: userId,
+            credits: credits.toString(),
+            userEmail: userEmail,
+          },
+        },
         billing_address_collection: 'required',
-      });
-
-      logger.info('Stripe checkout session created:', {
-        sessionId: session.id,
-        url: session.url
+        automatic_tax: {
+          enabled: true,
+        },
       });
 
       return session;
     } catch (error) {
-      logger.error('Error creating Stripe checkout session:', error);
+      logger.error('Error creating checkout session:', error);
       throw error;
     }
   }

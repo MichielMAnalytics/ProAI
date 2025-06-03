@@ -1,6 +1,7 @@
 const express = require('express');
 const { requireJwtAuth } = require('~/server/middleware');
 const stripeService = require('~/server/services/StripeService');
+const BalanceService = require('~/server/services/BalanceService');
 const { logger } = require('~/config');
 
 const router = express.Router();
@@ -179,12 +180,68 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
  */
 async function handleCheckoutCompleted(session) {
   try {
-    const { userId, credits } = session.metadata;
+    const { customer, client_reference_id, metadata } = session;
+    const userId = metadata?.userId || client_reference_id;
     
-    logger.info(`Checkout completed for user ${userId}, credits: ${credits}`);
+    if (!userId) {
+      logger.error('No userId found in checkout session metadata');
+      return;
+    }
+
+    // Extract credits from line items
+    let lineItems;
+    try {
+      const stripe = stripeService.stripe;
+      lineItems = await stripe.checkout.sessions.listLineItems(session.id);
+    } catch (error) {
+      logger.error('Error retrieving line items from checkout session:', error);
+      return;
+    }
     
-    // TODO: Update user's subscription in database
-    // You can update the user's plan, credits, and subscription status here
+    if (!lineItems.data || lineItems.data.length === 0) {
+      logger.error('No line items found in checkout session');
+      return;
+    }
+
+    const priceId = lineItems.data[0].price.id;
+    const credits = BalanceService.getCreditAmountFromPriceId(priceId);
+    
+    if (!credits) {
+      logger.error(`Unable to determine credit amount for price ID: ${priceId}`);
+      return;
+    }
+
+    logger.info(`Checkout completed for user ${userId}, credits: ${credits}`, {
+      sessionId: session.id,
+      customerId: customer,
+      priceId
+    });
+    
+    // Add credits to user balance
+    const result = await BalanceService.addCredits({
+      userId,
+      credits,
+      transactionId: `checkout_${session.id}`,
+      stripeData: {
+        customerId: customer,
+        priceId,
+        sessionId: session.id,
+        type: 'initial_subscription'
+      }
+    });
+
+    if (result.success) {
+      logger.info(`Credits successfully added: ${credits} credits for user ${userId}`, {
+        transactionId: result.transaction,
+        newBalance: result.newBalance
+      });
+    } else {
+      logger.warn(`Failed to add credits: ${result.reason}`, {
+        userId,
+        credits,
+        sessionId: session.id
+      });
+    }
     
   } catch (error) {
     logger.error('Error handling checkout completion:', error);
@@ -196,11 +253,31 @@ async function handleCheckoutCompleted(session) {
  */
 async function handleSubscriptionCreated(subscription) {
   try {
-    const { userId, credits } = subscription.metadata;
+    const { customer, metadata, items } = subscription;
+    const userId = metadata?.userId;
     
-    logger.info(`Subscription created for user ${userId}, credits: ${credits}`);
+    if (!userId) {
+      logger.error('No userId found in subscription metadata');
+      return;
+    }
+
+    // Get credits from price ID
+    const priceId = items.data[0]?.price?.id;
+    const credits = BalanceService.getCreditAmountFromPriceId(priceId);
     
-    // TODO: Update user's subscription status in database
+    if (!credits) {
+      logger.error(`Unable to determine credit amount for subscription price ID: ${priceId}`);
+      return;
+    }
+    
+    logger.info(`Subscription created for user ${userId}, credits: ${credits}`, {
+      subscriptionId: subscription.id,
+      customerId: customer,
+      priceId
+    });
+    
+    // Note: For subscriptions, credits are typically added on invoice.payment_succeeded
+    // This handler mainly logs the subscription creation
     
   } catch (error) {
     logger.error('Error handling subscription creation:', error);
@@ -240,15 +317,87 @@ async function handleSubscriptionDeleted(subscription) {
 }
 
 /**
- * Handle successful payment
+ * Handle successful payment (recurring billing)
  */
 async function handlePaymentSucceeded(invoice) {
   try {
-    const subscriptionId = invoice.subscription;
+    const { customer, subscription: subscriptionId, id: invoiceId } = invoice;
     
-    logger.info(`Payment succeeded for subscription ${subscriptionId}`);
+    if (!subscriptionId) {
+      logger.info('Payment succeeded for non-subscription invoice, skipping credit top-up');
+      return;
+    }
+
+    // Get subscription details to extract metadata and line items
+    let subscription;
+    try {
+      const stripe = stripeService.stripe;
+      subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    } catch (error) {
+      logger.error('Error retrieving subscription for payment:', error);
+      return;
+    }
     
-    // TODO: Update user's payment status and renew credits
+    const userId = subscription.metadata?.userId;
+    
+    if (!userId) {
+      logger.error('No userId found in subscription metadata for payment', {
+        subscriptionId,
+        invoiceId,
+        customerId: customer
+      });
+      return;
+    }
+
+    // Get credits from subscription price ID
+    const priceId = subscription.items.data[0]?.price?.id;
+    const credits = BalanceService.getCreditAmountFromPriceId(priceId);
+    
+    if (!credits) {
+      logger.error(`Unable to determine credit amount for payment price ID: ${priceId}`, {
+        subscriptionId,
+        invoiceId,
+        userId
+      });
+      return;
+    }
+    
+    logger.info(`Payment succeeded for user ${userId}, adding ${credits} credits`, {
+      subscriptionId,
+      invoiceId,
+      customerId: customer,
+      priceId
+    });
+    
+    // Add credits to user balance for successful billing cycle
+    const result = await BalanceService.handleSubscriptionRenewal({
+      userId,
+      credits,
+      subscriptionId,
+      invoiceId,
+      stripeData: {
+        customerId: customer,
+        priceId,
+        subscriptionStatus: subscription.status,
+        type: 'recurring_payment'
+      }
+    });
+
+    if (result.success) {
+      logger.info(`Recurring payment processed: ${credits} credits added for user ${userId}`, {
+        transactionId: result.transaction,
+        newBalance: result.newBalance,
+        subscriptionId,
+        invoiceId
+      });
+    } else {
+      logger.error(`Failed to process recurring payment: ${result.reason}`, {
+        userId,
+        credits,
+        subscriptionId,
+        invoiceId
+      });
+    }
     
   } catch (error) {
     logger.error('Error handling payment success:', error);
@@ -260,11 +409,37 @@ async function handlePaymentSucceeded(invoice) {
  */
 async function handlePaymentFailed(invoice) {
   try {
-    const subscriptionId = invoice.subscription;
+    const { customer, subscription: subscriptionId, id: invoiceId } = invoice;
     
-    logger.error(`Payment failed for subscription ${subscriptionId}`);
+    if (!subscriptionId) {
+      logger.info('Payment failed for non-subscription invoice');
+      return;
+    }
+
+    // Get subscription details to extract user info
+    let subscription;
+    try {
+      const stripe = stripeService.stripe;
+      subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    } catch (error) {
+      logger.error('Error retrieving subscription for failed payment:', error);
+      return;
+    }
     
-    // TODO: Handle failed payment (send notification, grace period, etc.)
+    const userId = subscription.metadata?.userId;
+    
+    logger.warn(`Payment failed for user ${userId}`, {
+      subscriptionId,
+      invoiceId,
+      customerId: customer,
+      attemptCount: invoice.attempt_count,
+      nextPaymentAttempt: invoice.next_payment_attempt
+    });
+    
+    // Note: You might want to implement additional logic here:
+    // - Send notification to user about failed payment
+    // - Potentially reduce credits or suspend account after multiple failures
+    // - Update subscription status in your database
     
   } catch (error) {
     logger.error('Error handling payment failure:', error);
