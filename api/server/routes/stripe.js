@@ -232,29 +232,100 @@ router.post('/webhook', async (req, res) => {
       } else if (event.type.startsWith('invoice.')) {
         // For invoice events, get user from subscription metadata
         const invoice = event.data.object;
+        
+        // Log invoice details for debugging
+        logger.warn(`Processing invoice event - full context`, {
+          eventId: event.id,
+          eventType: event.type,
+          invoiceId: invoice.id,
+          customerId: invoice.customer,
+          subscriptionId: invoice.subscription,
+          billingReason: invoice.billing_reason,
+          invoiceStatus: invoice.status,
+          hasSubscription: !!invoice.subscription,
+          invoiceMetadata: invoice.metadata,
+          linesCount: invoice.lines?.data?.length || 0
+        });
+        
         if (invoice.subscription) {
           try {
             const stripe = stripeService.stripe;
             const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
             eventUserId = subscription.metadata?.userId;
             
-            logger.debug(`Extracted user ID from subscription for invoice event`, {
+            logger.warn(`Retrieved subscription for user ID extraction`, {
               eventId: event.id,
               invoiceId: invoice.id,
               subscriptionId: invoice.subscription,
-              userId: eventUserId
+              subscriptionMetadata: subscription.metadata,
+              extractedUserId: eventUserId,
+              subscriptionStatus: subscription.status
             });
           } catch (error) {
             logger.warn('Could not retrieve subscription for invoice event:', error, {
               eventId: event.id,
-              subscriptionId: invoice.subscription
+              subscriptionId: invoice.subscription,
+              invoiceId: invoice.id
             });
           }
         } else {
-          logger.warn('Invoice event has no subscription ID', {
+          // Try alternative user ID extraction methods for invoices without subscription
+          logger.warn('Invoice event has no subscription ID - attempting alternative extraction', {
             eventId: event.id,
-            invoiceId: invoice.id
+            invoiceId: invoice.id,
+            customerId: invoice.customer,
+            billingReason: invoice.billing_reason
           });
+          
+          // Try to extract from recent checkout sessions for this customer
+          try {
+            const stripe = stripeService.stripe;
+            const sessions = await stripe.checkout.sessions.list({
+              customer: invoice.customer,
+              limit: 10,
+            });
+            
+            logger.warn(`Found ${sessions.data.length} checkout sessions for customer`, {
+              eventId: event.id,
+              invoiceId: invoice.id,
+              customerId: invoice.customer,
+              sessionsFound: sessions.data.length
+            });
+            
+            // Find recent session with userId in metadata
+            const recentSession = sessions.data.find(session => 
+              session.metadata?.userId && 
+              Date.now() - new Date(session.created * 1000).getTime() < 3600000 // Within last hour
+            );
+            
+            if (recentSession) {
+              eventUserId = recentSession.metadata.userId;
+              logger.warn(`Extracted user ID from recent checkout session`, {
+                eventId: event.id,
+                invoiceId: invoice.id,
+                sessionId: recentSession.id,
+                extractedUserId: eventUserId,
+                sessionMetadata: recentSession.metadata
+              });
+            } else {
+              logger.warn(`No recent checkout sessions with userId found`, {
+                eventId: event.id,
+                invoiceId: invoice.id,
+                customerId: invoice.customer,
+                allSessions: sessions.data.map(s => ({
+                  id: s.id,
+                  created: new Date(s.created * 1000),
+                  metadata: s.metadata
+                }))
+              });
+            }
+          } catch (error) {
+            logger.warn('Error retrieving checkout sessions for user ID extraction:', error, {
+              eventId: event.id,
+              invoiceId: invoice.id,
+              customerId: invoice.customer
+            });
+          }
         }
       }
     } catch (error) {
@@ -264,11 +335,28 @@ router.post('/webhook', async (req, res) => {
       });
     }
 
+    // Log final user ID extraction result
+    logger.warn(`Final user ID extraction result`, {
+      eventId: event.id,
+      eventType: event.type,
+      extractedUserId: eventUserId,
+      willUseFakeId: !eventUserId
+    });
+
     // Create a marker transaction to track that we've processed this event
     // NOTE: Use direct save to avoid triggering balance updates for event tracking
     try {
+      const finalUserId = eventUserId ? new mongoose.Types.ObjectId(eventUserId) : new mongoose.Types.ObjectId('000000000000000000000000');
+      
+      logger.warn(`Creating event tracking transaction`, {
+        eventId: event.id,
+        eventType: event.type,
+        userIdForTransaction: finalUserId.toString(),
+        isRealUser: !!eventUserId
+      });
+      
       const eventTracker = new Transaction({
-        user: eventUserId ? new mongoose.Types.ObjectId(eventUserId) : new mongoose.Types.ObjectId('000000000000000000000000'),
+        user: finalUserId,
         tokenType: 'credits',
         rawAmount: 0,
         tokenValue: 0, // Explicitly set to 0
@@ -282,15 +370,19 @@ router.post('/webhook', async (req, res) => {
       // Save directly without triggering Transaction.create() balance logic
       await eventTracker.save();
       
-      logger.debug(`Event tracking transaction created`, {
+      logger.warn(`Event tracking transaction created successfully`, {
         eventId: event.id,
         eventType: event.type,
-        userId: eventUserId || 'none',
-        transactionId: eventTracker._id
+        transactionId: eventTracker._id,
+        userIdUsed: finalUserId.toString()
       });
     } catch (error) {
       // If marker creation fails, log but continue processing
-      logger.warn('Failed to create event tracking marker:', error);
+      logger.warn('Failed to create event tracking marker:', error, {
+        eventId: event.id,
+        eventType: event.type,
+        attemptedUserId: eventUserId
+      });
     }
 
     // Respond to Stripe immediately to prevent retries
