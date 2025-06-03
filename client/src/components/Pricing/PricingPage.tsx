@@ -3,6 +3,7 @@ import { Check, ArrowRight, Crown, Zap, ChevronDown } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthContext } from '~/hooks';
 import { useGetUserBalance, useGetStartupConfig } from '~/data-provider';
+import { getTierEmoji } from '~/utils/tierEmojis';
 
 const PricingPage = () => {
   const navigate = useNavigate();
@@ -56,6 +57,21 @@ const PricingPage = () => {
     { credits: 3000000, price: 280 },
     { credits: 4000000, price: 350 },
   ];
+
+  // Function to get tier name and emoji for credit amount
+  const getTierInfoFromCredits = (credits: number) => {
+    const creditToTierMap: { [key: number]: { tier: string; tierName: string } } = {
+      100000: { tier: 'pro_1', tierName: 'Pro Tier 1' },
+      200000: { tier: 'pro_2', tierName: 'Pro Tier 2' },
+      400000: { tier: 'pro_3', tierName: 'Pro Tier 3' },
+      800000: { tier: 'pro_4', tierName: 'Pro Tier 4' },
+      1200000: { tier: 'pro_5', tierName: 'Pro Tier 5' },
+      2000000: { tier: 'pro_6', tierName: 'Pro Tier 6' },
+      3000000: { tier: 'pro_7', tierName: 'Pro Tier 7' },
+      4000000: { tier: 'pro_8', tierName: 'Pro Tier 8' },
+    };
+    return creditToTierMap[credits] || { tier: 'pro_1', tierName: 'Pro Tier 1' };
+  };
 
   const selectedOption = creditOptions.find(option => option.credits === selectedProCredits);
 
@@ -166,8 +182,8 @@ const PricingPage = () => {
 
   const faqItems = [
     {
-      question: "What is Eve and how does it work?",
-      answer: "Eve is an automation platform that provides extensive access to 2700+ apps and 10,000+ tools with no vendor lock-in. You can connect and automate workflows across different services while maintaining full control over your data and integrations."
+      question: "What is EVE and how does it work?",
+      answer: "EVE is an automation platform that provides extensive access to 2700+ apps and 10,000+ tools with no vendor lock-in. You can connect and automate workflows across different services while maintaining full control over your data and integrations."
     },
     {
       question: "What does the free plan include?",
@@ -326,7 +342,7 @@ const PricingPage = () => {
       const result = await response.json();
       
       // Show success message
-      alert(`Successfully downgraded to ${result.tierName}! Your subscription has been canceled.`);
+      alert(`Successfully downgraded to ${result.tierName}. Your subscription has been canceled.`);
       
       // Refresh the page to update the UI with new tier information
       window.location.reload();
@@ -405,9 +421,13 @@ const PricingPage = () => {
 
         {/* Header */}
         <div className="text-center mb-16">
-          <div className="w-12 h-12 mx-auto mb-6 rounded-lg" style={{
-            background: 'linear-gradient(135deg, var(--green-500) 0%, var(--green-600) 100%)'
-          }}></div>
+          <div className="w-12 h-12 mx-auto mb-6">
+            <img
+              src="/assets/logo.svg"
+              className="h-full w-full object-contain"
+              alt="EVE Logo"
+            />
+          </div>
           <h1 className="text-4xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
             Pricing
           </h1>
@@ -441,7 +461,7 @@ const PricingPage = () => {
 
             <div className="mb-8">
               <div className="text-sm font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>
-                5000 credits /month
+                🍼 5000 credits /month
               </div>
             </div>
 
@@ -473,7 +493,7 @@ const PricingPage = () => {
                   ? 'btn btn-secondary' 
                   : isDowngrading
                     ? 'border border-red-300 text-red-300 bg-gray-50 cursor-not-allowed rounded-lg'
-                    : 'border border-red-500 text-red-500 hover:bg-red-500 hover:text-white active:bg-red-600 active:text-white rounded-lg'
+                    : 'border border-red-500 text-red-500 hover:bg-red-50 hover:border-red-600 active:bg-red-100 active:border-red-700 rounded-lg'
               }`}
             >
               {isCurrentPlan('free') 
@@ -538,7 +558,12 @@ const PricingPage = () => {
                   color: 'var(--text-primary)'
                 }}
               >
-                <span>{formatCredits(selectedProCredits)} credits / month</span>
+                <span>
+                  {(() => {
+                    const tierInfo = getTierInfoFromCredits(selectedProCredits);
+                    return `${getTierEmoji(tierInfo.tierName, tierInfo.tier)} ${formatCredits(selectedProCredits)} credits / month`;
+                  })()}
+                </span>
                 <ChevronDown className="h-4 w-4" style={{ 
                   color: 'var(--text-secondary)',
                   transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
@@ -555,37 +580,40 @@ const PricingPage = () => {
                     boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)'
                   }}
                 >
-                  {creditOptions.map((option) => (
-                    <button
-                      key={option.credits}
-                      onClick={() => {
-                        setSelectedProCredits(option.credits);
-                        setIsDropdownOpen(false);
-                      }}
-                      className="w-full px-4 py-3 text-left transition-colors"
-                      style={{
-                        color: selectedProCredits === option.credits ? 'var(--green-600)' : 'var(--text-primary)',
-                        backgroundColor: selectedProCredits === option.credits ? 'var(--surface-hover)' : 'transparent'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (selectedProCredits !== option.credits) {
-                          e.currentTarget.style.backgroundColor = 'var(--surface-hover)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (selectedProCredits !== option.credits) {
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                        }
-                      }}
-                    >
-                      <div className="flex justify-between items-center">
-                        <span>{formatCredits(option.credits)} credits / month</span>
-                        {selectedProCredits === option.credits && (
-                          <Check className="h-4 w-4" style={{ color: 'var(--green-600)' }} />
-                        )}
-                      </div>
-                    </button>
-                  ))}
+                  {creditOptions.map((option) => {
+                    const tierInfo = getTierInfoFromCredits(option.credits);
+                    return (
+                      <button
+                        key={option.credits}
+                        onClick={() => {
+                          setSelectedProCredits(option.credits);
+                          setIsDropdownOpen(false);
+                        }}
+                        className="w-full px-4 py-3 text-left transition-colors"
+                        style={{
+                          color: selectedProCredits === option.credits ? 'var(--green-600)' : 'var(--text-primary)',
+                          backgroundColor: selectedProCredits === option.credits ? 'var(--surface-hover)' : 'transparent'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (selectedProCredits !== option.credits) {
+                            e.currentTarget.style.backgroundColor = 'var(--surface-hover)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (selectedProCredits !== option.credits) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }
+                        }}
+                      >
+                        <div className="flex justify-between items-center">
+                          <span>{getTierEmoji(tierInfo.tierName, tierInfo.tier)} {formatCredits(option.credits)} credits / month</span>
+                          {selectedProCredits === option.credits && (
+                            <Check className="h-4 w-4" style={{ color: 'var(--green-600)' }} />
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -616,7 +644,7 @@ const PricingPage = () => {
                 isCurrentSelectedPlan() 
                   ? 'btn btn-secondary'
                   : isSelectedPlanDowngrade()
-                    ? 'border border-red-500 text-red-500 hover:bg-red-500 hover:text-white active:bg-red-600 active:text-white rounded-lg'
+                    ? 'border border-red-500 text-red-500 hover:bg-red-50 hover:border-red-600 active:bg-red-100 active:border-red-700 rounded-lg'
                     : 'btn btn-primary'
               }`}
             >
@@ -641,7 +669,6 @@ const PricingPage = () => {
               <h3 className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
                 Enterprise
               </h3>
-              <Crown className="h-5 w-5" style={{ color: 'var(--text-secondary)' }} />
             </div>
 
             <div className="mb-8">

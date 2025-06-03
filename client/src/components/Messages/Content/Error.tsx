@@ -6,6 +6,7 @@ import { formatJSON, extractJson, isJson } from '~/utils/json';
 import { useNavigate } from 'react-router-dom';
 import useLocalize from '~/hooks/useLocalize';
 import { Button } from '~/components/ui';
+import { getTierEmoji } from '~/utils/tierEmojis';
 import CodeBlock from './CodeBlock';
 
 const localizedErrorPrefix = 'com_error';
@@ -27,6 +28,8 @@ type TTokenBalance = {
   prev_count: number;
   violation_count: number;
   date: Date;
+  tier?: string;
+  tierName?: string;
   generations?: TOpenAIMessage[];
 };
 
@@ -83,13 +86,68 @@ const errorMessages = {
     }.`;
   },
   token_balance: (json: TTokenBalance) => {
-    const { balance, tokenCost, promptTokens, generations } = json;
+    const { balance, tokenCost, promptTokens, generations, tier, tierName } = json;
     
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const navigate = useNavigate();
     
     const handleUpgrade = () => {
       navigate('/pricing');
+    };
+
+    // Determine upgrade message based on current tier
+    const getUpgradeMessage = () => {
+      if (tier === 'free') {
+        return 'Upgrade to Pro to get 100,000 credits per month and continue your conversations without interruption.';
+      } else if (tier?.startsWith('pro_')) {
+        // Extract tier number
+        const tierMatch = tier.match(/(\d+)/);
+        const tierNumber = tierMatch ? parseInt(tierMatch[1]) : 1;
+        
+        if (tierNumber < 8) {
+          // User can upgrade to next tier
+          const nextTierNumber = tierNumber + 1;
+          const nextTierCredits = getCreditsForTier(nextTierNumber);
+          return `Upgrade to Pro Tier ${nextTierNumber} to get ${formatCredits(nextTierCredits)} credits per month.`;
+        } else {
+          // User is on highest tier
+          return 'You\'re on our highest tier! Your credits will automatically refill next month.';
+        }
+      }
+      return 'Upgrade to Pro to get more credits and continue your conversations.';
+    };
+
+    const getCreditsForTier = (tierNumber: number): number => {
+      const tierCredits: { [key: number]: number } = {
+        1: 100000,
+        2: 200000,
+        3: 400000,
+        4: 800000,
+        5: 1200000,
+        6: 2000000,
+        7: 3000000,
+        8: 4000000,
+      };
+      return tierCredits[tierNumber] || 100000;
+    };
+
+    const formatCredits = (credits: number): string => {
+      if (credits >= 1000000) {
+        return (credits / 1000000).toFixed(1) + 'M';
+      } else if (credits >= 1000) {
+        return (credits / 1000).toFixed(0) + 'K';
+      }
+      return credits.toString();
+    };
+
+    const shouldShowUpgradeButton = () => {
+      // Don't show upgrade button if user is on the highest tier
+      if (tier?.startsWith('pro_')) {
+        const tierMatch = tier.match(/(\d+)/);
+        const tierNumber = tierMatch ? parseInt(tierMatch[1]) : 1;
+        return tierNumber < 8;
+      }
+      return true; // Show for free users
     };
     
     return (
@@ -110,26 +168,34 @@ const errorMessages = {
               </div>
               <div className="ml-3 flex-1">
                 <h3 className="text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>
+                  {tier && tierName && (
+                    <span className="mr-2">{getTierEmoji(tierName, tier)}</span>
+                  )}
                   You've reached your credit limit
                 </h3>
                 <p className="text-sm mb-3" style={{ color: 'var(--text-secondary)' }}>
-                  Upgrade to Pro to get 100,000 credits per month and continue your conversations without interruption.
+                  {getUpgradeMessage()}
                 </p>
                 <div className="text-xs mb-3" style={{ color: 'var(--text-tertiary)' }}>
                   Balance: {balance} • Cost: {tokenCost} • Tokens: {promptTokens}
+                  {tier && tierName && (
+                    <span className="ml-2">• Tier: {tierName}</span>
+                  )}
                 </div>
-                <div>
-                  <button
-                    onClick={handleUpgrade}
-                    className="btn btn-primary px-4 py-2 text-sm"
-                    style={{
-                      background: 'linear-gradient(90deg, #904887 10.79%, #8b257e 87.08%)',
-                      borderColor: '#8b257e'
-                    }}
-                  >
-                    Upgrade to Pro →
-                  </button>
-                </div>
+                {shouldShowUpgradeButton() && (
+                  <div>
+                    <button
+                      onClick={handleUpgrade}
+                      className="btn btn-primary px-4 py-2 text-sm"
+                      style={{
+                        background: 'linear-gradient(90deg, #904887 10.79%, #8b257e 87.08%)',
+                        borderColor: '#8b257e'
+                      }}
+                    >
+                      {tier === 'free' ? 'Upgrade to Pro →' : 'Upgrade Tier →'}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

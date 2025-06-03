@@ -233,36 +233,20 @@ router.post('/webhook', async (req, res) => {
         // For invoice events, get user from subscription metadata
         const invoice = event.data.object;
         
-        // Log invoice details for debugging
-        logger.warn(`Processing invoice event - eventId: ${event.id}, invoiceId: ${invoice.id}, customerId: ${invoice.customer}, subscriptionId: ${invoice.subscription}, billingReason: ${invoice.billing_reason}, hasSubscription: ${!!invoice.subscription}`, {
-          eventId: event.id,
-          eventType: event.type,
-          invoiceId: invoice.id,
-          customerId: invoice.customer,
-          subscriptionId: invoice.subscription,
-          billingReason: invoice.billing_reason,
-          invoiceStatus: invoice.status,
-          hasSubscription: !!invoice.subscription,
-          invoiceMetadata: invoice.metadata,
-          linesCount: invoice.lines?.data?.length || 0
-        });
-        
         if (invoice.subscription) {
           try {
             const stripe = stripeService.stripe;
             const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
             eventUserId = subscription.metadata?.userId;
             
-            logger.warn(`Retrieved subscription for user ID extraction - subscriptionId: ${invoice.subscription}, extractedUserId: ${eventUserId}, subscriptionMetadata: ${JSON.stringify(subscription.metadata)}`, {
+            logger.debug(`Extracted user ID from subscription for invoice event`, {
               eventId: event.id,
               invoiceId: invoice.id,
               subscriptionId: invoice.subscription,
-              subscriptionMetadata: subscription.metadata,
-              extractedUserId: eventUserId,
-              subscriptionStatus: subscription.status
+              userId: eventUserId
             });
           } catch (error) {
-            logger.warn(`Could not retrieve subscription for invoice event - subscriptionId: ${invoice.subscription}, error: ${error.message}`, {
+            logger.warn('Could not retrieve subscription for invoice event:', error, {
               eventId: event.id,
               subscriptionId: invoice.subscription,
               invoiceId: invoice.id
@@ -270,7 +254,7 @@ router.post('/webhook', async (req, res) => {
           }
         } else {
           // Try alternative user ID extraction methods for invoices without subscription
-          logger.warn(`Invoice event has no subscription ID - attempting alternative extraction - invoiceId: ${invoice.id}, customerId: ${invoice.customer}, billingReason: ${invoice.billing_reason}`, {
+          logger.debug('Invoice event has no subscription ID - attempting alternative extraction', {
             eventId: event.id,
             invoiceId: invoice.id,
             customerId: invoice.customer,
@@ -285,13 +269,6 @@ router.post('/webhook', async (req, res) => {
               limit: 10,
             });
             
-            logger.warn(`Found ${sessions.data.length} checkout sessions for customer ${invoice.customer}`, {
-              eventId: event.id,
-              invoiceId: invoice.id,
-              customerId: invoice.customer,
-              sessionsFound: sessions.data.length
-            });
-            
             // Find recent session with userId in metadata
             const recentSession = sessions.data.find(session => 
               session.metadata?.userId && 
@@ -300,27 +277,15 @@ router.post('/webhook', async (req, res) => {
             
             if (recentSession) {
               eventUserId = recentSession.metadata.userId;
-              logger.warn(`Extracted user ID from recent checkout session - sessionId: ${recentSession.id}, extractedUserId: ${eventUserId}, sessionMetadata: ${JSON.stringify(recentSession.metadata)}`, {
+              logger.debug(`Extracted user ID from recent checkout session`, {
                 eventId: event.id,
                 invoiceId: invoice.id,
                 sessionId: recentSession.id,
-                extractedUserId: eventUserId,
-                sessionMetadata: recentSession.metadata
-              });
-            } else {
-              logger.warn(`No recent checkout sessions with userId found for customer ${invoice.customer} - sessions: ${JSON.stringify(sessions.data.map(s => ({ id: s.id, created: new Date(s.created * 1000), metadata: s.metadata })))}`, {
-                eventId: event.id,
-                invoiceId: invoice.id,
-                customerId: invoice.customer,
-                allSessions: sessions.data.map(s => ({
-                  id: s.id,
-                  created: new Date(s.created * 1000),
-                  metadata: s.metadata
-                }))
+                extractedUserId: eventUserId
               });
             }
           } catch (error) {
-            logger.warn(`Error retrieving checkout sessions for user ID extraction - customerId: ${invoice.customer}, error: ${error.message}`, {
+            logger.warn('Error retrieving checkout sessions for user ID extraction:', error, {
               eventId: event.id,
               invoiceId: invoice.id,
               customerId: invoice.customer
@@ -329,34 +294,17 @@ router.post('/webhook', async (req, res) => {
         }
       }
     } catch (error) {
-      logger.warn(`Error extracting user ID from event - eventId: ${event.id}, eventType: ${event.type}, error: ${error.message}`, {
+      logger.warn('Error extracting user ID from event:', error, {
         eventId: event.id,
         eventType: event.type
       });
     }
 
-    // Log final user ID extraction result
-    logger.warn(`Final user ID extraction result - eventId: ${event.id}, eventType: ${event.type}, extractedUserId: ${eventUserId}, willUseFakeId: ${!eventUserId}`, {
-      eventId: event.id,
-      eventType: event.type,
-      extractedUserId: eventUserId,
-      willUseFakeId: !eventUserId
-    });
-
     // Create a marker transaction to track that we've processed this event
     // NOTE: Use direct save to avoid triggering balance updates for event tracking
     try {
-      const finalUserId = eventUserId ? new mongoose.Types.ObjectId(eventUserId) : new mongoose.Types.ObjectId('000000000000000000000000');
-      
-      logger.warn(`Creating event tracking transaction - eventId: ${event.id}, eventType: ${event.type}, userIdForTransaction: ${finalUserId.toString()}, isRealUser: ${!!eventUserId}`, {
-        eventId: event.id,
-        eventType: event.type,
-        userIdForTransaction: finalUserId.toString(),
-        isRealUser: !!eventUserId
-      });
-      
       const eventTracker = new Transaction({
-        user: finalUserId,
+        user: eventUserId ? new mongoose.Types.ObjectId(eventUserId) : new mongoose.Types.ObjectId('000000000000000000000000'),
         tokenType: 'credits',
         rawAmount: 0,
         tokenValue: 0, // Explicitly set to 0
@@ -370,18 +318,17 @@ router.post('/webhook', async (req, res) => {
       // Save directly without triggering Transaction.create() balance logic
       await eventTracker.save();
       
-      logger.warn(`Event tracking transaction created successfully - eventId: ${event.id}, eventType: ${event.type}, transactionId: ${eventTracker._id}, userIdUsed: ${finalUserId.toString()}`, {
+      logger.debug(`Event tracking transaction created`, {
         eventId: event.id,
         eventType: event.type,
-        transactionId: eventTracker._id,
-        userIdUsed: finalUserId.toString()
+        userId: eventUserId || 'none',
+        transactionId: eventTracker._id
       });
     } catch (error) {
       // If marker creation fails, log but continue processing
-      logger.warn(`Failed to create event tracking marker - eventId: ${event.id}, eventType: ${event.type}, attemptedUserId: ${eventUserId}, error: ${error.message}`, {
+      logger.warn('Failed to create event tracking marker:', error, {
         eventId: event.id,
-        eventType: event.type,
-        attemptedUserId: eventUserId
+        eventType: event.type
       });
     }
 

@@ -10,6 +10,7 @@ import { useAuthContext } from '~/hooks/AuthContext';
 import useAvatar from '~/hooks/Messages/useAvatar';
 import { UserIcon } from '~/components/svg';
 import { useLocalize } from '~/hooks';
+import { getTierEmoji } from '~/utils/tierEmojis';
 import Settings from './Settings';
 import store from '~/store';
 
@@ -26,6 +27,18 @@ function AccountSettings() {
 
   const avatarSrc = useAvatar(user);
   const avatarSeed = user?.avatar || user?.name || user?.username || '';
+
+  const formatBalance = (balance: number): string => {
+    if (balance >= 1e9) {
+      return (balance / 1e9).toFixed(balance >= 10e9 ? 1 : 2) + 'B';
+    } else if (balance >= 1e6) {
+      return (balance / 1e6).toFixed(balance >= 10e6 ? 1 : 2) + 'M';
+    } else if (balance >= 1e3) {
+      return (balance / 1e3).toFixed(balance >= 10e3 ? 1 : 2) + 'K';
+    } else {
+      return balance.toFixed(2);
+    }
+  };
 
   const handleUpgradeClick = () => {
     navigate('/pricing');
@@ -87,10 +100,10 @@ function AccountSettings() {
           <>
             <div className="flex items-center justify-between ml-3 mr-2 py-2" role="note">
               <div className="text-token-text-secondary text-sm">
-                {localize('com_nav_balance')}: {parseFloat(balanceQuery.data.balance).toFixed(2)}
-                {balanceQuery.data.tierName && balanceQuery.data.tier !== 'free' && (
+                {localize('com_nav_balance')}: {formatBalance(parseFloat(balanceQuery.data.balance))}
+                {balanceQuery.data.tierName && (
                   <div className="text-xs text-token-text-tertiary mt-1">
-                    {balanceQuery.data.tierName}
+                    {getTierEmoji(balanceQuery.data.tierName, balanceQuery.data.tier)} {balanceQuery.data.tierName}
                   </div>
                 )}
               </div>

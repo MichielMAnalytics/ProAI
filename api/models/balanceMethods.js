@@ -135,12 +135,17 @@ const checkBalance = async ({ req, res, txData }) => {
     return true;
   }
 
+  // Fetch full balance record to get tier information
+  const balanceRecord = await Balance.findOne({ user: txData.user }).lean();
+  
   const type = ViolationTypes.TOKEN_BALANCE;
   const errorMessage = {
     type,
     balance,
     tokenCost,
     promptTokens: txData.amount,
+    tier: balanceRecord?.tier || 'free',
+    tierName: balanceRecord?.tierName || 'Free Tier',
   };
 
   if (txData.generations && txData.generations.length > 0) {
