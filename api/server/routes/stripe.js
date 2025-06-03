@@ -222,16 +222,52 @@ router.post('/webhook', async (req, res) => {
       return res.json({ received: true, status: 'duplicate_event_ignored' });
     }
 
-    // Create a marker transaction to track that we've processed this event
+    // Extract user ID from event context for proper data relationships
+    let eventUserId = null;
     try {
-      await Transaction.create({
-        user: new mongoose.Types.ObjectId(), // Placeholder user ID
+      if (event.type === 'checkout.session.completed') {
+        eventUserId = event.data.object.metadata?.userId || event.data.object.client_reference_id;
+      } else if (event.type.startsWith('customer.subscription.')) {
+        eventUserId = event.data.object.metadata?.userId;
+      } else if (event.type.startsWith('invoice.')) {
+        // For invoice events, get user from subscription metadata
+        if (event.data.object.subscription) {
+          try {
+            const stripe = stripeService.stripe;
+            const subscription = await stripe.subscriptions.retrieve(event.data.object.subscription);
+            eventUserId = subscription.metadata?.userId;
+          } catch (error) {
+            logger.warn('Could not retrieve subscription for invoice event:', error);
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn('Error extracting user ID from event:', error);
+    }
+
+    // Create a marker transaction to track that we've processed this event
+    // NOTE: Use direct save to avoid triggering balance updates for event tracking
+    try {
+      const eventTracker = new Transaction({
+        user: eventUserId ? new mongoose.Types.ObjectId(eventUserId) : new mongoose.Types.ObjectId('000000000000000000000000'),
         tokenType: 'credits',
         rawAmount: 0,
+        tokenValue: 0, // Explicitly set to 0
+        rate: 0, // No rate for tracking
         context: 'stripe_event_tracking',
         model: `event_${event.type}`,
         valueKey: eventTransactionId,
         endpointTokenConfig: {},
+      });
+      
+      // Save directly without triggering Transaction.create() balance logic
+      await eventTracker.save();
+      
+      logger.debug(`Event tracking transaction created`, {
+        eventId: event.id,
+        eventType: event.type,
+        userId: eventUserId || 'none',
+        transactionId: eventTracker._id
       });
     } catch (error) {
       // If marker creation fails, log but continue processing
