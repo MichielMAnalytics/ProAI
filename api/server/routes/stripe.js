@@ -934,4 +934,314 @@ router.get('/debug-config', (req, res) => {
   });
 });
 
+/**
+ * Cancel subscription and downgrade to free tier
+ */
+router.post('/cancel-subscription', requireJwtAuth, async (req, res) => {
+  try {
+    const { user } = req;
+    
+    logger.info(`Subscription cancellation requested by user ${user._id}`, {
+      userId: user._id,
+      userEmail: user.email,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Get customer from Stripe
+    const customer = await stripeService.getCustomerByEmail(user.email);
+    if (!customer) {
+      return res.status(404).json({
+        error: 'No Stripe customer found',
+      });
+    }
+
+    // Get active subscriptions
+    const subscriptions = await stripeService.getActiveSubscriptions(customer.id);
+    if (subscriptions.length === 0) {
+      // User has no active subscription, just downgrade in database
+      logger.info(`No active subscription found, downgrading database only for user ${user._id}`);
+      
+      const result = await BalanceService.downgradeToFreeTier({
+        userId: user._id.toString(),
+        reason: 'user_requested_downgrade'
+      });
+
+      if (result.success) {
+        return res.json({
+          success: true,
+          message: 'Successfully downgraded to free tier',
+          tier: result.tier,
+          tierName: result.tierName
+        });
+      } else {
+        return res.status(500).json({
+          error: 'Failed to downgrade user tier',
+          reason: result.reason
+        });
+      }
+    }
+
+    // Cancel all active subscriptions
+    const canceledSubscriptions = [];
+    for (const subscription of subscriptions) {
+      try {
+        const canceled = await stripeService.cancelSubscription(subscription.id);
+        canceledSubscriptions.push({
+          id: canceled.id,
+          status: canceled.status,
+          canceledAt: canceled.canceled_at
+        });
+        
+        logger.info(`Subscription canceled: ${subscription.id} for user ${user._id}`, {
+          subscriptionId: subscription.id,
+          canceledAt: canceled.canceled_at
+        });
+      } catch (error) {
+        logger.error(`Error canceling subscription ${subscription.id}:`, error);
+        return res.status(500).json({
+          error: `Failed to cancel subscription: ${subscription.id}`,
+        });
+      }
+    }
+
+    // Downgrade user to free tier in database
+    const result = await BalanceService.downgradeToFreeTier({
+      userId: user._id.toString(),
+      reason: 'user_requested_downgrade'
+    });
+
+    if (result.success) {
+      logger.info(`User successfully downgraded to free tier`, {
+        userId: user._id,
+        canceledSubscriptions: canceledSubscriptions.length,
+        newTier: result.tier,
+        newTierName: result.tierName
+      });
+
+      res.json({
+        success: true,
+        message: 'Successfully canceled subscription and downgraded to free tier',
+        canceledSubscriptions,
+        tier: result.tier,
+        tierName: result.tierName
+      });
+    } else {
+      logger.error(`Failed to downgrade user after subscription cancellation: ${result.reason}`, {
+        userId: user._id,
+        canceledSubscriptions
+      });
+      
+      res.status(500).json({
+        error: 'Subscription canceled but failed to update user tier',
+        reason: result.reason,
+        canceledSubscriptions
+      });
+    }
+    
+  } catch (error) {
+    logger.error('Error canceling subscription:', error);
+    res.status(500).json({
+      error: 'Failed to cancel subscription',
+    });
+  }
+});
+
+/**
+ * Modify existing subscription (upgrade/downgrade between pro tiers)
+ */
+router.post('/modify-subscription', requireJwtAuth, async (req, res) => {
+  try {
+    const { credits } = req.body;
+    const { user } = req;
+
+    logger.info(`Subscription modification requested by user ${user._id}`, {
+      userId: user._id,
+      userEmail: user.email,
+      newCredits: credits,
+      timestamp: new Date().toISOString()
+    });
+
+    if (!credits || !PRICE_IDS[credits]) {
+      return res.status(400).json({
+        error: 'Invalid credit amount',
+        validCredits: Object.keys(PRICE_IDS).map(Number),
+      });
+    }
+
+    const newPriceId = PRICE_IDS[credits];
+
+    // Get customer from Stripe
+    const customer = await stripeService.getCustomerByEmail(user.email);
+    if (!customer) {
+      return res.status(404).json({
+        error: 'No Stripe customer found',
+      });
+    }
+
+    // Get active subscriptions
+    const subscriptions = await stripeService.getActiveSubscriptions(customer.id);
+    if (subscriptions.length === 0) {
+      return res.status(404).json({
+        error: 'No active subscription found to modify',
+        suggestion: 'Please create a new subscription instead'
+      });
+    }
+
+    if (subscriptions.length > 1) {
+      logger.warn(`User has multiple active subscriptions: ${subscriptions.length}`, {
+        userId: user._id,
+        subscriptions: subscriptions.map(s => ({ id: s.id, status: s.status }))
+      });
+    }
+
+    // Modify the first active subscription
+    const subscription = subscriptions[0];
+    const currentItemId = subscription.items.data[0].id;
+
+    try {
+      const stripe = stripeService.stripe;
+      
+      // Update the subscription item to the new price
+      const updatedSubscription = await stripe.subscriptions.update(subscription.id, {
+        items: [{
+          id: currentItemId,
+          price: newPriceId,
+        }],
+        proration_behavior: 'create_prorations', // Handle prorating automatically
+        metadata: {
+          userId: user._id.toString(),
+          credits: credits.toString(),
+          userEmail: user.email,
+          modifiedAt: new Date().toISOString()
+        }
+      });
+
+      logger.info(`Subscription modified successfully`, {
+        userId: user._id,
+        subscriptionId: subscription.id,
+        oldPriceId: subscription.items.data[0].price.id,
+        newPriceId,
+        newCredits: credits,
+        status: updatedSubscription.status
+      });
+
+      // Update user's tier in database immediately
+      const tierInfo = BalanceService.getTierInfoFromPriceId(newPriceId);
+      if (tierInfo) {
+        try {
+          const { updateBalance } = require('~/models/Transaction');
+          
+          // Calculate credit difference for immediate adjustment
+          let creditDifference = 0;
+          const oldPriceId = subscription.items.data[0].price.id;
+          const oldTierCredits = BalanceService.getCreditAmountFromPriceId(oldPriceId);
+          const newTierCredits = BalanceService.getCreditAmountFromPriceId(newPriceId);
+          
+          if (oldTierCredits && newTierCredits) {
+            creditDifference = newTierCredits - oldTierCredits;
+            
+            logger.info(`Calculating credit adjustment for subscription modification`, {
+              userId: user._id,
+              oldTierCredits,
+              newTierCredits,
+              creditDifference,
+              subscriptionId: subscription.id
+            });
+          }
+          
+          await updateBalance({
+            user: user._id,
+            incrementValue: creditDifference, // Add the credit difference immediately
+            setValues: {
+              tier: tierInfo.tier,
+              tierName: tierInfo.name,
+              refillAmount: tierInfo.refillAmount,
+              refillIntervalValue: tierInfo.refillIntervalValue,
+              refillIntervalUnit: tierInfo.refillIntervalUnit
+            }
+          });
+
+          // Create transaction record for credit adjustment if credits were added
+          if (creditDifference > 0) {
+            try {
+              const { Transaction } = require('~/models/Transaction');
+              const transaction = new Transaction({
+                user: user._id,
+                tokenType: 'credits',
+                rawAmount: creditDifference,
+                tokenValue: creditDifference,
+                rate: 1,
+                context: 'subscription_upgrade',
+                model: `tier_upgrade_${tierInfo.tier}`,
+                valueKey: `upgrade_${subscription.id}_${Date.now()}`,
+                endpointTokenConfig: {},
+              });
+              await transaction.save();
+              
+              logger.info(`Transaction record created for subscription upgrade credit adjustment`, {
+                userId: user._id,
+                transactionId: transaction._id,
+                creditsAdded: creditDifference,
+                subscriptionId: subscription.id
+              });
+            } catch (transactionError) {
+              logger.warn('Failed to create transaction record for credit adjustment:', transactionError, {
+                userId: user._id,
+                creditDifference,
+                subscriptionId: subscription.id
+              });
+              // Don't fail the request if transaction recording fails
+            }
+          }
+
+          logger.info(`User tier and credits updated in database`, {
+            userId: user._id,
+            newTier: tierInfo.tier,
+            newTierName: tierInfo.name,
+            newRefillAmount: tierInfo.refillAmount,
+            creditsAdded: creditDifference
+          });
+        } catch (dbError) {
+          logger.error('Failed to update user tier in database:', dbError, {
+            userId: user._id,
+            subscriptionId: subscription.id
+          });
+          // Don't fail the request if DB update fails, as Stripe subscription was successful
+        }
+      }
+
+      res.json({
+        success: true,
+        message: 'Subscription modified successfully',
+        subscription: {
+          id: updatedSubscription.id,
+          status: updatedSubscription.status,
+          currentPeriodEnd: updatedSubscription.current_period_end,
+          credits: credits,
+          priceId: newPriceId
+        },
+        tier: tierInfo
+      });
+
+    } catch (stripeError) {
+      logger.error('Error modifying Stripe subscription:', stripeError, {
+        userId: user._id,
+        subscriptionId: subscription.id,
+        newPriceId
+      });
+      
+      res.status(500).json({
+        error: 'Failed to modify subscription in Stripe',
+        details: stripeError.message
+      });
+    }
+
+  } catch (error) {
+    logger.error('Error in subscription modification:', error);
+    res.status(500).json({
+      error: 'Failed to modify subscription',
+    });
+  }
+});
+
 module.exports = router; 
