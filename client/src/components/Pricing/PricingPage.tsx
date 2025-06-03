@@ -2,15 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { Check, ArrowRight, Crown, Zap, ChevronDown } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthContext } from '~/hooks';
+import { useGetUserBalance, useGetStartupConfig } from '~/data-provider';
 
 const PricingPage = () => {
   const navigate = useNavigate();
   const { token, isAuthenticated } = useAuthContext();
+  const { data: startupConfig } = useGetStartupConfig();
+  const balanceQuery = useGetUserBalance({
+    enabled: !!isAuthenticated && startupConfig?.balance?.enabled,
+  });
   const [searchParams] = useSearchParams();
   const [selectedProCredits, setSelectedProCredits] = useState(100000);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [openFaqItems, setOpenFaqItems] = useState<Set<number>>(new Set());
   const [checkoutStatus, setCheckoutStatus] = useState<'success' | 'canceled' | null>(null);
+  const [isDowngrading, setIsDowngrading] = useState(false);
 
   // Check for success/cancel parameters
   useEffect(() => {
@@ -52,6 +58,93 @@ const PricingPage = () => {
   ];
 
   const selectedOption = creditOptions.find(option => option.credits === selectedProCredits);
+
+  // Helper function to determine user's current tier
+  const getCurrentUserTier = () => {
+    if (!balanceQuery.data?.tier) {
+      return 'free';
+    }
+    return balanceQuery.data.tier;
+  };
+
+  // Helper function to check if a tier is the user's current plan
+  const isCurrentPlan = (tierType: 'free' | 'pro' | 'enterprise') => {
+    const currentTier = getCurrentUserTier();
+    
+    if (tierType === 'free') {
+      return currentTier === 'free';
+    } else if (tierType === 'pro') {
+      return currentTier.startsWith('pro_');
+    } else if (tierType === 'enterprise') {
+      return currentTier === 'enterprise';
+    }
+    return false;
+  };
+
+  // Helper function to check if the selected credits match user's current plan
+  const isCurrentSelectedPlan = () => {
+    if (!isCurrentPlan('pro')) {
+      return false;
+    }
+    const currentProCredits = getCurrentProCredits();
+    return currentProCredits === selectedProCredits;
+  };
+
+  // Get user's current pro tier credits if they're on a pro plan
+  const getCurrentProCredits = () => {
+    const currentTier = getCurrentUserTier();
+    if (!currentTier.startsWith('pro_')) {
+      return null;
+    }
+
+    // Map tier to credits based on our tier system
+    const tierToCredits = {
+      'pro_1': 100000,
+      'pro_2': 200000,
+      'pro_3': 400000,
+      'pro_4': 800000,
+      'pro_5': 1200000,
+      'pro_6': 2000000,
+      'pro_7': 3000000,
+      'pro_8': 4000000,
+    };
+
+    return tierToCredits[currentTier as keyof typeof tierToCredits] || null;
+  };
+
+  // Get the next tier up from user's current plan to encourage upgrades
+  const getNextTierCredits = () => {
+    const currentTier = getCurrentUserTier();
+    
+    if (currentTier === 'free') {
+      return 100000; // First pro tier
+    }
+    
+    if (currentTier.startsWith('pro_')) {
+      const tierToCredits = {
+        'pro_1': 200000,  // Next: pro_2
+        'pro_2': 400000,  // Next: pro_3
+        'pro_3': 800000,  // Next: pro_4
+        'pro_4': 1200000, // Next: pro_5
+        'pro_5': 2000000, // Next: pro_6
+        'pro_6': 3000000, // Next: pro_7
+        'pro_7': 4000000, // Next: pro_8
+        'pro_8': 4000000, // Already max, stay at pro_8
+      };
+      
+      return tierToCredits[currentTier as keyof typeof tierToCredits] || 100000;
+    }
+    
+    return 100000; // Default fallback
+  };
+
+  // Set selected pro credits to next tier above user's current plan by default
+  useEffect(() => {
+    if (balanceQuery.data) {
+      const nextTierCredits = getNextTierCredits();
+      setSelectedProCredits(nextTierCredits);
+    }
+  }, [balanceQuery.data]);
 
   const faqItems = [
     {
@@ -98,7 +191,15 @@ const PricingPage = () => {
     }
 
     try {
-      const response = await fetch('/api/stripe/create-checkout-session', {
+      const currentTier = getCurrentUserTier();
+      const isExistingProUser = currentTier.startsWith('pro_');
+      
+      // Use different endpoints based on whether user already has a subscription
+      const endpoint = isExistingProUser 
+        ? '/api/stripe/modify-subscription' 
+        : '/api/stripe/create-checkout-session';
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -111,7 +212,9 @@ const PricingPage = () => {
 
       if (!response.ok) {
         // Try to parse error response
-        let errorMessage = 'Failed to create checkout session';
+        let errorMessage = isExistingProUser 
+          ? 'Failed to modify subscription' 
+          : 'Failed to create checkout session';
         try {
           const errorData = await response.json();
           errorMessage = errorData.error || errorMessage;
@@ -123,6 +226,8 @@ const PricingPage = () => {
             return;
           } else if (response.status === 403) {
             errorMessage = 'You do not have permission to perform this action';
+          } else if (response.status === 404 && isExistingProUser) {
+            errorMessage = 'No active subscription found. Please contact support.';
           } else {
             errorMessage = `Server error: ${response.status} ${response.statusText}`;
           }
@@ -130,19 +235,91 @@ const PricingPage = () => {
         throw new Error(errorMessage);
       }
 
-      const { url } = await response.json();
+      const result = await response.json();
       
-      // Redirect to Stripe Checkout
-      window.location.href = url;
+      if (isExistingProUser) {
+        // For subscription modifications, show success message and refresh
+        alert(`Successfully upgraded to ${result.tier?.name || 'new plan'}! Your subscription has been updated.`);
+        window.location.reload();
+      } else {
+        // For new subscriptions, redirect to Stripe Checkout
+        window.location.href = result.url;
+      }
     } catch (error) {
       console.error('Error upgrading to Pro:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert(`Failed to start checkout: ${errorMessage}`);
+      alert(`Failed to upgrade: ${errorMessage}`);
     }
   };
 
   const handleContactSales = () => {
     navigate('/contact');
+  };
+
+  const handleDowngrade = async () => {
+    if (!isAuthenticated || !token) {
+      navigate('/login');
+      return;
+    }
+
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      'Are you sure you want to downgrade to the Free plan? This will:\n\n' +
+      '• Cancel your current subscription\n' +
+      '• Reduce your monthly credits to 5,000\n' +
+      '• Remove access to premium features\n\n' +
+      'This action cannot be undone.'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDowngrading(true);
+
+    try {
+      const response = await fetch('/api/stripe/cancel-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Failed to cancel subscription';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          if (response.status === 401) {
+            errorMessage = 'You need to be logged in to cancel subscription';
+            navigate('/login');
+            return;
+          } else if (response.status === 404) {
+            errorMessage = 'No subscription found to cancel';
+          } else {
+            errorMessage = `Server error: ${response.status} ${response.statusText}`;
+          }
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      
+      // Show success message
+      alert(`Successfully downgraded to ${result.tierName}! Your subscription has been canceled.`);
+      
+      // Refresh the page to update the UI with new tier information
+      window.location.reload();
+      
+    } catch (error) {
+      console.error('Error downgrading subscription:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to downgrade: ${errorMessage}`);
+    } finally {
+      setIsDowngrading(false);
+    }
   };
 
   const handleBackToChat = () => {
@@ -271,10 +448,22 @@ const PricingPage = () => {
             </div>
 
             <button
-              onClick={handleBackToChat}
-              className="btn btn-secondary w-full h-12 text-sm font-medium mt-auto"
+              onClick={isCurrentPlan('free') ? handleBackToChat : handleDowngrade}
+              disabled={isDowngrading}
+              className={`w-full h-12 text-sm font-medium mt-auto transition-colors ${
+                isCurrentPlan('free') 
+                  ? 'btn btn-secondary' 
+                  : isDowngrading
+                    ? 'border border-red-300 text-red-300 bg-gray-50 cursor-not-allowed rounded-lg'
+                    : 'border border-red-500 text-red-500 hover:bg-red-500 hover:text-white active:bg-red-600 active:text-white rounded-lg'
+              }`}
             >
-              Current Plan
+              {isCurrentPlan('free') 
+                ? 'Current Plan' 
+                : isDowngrading 
+                  ? 'Canceling...' 
+                  : 'Downgrade'
+              }
             </button>
           </div>
 
@@ -283,21 +472,32 @@ const PricingPage = () => {
             className="p-8 relative flex flex-col h-full rounded-2xl"
             style={{
               backgroundColor: 'var(--surface-secondary)',
-              border: '2px solid var(--green-500)'
+              border: isCurrentPlan('pro') ? '2px solid var(--green-600)' : '2px solid var(--green-500)'
             }}
           >
             <div className="flex items-center gap-2 mb-8">
               <h3 className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
                 Pro
               </h3>
-              <span 
-                className="px-3 py-1 rounded-full text-xs font-semibold text-white"
-                style={{ 
-                  background: 'linear-gradient(135deg, var(--green-500) 0%, var(--green-600) 100%)'
-                }}
-              >
-                POPULAR
-              </span>
+              {isCurrentPlan('pro') ? (
+                <span 
+                  className="px-3 py-1 rounded-full text-xs font-semibold text-white"
+                  style={{ 
+                    background: 'linear-gradient(135deg, var(--green-600) 0%, var(--green-700) 100%)'
+                  }}
+                >
+                  CURRENT
+                </span>
+              ) : (
+                <span 
+                  className="px-3 py-1 rounded-full text-xs font-semibold text-white"
+                  style={{ 
+                    background: 'linear-gradient(135deg, var(--green-500) 0%, var(--green-600) 100%)'
+                  }}
+                >
+                  POPULAR
+                </span>
+              )}
             </div>
 
             <div className="mb-2">
@@ -393,10 +593,12 @@ const PricingPage = () => {
             </div>
 
             <button
-              onClick={handleUpgradeToPro}
-              className="btn btn-primary w-full h-12 text-sm font-semibold mt-auto"
+              onClick={isCurrentSelectedPlan() ? handleBackToChat : handleUpgradeToPro}
+              className={`w-full h-12 text-sm font-semibold mt-auto ${
+                isCurrentSelectedPlan() ? 'btn btn-secondary' : 'btn btn-primary'
+              }`}
             >
-              Upgrade
+              {isCurrentSelectedPlan() ? 'Current Plan' : 'Upgrade'}
             </button>
           </div>
 
