@@ -90,6 +90,24 @@ const PricingPage = () => {
     return currentProCredits === selectedProCredits;
   };
 
+  // Helper function to check if selected credits represent a downgrade
+  const isSelectedPlanDowngrade = () => {
+    if (!isCurrentPlan('pro')) {
+      return false;
+    }
+    const currentProCredits = getCurrentProCredits();
+    return currentProCredits && selectedProCredits < currentProCredits;
+  };
+
+  // Helper function to check if selected credits represent an upgrade
+  const isSelectedPlanUpgrade = () => {
+    if (!isCurrentPlan('pro')) {
+      return true; // Free users upgrading to any pro tier
+    }
+    const currentProCredits = getCurrentProCredits();
+    return currentProCredits && selectedProCredits > currentProCredits;
+  };
+
   // Get user's current pro tier credits if they're on a pro plan
   const getCurrentProCredits = () => {
     const currentTier = getCurrentUserTier();
@@ -594,11 +612,20 @@ const PricingPage = () => {
 
             <button
               onClick={isCurrentSelectedPlan() ? handleBackToChat : handleUpgradeToPro}
-              className={`w-full h-12 text-sm font-semibold mt-auto ${
-                isCurrentSelectedPlan() ? 'btn btn-secondary' : 'btn btn-primary'
+              className={`w-full h-12 text-sm font-semibold mt-auto transition-colors ${
+                isCurrentSelectedPlan() 
+                  ? 'btn btn-secondary'
+                  : isSelectedPlanDowngrade()
+                    ? 'border border-red-500 text-red-500 hover:bg-red-500 hover:text-white active:bg-red-600 active:text-white rounded-lg'
+                    : 'btn btn-primary'
               }`}
             >
-              {isCurrentSelectedPlan() ? 'Current Plan' : 'Upgrade'}
+              {isCurrentSelectedPlan() 
+                ? 'Current Plan' 
+                : isSelectedPlanDowngrade()
+                  ? 'Downgrade'
+                  : 'Upgrade'
+              }
             </button>
           </div>
 
