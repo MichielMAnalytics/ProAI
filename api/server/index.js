@@ -53,7 +53,16 @@ const startServer = async () => {
   /* Middleware */
   app.use(noIndex);
   app.use(errorController);
-  app.use(express.json({ limit: '3mb' }));
+  
+  // JSON parsing middleware with Stripe webhook exclusion
+  app.use((req, res, next) => {
+    // Skip JSON parsing for Stripe webhook - it needs raw body for signature verification
+    if (req.path === '/api/stripe/webhook') {
+      return next();
+    }
+    express.json({ limit: '3mb' })(req, res, next);
+  });
+  
   app.use(express.urlencoded({ extended: true, limit: '3mb' }));
   app.use(mongoSanitize());
   app.use(cors());
