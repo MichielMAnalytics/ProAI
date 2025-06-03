@@ -448,7 +448,9 @@ async function handleCheckoutCompleted(session, eventId) {
         transactionId: result.transaction,
         newBalance: result.newBalance,
         sessionId: session.id,
-        eventId
+        eventId,
+        tier: result.tier,
+        tierName: result.tierName
       });
     } else {
       logger.warn(`Failed to add credits: ${result.reason}`, {
@@ -555,14 +557,52 @@ async function handleSubscriptionUpdated(subscription, eventId) {
  */
 async function handleSubscriptionDeleted(subscription, eventId) {
   try {
-    const { userId } = subscription.metadata;
+    const userId = subscription.metadata?.userId;
     
-    logger.info(`Subscription deleted for user ${userId}`);
+    if (!userId) {
+      logger.error('No userId found in subscription metadata for deletion', {
+        subscriptionId: subscription.id,
+        eventId,
+        customerId: subscription.customer
+      });
+      return;
+    }
     
-    // TODO: Update user to free plan in database
+    logger.info(`Subscription deleted for user ${userId}`, {
+      subscriptionId: subscription.id,
+      eventId,
+      status: subscription.status,
+      canceledAt: subscription.canceled_at
+    });
+    
+    // Downgrade user to free tier
+    const result = await BalanceService.downgradeToFreeTier({
+      userId,
+      reason: 'subscription_cancelled'
+    });
+
+    if (result.success) {
+      logger.info(`User downgraded to free tier after subscription cancellation`, {
+        userId,
+        subscriptionId: subscription.id,
+        eventId,
+        newTier: result.tier,
+        newTierName: result.tierName,
+        newRefillAmount: result.refillAmount
+      });
+    } else {
+      logger.error(`Failed to downgrade user to free tier: ${result.reason}`, {
+        userId,
+        subscriptionId: subscription.id,
+        eventId
+      });
+    }
     
   } catch (error) {
-    logger.error('Error handling subscription deletion:', error);
+    logger.error('Error handling subscription deletion:', error, {
+      subscriptionId: subscription.id,
+      eventId
+    });
   }
 }
 
@@ -697,7 +737,9 @@ async function handlePaymentSucceeded(invoice, eventId) {
         newBalance: result.newBalance,
         subscriptionId,
         invoiceId,
-        eventId
+        eventId,
+        tier: result.tier,
+        tierName: result.tierName
       });
     } else {
       logger.error(`Failed to process recurring payment: ${result.reason}`, {
@@ -725,7 +767,11 @@ async function handlePaymentFailed(invoice, eventId) {
     const { customer, subscription: subscriptionId, id: invoiceId } = invoice;
     
     if (!subscriptionId) {
-      logger.info('Payment failed for non-subscription invoice');
+      logger.info('Payment failed for non-subscription invoice', {
+        eventId,
+        invoiceId,
+        customerId: customer
+      });
       return;
     }
 
@@ -735,27 +781,83 @@ async function handlePaymentFailed(invoice, eventId) {
       const stripe = stripeService.stripe;
       subscription = await stripe.subscriptions.retrieve(subscriptionId);
     } catch (error) {
-      logger.error('Error retrieving subscription for failed payment:', error);
+      logger.error('Error retrieving subscription for failed payment:', error, {
+        eventId,
+        subscriptionId,
+        invoiceId
+      });
       return;
     }
     
     const userId = subscription.metadata?.userId;
+    
+    if (!userId) {
+      logger.error('No userId found in subscription metadata for failed payment', {
+        subscriptionId,
+        invoiceId,
+        customerId: customer,
+        eventId
+      });
+      return;
+    }
     
     logger.warn(`Payment failed for user ${userId}`, {
       subscriptionId,
       invoiceId,
       customerId: customer,
       attemptCount: invoice.attempt_count,
-      nextPaymentAttempt: invoice.next_payment_attempt
+      nextPaymentAttempt: invoice.next_payment_attempt,
+      eventId
     });
+    
+    // If this is the final failed attempt (Stripe typically tries 4 times)
+    // and subscription is incomplete/past_due, consider downgrading
+    if (invoice.attempt_count >= 4 && 
+        (subscription.status === 'incomplete' || subscription.status === 'past_due')) {
+      
+      logger.warn(`Final payment attempt failed, considering downgrade for user ${userId}`, {
+        subscriptionId,
+        invoiceId,
+        subscriptionStatus: subscription.status,
+        attemptCount: invoice.attempt_count,
+        eventId
+      });
+      
+      // Downgrade user to free tier after multiple failures
+      const result = await BalanceService.downgradeToFreeTier({
+        userId,
+        reason: 'payment_failed_final'
+      });
+
+      if (result.success) {
+        logger.info(`User downgraded to free tier after payment failures`, {
+          userId,
+          subscriptionId,
+          invoiceId,
+          eventId,
+          newTier: result.tier,
+          newTierName: result.tierName,
+          newRefillAmount: result.refillAmount
+        });
+      } else {
+        logger.error(`Failed to downgrade user after payment failures: ${result.reason}`, {
+          userId,
+          subscriptionId,
+          invoiceId,
+          eventId
+        });
+      }
+    }
     
     // Note: You might want to implement additional logic here:
     // - Send notification to user about failed payment
-    // - Potentially reduce credits or suspend account after multiple failures
     // - Update subscription status in your database
     
   } catch (error) {
-    logger.error('Error handling payment failure:', error);
+    logger.error('Error handling payment failure:', error, {
+      eventId,
+      invoiceId: invoice.id
+    });
   }
 }
 

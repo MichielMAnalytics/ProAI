@@ -9,6 +9,7 @@ import * as config from './config';
 import request from './request';
 import * as s from './schemas';
 import * as r from './roles';
+import type { TUserBalance } from './types/queries';
 
 export function abortRequestWithMessage(
   endpoint: string,
@@ -93,8 +94,8 @@ export function getUser(): Promise<t.TUser> {
   return request.get(endpoints.user());
 }
 
-export function getUserBalance(): Promise<string> {
-  return request.get(endpoints.balance());
+export function getUserBalance(): Promise<TUserBalance> {
+  return request.get(endpoints.balance() + '?detailed=true');
 }
 
 export const updateTokenCount = (text: string) => {

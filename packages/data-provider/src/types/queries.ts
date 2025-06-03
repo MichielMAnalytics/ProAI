@@ -109,3 +109,14 @@ export type VerifyToolAuthResponse = {
 
 export type GetToolCallParams = { conversationId: string };
 export type ToolCallResults = a.ToolCallResult[];
+
+export type TUserBalance = {
+  balance: string; // tokenCredits as string for backward compatibility
+  tier: string;
+  tierName: string;
+  autoRefillEnabled: boolean;
+  refillAmount: number;
+  refillIntervalValue: number;
+  refillIntervalUnit: 'seconds' | 'minutes' | 'hours' | 'days' | 'weeks' | 'months';
+  lastRefill: string | null; // ISO string
+};

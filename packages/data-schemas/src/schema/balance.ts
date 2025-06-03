@@ -3,6 +3,9 @@ import { Schema, Document, Types } from 'mongoose';
 export interface IBalance extends Document {
   user: Types.ObjectId;
   tokenCredits: number;
+  // Subscription tier information
+  tier?: string; // e.g., 'free', 'pro_1', 'pro_2', etc.
+  tierName?: string; // e.g., 'Free Tier', 'Pro Tier 1', etc.
   // Automatic refill settings
   autoRefillEnabled: boolean;
   refillIntervalValue: number;
@@ -22,6 +25,16 @@ const balanceSchema = new Schema<IBalance>({
   tokenCredits: {
     type: Number,
     default: 0,
+  },
+  // Subscription tier information
+  tier: {
+    type: String,
+    default: 'free',
+    enum: ['free', 'pro_1', 'pro_2', 'pro_3', 'pro_4', 'pro_5', 'pro_6', 'pro_7', 'pro_8'],
+  },
+  tierName: {
+    type: String,
+    default: 'Free Tier',
   },
   // Automatic refill settings
   autoRefillEnabled: {

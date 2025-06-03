@@ -136,7 +136,31 @@ class BalanceService {
         return { success: false, reason: 'Invalid user' };
       }
 
-      // 5. Create transaction record for audit trail
+      // 5. Extract tier information from Stripe data if available
+      let tierInfo = null;
+      const balanceUpdateFields = {};
+      
+      if (stripeData.priceId) {
+        tierInfo = this.getTierInfoFromPriceId(stripeData.priceId);
+        if (tierInfo) {
+          balanceUpdateFields.tier = tierInfo.tier;
+          balanceUpdateFields.tierName = tierInfo.name;
+          balanceUpdateFields.autoRefillEnabled = true;
+          balanceUpdateFields.refillAmount = tierInfo.refillAmount;
+          balanceUpdateFields.refillIntervalValue = tierInfo.refillIntervalValue;
+          balanceUpdateFields.refillIntervalUnit = tierInfo.refillIntervalUnit;
+          balanceUpdateFields.lastRefill = new Date(); // Update lastRefill to current time
+          
+          logger.info(`Updating user to ${tierInfo.name} (${tierInfo.tier})`, {
+            userId,
+            tier: tierInfo.tier,
+            refillAmount: tierInfo.refillAmount,
+            transactionId
+          });
+        }
+      }
+
+      // 6. Create transaction record for audit trail
       // NOTE: For credit purchases, we create transaction manually to avoid multipliers
       // that are designed for token usage, not credit additions
       const transaction = new Transaction({
@@ -154,10 +178,11 @@ class BalanceService {
       // Save transaction manually without calling calculateTokenValue
       await transaction.save();
 
-      // Update balance manually using the exact credit amount
+      // 7. Update balance with credits AND tier information
       const balanceResponse = await updateBalance({
         user: userId,
         incrementValue: credits, // Use exact credits, not tokenValue
+        setValues: balanceUpdateFields // Include tier and refill settings
       });
 
       logger.info(`Credits added successfully: ${credits} credits for user ${userId}`, {
@@ -165,14 +190,18 @@ class BalanceService {
         userId,
         credits,
         transactionDbId: transaction._id,
-        newBalance: balanceResponse.tokenCredits
+        newBalance: balanceResponse.tokenCredits,
+        tier: balanceResponse.tier,
+        tierName: balanceResponse.tierName
       });
 
       return {
         success: true,
         transaction: transaction._id,
         newBalance: balanceResponse.tokenCredits,
-        creditsAdded: credits
+        creditsAdded: credits,
+        tier: balanceResponse.tier,
+        tierName: balanceResponse.tierName
       };
 
     } catch (error) {
@@ -224,6 +253,61 @@ class BalanceService {
   }
 
   /**
+   * Handle subscription cancellation/downgrade to free tier
+   * @param {Object} params - Parameters
+   * @param {string} params.userId - User ID
+   * @param {string} params.reason - Reason for downgrade (cancellation, payment_failed, etc.)
+   * @returns {Promise<Object>} Result object
+   */
+  static async downgradeToFreeTier({ userId, reason = 'subscription_ended' }) {
+    try {
+      // Validate user
+      const user = await this.validateUser(userId);
+      if (!user) {
+        return { success: false, reason: 'Invalid user' };
+      }
+
+      // Get current balance config for free tier settings
+      const balanceConfig = await getBalanceConfig();
+      
+      const freetierSettings = {
+        tier: 'free',
+        tierName: 'Free Tier',
+        autoRefillEnabled: balanceConfig?.autoRefillEnabled || false,
+        refillAmount: balanceConfig?.refillAmount || 0,
+        refillIntervalValue: balanceConfig?.refillIntervalValue || 30,
+        refillIntervalUnit: balanceConfig?.refillIntervalUnit || 'days'
+      };
+
+      // Update balance to free tier settings (don't change tokenCredits)
+      const balanceResponse = await updateBalance({
+        user: userId,
+        incrementValue: 0, // Don't change credits, just tier settings
+        setValues: freetierSettings
+      });
+
+      logger.info(`User downgraded to free tier`, {
+        userId,
+        reason,
+        tier: balanceResponse.tier,
+        tierName: balanceResponse.tierName,
+        refillAmount: balanceResponse.refillAmount
+      });
+
+      return {
+        success: true,
+        tier: balanceResponse.tier,
+        tierName: balanceResponse.tierName,
+        refillAmount: balanceResponse.refillAmount
+      };
+
+    } catch (error) {
+      logger.error('Error downgrading to free tier:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get user's current balance
    * @param {string} userId - User ID
    * @returns {Promise<number>} Current balance
@@ -236,6 +320,151 @@ class BalanceService {
       logger.error('Error getting current balance:', error);
       return 0;
     }
+  }
+
+  /**
+   * Get user's complete balance and tier information
+   * @param {string} userId - User ID
+   * @returns {Promise<Object>} Complete balance information
+   */
+  static async getUserBalanceInfo(userId) {
+    try {
+      const balance = await Balance.findOne({ user: userId }).lean();
+      
+      if (!balance) {
+        // Get actual free tier settings from configuration
+        const balanceConfig = await getBalanceConfig();
+        
+        // Return default free tier info using actual config values
+        return {
+          tokenCredits: balanceConfig?.startBalance || 0,
+          tier: 'free',
+          tierName: 'Free Tier',
+          autoRefillEnabled: balanceConfig?.autoRefillEnabled || false,
+          refillAmount: balanceConfig?.refillAmount || 0,
+          refillIntervalValue: balanceConfig?.refillIntervalValue || 30,
+          refillIntervalUnit: balanceConfig?.refillIntervalUnit || 'days',
+          lastRefill: null
+        };
+      }
+
+      return {
+        tokenCredits: balance.tokenCredits,
+        tier: balance.tier || 'free',
+        tierName: balance.tierName || 'Free Tier',
+        autoRefillEnabled: balance.autoRefillEnabled,
+        refillAmount: balance.refillAmount,
+        refillIntervalValue: balance.refillIntervalValue,
+        refillIntervalUnit: balance.refillIntervalUnit,
+        lastRefill: balance.lastRefill
+      };
+    } catch (error) {
+      logger.error('Error getting user balance info:', error);
+      
+      // Fallback with config values even on error
+      try {
+        const balanceConfig = await getBalanceConfig();
+        return {
+          tokenCredits: balanceConfig?.startBalance || 0,
+          tier: 'free',
+          tierName: 'Free Tier',
+          autoRefillEnabled: balanceConfig?.autoRefillEnabled || false,
+          refillAmount: balanceConfig?.refillAmount || 0,
+          refillIntervalValue: balanceConfig?.refillIntervalValue || 30,
+          refillIntervalUnit: balanceConfig?.refillIntervalUnit || 'days',
+          lastRefill: null
+        };
+      } catch (configError) {
+        logger.error('Error getting balance config:', configError);
+        // Ultimate fallback with safe defaults
+        return {
+          tokenCredits: 0,
+          tier: 'free',
+          tierName: 'Free Tier',
+          autoRefillEnabled: false,
+          refillAmount: 0, // This should be the config default (5000), but we can't access config here safely
+          refillIntervalValue: 30,
+          refillIntervalUnit: 'days',
+          lastRefill: null
+        };
+      }
+    }
+  }
+
+  /**
+   * Map Stripe price IDs to subscription tier information
+   * @param {string} priceId - Stripe price ID
+   * @returns {Object|null} Tier information or null if invalid
+   */
+  static getTierInfoFromPriceId(priceId) {
+    const tierMapping = {
+      [process.env.STRIPE_PRICE_100K]: {
+        tier: 'pro_1',
+        name: 'Pro Tier 1',
+        credits: 100000,
+        refillAmount: 100000,
+        refillIntervalValue: 1,
+        refillIntervalUnit: 'months'
+      },
+      [process.env.STRIPE_PRICE_200K]: {
+        tier: 'pro_2', 
+        name: 'Pro Tier 2',
+        credits: 200000,
+        refillAmount: 200000,
+        refillIntervalValue: 1,
+        refillIntervalUnit: 'months'
+      },
+      [process.env.STRIPE_PRICE_400K]: {
+        tier: 'pro_3',
+        name: 'Pro Tier 3', 
+        credits: 400000,
+        refillAmount: 400000,
+        refillIntervalValue: 1,
+        refillIntervalUnit: 'months'
+      },
+      [process.env.STRIPE_PRICE_800K]: {
+        tier: 'pro_4',
+        name: 'Pro Tier 4',
+        credits: 800000,
+        refillAmount: 800000,
+        refillIntervalValue: 1,
+        refillIntervalUnit: 'months'
+      },
+      [process.env.STRIPE_PRICE_1200K]: {
+        tier: 'pro_5',
+        name: 'Pro Tier 5',
+        credits: 1200000,
+        refillAmount: 1200000,
+        refillIntervalValue: 1,
+        refillIntervalUnit: 'months'
+      },
+      [process.env.STRIPE_PRICE_2000K]: {
+        tier: 'pro_6',
+        name: 'Pro Tier 6',
+        credits: 2000000,
+        refillAmount: 2000000,
+        refillIntervalValue: 1,
+        refillIntervalUnit: 'months'
+      },
+      [process.env.STRIPE_PRICE_3000K]: {
+        tier: 'pro_7',
+        name: 'Pro Tier 7',
+        credits: 3000000,
+        refillAmount: 3000000,
+        refillIntervalValue: 1,
+        refillIntervalUnit: 'months'
+      },
+      [process.env.STRIPE_PRICE_4000K]: {
+        tier: 'pro_8',
+        name: 'Pro Tier 8',
+        credits: 4000000,
+        refillAmount: 4000000,
+        refillIntervalValue: 1,
+        refillIntervalUnit: 'months'
+      }
+    };
+
+    return tierMapping[priceId] || null;
   }
 }
 

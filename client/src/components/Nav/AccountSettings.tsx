@@ -1,5 +1,6 @@
 import { useState, memo } from 'react';
 import { useRecoilState } from 'recoil';
+import { useNavigate } from 'react-router-dom';
 import * as Select from '@ariakit/react/select';
 import { FileText, LogOut } from 'lucide-react';
 import { LinkIcon, GearIcon, DropdownMenuSeparator } from '~/components';
@@ -14,6 +15,7 @@ import store from '~/store';
 
 function AccountSettings() {
   const localize = useLocalize();
+  const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuthContext();
   const { data: startupConfig } = useGetStartupConfig();
   const balanceQuery = useGetUserBalance({
@@ -24,6 +26,10 @@ function AccountSettings() {
 
   const avatarSrc = useAvatar(user);
   const avatarSeed = user?.avatar || user?.name || user?.username || '';
+
+  const handleUpgradeClick = () => {
+    navigate('/pricing');
+  };
 
   return (
     <Select.SelectProvider>
@@ -77,10 +83,27 @@ function AccountSettings() {
         <DropdownMenuSeparator />
         {startupConfig?.balance?.enabled === true &&
           balanceQuery.data != null &&
-          !isNaN(parseFloat(balanceQuery.data)) && (
+          !isNaN(parseFloat(balanceQuery.data.balance)) && (
           <>
-            <div className="text-token-text-secondary ml-3 mr-2 py-2 text-sm" role="note">
-              {localize('com_nav_balance')}: {parseFloat(balanceQuery.data).toFixed(2)}
+            <div className="flex items-center justify-between ml-3 mr-2 py-2" role="note">
+              <div className="text-token-text-secondary text-sm">
+                {localize('com_nav_balance')}: {parseFloat(balanceQuery.data.balance).toFixed(2)}
+                {balanceQuery.data.tierName && balanceQuery.data.tier !== 'free' && (
+                  <div className="text-xs text-token-text-tertiary mt-1">
+                    {balanceQuery.data.tierName}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={handleUpgradeClick}
+                className="ml-3 px-3 py-1 text-xs font-semibold text-white rounded-full transition-all duration-200 hover:scale-105 hover:shadow-lg"
+                style={{
+                  background: 'linear-gradient(90deg, #904887 10.79%, #8b257e 87.08%)',
+                  boxShadow: '0 2px 4px rgba(144, 72, 135, 0.2)'
+                }}
+              >
+                Upgrade
+              </button>
             </div>
             <DropdownMenuSeparator />
           </>

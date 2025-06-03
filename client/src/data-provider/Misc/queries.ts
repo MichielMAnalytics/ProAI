@@ -19,10 +19,10 @@ export const useGetBannerQuery = (
 };
 
 export const useGetUserBalance = (
-  config?: UseQueryOptions<string>,
-): QueryObserverResult<string> => {
+  config?: UseQueryOptions<t.TUserBalance>,
+): QueryObserverResult<t.TUserBalance> => {
   const queriesEnabled = useRecoilValue<boolean>(store.queriesEnabled);
-  return useQuery<string>([QueryKeys.balance], () => dataService.getUserBalance(), {
+  return useQuery<t.TUserBalance>([QueryKeys.balance], () => dataService.getUserBalance(), {
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     refetchOnMount: true,
