@@ -444,11 +444,13 @@ async function handleCheckoutCompleted(session, eventId) {
     });
 
     if (result.success) {
-      logger.info(`Credits successfully added: ${credits} credits for user ${userId}`, {
-        transactionId: result.transaction,
-        newBalance: result.newBalance,
+      logger.info(`Checkout completion processed successfully`, {
+        userId,
+        credits,
         sessionId: session.id,
         eventId,
+        transactionId: result.transaction,
+        newBalance: result.newBalance,
         tier: result.tier,
         tierName: result.tierName
       });
@@ -525,14 +527,19 @@ async function handleSubscriptionCreated(subscription, eventId) {
     logger.info(`Subscription created for user ${userId}, credits: ${credits}`, {
       subscriptionId: subscription.id,
       customerId: customer,
-      priceId
+      priceId,
+      eventId
     });
     
-    // Note: For subscriptions, credits are typically added on invoice.payment_succeeded
-    // This handler mainly logs the subscription creation
+    // NOTE: Credits are added via checkout.session.completed for initial subscription
+    // This handler only logs subscription creation for audit purposes
+    // Future recurring billing will be handled by invoice.payment_succeeded
     
   } catch (error) {
-    logger.error('Error handling subscription creation:', error);
+    logger.error('Error handling subscription creation:', error, {
+      subscriptionId: subscription.id,
+      eventId
+    });
   }
 }
 
@@ -619,10 +626,62 @@ async function handlePaymentSucceeded(invoice, eventId) {
       customerId: customer,
       subscriptionId,
       hasSubscription: !!subscriptionId,
-      billingReason: invoice.billing_reason
+      billingReason: invoice.billing_reason,
+      invoiceStatus: invoice.status,
+      paymentIntent: invoice.payment_intent,
+      invoiceCreated: new Date(invoice.created * 1000)
     });
     
     if (!subscriptionId) {
+      logger.warn('Invoice event has no subscription ID', {
+        eventId,
+        invoiceId,
+        customerId: customer,
+        billingReason: invoice.billing_reason,
+        invoiceStatus: invoice.status,
+        paymentIntent: invoice.payment_intent,
+        amountPaid: invoice.amount_paid,
+        currency: invoice.currency,
+        lines: invoice.lines?.data?.map(line => ({
+          priceId: line.price?.id,
+          amount: line.amount,
+          description: line.description
+        }))
+      });
+      
+      // Try to find subscription through payment intent or recent subscriptions for this customer
+      if (invoice.payment_intent && invoice.billing_reason === 'subscription_create') {
+        try {
+          const stripe = stripeService.stripe;
+          const subscriptions = await stripe.subscriptions.list({
+            customer: customer,
+            limit: 5,
+            created: {
+              gte: Math.floor((Date.now() - 600000) / 1000), // Last 10 minutes
+            },
+          });
+          
+          if (subscriptions.data.length > 0) {
+            const recentSub = subscriptions.data[0];
+            logger.info(`Found recent subscription for invoice without subscription ID`, {
+              eventId,
+              invoiceId,
+              foundSubscriptionId: recentSub.id,
+              subscriptionStatus: recentSub.status,
+              subscriptionCreated: new Date(recentSub.created * 1000)
+            });
+            
+            // Note: We still skip processing this invoice since checkout.session.completed handles initial credits
+            // This log helps us understand the relationship
+          }
+        } catch (error) {
+          logger.warn('Error trying to find subscription for invoice:', error, {
+            eventId,
+            invoiceId
+          });
+        }
+      }
+      
       logger.info('Payment succeeded for non-subscription invoice, skipping credit top-up', {
         eventId,
         invoiceId,

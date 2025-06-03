@@ -96,10 +96,10 @@ function AccountSettings() {
               </div>
               <button
                 onClick={handleUpgradeClick}
-                className="ml-3 px-3 py-1 text-xs font-semibold text-white rounded-full transition-all duration-200 hover:scale-105 hover:shadow-lg"
+                className="btn btn-primary ml-3 px-3 py-1 text-xs font-semibold text-white"
                 style={{
                   background: 'linear-gradient(90deg, #904887 10.79%, #8b257e 87.08%)',
-                  boxShadow: '0 2px 4px rgba(144, 72, 135, 0.2)'
+                  borderColor: '#8b257e'
                 }}
               >
                 Upgrade

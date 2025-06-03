@@ -122,6 +122,10 @@ const errorMessages = {
                   <button
                     onClick={handleUpgrade}
                     className="btn btn-primary px-4 py-2 text-sm"
+                    style={{
+                      background: 'linear-gradient(90deg, #904887 10.79%, #8b257e 87.08%)',
+                      borderColor: '#8b257e'
+                    }}
                   >
                     Upgrade to Pro →
                   </button>
