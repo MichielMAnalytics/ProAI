@@ -340,4 +340,4 @@ async function getTransactions(filter) {
   }
 }
 
-module.exports = { Transaction, getTransactions };
+module.exports = { Transaction, getTransactions, updateBalance };

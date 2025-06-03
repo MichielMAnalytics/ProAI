@@ -1,5 +1,5 @@
 const { logger } = require('~/config');
-const { Transaction } = require('~/models/Transaction');
+const { Transaction, updateBalance } = require('~/models/Transaction');
 const Balance = require('~/models/Balance');
 const User = require('~/models/User');
 const { getBalanceConfig } = require('~/server/services/Config');
@@ -137,27 +137,41 @@ class BalanceService {
       }
 
       // 5. Create transaction record for audit trail
-      const transaction = await Transaction.create({
+      // NOTE: For credit purchases, we create transaction manually to avoid multipliers
+      // that are designed for token usage, not credit additions
+      const transaction = new Transaction({
         user: userId,
         tokenType: 'credits',
         rawAmount: credits, // Positive value for credit addition
+        tokenValue: credits, // Set tokenValue equal to rawAmount (no multiplier)
+        rate: 1, // Rate of 1 for credit purchases (no markup)
         context: 'stripe_payment',
-        model: `stripe_credits_${credits}`, // More descriptive model name
-        valueKey: transactionId, // Use valueKey for Stripe transaction ID - proper field for this purpose
+        model: `stripe_credits_${credits}`,
+        valueKey: transactionId,
         endpointTokenConfig: {},
+      });
+
+      // Save transaction manually without calling calculateTokenValue
+      await transaction.save();
+
+      // Update balance manually using the exact credit amount
+      const balanceResponse = await updateBalance({
+        user: userId,
+        incrementValue: credits, // Use exact credits, not tokenValue
       });
 
       logger.info(`Credits added successfully: ${credits} credits for user ${userId}`, {
         transactionId,
         userId,
         credits,
-        transactionDbId: transaction._id
+        transactionDbId: transaction._id,
+        newBalance: balanceResponse.tokenCredits
       });
 
       return {
         success: true,
         transaction: transaction._id,
-        newBalance: transaction.balance || credits, // Transaction.create should return balance
+        newBalance: balanceResponse.tokenCredits,
         creditsAdded: credits
       };
 
