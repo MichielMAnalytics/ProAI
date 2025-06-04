@@ -104,20 +104,41 @@ class WorkflowTool extends Tool {
 
   async getAvailableTools(userId) {
     try {
-      // Get MCP tools
-      const mcpTools = await UserMCPService.getUserMCPTools(userId);
+      // Get MCP tools via MCPInitializer (same pattern as WorkflowExecutor)
+      const MCPInitializer = require('~/server/services/MCPInitializer');
+      const mcpInitializer = MCPInitializer.getInstance();
+      
+      const availableTools = {};
+      const mcpResult = await mcpInitializer.ensureUserMCPReady(
+        userId, 
+        'WorkflowTool',
+        availableTools
+      );
+      
+      // Extract MCP tools from availableTools registry
+      const mcpTools = [];
+      if (mcpResult.success && availableTools) {
+        const toolKeys = Object.keys(availableTools);
+        for (const toolKey of toolKeys) {
+          const tool = availableTools[toolKey];
+          if (tool && typeof tool === 'object' && tool.function) {
+            mcpTools.push({
+              name: tool.function.name,
+              description: tool.function.description || 'No description available',
+              parameters: tool.function.parameters || {},
+              type: 'mcp_tool',
+              serverName: toolKey.includes('__') ? toolKey.split('__')[1] : 'unknown',
+            });
+          }
+        }
+      }
       
       // Get Pipedream integrations
       const integrations = await PipedreamUserIntegrations.getUserIntegrations(userId);
       
       // Format available tools
-      const availableTools = {
-        mcpTools: mcpTools.map(tool => ({
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.inputSchema,
-          type: 'mcp_tool',
-        })),
+      const formattedTools = {
+        mcpTools,
         pipedreamActions: integrations.map(integration => ({
           name: integration.appName,
           slug: integration.appSlug,
@@ -127,10 +148,17 @@ class WorkflowTool extends Tool {
         })),
       };
 
+      logger.info(`[WorkflowTool] Retrieved tools for user ${userId}: ${mcpTools.length} MCP tools, ${integrations.length} Pipedream integrations`);
+
       return {
         success: true,
-        message: `Found ${availableTools.mcpTools.length} MCP tools and ${availableTools.pipedreamActions.length} Pipedream integrations`,
-        tools: availableTools,
+        message: `Found ${formattedTools.mcpTools.length} MCP tools and ${formattedTools.pipedreamActions.length} Pipedream integrations`,
+        tools: formattedTools,
+        mcpResult: {
+          success: mcpResult.success,
+          serverCount: mcpResult.serverCount,
+          toolCount: mcpResult.toolCount,
+        }
       };
     } catch (error) {
       logger.error('[WorkflowTool] Error getting available tools:', error);
@@ -141,6 +169,36 @@ class WorkflowTool extends Tool {
     }
   }
 
+  /**
+   * Auto-fix step connections to ensure all references point to existing steps
+   * @param {Array} steps - Array of workflow steps
+   * @returns {Array} Steps with fixed connections
+   */
+  autoFixStepConnections(steps) {
+    if (!steps || steps.length === 0) return steps;
+
+    const stepIds = new Set(steps.map(step => step.id));
+    const fixedSteps = steps.map(step => {
+      const fixedStep = { ...step };
+
+      // Fix onSuccess references
+      if (step.onSuccess && !stepIds.has(step.onSuccess)) {
+        logger.warn(`[WorkflowTool] Fixing invalid onSuccess reference: ${step.onSuccess} -> removing reference`);
+        delete fixedStep.onSuccess;
+      }
+
+      // Fix onFailure references  
+      if (step.onFailure && !stepIds.has(step.onFailure)) {
+        logger.warn(`[WorkflowTool] Fixing invalid onFailure reference: ${step.onFailure} -> removing reference`);
+        delete fixedStep.onFailure;
+      }
+
+      return fixedStep;
+    });
+
+    return fixedSteps;
+  }
+
   async createWorkflow(data, userId, conversationId, parentMessageId, endpoint, model) {
     const { name, description, trigger, steps } = data;
 
@@ -148,14 +206,20 @@ class WorkflowTool extends Tool {
       throw new Error('Missing required fields: name, trigger, and steps are required');
     }
 
+    // Process trigger configuration
+    const processedTrigger = this.processTriggerConfig(trigger, description);
+
+    // Auto-fix step connections to prevent validation errors
+    const fixedSteps = this.autoFixStepConnections(steps);
+
     const workflowId = `workflow_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
     
     const workflowData = {
       id: workflowId,
       name,
       description,
-      trigger,
-      steps,
+      trigger: processedTrigger,
+      steps: fixedSteps,
       isDraft: true,
       isActive: false,
       user: userId,
@@ -174,7 +238,10 @@ class WorkflowTool extends Tool {
     }
 
     try {
-      const workflow = await createUserWorkflow(workflowData);
+      // Use WorkflowService for proper validation
+      const workflowService = new WorkflowService();
+      const workflow = await workflowService.createWorkflow(workflowData, userId);
+      
       logger.info(`[WorkflowTool] Created workflow: ${workflowId} (${name}) for user ${userId}`);
       
       return {
@@ -195,6 +262,81 @@ class WorkflowTool extends Tool {
       logger.error(`[WorkflowTool] Error creating workflow:`, error);
       throw new Error(`Failed to create workflow: ${error.message}`);
     }
+  }
+
+  /**
+   * Process trigger configuration, especially for schedule triggers
+   * @param {Object} trigger - Raw trigger object
+   * @param {string} description - Workflow description for context
+   * @returns {Object} Processed trigger with proper config
+   */
+  processTriggerConfig(trigger, description) {
+    const processedTrigger = { ...trigger };
+
+    if (trigger.type === 'schedule') {
+      // If no config provided, try to parse from description or set default
+      if (!trigger.config?.schedule) {
+        processedTrigger.config = processedTrigger.config || {};
+        
+        // Try to extract schedule from description
+        const scheduleFromDescription = this.extractScheduleFromDescription(description);
+        if (scheduleFromDescription) {
+          processedTrigger.config.schedule = scheduleFromDescription;
+          logger.info(`[WorkflowTool] Extracted schedule from description: ${scheduleFromDescription}`);
+        } else {
+          // Default to daily at 9 AM UTC if no schedule specified
+          processedTrigger.config.schedule = '0 9 * * *';
+          logger.info(`[WorkflowTool] No schedule found, using default: 0 9 * * *`);
+        }
+      }
+    }
+
+    return processedTrigger;
+  }
+
+  /**
+   * Extract cron schedule from workflow description
+   * @param {string} description - Workflow description
+   * @returns {string|null} Cron expression or null if not found
+   */
+  extractScheduleFromDescription(description) {
+    if (!description) return null;
+
+    const desc = description.toLowerCase();
+    
+    // Common schedule patterns
+    const patterns = [
+      // "9 AM (UTC+2)" -> 7 AM UTC
+      { regex: /(\d{1,2})\s*am.*utc\+(\d{1,2})/, handler: (match) => {
+        const hour = parseInt(match[1]);
+        const offset = parseInt(match[2]);
+        const utcHour = (hour - offset + 24) % 24;
+        return `0 ${utcHour} * * *`;
+      }},
+      // "9 AM" -> 9 AM UTC
+      { regex: /(\d{1,2})\s*am/, handler: (match) => {
+        const hour = parseInt(match[1]);
+        return `0 ${hour} * * *`;
+      }},
+      // "daily at 9" -> 9 AM UTC
+      { regex: /daily.*?(\d{1,2})/, handler: (match) => {
+        const hour = parseInt(match[1]);
+        return `0 ${hour} * * *`;
+      }},
+      // "every morning" -> 9 AM UTC
+      { regex: /every morning/, handler: () => '0 9 * * *' },
+      // "every day" -> 9 AM UTC
+      { regex: /every day/, handler: () => '0 9 * * *' },
+    ];
+
+    for (const pattern of patterns) {
+      const match = desc.match(pattern.regex);
+      if (match) {
+        return pattern.handler(match);
+      }
+    }
+
+    return null;
   }
 
   async listWorkflows(userId) {
@@ -368,20 +510,19 @@ class WorkflowTool extends Tool {
       }
 
       // Execute workflow via WorkflowService
-      const execution = await WorkflowService.executeWorkflow(workflow, {
-        type: 'manual',
-        source: 'agent_test',
-        data: { initiated_by: 'agent' }
-      });
+      const workflowService = new WorkflowService();
+      const execution = await workflowService.executeWorkflow(workflowId, userId, {
+        trigger: {
+          type: 'manual',
+          source: 'agent_test',
+          data: { initiated_by: 'agent' }
+        }
+      }, true); // true indicates this is a test execution
 
       return {
         success: true,
-        message: `Test execution started for workflow "${workflow.name}"`,
-        execution: {
-          id: execution.id,
-          status: execution.status,
-          startTime: execution.startTime,
-        }
+        message: `Test execution completed for workflow "${workflow.name}"`,
+        execution: execution
       };
     } catch (error) {
       logger.error(`[WorkflowTool] Error testing workflow:`, error);

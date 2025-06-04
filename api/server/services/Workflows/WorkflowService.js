@@ -17,6 +17,7 @@ const {
   updateWorkflowStepExecution
 } = require('~/models/WorkflowExecution');
 const WorkflowExecutor = require('./WorkflowExecutor');
+const { v4: uuidv4 } = require('uuid');
 
 class WorkflowService {
   constructor() {
@@ -200,12 +201,21 @@ class WorkflowService {
       }
       
       // Create execution record
+      const executionId = `exec_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
       const execution = await createWorkflowExecution({
+        id: executionId,
         workflowId: workflow.id,
-        userId: workflow.user,
+        workflowName: workflow.name,
+        user: userId,
+        trigger: {
+          type: context.trigger?.type || 'manual',
+          source: context.trigger?.source || (isTest ? 'test' : 'api'),
+          data: context.trigger?.data || {}
+        },
         status: 'running',
-        isTest,
+        startTime: new Date(),
         context,
+        isTest,
       });
       
       try {
@@ -213,8 +223,7 @@ class WorkflowService {
         const result = await this.executor.executeWorkflow(workflow, execution, context);
         
         // Update execution status
-        await updateWorkflowExecution(execution.id, {
-          status: result.success ? 'completed' : 'failed',
+        await updateWorkflowExecution(execution.id, result.success ? 'completed' : 'failed', {
           endTime: new Date(),
           result: result.result,
           error: result.error,
@@ -229,8 +238,7 @@ class WorkflowService {
         return result;
       } catch (error) {
         // Update execution status on error
-        await updateWorkflowExecution(execution.id, {
-          status: 'failed',
+        await updateWorkflowExecution(execution.id, 'failed', {
           endTime: new Date(),
           error: error.message,
         });
@@ -366,9 +374,9 @@ class WorkflowService {
         }
         break;
       case 'action':
-        if (!step.config.pipedreamAction?.componentId) {
-          throw new Error(`Step ${index} action missing Pipedream component ID`);
-        }
+        // Action steps now use MCP tools dynamically, so no specific config validation needed
+        // The agent will determine which tools to use based on step name and available MCP tools
+        logger.debug(`[WorkflowService] Action step ${index} will use dynamic MCP tool selection`);
         break;
     }
 
@@ -385,14 +393,15 @@ class WorkflowService {
    */
   validateStepConnections(steps) {
     const stepIds = new Set(steps.map(step => step.id));
+    const allStepIds = Array.from(stepIds);
 
     steps.forEach((step, index) => {
       if (step.onSuccess && !stepIds.has(step.onSuccess)) {
-        throw new Error(`Step ${index} onSuccess references non-existent step: ${step.onSuccess}`);
+        throw new Error(`Step ${index} (${step.id}) onSuccess references non-existent step: ${step.onSuccess}. Available steps: [${allStepIds.join(', ')}]`);
       }
 
       if (step.onFailure && !stepIds.has(step.onFailure)) {
-        throw new Error(`Step ${index} onFailure references non-existent step: ${step.onFailure}`);
+        throw new Error(`Step ${index} (${step.id}) onFailure references non-existent step: ${step.onFailure}. Available steps: [${allStepIds.join(', ')}]`);
       }
     });
   }

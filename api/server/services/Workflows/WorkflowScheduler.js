@@ -85,7 +85,8 @@ class WorkflowScheduler {
         return false;
       }
 
-      const schedule = workflow.trigger.config.schedule;
+      // Safely access schedule configuration
+      const schedule = workflow.trigger.config?.schedule;
       if (!schedule) {
         logger.warn(`[WorkflowScheduler] Workflow ${workflowId} missing schedule configuration`);
         return false;
@@ -226,10 +227,13 @@ class WorkflowScheduler {
         if (workflow.trigger.type === 'schedule') {
           const existingJob = this.scheduledJobs.get(workflow.id);
           
-          // Check if schedule needs to be updated
-          if (!existingJob || existingJob.schedule !== workflow.trigger.config.schedule) {
+          // Safely check if schedule configuration exists and needs to be updated
+          const currentSchedule = workflow.trigger.config?.schedule;
+          if (currentSchedule && (!existingJob || existingJob.schedule !== currentSchedule)) {
             logger.info(`[WorkflowScheduler] Updating schedule for workflow: ${workflow.id}`);
             await this.scheduleWorkflow(workflow);
+          } else if (!currentSchedule) {
+            logger.warn(`[WorkflowScheduler] Workflow ${workflow.id} has schedule trigger but missing schedule config`);
           }
         }
       }
