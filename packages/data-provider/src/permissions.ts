@@ -33,6 +33,10 @@ export enum PermissionTypes {
    */
   SCHEDULES = 'SCHEDULES',
   /**
+   * Type for Workflow Permissions
+   */
+  WORKFLOWS = 'WORKFLOWS',
+  /**
    * Type for using the "Web Search" feature
    */
   WEB_SEARCH = 'WEB_SEARCH',
@@ -92,6 +96,11 @@ export const schedulesPermissionsSchema = z.object({
 });
 export type TSchedulesPermissions = z.infer<typeof schedulesPermissionsSchema>;
 
+export const workflowsPermissionsSchema = z.object({
+  [Permissions.USE]: z.boolean().default(true),
+});
+export type TWorkflowsPermissions = z.infer<typeof workflowsPermissionsSchema>;
+
 export const webSearchPermissionsSchema = z.object({
   [Permissions.USE]: z.boolean().default(true),
 });
@@ -106,5 +115,6 @@ export const permissionsSchema = z.object({
   [PermissionTypes.TEMPORARY_CHAT]: temporaryChatPermissionsSchema,
   [PermissionTypes.RUN_CODE]: runCodePermissionsSchema,
   [PermissionTypes.SCHEDULES]: schedulesPermissionsSchema,
+  [PermissionTypes.WORKFLOWS]: workflowsPermissionsSchema,
   [PermissionTypes.WEB_SEARCH]: webSearchPermissionsSchema,
 });

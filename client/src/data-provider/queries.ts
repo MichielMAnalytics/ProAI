@@ -716,3 +716,126 @@ export const useToggleSchedulerTaskMutation = (
     ...options,
   });
 };
+
+// Workflows
+export const useWorkflowsQuery = (options?: UseQueryOptions<t.TUserWorkflow[]>) =>
+  useQuery<t.TUserWorkflow[]>({
+    queryKey: [QueryKeys.workflows],
+    queryFn: () => dataService.getWorkflows(),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    ...options,
+  });
+
+export const useWorkflowQuery = (
+  workflowId: string,
+  options?: UseQueryOptions<t.TUserWorkflow>
+) =>
+  useQuery<t.TUserWorkflow>({
+    queryKey: [QueryKeys.workflow, workflowId],
+    queryFn: () => dataService.getWorkflow(workflowId),
+    enabled: !!workflowId,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    ...options,
+  });
+
+export const useCreateWorkflowMutation = (
+  options?: UseMutationOptions<t.TUserWorkflow, unknown, Partial<t.TUserWorkflow>>
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<t.TUserWorkflow>) => dataService.createWorkflow(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.workflows] });
+    },
+    ...options,
+  });
+};
+
+export const useUpdateWorkflowMutation = (
+  options?: UseMutationOptions<t.TUserWorkflow, unknown, { workflowId: string; data: Partial<t.TUserWorkflow> }>
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ workflowId, data }: { workflowId: string; data: Partial<t.TUserWorkflow> }) =>
+      dataService.updateWorkflow(workflowId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.workflows] });
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.workflow] });
+    },
+    ...options,
+  });
+};
+
+export const useDeleteWorkflowMutation = (
+  options?: UseMutationOptions<void, unknown, string>
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (workflowId: string) => dataService.deleteWorkflow(workflowId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.workflows] });
+    },
+    ...options,
+  });
+};
+
+export const useToggleWorkflowMutation = (
+  options?: UseMutationOptions<t.TUserWorkflow, unknown, { workflowId: string; isActive: boolean }>
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ workflowId, isActive }: { workflowId: string; isActive: boolean }) =>
+      dataService.toggleWorkflow(workflowId, isActive),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.workflows] });
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.workflow] });
+    },
+    ...options,
+  });
+};
+
+export const useTestWorkflowMutation = (
+  options?: UseMutationOptions<t.TWorkflowExecution, unknown, string>
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (workflowId: string) => dataService.testWorkflow(workflowId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.workflowExecutions] });
+    },
+    ...options,
+  });
+};
+
+export const useWorkflowExecutionsQuery = (
+  workflowId: string,
+  options?: UseQueryOptions<t.TWorkflowExecution[]>
+) =>
+  useQuery<t.TWorkflowExecution[]>({
+    queryKey: [QueryKeys.workflowExecutions, workflowId],
+    queryFn: () => dataService.getWorkflowExecutions(workflowId),
+    enabled: !!workflowId,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    ...options,
+  });
+
+export const useWorkflowExecutionQuery = (
+  workflowId: string,
+  executionId: string,
+  options?: UseQueryOptions<t.TWorkflowExecution>
+) =>
+  useQuery<t.TWorkflowExecution>({
+    queryKey: [QueryKeys.workflowExecution, workflowId, executionId],
+    queryFn: () => dataService.getWorkflowExecution(workflowId, executionId),
+    enabled: !!workflowId && !!executionId,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    ...options,
+  });

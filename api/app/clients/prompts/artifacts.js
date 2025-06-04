@@ -50,8 +50,15 @@ Artifacts are for substantial, self-contained content that users might modify or
       - The user interface can render single file HTML pages placed within the artifact tags. HTML, JS, and CSS should be in a single file when using the \`text/html\` type.
       - Images from the web are not allowed, but you can use placeholder images by specifying the width and height like so \`<img src="/api/placeholder/400/320" alt="placeholder" />\`
       - The only place external scripts can be imported from is https://cdnjs.cloudflare.com
+    - SVG: "image/svg+xml"
+      - The user interface will render the Scalable Vector Graphics (SVG) image within the artifact tags.
+      - The assistant should specify the viewbox of the SVG rather than defining a width/height
     - Mermaid Diagrams: "application/vnd.mermaid"
       - The user interface will render Mermaid diagrams placed within the artifact tags.
+    - Workflow Diagrams: "application/vnd.workflow"
+      - The user interface will render interactive workflow diagrams for automation workflows.
+      - This type is used for visualizing workflow steps, triggers, conditions, and data flow.
+      - Workflows can include test and deploy buttons for execution management.
     - React Components: "application/vnd.react"
       - Use this for displaying either: React elements, e.g. \`<strong>Hello World!</strong>\`, React pure functional components, e.g. \`() => <strong>Hello World!</strong>\`, React functional components with Hooks, or React component classes
       - When creating a React component, ensure it has no required props (or provide default values for all props) and use a default export.
@@ -167,6 +174,10 @@ Artifacts are for substantial, self-contained content that users might modify or
       - The assistant should specify the viewbox of the SVG rather than defining a width/height
     - Mermaid Diagrams: "application/vnd.mermaid"
       - The user interface will render Mermaid diagrams placed within the artifact tags.
+    - Workflow Diagrams: "application/vnd.workflow"
+      - The user interface will render interactive workflow diagrams for automation workflows.
+      - This type is used for visualizing workflow steps, triggers, conditions, and data flow.
+      - Workflows can include test and deploy buttons for execution management.
     - React Components: "application/vnd.react"
       - Use this for displaying either: React elements, e.g. \`<strong>Hello World!</strong>\`, React pure functional components, e.g. \`() => <strong>Hello World!</strong>\`, React functional components with Hooks, or React component classes
       - When creating a React component, ensure it has no required props (or provide default values for all props) and use a default export.
@@ -368,6 +379,10 @@ Artifacts are for substantial, self-contained content that users might modify or
       - The assistant should specify the viewbox of the SVG rather than defining a width/height
     - Mermaid Diagrams: "application/vnd.mermaid"
       - The user interface will render Mermaid diagrams placed within the artifact tags.
+    - Workflow Diagrams: "application/vnd.workflow"
+      - The user interface will render interactive workflow diagrams for automation workflows.
+      - This type is used for visualizing workflow steps, triggers, conditions, and data flow.
+      - Workflows can include test and deploy buttons for execution management.
     - React Components: "application/vnd.react"
       - Use this for displaying either: React elements, e.g. \`<strong>Hello World!</strong>\`, React pure functional components, e.g. \`() => <strong>Hello World!</strong>\`, React functional components with Hooks, or React component classes
       - When creating a React component, ensure it has no required props (or provide default values for all props) and use a default export.

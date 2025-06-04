@@ -569,6 +569,8 @@
   "com_ui_bookmarks_update_error": "There was an error updating the bookmark",
   "com_ui_bookmarks_update_success": "Bookmark updated successfully",
   "com_ui_schedules": "Tasks",
+  "com_ui_workflows": "Workflows",
+  "com_ui_workflows_agent_description": "Enable workflows to allow this agent to create, manage, and execute automated task sequences",
   "com_ui_bulk_delete_error": "Failed to delete shared links",
   "com_ui_callback_url": "Callback URL",
   "com_ui_cancel": "Cancel",

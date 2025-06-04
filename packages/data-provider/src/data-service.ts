@@ -877,3 +877,41 @@ export function toggleSchedulerTask(taskId: string, enabled: boolean): Promise<t
   const action = enabled ? 'enable' : 'disable';
   return request.post(endpoints.schedulerTaskAction(taskId, action)).then((response: any) => response.task);
 }
+
+/* Workflows */
+export function getWorkflows(): Promise<t.TUserWorkflow[]> {
+  return request.get(endpoints.workflows()).then((response: any) => response.workflows || []);
+}
+
+export function getWorkflow(workflowId: string): Promise<t.TUserWorkflow> {
+  return request.get(endpoints.workflow(workflowId)).then((response: any) => response.workflow);
+}
+
+export function createWorkflow(data: Partial<t.TUserWorkflow>): Promise<t.TUserWorkflow> {
+  return request.post(endpoints.workflows(), data).then((response: any) => response.workflow);
+}
+
+export function updateWorkflow(workflowId: string, data: Partial<t.TUserWorkflow>): Promise<t.TUserWorkflow> {
+  return request.put(endpoints.workflow(workflowId), data).then((response: any) => response.workflow);
+}
+
+export function deleteWorkflow(workflowId: string): Promise<void> {
+  return request.delete(endpoints.workflow(workflowId));
+}
+
+export function toggleWorkflow(workflowId: string, isActive: boolean): Promise<t.TUserWorkflow> {
+  const action = isActive ? 'activate' : 'deactivate';
+  return request.post(endpoints.workflowAction(workflowId, action)).then((response: any) => response.workflow);
+}
+
+export function testWorkflow(workflowId: string): Promise<t.TWorkflowExecution> {
+  return request.post(endpoints.workflowTest(workflowId)).then((response: any) => response.execution);
+}
+
+export function getWorkflowExecutions(workflowId: string): Promise<t.TWorkflowExecution[]> {
+  return request.get(endpoints.workflowExecutions(workflowId)).then((response: any) => response.executions || []);
+}
+
+export function getWorkflowExecution(workflowId: string, executionId: string): Promise<t.TWorkflowExecution> {
+  return request.get(endpoints.workflowExecution(workflowId, executionId)).then((response: any) => response.execution);
+}

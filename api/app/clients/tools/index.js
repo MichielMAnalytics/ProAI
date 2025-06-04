@@ -13,6 +13,7 @@ const TraversaalSearch = require('./structured/TraversaalSearch');
 const createOpenAIImageTools = require('./structured/OpenAIImageTools');
 const TavilySearchResults = require('./structured/TavilySearchResults');
 const SchedulerTool = require('./structured/Scheduler');
+const WorkflowTool = require('./structured/Workflow');
 
 /** @type {Record<string, TPlugin | undefined>} */
 const manifestToolMap = {};
@@ -44,4 +45,5 @@ module.exports = {
   TavilySearchResults,
   createOpenAIImageTools,
   SchedulerTool,
+  WorkflowTool,
 };

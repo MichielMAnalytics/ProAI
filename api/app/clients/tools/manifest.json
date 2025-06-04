@@ -7,6 +7,13 @@
     "authConfig": []
   },
   {
+    "name": "Workflows",
+    "pluginKey": "workflows",
+    "description": "Create, manage, and execute automated workflow sequences. Chain together multiple tools and actions with conditional logic, delays, and integrations.",
+    "icon": "https://imgur.com/E8GUS01.png",
+    "authConfig": []
+  },
+  {
     "name": "Traversaal",
     "pluginKey": "traversaal_search",
     "description": "Traversaal is a robust search API tailored for LLM Agents. Get an API key here: https://api.traversaal.ai",

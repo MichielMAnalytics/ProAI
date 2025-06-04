@@ -28,6 +28,7 @@ const keys = require('./keys');
 const user = require('./user');
 const ask = require('./ask');
 const scheduler = require('./scheduler');
+const workflows = require('./workflows');
 const enterpriseContact = require('./enterpriseContact');
 const stripe = require('./stripe');
 
@@ -62,6 +63,7 @@ module.exports = {
   integrations,
   staticRoute,
   scheduler,
+  workflows,
   enterpriseContact,
   stripe,
 };

@@ -22,6 +22,7 @@ import CodeForm from './Code/Form';
 import { Panel } from '~/common';
 import { useGetStartupConfig } from '~/data-provider';
 import EndpointIcon from '~/components/Endpoints/EndpointIcon';
+import Workflows from './Workflows';
 
 const labelClass = 'mb-2 text-token-text-primary block font-medium';
 const inputClass = cn(
@@ -102,6 +103,10 @@ export default function AgentConfig({
   );
   const codeEnabled = useMemo(
     () => agentsConfig?.capabilities?.includes(AgentCapabilities.execute_code) ?? false,
+    [agentsConfig],
+  );
+  const workflowsEnabled = useMemo(
+    () => agentsConfig?.capabilities?.includes(AgentCapabilities.workflows) ?? false,
     [agentsConfig],
   );
 
@@ -293,7 +298,8 @@ export default function AgentConfig({
           (capabilityItemsConfig.fileSearch !== false && fileSearchEnabled) ||
           (capabilityItemsConfig.artifacts !== false && artifactsEnabled) ||
           (capabilityItemsConfig.fileContext !== false && ocrEnabled) ||
-          (capabilityItemsConfig.webSearch !== false && webSearchEnabled)
+          (capabilityItemsConfig.webSearch !== false && webSearchEnabled) ||
+          workflowsEnabled
         ) && (
           <div className="mb-4 flex w-full flex-col items-start gap-3">
             <label className="text-token-text-primary block font-medium">
@@ -309,6 +315,10 @@ export default function AgentConfig({
             {capabilityItemsConfig.artifacts !== false && artifactsEnabled && <Artifacts />}
             {/* File Search */}
             {capabilityItemsConfig.fileSearch !== false && fileSearchEnabled && <FileSearch agent_id={agent_id} files={knowledge_files} />}
+            {/* Workflows */}
+            {workflowsEnabled && (
+              <Workflows />
+            )}
           </div>
         )}
         {/* Agent Tools & Actions */}

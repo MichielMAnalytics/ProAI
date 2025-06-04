@@ -15,6 +15,7 @@ export type TAgentCapabilities = {
   [AgentCapabilities.execute_code]: boolean;
   [AgentCapabilities.end_after_tools]?: boolean;
   [AgentCapabilities.hide_sequential_outputs]?: boolean;
+  workflows?: boolean;
 };
 
 export type AgentForm = {
@@ -29,5 +30,6 @@ export type AgentForm = {
   provider?: AgentProvider | OptionWithIcon;
   agent_ids?: string[];
   [AgentCapabilities.artifacts]?: ArtifactModes | string;
+  workflows?: boolean;
   recursion_limit?: number;
 } & TAgentCapabilities;

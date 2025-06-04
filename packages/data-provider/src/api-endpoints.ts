@@ -305,3 +305,12 @@ export const refreshUserMCP = () => '/api/agents/tools/refresh-user-mcp';
 export const schedulerTasks = () => '/api/scheduler/tasks';
 export const schedulerTask = (taskId: string) => `/api/scheduler/tasks/${taskId}`;
 export const schedulerTaskAction = (taskId: string, action: string) => `/api/scheduler/tasks/${taskId}/${action}`;
+
+/* Workflow endpoints */
+export const workflows = () => '/api/workflows';
+export const workflow = (workflowId: string) => `/api/workflows/${workflowId}`;
+export const workflowAction = (workflowId: string, action: string) => `/api/workflows/${workflowId}/${action}`;
+export const workflowExecutions = (workflowId: string) => `/api/workflows/${workflowId}/executions`;
+export const workflowExecution = (workflowId: string, executionId: string) => `/api/workflows/${workflowId}/executions/${executionId}`;
+export const workflowTest = (workflowId: string) => `/api/workflows/${workflowId}/test`;
+export const workflowStatus = () => '/api/workflows/status';

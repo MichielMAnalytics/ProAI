@@ -173,6 +173,7 @@ export enum AgentCapabilities {
   tools = 'tools',
   chain = 'chain',
   ocr = 'ocr',
+  workflows = 'workflows',
 }
 
 export const defaultAssistantsVersion = {
@@ -242,6 +243,7 @@ export const defaultAgentCapabilities = [
   AgentCapabilities.tools,
   AgentCapabilities.chain,
   AgentCapabilities.ocr,
+  AgentCapabilities.workflows,
 ];
 
 export const agentsEndpointSChema = baseEndpointSchema.merge(
@@ -500,6 +502,7 @@ export const intefaceSchema = z
     temporaryChat: z.boolean().optional(),
     runCode: z.boolean().optional(),
     schedules: z.boolean().optional(),
+    workflows: z.boolean().optional(),
     files: z.boolean().optional(),
     plugins: z.boolean().optional(),
     assistants: z.boolean().optional(),
@@ -586,6 +589,7 @@ export const intefaceSchema = z
     temporaryChat: true,
     runCode: true,
     schedules: true,
+    workflows: true,
     files: true,
     plugins: true,
     assistants: true,
@@ -1483,6 +1487,8 @@ export enum LocalStorageKeys {
   LAST_WEB_SEARCH_TOGGLE_ = 'LAST_WEB_SEARCH_TOGGLE_',
   /** Last checked toggle for Scheduler per conversation ID */
   LAST_SCHEDULER_TOGGLE_ = 'LAST_SCHEDULER_TOGGLE_',
+  /** Last checked toggle for Workflow per conversation ID */
+  LAST_WORKFLOW_TOGGLE_ = 'LAST_WORKFLOW_TOGGLE_',
 }
 
 export enum ForkOptions {

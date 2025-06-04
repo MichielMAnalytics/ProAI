@@ -11,6 +11,7 @@ import {
   multiConvoPermissionsSchema,
   temporaryChatPermissionsSchema,
   schedulesPermissionsSchema,
+  workflowsPermissionsSchema,
 } from './permissions';
 
 /**
@@ -67,6 +68,9 @@ const defaultRolesSchema = z.object({
       [PermissionTypes.SCHEDULES]: schedulesPermissionsSchema.extend({
         [Permissions.USE]: z.boolean().default(true),
       }),
+      [PermissionTypes.WORKFLOWS]: workflowsPermissionsSchema.extend({
+        [Permissions.USE]: z.boolean().default(true),
+      }),
       [PermissionTypes.WEB_SEARCH]: webSearchPermissionsSchema.extend({
         [Permissions.USE]: z.boolean().default(true),
       }),
@@ -107,6 +111,9 @@ export const roleDefaults = defaultRolesSchema.parse({
       [PermissionTypes.SCHEDULES]: {
         [Permissions.USE]: true,
       },
+      [PermissionTypes.WORKFLOWS]: {
+        [Permissions.USE]: true,
+      },
       [PermissionTypes.WEB_SEARCH]: {
         [Permissions.USE]: true,
       },
@@ -122,6 +129,9 @@ export const roleDefaults = defaultRolesSchema.parse({
       [PermissionTypes.TEMPORARY_CHAT]: {},
       [PermissionTypes.RUN_CODE]: {},
       [PermissionTypes.SCHEDULES]: {
+        [Permissions.USE]: true,
+      },
+      [PermissionTypes.WORKFLOWS]: {
         [Permissions.USE]: true,
       },
       [PermissionTypes.WEB_SEARCH]: {},

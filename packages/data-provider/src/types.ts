@@ -47,6 +47,7 @@ export type TEphemeralAgent = {
   web_search?: boolean;
   execute_code?: boolean;
   scheduler?: boolean;
+  workflow?: boolean;
 };
 
 export type TPayload = Partial<TMessage> &
@@ -748,6 +749,100 @@ export type TSchedulerTask = {
   endpoint?: string;
   ai_model?: string;
   agent_id?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+export type TWorkflowStep = {
+  id: string;
+  name: string;
+  type: 'action' | 'condition' | 'delay' | 'mcp_tool';
+  config: {
+    toolName?: string;
+    parameters?: Record<string, unknown>;
+    condition?: string;
+    delayMs?: number;
+    pipedreamAction?: {
+      componentId: string;
+      appSlug: string;
+      config: Record<string, unknown>;
+    };
+  };
+  onSuccess?: string; // Next step ID
+  onFailure?: string; // Next step ID
+  position: { x: number; y: number };
+};
+
+export type TWorkflowTrigger = {
+  type: 'manual' | 'schedule' | 'webhook' | 'email' | 'event';
+  config: {
+    schedule?: string; // Cron expression
+    webhookUrl?: string;
+    emailAddress?: string;
+    eventType?: string;
+    parameters?: Record<string, unknown>;
+  };
+};
+
+export type TUserWorkflow = {
+  id: string;
+  name: string;
+  description?: string;
+  trigger: TWorkflowTrigger;
+  steps: TWorkflowStep[];
+  isActive: boolean;
+  isDraft: boolean;
+  user: string;
+  conversation_id?: string;
+  parent_message_id?: string;
+  endpoint?: string;
+  ai_model?: string;
+  agent_id?: string;
+  // Execution tracking
+  last_run?: Date;
+  next_run?: Date;
+  run_count?: number;
+  success_count?: number;
+  failure_count?: number;
+  // Version control
+  version: number;
+  created_from_agent?: boolean;
+  // UI state
+  artifact_identifier?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+export type TWorkflowStepExecution = {
+  stepId: string;
+  stepName: string;
+  stepType: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  startTime: Date;
+  endTime?: Date;
+  input?: Record<string, unknown>;
+  output?: Record<string, unknown>;
+  error?: string;
+  retryCount: number;
+};
+
+export type TWorkflowExecution = {
+  id: string;
+  workflowId: string;
+  workflowName: string;
+  trigger: {
+    type: string;
+    source: string;
+    data?: Record<string, unknown>;
+  };
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  startTime: Date;
+  endTime?: Date;
+  stepExecutions: TWorkflowStepExecution[];
+  currentStepId?: string;
+  context: Record<string, unknown>; // Data passed between steps
+  error?: string;
+  user: string;
   createdAt?: Date;
   updatedAt?: Date;
 };

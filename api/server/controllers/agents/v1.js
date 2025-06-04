@@ -29,6 +29,7 @@ const { logger } = require('~/config');
 const systemTools = {
   [Tools.execute_code]: true,
   [Tools.file_search]: true,
+  workflows: true,
 };
 
 /**

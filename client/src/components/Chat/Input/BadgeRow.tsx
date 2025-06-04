@@ -18,6 +18,7 @@ import MCPSelect from './MCPSelect';
 import WebSearch from './WebSearch';
 import store from '~/store';
 import SchedulerToggle from './SchedulerToggle';
+import WorkflowToggle from './WorkflowToggle';
 
 interface BadgeRowProps {
   showEphemeralBadges?: boolean;
@@ -359,6 +360,7 @@ function BadgeRow({
           <WebSearch conversationId={conversationId} />
           <CodeInterpreter conversationId={conversationId} />
           <SchedulerToggle conversationId={conversationId} />
+          <WorkflowToggle conversationId={conversationId} />
           <MCPSelect conversationId={conversationId} />
         </>
       )}

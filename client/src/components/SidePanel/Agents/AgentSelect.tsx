@@ -57,6 +57,7 @@ export default function AgentSelect({
         [AgentCapabilities.execute_code]: false,
         [AgentCapabilities.end_after_tools]: false,
         [AgentCapabilities.hide_sequential_outputs]: false,
+        workflows: false,
       };
 
       const agentTools: string[] = [];

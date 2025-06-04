@@ -59,6 +59,11 @@ export enum QueryKeys {
   // Scheduler
   schedulerTasks = 'schedulerTasks',
   schedulerTask = 'schedulerTask',
+  // Workflows
+  workflows = 'workflows',
+  workflow = 'workflow',
+  workflowExecutions = 'workflowExecutions',
+  workflowExecution = 'workflowExecution',
 }
 
 export enum MutationKeys {

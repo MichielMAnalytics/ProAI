@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { MessageSquareQuote, ArrowRightToLine, Settings2, Bookmark, Calendar } from 'lucide-react';
+import { MessageSquareQuote, ArrowRightToLine, Settings2, Bookmark, Calendar, Workflow } from 'lucide-react';
 import {
   isAssistantsEndpoint,
   isAgentsEndpoint,
@@ -13,6 +13,7 @@ import type { NavLink } from '~/common';
 import AgentPanelSwitch from '~/components/SidePanel/Agents/AgentPanelSwitch';
 import BookmarkPanel from '~/components/SidePanel/Bookmarks/BookmarkPanel';
 import SchedulesPanel from '~/components/SidePanel/Schedules/SchedulesPanel';
+import WorkflowsPanel from '~/components/SidePanel/Workflows/WorkflowsPanel';
 import PanelSwitch from '~/components/SidePanel/Builder/PanelSwitch';
 import PromptsAccordion from '~/components/Prompts/PromptsAccordion';
 import Parameters from '~/components/SidePanel/Parameters/Panel';
@@ -45,6 +46,10 @@ export default function useSideNavLinks({
   });
   const hasAccessToSchedules = useHasAccess({
     permissionType: PermissionTypes.SCHEDULES,
+    permission: Permissions.USE,
+  });
+  const hasAccessToWorkflows = useHasAccess({
+    permissionType: PermissionTypes.WORKFLOWS,
     permission: Permissions.USE,
   });
   const hasAccessToAgents = useHasAccess({
@@ -148,6 +153,16 @@ export default function useSideNavLinks({
       });
     }
 
+    if (interfaceConfig.workflows === true && hasAccessToWorkflows) {
+      links.push({
+        title: 'com_ui_workflows',
+        label: '',
+        icon: Workflow,
+        id: 'workflows',
+        Component: WorkflowsPanel,
+      });
+    }
+
     // Show hide panel button by default (when hidePanel is undefined/true)
     // Hide it only when explicitly set to false
     if (interfaceConfig.hidePanel !== false) {
@@ -165,6 +180,7 @@ export default function useSideNavLinks({
     endpointsConfig,
     interfaceConfig.parameters,
     interfaceConfig.schedules,
+    interfaceConfig.workflows,
     interfaceConfig.hidePanel,
     interfaceConfig.files,
     keyProvided,
@@ -174,6 +190,7 @@ export default function useSideNavLinks({
     hasAccessToPrompts,
     hasAccessToBookmarks,
     hasAccessToSchedules,
+    hasAccessToWorkflows,
     hasAccessToCreateAgents,
     hidePanel,
   ]);

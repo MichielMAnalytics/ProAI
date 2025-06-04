@@ -39,6 +39,7 @@ async function loadDefaultInterface(config, configDefaults, roleName = SystemRol
     temporaryChat: interfaceConfig?.temporaryChat ?? defaults.temporaryChat,
     runCode: interfaceConfig?.runCode ?? defaults.runCode,
     schedules: interfaceConfig?.schedules ?? defaults.schedules,
+    workflows: interfaceConfig?.workflows ?? defaults.workflows,
     files: interfaceConfig?.files ?? defaults.files,
     plugins: interfaceConfig?.plugins ?? defaults.plugins,
     assistants: interfaceConfig?.assistants ?? defaults.assistants,
@@ -57,6 +58,7 @@ async function loadDefaultInterface(config, configDefaults, roleName = SystemRol
     [PermissionTypes.TEMPORARY_CHAT]: { [Permissions.USE]: loadedInterface.temporaryChat },
     [PermissionTypes.RUN_CODE]: { [Permissions.USE]: loadedInterface.runCode },
     [PermissionTypes.SCHEDULES]: { [Permissions.USE]: loadedInterface.schedules },
+    [PermissionTypes.WORKFLOWS]: { [Permissions.USE]: loadedInterface.workflows },
     [PermissionTypes.WEB_SEARCH]: { [Permissions.USE]: loadedInterface.webSearch },
   });
   await updateAccessPermissions(SystemRoles.ADMIN, {
@@ -67,6 +69,7 @@ async function loadDefaultInterface(config, configDefaults, roleName = SystemRol
     [PermissionTypes.TEMPORARY_CHAT]: { [Permissions.USE]: loadedInterface.temporaryChat },
     [PermissionTypes.RUN_CODE]: { [Permissions.USE]: loadedInterface.runCode },
     [PermissionTypes.SCHEDULES]: { [Permissions.USE]: loadedInterface.schedules },
+    [PermissionTypes.WORKFLOWS]: { [Permissions.USE]: loadedInterface.workflows },
     [PermissionTypes.WEB_SEARCH]: { [Permissions.USE]: loadedInterface.webSearch },
   });
 

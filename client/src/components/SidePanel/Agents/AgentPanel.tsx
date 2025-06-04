@@ -193,6 +193,9 @@ export default function AgentPanel({
       if (data.web_search === true) {
         tools.push(Tools.web_search);
       }
+      if (data.workflows === true) {
+        tools.push('workflows');
+      }
 
       const {
         name,
