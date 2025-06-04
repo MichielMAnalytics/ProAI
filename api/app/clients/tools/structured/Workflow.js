@@ -51,8 +51,7 @@ class WorkflowTool extends Tool {
     - activate_workflow: Activate a workflow for execution
     - deactivate_workflow: Deactivate a workflow
     - test_workflow: Execute a workflow once for testing
-    - get_available_tools: Get available MCP tools and Pipedream actions for workflow creation
-    - generate_artifact: Generate a workflow visualization artifact`;
+    - get_available_tools: Get available MCP tools and Pipedream actions for workflow creation`;
     
     this.schema = z.object({
       action: z.enum([
@@ -64,8 +63,7 @@ class WorkflowTool extends Tool {
         'activate_workflow', 
         'deactivate_workflow', 
         'test_workflow',
-        'get_available_tools',
-        'generate_artifact'
+        'get_available_tools'
       ]).describe('The action to perform'),
       
       // Workflow creation/update fields
@@ -95,10 +93,6 @@ class WorkflowTool extends Tool {
       // Workflow management fields
       workflow_id: z.string().optional()
         .describe('Workflow ID for get, update, delete, activate, deactivate, test actions'),
-      
-      // Artifact generation
-      artifact_title: z.string().optional()
-        .describe('Title for the workflow visualization artifact'),
     });
   }
 
@@ -496,10 +490,11 @@ class WorkflowTool extends Tool {
 
   async testWorkflow(workflowId, userId) {
     if (!workflowId) {
-      throw new Error('Workflow ID is required');
+      throw new Error('Workflow ID is required for testing');
     }
 
     try {
+      const workflowService = new WorkflowService();
       const workflow = await getUserWorkflowById(workflowId, userId);
       
       if (!workflow) {
@@ -509,8 +504,6 @@ class WorkflowTool extends Tool {
         };
       }
 
-      // Execute workflow via WorkflowService
-      const workflowService = new WorkflowService();
       const execution = await workflowService.executeWorkflow(workflowId, userId, {
         trigger: {
           type: 'manual',
@@ -527,45 +520,6 @@ class WorkflowTool extends Tool {
     } catch (error) {
       logger.error(`[WorkflowTool] Error testing workflow:`, error);
       throw new Error(`Failed to test workflow: ${error.message}`);
-    }
-  }
-
-  async generateArtifact(workflowId, userId, artifactTitle) {
-    if (!workflowId) {
-      throw new Error('Workflow ID is required for artifact generation');
-    }
-
-    try {
-      const workflow = await getUserWorkflowById(workflowId, userId);
-      
-      if (!workflow) {
-        return {
-          success: false,
-          message: `Workflow with ID ${workflowId} not found`
-        };
-      }
-
-      // Generate workflow visualization artifact
-      const artifactIdentifier = `workflow-${workflowId}`;
-      
-      // Update workflow with artifact identifier
-      await updateUserWorkflow(workflowId, userId, { 
-        artifact_identifier: artifactIdentifier 
-      });
-
-      return {
-        success: true,
-        message: `Workflow visualization artifact will be generated`,
-        artifact: {
-          identifier: artifactIdentifier,
-          title: artifactTitle || `Workflow: ${workflow.name}`,
-          type: 'application/vnd.workflow',
-          workflow: workflow,
-        }
-      };
-    } catch (error) {
-      logger.error(`[WorkflowTool] Error generating artifact:`, error);
-      throw new Error(`Failed to generate artifact: ${error.message}`);
     }
   }
 
@@ -626,9 +580,6 @@ class WorkflowTool extends Tool {
         
         case 'get_available_tools':
           return await this.getAvailableTools(userId);
-        
-        case 'generate_artifact':
-          return await this.generateArtifact(data.workflow_id, userId, data.artifact_title);
         
         default:
           throw new Error(`Unknown action: ${action}`);
