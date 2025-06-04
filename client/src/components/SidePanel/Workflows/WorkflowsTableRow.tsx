@@ -1,5 +1,6 @@
 import React from 'react';
-import { Play, Pause, Trash2, TestTube } from 'lucide-react';
+import { Play, Pause, Trash2, TestTube, Eye } from 'lucide-react';
+import { useSetRecoilState } from 'recoil';
 import type { TUserWorkflow } from 'librechat-data-provider';
 import { Button, TableCell, TableRow } from '~/components/ui';
 import {
@@ -9,6 +10,7 @@ import {
 } from '~/data-provider';
 import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
+import store from '~/store';
 
 interface WorkflowsTableRowProps {
   workflow: TUserWorkflow;
@@ -19,6 +21,11 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
   const toggleMutation = useToggleWorkflowMutation();
   const deleteMutation = useDeleteWorkflowMutation();
   const testMutation = useTestWorkflowMutation();
+  
+  // Artifact state management
+  const setArtifacts = useSetRecoilState(store.artifactsState);
+  const setCurrentArtifactId = useSetRecoilState(store.currentArtifactId);
+  const setArtifactsVisible = useSetRecoilState(store.artifactsVisibility);
 
   const handleToggle = () => {
     toggleMutation.mutate(
@@ -75,6 +82,119 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
         });
       },
     });
+  };
+
+  const handleView = () => {
+    try {
+      console.log('Opening workflow visualization for:', workflow);
+      
+      // Create workflow artifact with proper positioning
+      const artifactId = `workflow-${workflow.id}`;
+      
+      // Generate positions for steps that don't have them
+      const nodesWithPositions = workflow.steps.map((step, index) => {
+        // If step doesn't have position, create a default layout
+        const defaultPosition = step.position || {
+          x: 100 + (index % 3) * 200, // Arrange in columns
+          y: 150 + Math.floor(index / 3) * 100 // Arrange in rows
+        };
+        
+        return {
+          id: step.id,
+          type: step.type,
+          position: defaultPosition,
+          data: {
+            label: step.name,
+            config: step.config,
+            status: 'pending' // Default status for viewing
+          }
+        };
+      });
+
+      // Generate edges more carefully
+      const edges: Array<{
+        id: string;
+        source: string;
+        target: string;
+        type: 'success' | 'failure';
+      }> = [];
+      workflow.steps.forEach((step) => {
+        if (step.onSuccess) {
+          // Check if target step exists
+          const targetExists = workflow.steps.some(s => s.id === step.onSuccess);
+          if (targetExists) {
+            edges.push({
+              id: `${step.id}-success-${step.onSuccess}`,
+              source: step.id,
+              target: step.onSuccess,
+              type: 'success'
+            });
+          }
+        }
+        if (step.onFailure) {
+          // Check if target step exists
+          const targetExists = workflow.steps.some(s => s.id === step.onFailure);
+          if (targetExists) {
+            edges.push({
+              id: `${step.id}-failure-${step.onFailure}`,
+              source: step.id,
+              target: step.onFailure,
+              type: 'failure'
+            });
+          }
+        }
+      });
+
+      const workflowData = {
+        workflow: {
+          id: workflow.id,
+          name: workflow.name,
+          description: workflow.description,
+          trigger: workflow.trigger,
+          steps: workflow.steps
+        },
+        nodes: nodesWithPositions,
+        edges: edges,
+        trigger: workflow.trigger
+      };
+
+      console.log('Generated workflow data:', workflowData);
+
+      const workflowArtifact = {
+        id: artifactId,
+        identifier: artifactId,
+        title: `Workflow: ${workflow.name}`,
+        type: 'application/vnd.workflow',
+        content: JSON.stringify(workflowData, null, 2),
+        messageId: `workflow-view-${Date.now()}`,
+        index: 0,
+        lastUpdateTime: Date.now(),
+      };
+
+      console.log('Creating artifact:', workflowArtifact);
+
+      // Set the artifact in state
+      setArtifacts(prev => ({
+        ...prev,
+        [artifactId]: workflowArtifact
+      }));
+
+      // Set as current artifact and show artifacts panel
+      setCurrentArtifactId(artifactId);
+      setArtifactsVisible(true);
+
+      showToast({
+        message: 'Opening workflow visualization',
+        severity: NotificationSeverity.SUCCESS,
+      });
+    } catch (error) {
+      console.error('Failed to open workflow visualization:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      showToast({
+        message: `Failed to open workflow visualization: ${errorMessage}`,
+        severity: NotificationSeverity.ERROR,
+      });
+    }
   };
 
   const formatDate = (dateString?: string | Date) => {
@@ -198,15 +318,25 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
         </div>
       </TableCell>
       
-      <TableCell className="py-2 w-16 sm:w-20">
+      <TableCell className="py-2 w-20 sm:w-24">
         <div className="flex flex-row gap-1 px-1 sm:px-2 items-center justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleView}
+            className="h-6 w-6 p-0 flex-shrink-0 flex items-center justify-center"
+            title="View workflow"
+            disabled={false}
+          >
+            <Eye className="h-3 w-3" />
+          </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleTest}
             className="h-6 w-6 p-0 flex-shrink-0 flex items-center justify-center"
             title="Test workflow"
-            disabled={workflow.isDraft}
+            disabled={false}
           >
             <TestTube className="h-3 w-3" />
           </Button>
@@ -216,7 +346,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
             onClick={handleToggle}
             className="h-6 w-6 p-0 flex-shrink-0 flex items-center justify-center"
             title={workflow.isActive ? 'Deactivate workflow' : 'Activate workflow'}
-            disabled={workflow.isDraft}
+            disabled={false}
           >
             {workflow.isActive ? (
               <Pause className="h-3 w-3" />

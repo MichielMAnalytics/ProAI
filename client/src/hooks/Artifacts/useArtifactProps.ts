@@ -3,11 +3,18 @@ import { removeNullishValues } from 'librechat-data-provider';
 import type { Artifact } from '~/common';
 import { getKey, getProps, getTemplate, getArtifactFilename } from '~/utils/artifacts';
 import { getMermaidFiles } from '~/utils/mermaid';
+import { getWorkflowFiles } from '~/utils/workflow';
 
 export default function useArtifactProps({ artifact }: { artifact: Artifact }) {
   const [fileKey, files] = useMemo(() => {
-    if (getKey(artifact.type ?? '', artifact.language).includes('mermaid')) {
+    const key = getKey(artifact.type ?? '', artifact.language);
+    
+    if (key.includes('mermaid')) {
       return ['App.tsx', getMermaidFiles(artifact.content ?? '')];
+    }
+    
+    if (key.includes('workflow')) {
+      return ['App.tsx', getWorkflowFiles(artifact.content ?? '')];
     }
 
     const fileKey = getArtifactFilename(artifact.type ?? '', artifact.language);
