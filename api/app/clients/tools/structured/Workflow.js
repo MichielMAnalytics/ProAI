@@ -53,6 +53,34 @@ class WorkflowTool extends Tool {
     - test_workflow: Execute a workflow once for testing
     - get_available_tools: Get available MCP tools and Pipedream actions for workflow creation
 
+    CRITICAL: WORKFLOW STEPS MUST BE CONNECTED!
+    
+    Every workflow step (except the final one) MUST have an "onSuccess" property pointing to the next step ID.
+    This creates the execution flow: step1 -> step2 -> step3 -> etc.
+    
+    ✅ CORRECT STEP WITH CONNECTION:
+    {
+      "id": "step_1",
+      "name": "Get Data", 
+      "type": "action",
+      "config": {...},
+      "onSuccess": "step_2",  // ← REQUIRED: Points to next step
+      "position": {"x": 100, "y": 100}
+    }
+    
+    ❌ WRONG: MISSING CONNECTION:
+    {
+      "id": "step_1", 
+      "name": "Get Data",
+      "type": "action",
+      "config": {...},
+      // Missing onSuccess - step will be orphaned!
+      "position": {"x": 100, "y": 100}
+    }
+    
+    NOTE: The system will auto-connect steps in sequence if no connections are provided,
+    but it's better to be explicit about the intended flow.
+
     CRITICAL: EXTRACT AND PRESERVE USER-SPECIFIC DETAILS
     
     When users provide specific information in their requests, you MUST extract and store these details in the workflow step configurations:
@@ -109,6 +137,10 @@ class WorkflowTool extends Tool {
 
     STEP CONFIGURATION PATTERNS WITH REAL USER DATA:
     
+    CRITICAL: ALL WORKFLOW STEPS MUST BE CONNECTED!
+    Every step (except the last one) MUST have onSuccess pointing to the next step.
+    Use onFailure for error handling steps if needed.
+    
     1. EMAIL STEPS - Extract ALL email details from user request:
        {
          "id": "step_2",
@@ -124,6 +156,7 @@ class WorkflowTool extends Tool {
            },
            "instruction": "Send detailed activity update email to coach with specified recipient and content"
          },
+         "onSuccess": "step_3",  // REQUIRED: Connect to next step
          "position": {"x": 300, "y": 100}
        }
     
@@ -141,6 +174,7 @@ class WorkflowTool extends Tool {
            },
            "instruction": "Retrieve the most recent activity with full details"
          },
+         "onSuccess": "step_2",  // REQUIRED: Connect to next step
          "position": {"x": 100, "y": 100}
        }
     
@@ -157,11 +191,11 @@ class WorkflowTool extends Tool {
          "position": {"x": 200, "y": 100}
        }
 
-    EXAMPLE: Complete Email Workflow with User Details
+    EXAMPLE: Complete Connected Email Workflow
     
-    User request: "Send activity update to coach@training.com with detailed analysis and summary to me@personal.com"
+    User request: "Send activity update to coach@training.com with detailed analysis"
     
-    Correct workflow configuration:
+    Correct workflow configuration with proper connections:
     {
       "steps": [
         {
@@ -172,37 +206,37 @@ class WorkflowTool extends Tool {
             "toolName": "ACTIVITY-GET-RECENT",
             "parameters": {"limit": 1, "includeMetrics": true},
             "instruction": "Fetch most recent activity with full metrics"
-          }
+          },
+          "onSuccess": "step_2",  // ← CONNECT TO NEXT STEP
+          "position": {"x": 100, "y": 100}
         },
         {
           "id": "step_2",
-          "name": "Send Detailed Email to Coach",
+          "name": "Format Activity Data",
+          "type": "action",
+          "config": {
+            "toolName": "FORMAT-DATA",
+            "parameters": {"template": "Duration: {{duration}}, Distance: {{distance}}"},
+            "instruction": "Format the activity data"
+          },
+          "onSuccess": "step_3",  // ← CONNECT TO NEXT STEP
+          "position": {"x": 300, "y": 100}
+        },
+        {
+          "id": "step_3",
+          "name": "Send Email to Coach",
           "type": "action",
           "config": {
             "toolName": "MICROSOFT_OUTLOOK-SEND-EMAIL",
             "parameters": {
               "recipient": "coach@training.com",
-              "subject": "Detailed Activity Analysis - {{activity.date}}",
-              "contentTemplate": "Full analysis including pace, heart rate, elevation, and performance insights",
-              "includeMetrics": ["pace", "heartrate", "elevation", "power"]
+              "subject": "Activity Analysis - {{activity.date}}",
+              "contentTemplate": "Here's the activity analysis: {{formatted_data}}"
             },
             "instruction": "Send comprehensive activity analysis to coach"
-          }
-        },
-        {
-          "id": "step_3", 
-          "name": "Send Summary to Personal Email",
-          "type": "action",
-          "config": {
-            "toolName": "MICROSOFT_OUTLOOK-SEND-EMAIL", 
-            "parameters": {
-              "recipient": "me@personal.com",
-              "subject": "Activity Summary - {{activity.date}}",
-              "contentTemplate": "Quick summary: Duration {{activity.duration}}, Distance {{activity.distance}}",
-              "summaryOnly": true
-            },
-            "instruction": "Send brief summary to personal email"
-          }
+          },
+          // ← NO onSuccess needed for final step
+          "position": {"x": 500, "y": 100}
         }
       ]
     }
@@ -215,9 +249,15 @@ class WorkflowTool extends Tool {
        - type: "action", "condition", or "delay" (required)
        - config: configuration object (required, can be empty {})
        - position: {x: number, y: number} (required)
+       - onSuccess: next step ID (required for all steps except the last one)
     
-    2. ERROR/SUCCESS HANDLING STEPS:
-       Even handler steps need proper config:
+    2. STEP CONNECTIONS ARE CRITICAL:
+       - Each step must connect to the next: "onSuccess": "next_step_id"
+       - Final step should NOT have onSuccess (workflow ends there)
+       - Use onFailure for error handling paths (optional)
+    
+    3. ERROR/SUCCESS HANDLING STEPS:
+       Even handler steps need proper config and connections:
        {
          "id": "error_step",
          "name": "Error Handler", 
@@ -226,6 +266,7 @@ class WorkflowTool extends Tool {
            "instruction": "Log error and optionally notify user",
            "notificationEnabled": false
          },
+         "onSuccess": "cleanup_step",  // Connect to next step or omit if final
          "position": {x: 350, y: 300}
        }
     
@@ -386,7 +427,10 @@ class WorkflowTool extends Tool {
       return fixedStep;
     });
 
-    return this.fixStepValidation(fixedSteps);
+    // Auto-connect steps if they're not connected
+    const connectedSteps = this.autoConnectSteps(fixedSteps);
+
+    return this.fixStepValidation(connectedSteps);
   }
 
   /**
@@ -442,31 +486,65 @@ class WorkflowTool extends Tool {
   fixParameterStructure(config, stepName) {
     const fixedConfig = { ...config };
 
-    // If instruction contains JSON, try to parse it and merge into parameters
+    // If instruction contains key=value pairs, try to parse them into parameters
     if (fixedConfig.parameters && fixedConfig.parameters.instruction) {
       try {
         const instructionValue = fixedConfig.parameters.instruction;
         
-        // Check if instruction is a JSON string
-        if (typeof instructionValue === 'string' && (instructionValue.trim().startsWith('{') || instructionValue.trim().startsWith('['))) {
-          const parsedInstruction = JSON.parse(instructionValue);
+        // Check if instruction contains key=value patterns
+        if (typeof instructionValue === 'string') {
+          const keyValueMatches = instructionValue.match(/(\w+)=([^,\s]+)/g);
           
-          // If it's an object, merge it into config
-          if (typeof parsedInstruction === 'object' && parsedInstruction !== null) {
-            // Move the parsed JSON to a more appropriate place
-            if (!fixedConfig.toolParameters) {
-              fixedConfig.toolParameters = parsedInstruction;
+          if (keyValueMatches && keyValueMatches.length > 0) {
+            logger.info(`[WorkflowTool] Found ${keyValueMatches.length} key=value pairs in instruction for step: ${stepName}`);
+            
+            // Parse key=value pairs and add to parameters
+            keyValueMatches.forEach(match => {
+              const [key, value] = match.split('=');
+              if (key && value) {
+                // Try to parse numbers
+                const numValue = Number(value);
+                fixedConfig.parameters[key] = isNaN(numValue) ? value : numValue;
+                logger.debug(`[WorkflowTool] Extracted parameter ${key}=${fixedConfig.parameters[key]} from instruction`);
+              }
+            });
+            
+            // Clean up instruction to remove the extracted parameters
+            let cleanInstruction = instructionValue;
+            keyValueMatches.forEach(match => {
+              cleanInstruction = cleanInstruction.replace(match, '').trim();
+            });
+            
+            // Update instruction or remove if empty
+            if (cleanInstruction.length > 0) {
+              fixedConfig.parameters.instruction = cleanInstruction.replace(/^[,\s]+|[,\s]+$/g, '').trim();
+            } else {
+              // Remove empty instruction but keep extracted parameters
+              delete fixedConfig.parameters.instruction;
             }
+          }
+          
+          // Check if instruction is a JSON string
+          else if (instructionValue.trim().startsWith('{') || instructionValue.trim().startsWith('[')) {
+            const parsedInstruction = JSON.parse(instructionValue);
             
-            // Keep a simpler instruction
-            fixedConfig.parameters.instruction = `Execute ${config.toolName || 'tool'} with the configured parameters`;
-            
-            logger.info(`[WorkflowTool] Fixed JSON instruction parameter for step: ${stepName}`);
+            // If it's an object, merge it into config
+            if (typeof parsedInstruction === 'object' && parsedInstruction !== null) {
+              // Move the parsed JSON to toolParameters
+              if (!fixedConfig.toolParameters) {
+                fixedConfig.toolParameters = parsedInstruction;
+              }
+              
+              // Keep a simpler instruction
+              fixedConfig.parameters.instruction = `Execute ${config.toolName || 'tool'} with the configured parameters`;
+              
+              logger.info(`[WorkflowTool] Fixed JSON instruction parameter for step: ${stepName}`);
+            }
           }
         }
       } catch (error) {
-        // If JSON parsing fails, keep the original instruction
-        logger.debug(`[WorkflowTool] Could not parse instruction as JSON for step: ${stepName}`);
+        // If parsing fails, keep the original instruction
+        logger.debug(`[WorkflowTool] Could not parse instruction for step: ${stepName}`, error.message);
       }
     }
 
@@ -498,60 +576,82 @@ class WorkflowTool extends Tool {
   validateSingleStepParameters(step, index) {
     const warnings = [];
     
-    // Check email steps for missing recipients
+    // Helper function to check for a parameter - prioritize parameters object
+    const findParameter = (paramName) => {
+      // Primary location: parameters object
+      if (step.config.parameters?.[paramName]) {
+        return step.config.parameters[paramName];
+      }
+      
+      // Fallback locations for backward compatibility
+      const fallbackLocations = [
+        step.config.toolParameters?.[paramName],
+        step.config[paramName], // Direct in config
+      ];
+      
+      return fallbackLocations.find(val => val !== undefined && val !== null && val !== '');
+    };
+
+    // Helper function to check if parameter exists in instruction text
+    const hasParameterInInstruction = (paramNames) => {
+      const instruction = step.config.parameters?.instruction || step.config.instruction || '';
+      if (!instruction || typeof instruction !== 'string') return false;
+      
+      const instructionLower = instruction.toLowerCase();
+      return paramNames.some(paramName => 
+        instructionLower.includes(paramName.toLowerCase() + '=') ||
+        instructionLower.includes(paramName.toLowerCase() + ':') ||
+        instructionLower.includes(paramName.toLowerCase() + ' ')
+      );
+    };
+    
+    // Only check email steps for critical missing parameters
     if (step.config?.toolName && step.config.toolName.includes('EMAIL')) {
-      if (!step.config.parameters?.recipient && !step.config.toolParameters?.recipient) {
+      // Check for recipient - this is critical for email steps
+      const hasRecipient = findParameter('recipient') || 
+                          findParameter('to') || 
+                          findParameter('email') ||
+                          hasParameterInInstruction(['recipient', 'to', 'email']);
+                          
+      if (!hasRecipient) {
         warnings.push({
           step: step.id || `step_${index}`,
           stepName: step.name,
           type: 'missing_recipient',
           message: 'Email step is missing recipient address. This will likely fail during execution.',
-          suggestion: 'Add recipient parameter to step config: {"recipient": "user@example.com"}'
+          suggestion: 'Add recipient parameter: {"parameters": {"recipient": "user@example.com"}}'
         });
       }
       
-      if (!step.config.parameters?.subject && !step.config.toolParameters?.subject) {
+      // Only warn about subject if no recipient and no content (completely empty email config)
+      const hasSubject = findParameter('subject') || 
+                        findParameter('title') ||
+                        hasParameterInInstruction(['subject', 'title']);
+      const hasContent = findParameter('contentTemplate') || 
+                        findParameter('content') || 
+                        findParameter('message') || 
+                        findParameter('body') ||
+                        hasParameterInInstruction(['content', 'message', 'body']);
+                        
+      if (!hasRecipient && !hasSubject && !hasContent) {
         warnings.push({
           step: step.id || `step_${index}`,
           stepName: step.name,
-          type: 'missing_subject',
-          message: 'Email step is missing subject line. A generic subject will be generated.',
-          suggestion: 'Add subject parameter to step config: {"subject": "Your Subject Here"}'
-        });
-      }
-      
-      if (!step.config.parameters?.contentTemplate && !step.config.parameters?.content && !step.config.toolParameters?.message) {
-        warnings.push({
-          step: step.id || `step_${index}`,
-          stepName: step.name,
-          type: 'missing_content',
-          message: 'Email step is missing content template. Content will be generated from step context.',
-          suggestion: 'Add contentTemplate parameter: {"contentTemplate": "Your email content here"}'
+          type: 'empty_email_config',
+          message: 'Email step has no recipient, subject, or content configured.',
+          suggestion: 'Configure at least recipient and content for the email step'
         });
       }
     }
     
-    // Check data retrieval steps for missing filters
-    if (step.type === 'action' && step.name.toLowerCase().includes('get')) {
-      if (!step.config.parameters?.limit && !step.config.toolParameters?.limit) {
-        warnings.push({
-          step: step.id || `step_${index}`,
-          stepName: step.name,
-          type: 'missing_limit',
-          message: 'Data retrieval step missing limit parameter. May return too much data.',
-          suggestion: 'Add limit parameter: {"limit": 1} for recent items'
-        });
-      }
-    }
-    
-    // Check for empty config objects
-    if (!step.config || Object.keys(step.config).length === 0) {
+    // Check for completely empty config objects - but only warn if no toolName either
+    if ((!step.config || Object.keys(step.config).length === 0) && step.type === 'action') {
       warnings.push({
         step: step.id || `step_${index}`,
         stepName: step.name,
         type: 'empty_config',
-        message: 'Step has empty configuration. This may result in incomplete execution.',
-        suggestion: 'Add appropriate configuration parameters for this step type'
+        message: 'Action step has empty configuration. Specify toolName or provide instruction.',
+        suggestion: 'Add toolName and parameters or provide instruction for agent execution'
       });
     }
     
@@ -625,10 +725,32 @@ class WorkflowTool extends Tool {
       // Add warnings if any critical parameters are missing
       if (parameterWarnings.length > 0) {
         response.warnings = parameterWarnings;
-        response.message += ` ⚠️  ${parameterWarnings.length} parameter warning(s) detected`;
         
-        // Log warnings for debugging
-        logger.warn(`[WorkflowTool] Parameter warnings for workflow ${workflowId}:`, parameterWarnings);
+        // Only show warning message for critical issues (like completely empty configs)
+        const criticalWarnings = parameterWarnings.filter(w => 
+          w.type === 'missing_recipient' || w.type === 'empty_email_config' || w.type === 'empty_config'
+        );
+        
+        if (criticalWarnings.length > 0) {
+          response.message += ` ⚠️  ${criticalWarnings.length} configuration warning(s) detected`;
+        }
+        
+        // Log all warnings for debugging but focus message on critical ones
+        const warningSummary = parameterWarnings.map(w => `${w.stepName}: ${w.type}`).join(', ');
+        logger.warn(`[WorkflowTool] Parameter warnings for workflow ${workflowId}: ${warningSummary}`);
+        
+        // Log full details at debug level
+        logger.debug(`[WorkflowTool] Full parameter warnings for workflow ${workflowId}:`, parameterWarnings);
+      }
+
+      // Add info about auto-connections if they were applied
+      const hasAutoConnections = fixedSteps.some((step, index) => 
+        step.onSuccess && index < steps.length - 1 && !steps[index].onSuccess
+      );
+      
+      if (hasAutoConnections) {
+        response.message += ` 🔗 Steps automatically connected in sequence`;
+        logger.info(`[WorkflowTool] Auto-connected workflow steps for ${workflowId}`);
       }
       
       return response;
@@ -1050,6 +1172,63 @@ class WorkflowTool extends Tool {
         error: error.message
       };
     }
+  }
+
+  /**
+   * Auto-connect workflow steps in sequence if they're not connected
+   * @param {Array} steps - Array of workflow steps
+   * @returns {Array} Steps with proper connections
+   */
+  autoConnectSteps(steps) {
+    if (!steps || steps.length === 0) return steps;
+
+    const connectedSteps = [...steps];
+
+    // Check if any steps are already connected
+    const hasConnections = steps.some(step => step.onSuccess || step.onFailure);
+
+    // If no connections exist, auto-connect steps in sequence
+    if (!hasConnections) {
+      logger.info(`[WorkflowTool] No step connections found, auto-connecting ${steps.length} steps in sequence`);
+      
+      for (let i = 0; i < connectedSteps.length - 1; i++) {
+        // Connect current step to next step
+        connectedSteps[i].onSuccess = connectedSteps[i + 1].id;
+        logger.debug(`[WorkflowTool] Connected step ${connectedSteps[i].id} -> ${connectedSteps[i + 1].id}`);
+      }
+      
+      logger.info(`[WorkflowTool] Auto-connected workflow steps: ${connectedSteps.map(s => s.id).join(' -> ')}`);
+    } else {
+      // Check for orphaned steps (steps that are not connected and not referenced by other steps)
+      const referencedSteps = new Set();
+      steps.forEach(step => {
+        if (step.onSuccess) referencedSteps.add(step.onSuccess);
+        if (step.onFailure) referencedSteps.add(step.onFailure);
+      });
+
+      const orphanedSteps = steps.filter(step => 
+        !step.onSuccess && !step.onFailure && !referencedSteps.has(step.id)
+      );
+
+      if (orphanedSteps.length > 0) {
+        logger.warn(`[WorkflowTool] Found ${orphanedSteps.length} orphaned steps: ${orphanedSteps.map(s => s.id).join(', ')}`);
+        
+        // Try to connect orphaned steps to the workflow
+        for (const orphan of orphanedSteps) {
+          // Find a step that could connect to this orphan
+          const potentialPredecessor = connectedSteps.find(step => 
+            step.id !== orphan.id && !step.onSuccess && step !== orphan
+          );
+          
+          if (potentialPredecessor) {
+            potentialPredecessor.onSuccess = orphan.id;
+            logger.info(`[WorkflowTool] Connected orphaned step: ${potentialPredecessor.id} -> ${orphan.id}`);
+          }
+        }
+      }
+    }
+
+    return connectedSteps;
   }
 }
 

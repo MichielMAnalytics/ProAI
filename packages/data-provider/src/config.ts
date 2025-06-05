@@ -624,6 +624,7 @@ export type TStartupConfig = {
   turnstile?: TTurnstileConfig;
   balance?: TBalanceConfig;
   scheduler?: TSchedulerConfig;
+  workflows?: TWorkflowsConfig;
   discordLoginEnabled: boolean;
   facebookLoginEnabled: boolean;
   githubLoginEnabled: boolean;
@@ -738,6 +739,17 @@ export const schedulerSchema = z.object({
 
 export type TSchedulerConfig = z.infer<typeof schedulerSchema>;
 
+export const workflowsSchema = z.object({
+  defaultModel: z.string().optional().default('gpt-4o-mini'),
+  defaultEndpoint: z.enum(['openAI', 'anthropic', 'google', 'azureOpenAI', 'custom', 'bedrock']).optional().default('openAI'),
+  notifications: z.object({
+    sound: z.boolean().optional().default(true),
+    volume: z.number().min(0).max(1).optional().default(0.3),
+  }).optional(),
+});
+
+export type TWorkflowsConfig = z.infer<typeof workflowsSchema>;
+
 export const configSchema = z.object({
   version: z.string(),
   cache: z.boolean().default(true),
@@ -765,6 +777,7 @@ export const configSchema = z.object({
     .default({ socialLogins: defaultSocialLogins }),
   balance: balanceSchema.optional(),
   scheduler: schedulerSchema.optional(),
+  workflows: workflowsSchema.optional(),
   speech: z
     .object({
       tts: ttsSchema.optional(),

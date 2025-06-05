@@ -10,6 +10,7 @@ const UserMCPService = require('~/server/services/UserMCPService');
 const { evaluateCondition } = require('./utils/conditionEvaluator');
 const { loadAgent } = require('~/models/Agent');
 const { createMockRequest, createMockResponse, createMinimalMockResponse, updateRequestForEphemeralAgent } = require('~/server/services/Scheduler/utils/mockUtils');
+const { getCustomConfig } = require('~/server/services/Config/getCustomConfig');
 
 // Import client factory for agents
 const SchedulerClientFactory = require('~/server/services/Scheduler/SchedulerClientFactory');
@@ -404,11 +405,15 @@ INSTRUCTIONS:`;
         // If a specific tool is configured, instruct the agent to use it directly
         prompt += `\n1. Call the MCP tool "${step.config.toolName}" directly`;
         
-        // Handle different parameter structures
+        // Handle parameters from the standard parameters object
         let parametersToUse = {};
+        
+        // Primary source: parameters object
         if (step.config.parameters) {
           parametersToUse = this.resolveParameters(step.config.parameters, context);
         }
+        
+        // Secondary source: toolParameters (for backward compatibility)
         if (step.config.toolParameters) {
           parametersToUse = { ...parametersToUse, ...step.config.toolParameters };
         }
@@ -491,23 +496,44 @@ INSTRUCTIONS:`;
   generateEmailStepGuidance(step, context) {
     let guidance = `\n\nEMAIL STEP GUIDANCE:`;
     
+    // Helper function to find parameter - prioritize parameters object
+    const findParameter = (paramNames) => {
+      const names = Array.isArray(paramNames) ? paramNames : [paramNames];
+      
+      for (const paramName of names) {
+        // Primary location: parameters object
+        if (step.config.parameters?.[paramName]) {
+          return step.config.parameters[paramName];
+        }
+        
+        // Fallback: toolParameters for backward compatibility
+        if (step.config.toolParameters?.[paramName]) {
+          return step.config.toolParameters[paramName];
+        }
+      }
+      return null;
+    };
+    
     // Check if recipient is configured
-    if (step.config.parameters?.recipient) {
-      guidance += `\n- Send to: ${step.config.parameters.recipient}`;
+    const recipient = findParameter(['recipient', 'to', 'email']);
+    if (recipient) {
+      guidance += `\n- Send to: ${recipient}`;
     } else {
       guidance += `\n- WARNING: No recipient configured. Use a default or derive from context.`;
     }
     
     // Check if subject is configured
-    if (step.config.parameters?.subject) {
-      guidance += `\n- Subject: ${step.config.parameters.subject}`;
+    const subject = findParameter(['subject', 'title']);
+    if (subject) {
+      guidance += `\n- Subject: ${subject}`;
     } else {
       guidance += `\n- Generate appropriate subject line based on step purpose`;
     }
     
     // Check if content template is provided
-    if (step.config.parameters?.contentTemplate) {
-      guidance += `\n- Content template: ${step.config.parameters.contentTemplate}`;
+    const content = findParameter(['contentTemplate', 'content', 'message', 'body']);
+    if (content) {
+      guidance += `\n- Content template: ${content}`;
       guidance += `\n- Populate template with data from previous steps`;
     } else {
       guidance += `\n- Generate email content based on step name and previous step data`;
@@ -627,6 +653,55 @@ INSTRUCTIONS:`;
   }
 
   /**
+   * Get the configured default model and endpoint for workflows
+   * @returns {Promise<Object>} The configured model and endpoint or default fallbacks
+   */
+  async getConfiguredModelAndEndpoint() {
+    try {
+      const config = await getCustomConfig();
+      const configuredModel = config?.workflows?.defaultModel || 'gpt-4o-mini';
+      const configuredEndpoint = config?.workflows?.defaultEndpoint || 'openAI';
+      
+      // Map config endpoint names to EModelEndpoint values
+      const endpointMapping = {
+        'openAI': EModelEndpoint.openAI,
+        'anthropic': EModelEndpoint.anthropic,
+        'google': EModelEndpoint.google,
+        'azureOpenAI': EModelEndpoint.azureOpenAI,
+        'custom': EModelEndpoint.custom,
+        'bedrock': EModelEndpoint.bedrock,
+      };
+      
+      const mappedEndpoint = endpointMapping[configuredEndpoint] || EModelEndpoint.openAI;
+      
+      logger.info(`[WorkflowExecutor] Using configured model: ${configuredModel} on endpoint: ${configuredEndpoint} (${mappedEndpoint})`);
+      
+      return {
+        model: configuredModel,
+        endpoint: mappedEndpoint,
+        endpointName: configuredEndpoint
+      };
+    } catch (error) {
+      logger.warn('[WorkflowExecutor] Failed to load config, using defaults:', error);
+      return {
+        model: 'gpt-4o-mini',
+        endpoint: EModelEndpoint.openAI,
+        endpointName: 'openAI'
+      };
+    }
+  }
+
+  /**
+   * Get the configured default model for workflows
+   * @returns {Promise<string>} The configured model or default fallback
+   * @deprecated Use getConfiguredModelAndEndpoint() instead
+   */
+  async getConfiguredModel() {
+    const config = await this.getConfiguredModelAndEndpoint();
+    return config.model;
+  }
+
+  /**
    * Execute a step using agent with MCP tools (similar to scheduler approach)
    * @param {Object} step - Workflow step
    * @param {string} prompt - Task prompt
@@ -638,8 +713,12 @@ INSTRUCTIONS:`;
     logger.info(`[WorkflowExecutor] Executing step "${step.name}" with agent`);
     
     try {
+      // Get the configured model and endpoint
+      const config = await this.getConfiguredModelAndEndpoint();
+      const { model: configuredModel, endpoint: configuredEndpoint, endpointName } = config;
+      
       // Create mock request and setup ephemeral agent (similar to scheduler)
-      const mockReq = this.createMockRequestForWorkflow(step, context, userId, prompt);
+      const mockReq = this.createMockRequestForWorkflow(step, context, userId, prompt, configuredModel, configuredEndpoint);
       
       // Extract MCP server names from available tools
       const mcpServerNames = this.extractMCPServerNames(context.mcp.availableTools);
@@ -653,8 +732,8 @@ INSTRUCTIONS:`;
       };
       
       // Update request for ephemeral agent
-      const underlyingEndpoint = EModelEndpoint.openAI;
-      const underlyingModel = 'gpt-4o-mini';
+      const underlyingEndpoint = configuredEndpoint;
+      const underlyingModel = configuredModel;
       
       updateRequestForEphemeralAgent(mockReq, {
         prompt,
@@ -675,7 +754,7 @@ INSTRUCTIONS:`;
         throw new Error('Failed to load ephemeral agent for workflow step');
       }
       
-      logger.info(`[WorkflowExecutor] Loaded ephemeral agent with ${agent.tools?.length || 0} tools`);
+      logger.info(`[WorkflowExecutor] Loaded ephemeral agent with ${agent.tools?.length || 0} tools using ${endpointName}/${underlyingModel}`);
       
       // Initialize client factory and create agents endpoint option
       const clientFactory = new SchedulerClientFactory();
@@ -718,10 +797,12 @@ INSTRUCTIONS:`;
       
       return {
         status: 'success',
-        message: `Successfully executed step "${step.name}" with agent`,
+        message: `Successfully executed step "${step.name}" with agent using ${endpointName}/${underlyingModel}`,
         agentResponse: responseText,
         toolsUsed: agent.tools || [],
         mcpToolsCount: agent.tools?.filter(tool => tool.includes(Constants.mcp_delimiter)).length || 0,
+        modelUsed: underlyingModel,
+        endpointUsed: endpointName,
         timestamp: new Date().toISOString(),
       };
       
@@ -737,16 +818,18 @@ INSTRUCTIONS:`;
    * @param {Object} context - Execution context
    * @param {string} userId - User ID
    * @param {string} prompt - Task prompt
+   * @param {string} model - Model to use
+   * @param {string} endpoint - Endpoint to use
    * @returns {Object} Mock request object
    */
-  createMockRequestForWorkflow(step, context, userId, prompt) {
+  createMockRequestForWorkflow(step, context, userId, prompt, model, endpoint) {
     return {
       user: { 
         id: userId.toString()
       },
       body: {
-        endpoint: EModelEndpoint.openAI,
-        model: 'gpt-4o-mini',
+        endpoint: endpoint,
+        model: model,
         userMessageId: null,
         parentMessageId: context.workflow?.parentMessageId,
         conversationId: context.workflow?.conversationId,

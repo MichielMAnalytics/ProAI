@@ -85,6 +85,7 @@ const AppService = async (app) => {
   const interfaceConfig = await loadDefaultInterface(config, configDefaults);
   const turnstileConfig = loadTurnstileConfig(config, configDefaults);
   const schedulerConfig = config?.scheduler ?? {};
+  const workflowsConfig = config?.workflows ?? {};
   const addUserSpecificMcpFromDb = config?.addUserSpecificMcpFromDb ?? configDefaults?.addUserSpecificMcpFromDb;
 
   const defaultLocals = {
@@ -101,6 +102,7 @@ const AppService = async (app) => {
     turnstileConfig,
     balance,
     scheduler: schedulerConfig,
+    workflows: workflowsConfig,
     addUserSpecificMcpFromDb,
   };
 
