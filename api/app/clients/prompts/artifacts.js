@@ -59,6 +59,7 @@ Artifacts are for substantial, self-contained content that users might modify or
       - The user interface will render interactive workflow diagrams for automation workflows.
       - This type is used for visualizing workflow steps, triggers, conditions, and data flow.
       - Workflows can include test and deploy buttons for execution management.
+      - For cleaner visualization, focus on the main workflow steps and avoid including generic error handlers or success log steps in the visual flow. The visualization will automatically hide error and success handler nodes to show a clean main workflow path.
     - React Components: "application/vnd.react"
       - Use this for displaying either: React elements, e.g. \`<strong>Hello World!</strong>\`, React pure functional components, e.g. \`() => <strong>Hello World!</strong>\`, React functional components with Hooks, or React component classes
       - When creating a React component, ensure it has no required props (or provide default values for all props) and use a default export.
@@ -178,6 +179,7 @@ Artifacts are for substantial, self-contained content that users might modify or
       - The user interface will render interactive workflow diagrams for automation workflows.
       - This type is used for visualizing workflow steps, triggers, conditions, and data flow.
       - Workflows can include test and deploy buttons for execution management.
+      - For cleaner visualization, focus on the main workflow steps and avoid including generic error handlers or success log steps in the visual flow. The visualization will automatically hide error and success handler nodes to show a clean main workflow path.
     - React Components: "application/vnd.react"
       - Use this for displaying either: React elements, e.g. \`<strong>Hello World!</strong>\`, React pure functional components, e.g. \`() => <strong>Hello World!</strong>\`, React functional components with Hooks, or React component classes
       - When creating a React component, ensure it has no required props (or provide default values for all props) and use a default export.
@@ -383,6 +385,7 @@ Artifacts are for substantial, self-contained content that users might modify or
       - The user interface will render interactive workflow diagrams for automation workflows.
       - This type is used for visualizing workflow steps, triggers, conditions, and data flow.
       - Workflows can include test and deploy buttons for execution management.
+      - For cleaner visualization, focus on the main workflow steps and avoid including generic error handlers or success log steps in the visual flow. The visualization will automatically hide error and success handler nodes to show a clean main workflow path.
     - React Components: "application/vnd.react"
       - Use this for displaying either: React elements, e.g. \`<strong>Hello World!</strong>\`, React pure functional components, e.g. \`() => <strong>Hello World!</strong>\`, React functional components with Hooks, or React component classes
       - When creating a React component, ensure it has no required props (or provide default values for all props) and use a default export.

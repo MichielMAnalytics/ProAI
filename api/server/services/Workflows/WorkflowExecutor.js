@@ -438,31 +438,165 @@ class WorkflowExecutor {
    * @returns {string} Task prompt for the agent
    */
   createTaskPromptForStep(step, context) {
-    let prompt = `Please execute the following task: "${step.name}"`;
-    
-    // Add step description if available
-    if (step.description) {
-      prompt += `\n\nDescription: ${step.description}`;
+    // Start with a more specific, actionable prompt
+    let prompt = `WORKFLOW STEP EXECUTION:
+
+Step Name: "${step.name}"
+Step Type: ${step.type}
+
+INSTRUCTIONS:`;
+
+    // For action steps, be very specific about what tool to use and how
+    if (step.type === 'action') {
+      if (step.config.toolName) {
+        // If a specific tool is configured, instruct the agent to use it directly
+        prompt += `\n1. Call the MCP tool "${step.config.toolName}" directly`;
+        
+        if (step.config.parameters) {
+          prompt += `\n2. Use these parameters:`;
+          const resolvedParams = this.resolveParameters(step.config.parameters, context);
+          for (const [key, value] of Object.entries(resolvedParams)) {
+            prompt += `\n   - ${key}: ${JSON.stringify(value)}`;
+          }
+        }
+        
+        if (step.config.instruction) {
+          prompt += `\n3. Additional instruction: ${step.config.instruction}`;
+        }
+        
+        prompt += `\n4. Return the raw tool result without additional commentary`;
+        prompt += `\n\nIMPORTANT: Call the specified tool exactly once and return its result immediately. Do not make multiple tool calls or attempt to interpret the data.`;
+      } else {
+        // If no specific tool is configured, give guidance based on step name
+        prompt += `\n1. ${this.generateActionInstructions(step.name, step.config)}`;
+        prompt += `\n2. Use the most appropriate MCP tool from the available tools`;
+        prompt += `\n3. Make only ONE tool call to complete this task`;
+        prompt += `\n4. Return the result in a structured format`;
+      }
+    } else if (step.type === 'mcp_tool') {
+      // For direct MCP tool steps, be extremely explicit
+      const { toolName, parameters = {} } = step.config;
+      prompt += `\n1. Execute MCP tool: ${toolName}`;
+      
+      const resolvedParams = this.resolveParameters(parameters, context);
+      if (Object.keys(resolvedParams).length > 0) {
+        prompt += `\n2. With these exact parameters:`;
+        for (const [key, value] of Object.entries(resolvedParams)) {
+          prompt += `\n   - ${key}: ${JSON.stringify(value)}`;
+        }
+      } else {
+        prompt += `\n2. No parameters required`;
+      }
+      
+      prompt += `\n3. Return the raw tool output`;
+      prompt += `\n\nIMPORTANT: Execute the tool exactly once with the specified parameters and return the result.`;
     }
-    
-    // Add any configuration as context
-    if (step.config && Object.keys(step.config).length > 0) {
-      prompt += `\n\nConfiguration: ${JSON.stringify(step.config, null, 2)}`;
-    }
-    
-    // Add context from previous steps
+
+    // Add context from previous steps if available and relevant
     if (context.steps && Object.keys(context.steps).length > 0) {
-      prompt += `\n\nPrevious step results (for reference):`;
-      for (const [stepId, stepResult] of Object.entries(context.steps)) {
+      prompt += `\n\nPREVIOUS STEP RESULTS (for reference only):`;
+      
+      // Only include the last 2 steps to avoid overwhelming the agent
+      const stepEntries = Object.entries(context.steps);
+      const recentSteps = stepEntries.slice(-2);
+      
+      for (const [stepId, stepResult] of recentSteps) {
         if (stepResult.success && stepResult.result) {
-          prompt += `\n- ${stepId}: ${JSON.stringify(stepResult.result, null, 2)}`;
+          // Summarize large results to avoid token limits
+          const resultSummary = this.summarizeStepResult(stepResult.result);
+          prompt += `\n- ${stepId}: ${resultSummary}`;
+        }
+      }
+      
+      // Add workflow execution context
+      prompt += `\n\nWORKFLOW CONTEXT:`;
+      prompt += `\n- Workflow: ${context.workflow?.name || 'Unknown'}`;
+      prompt += `\n- Current Step: ${step.id}`;
+      prompt += `\n- Step ${stepEntries.length + 1} of ${context.workflow?.totalSteps || 'unknown'}`;
+    } else {
+      // Add workflow execution context even if no previous steps
+      prompt += `\n\nWORKFLOW CONTEXT:`;
+      prompt += `\n- Workflow: ${context.workflow?.name || 'Unknown'}`;
+      prompt += `\n- Current Step: ${step.id}`;
+      prompt += `\n- Step 1 of ${context.workflow?.totalSteps || 'unknown'}`;
+    }
+
+    // Final instructions to prevent recursion
+    prompt += `\n\nEXECUTION RULES:`;
+    prompt += `\n1. Execute this step exactly once`;
+    prompt += `\n2. Do not call multiple tools unless explicitly required`;
+    prompt += `\n3. Do not attempt to validate or modify the results`;
+    prompt += `\n4. Return results immediately after tool execution`;
+    prompt += `\n5. Do not ask for clarification or additional input`;
+    
+    return prompt;
+  }
+
+  /**
+   * Generate specific action instructions based on step name patterns
+   * @param {string} stepName - Name of the step
+   * @param {Object} config - Step configuration
+   * @returns {string} Specific instruction
+   */
+  generateActionInstructions(stepName, config) {
+    const name = stepName.toLowerCase();
+    
+    // Pattern matching for common workflow step types
+    if (name.includes('fetch') || name.includes('get') || name.includes('retrieve')) {
+      if (name.includes('strava')) {
+        return 'Use a Strava MCP tool to fetch the requested data';
+      } else if (name.includes('linkedin')) {
+        return 'Use a LinkedIn MCP tool to retrieve the requested information';
+      } else {
+        return 'Use the appropriate MCP tool to fetch the requested data';
+      }
+    }
+    
+    if (name.includes('create') || name.includes('post') || name.includes('publish')) {
+      if (name.includes('linkedin')) {
+        return 'Use the LinkedIn CREATE-TEXT-POST-USER tool to create a post';
+      } else {
+        return 'Use the appropriate MCP tool to create the requested content';
+      }
+    }
+    
+    if (name.includes('extract') || name.includes('parse') || name.includes('analyze')) {
+      return 'Process the data from previous steps and extract the required information';
+    }
+    
+    if (name.includes('compose') || name.includes('format') || name.includes('generate')) {
+      return 'Generate the requested text/content based on the available data';
+    }
+    
+    // Default instruction
+    return `Complete the task: "${stepName}"`;
+  }
+
+  /**
+   * Summarize step results to avoid overwhelming subsequent prompts
+   * @param {any} result - Step result to summarize
+   * @returns {string} Summarized result
+   */
+  summarizeStepResult(result) {
+    if (typeof result === 'string') {
+      return result.length > 200 ? result.substring(0, 200) + '...' : result;
+    }
+    
+    if (typeof result === 'object' && result !== null) {
+      // For objects, provide a brief summary
+      if (Array.isArray(result)) {
+        return `Array with ${result.length} items: ${JSON.stringify(result.slice(0, 2))}${result.length > 2 ? '...' : ''}`;
+      } else {
+        const keys = Object.keys(result);
+        if (keys.length > 5) {
+          return `Object with keys: ${keys.slice(0, 5).join(', ')}... (${keys.length} total)`;
+        } else {
+          return JSON.stringify(result);
         }
       }
     }
     
-    prompt += `\n\nPlease use the available tools to complete this task and provide a structured response with the results.`;
-    
-    return prompt;
+    return JSON.stringify(result);
   }
 
   /**

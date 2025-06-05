@@ -51,7 +51,16 @@ class WorkflowTool extends Tool {
     - activate_workflow: Activate a workflow for execution
     - deactivate_workflow: Deactivate a workflow
     - test_workflow: Execute a workflow once for testing
-    - get_available_tools: Get available MCP tools and Pipedream actions for workflow creation`;
+    - get_available_tools: Get available MCP tools and Pipedream actions for workflow creation
+
+    IMPORTANT WORKFLOW CREATION SAFETY:
+      - ALWAYS create workflows as DRAFTS (isDraft: true, isActive: false) by default
+      - DO NOT automatically test or activate workflows unless the user EXPLICITLY requests it
+      - Use create_workflow action to create the workflow structure only
+      - Only use test_workflow action if user specifically asks to "test" the workflow
+      - Only use activate_workflow action if user specifically asks to "activate" or "enable" the workflow
+      - Let the user decide when they want to test or activate their workflow`;
+
     
     this.schema = z.object({
       action: z.enum([

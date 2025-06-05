@@ -5,16 +5,31 @@ export const getWorkflowFiles = (content: string) => {
     // Parse the workflow data to validate it
     const workflowData = JSON.parse(content);
     
-    // Convert the workflow data to a JavaScript object literal instead of a JSON string
-    // This avoids all template literal conflicts
-    const workflowDataString = JSON.stringify(workflowData, null, 2);
+    // Safely serialize the workflow data by properly escaping it
+    // Use a more robust approach to avoid template literal and quote conflicts
+    const safeWorkflowData = JSON.stringify(workflowData, (key, value) => {
+      // If the value is a string that contains code, ensure it's properly escaped
+      if (typeof value === 'string' && (value.includes('`') || value.includes('${') || value.includes('\n'))) {
+        // Replace problematic characters to make it safe for JSON embedding
+        return value
+          .replace(/\\/g, '\\\\')  // Escape backslashes first
+          .replace(/`/g, '\\`')    // Escape backticks
+          .replace(/\${/g, '\\${') // Escape template literal expressions
+          .replace(/"/g, '\\"')    // Escape double quotes
+          .replace(/\n/g, '\\n')   // Escape newlines
+          .replace(/\r/g, '\\r')   // Escape carriage returns
+          .replace(/\t/g, '\\t');  // Escape tabs
+      }
+      return value;
+    }, 2);
     
     return {
       'App.tsx': dedent`
         import React from 'react';
         import WorkflowVisualization from './components/ui/WorkflowVisualization';
 
-        const workflowData = ${workflowDataString};
+        // Workflow data safely embedded
+        const workflowData = ${safeWorkflowData};
 
         export default function App() {
           return (
@@ -35,6 +50,8 @@ export const getWorkflowFiles = (content: string) => {
           useEdgesState,
           ConnectionMode,
           NodeTypes,
+          Handle,
+          Position,
         } from 'reactflow';
         import 'reactflow/dist/style.css';
 
@@ -143,27 +160,47 @@ export const getWorkflowFiles = (content: string) => {
           };
 
           return (
-            <div
-              className={\`px-4 py-2 rounded-lg border-2 min-w-32 \${getNodeColor(data.type || 'action', data.status || 'pending')} \${
-                selected ? 'ring-2 ring-blue-500' : ''
-              }\`}
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-lg">{getIcon(data.type || 'action')}</span>
-                <div>
-                  <div className="font-medium text-sm">{data.label}</div>
-                  {data.config?.toolName && (
-                    <div className="text-xs text-gray-600">{data.config.toolName}</div>
-                  )}
-                  {data.config?.condition && (
-                    <div className="text-xs text-gray-600">If: {data.config.condition}</div>
-                  )}
-                  {data.config?.delayMs && (
-                    <div className="text-xs text-gray-600">Wait: {data.config.delayMs}ms</div>
-                  )}
+            <>
+              {/* Connection handles for edges */}
+              <Handle
+                type="target"
+                position={Position.Top}
+                style={{ background: '#555' }}
+              />
+              <Handle
+                type="source"
+                position={Position.Bottom}
+                style={{ background: '#555' }}
+              />
+              <Handle
+                type="source"
+                position={Position.Right}
+                id="failure"
+                style={{ background: '#ef4444' }}
+              />
+              
+              <div
+                className={\`px-4 py-2 rounded-lg border-2 min-w-64 \${getNodeColor(data.type || 'action', data.status || 'pending')} \${
+                  selected ? 'ring-2 ring-blue-500' : ''
+                }\`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{getIcon(data.type || 'action')}</span>
+                  <div>
+                    <div className="font-medium text-sm">{data.label}</div>
+                    {data.config?.toolName && (
+                      <div className="text-xs text-gray-600">{data.config.toolName}</div>
+                    )}
+                    {data.config?.condition && (
+                      <div className="text-xs text-gray-600">If: {data.config.condition}</div>
+                    )}
+                    {data.config?.delayMs && (
+                      <div className="text-xs text-gray-600">Wait: {data.config.delayMs}ms</div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            </>
           );
         };
 
@@ -181,18 +218,27 @@ export const getWorkflowFiles = (content: string) => {
           };
 
           return (
-            <div className="px-4 py-2 rounded-lg border-2 bg-gray-100 border-gray-300 min-w-32">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">{getIcon(data.type || 'manual')}</span>
-                <div>
-                  <div className="font-medium text-sm">Trigger</div>
-                  <div className="text-xs text-gray-600">{data.type || 'manual'}</div>
-                  {data.config?.schedule && (
-                    <div className="text-xs text-gray-600">{cronToHuman(data.config.schedule)}</div>
-                  )}
+            <>
+              {/* Connection handle for trigger */}
+              <Handle
+                type="source"
+                position={Position.Bottom}
+                style={{ background: '#6366f1' }}
+              />
+              
+              <div className="px-4 py-2 rounded-lg border-2 bg-gray-100 border-gray-300 min-w-32">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{getIcon(data.type || 'manual')}</span>
+                  <div>
+                    <div className="font-medium text-sm">Trigger</div>
+                    <div className="text-xs text-gray-600">{data.type || 'manual'}</div>
+                    {data.config?.schedule && (
+                      <div className="text-xs text-gray-600">{cronToHuman(data.config.schedule)}</div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            </>
           );
         };
 
@@ -216,29 +262,7 @@ export const getWorkflowFiles = (content: string) => {
             }
           }, [data]);
 
-          // Filter out error handler steps and create a clean main flow
-          const { mainFlowSteps, cleanedEdges } = useMemo(() => {
-            const errorStepIds = workflowData.workflow.steps
-              .filter(step => 
-                step.name.toLowerCase().includes('error') || 
-                step.name.toLowerCase().includes('handler') ||
-                step.id.toLowerCase().includes('error')
-              )
-              .map(step => step.id);
-
-            const mainSteps = workflowData.workflow.steps.filter(step => !errorStepIds.includes(step.id));
-            
-            // Only keep success edges between main flow steps
-            const cleanEdges = workflowData.edges.filter(edge => 
-              edge.type === 'success' && 
-              !errorStepIds.includes(edge.source) && 
-              !errorStepIds.includes(edge.target)
-            );
-
-            return { mainFlowSteps: mainSteps, cleanedEdges: cleanEdges };
-          }, [workflowData]);
-
-          // Create ReactFlow nodes with improved positioning
+          // Create ReactFlow nodes from the provided nodes array
           const initialNodes: Node[] = useMemo(() => {
             const nodes: Node[] = [];
 
@@ -246,7 +270,7 @@ export const getWorkflowFiles = (content: string) => {
             nodes.push({
               id: 'trigger',
               type: 'trigger',
-              position: { x: 300, y: 50 },
+              position: { x: 400, y: 50 },
               data: {
                 type: workflowData.trigger.type,
                 config: workflowData.trigger.config,
@@ -254,81 +278,111 @@ export const getWorkflowFiles = (content: string) => {
               draggable: false,
             });
 
-            // Create a clean vertical layout for main flow steps
-            mainFlowSteps.forEach((step, index) => {
-              const nodeData = workflowData.nodes.find(n => n.id === step.id);
-              if (nodeData) {
-                nodes.push({
-                  id: step.id,
-                  type: 'workflowStep',
-                  position: { 
-                    x: 250, // Fixed X position centered
-                    y: 150 + (index * 120) // Vertical spacing of 120px
-                  },
-                  data: {
-                    ...nodeData.data,
-                    type: step.type || 'action',
-                  },
-                  draggable: false,
-                });
-              }
+            // Filter out error and success handler nodes for cleaner visualization
+            const mainFlowNodes = workflowData.nodes.filter(node => {
+              const isErrorNode = node.data.label.toLowerCase().includes('error') || 
+                                 node.data.label.toLowerCase().includes('handler') ||
+                                 node.id.toLowerCase().includes('error');
+              const isSuccessNode = node.data.label.toLowerCase().includes('success') ||
+                                   node.id.toLowerCase().includes('success');
+              
+              // Only show main workflow steps
+              return !isErrorNode && !isSuccessNode;
+            });
+
+            // Sort main flow nodes by their original X position to maintain order
+            const sortedMainNodes = [...mainFlowNodes].sort((a, b) => a.position.x - b.position.x);
+
+            // Position main flow steps vertically in the center
+            sortedMainNodes.forEach((node, index) => {
+              nodes.push({
+                id: node.id,
+                type: 'workflowStep',
+                position: { 
+                  x: 350, // Center horizontally
+                  y: 150 + (index * 120) // Stack vertically with 120px spacing
+                },
+                data: {
+                  ...node.data,
+                  type: node.type || 'action',
+                },
+                draggable: false,
+              });
             });
 
             return nodes;
-          }, [workflowData, mainFlowSteps]);
+          }, [workflowData]);
 
-          // Create ReactFlow edges for clean main flow
+          // Create ReactFlow edges - show only main flow connections
           const initialEdges: Edge[] = useMemo(() => {
             const edges: Edge[] = [];
 
             // Connect trigger to first step if exists
-            if (mainFlowSteps.length > 0) {
-              const firstStep = mainFlowSteps[0];
-              edges.push({
-                id: 'trigger-to-first',
-                source: 'trigger',
-                target: firstStep.id,
-                type: 'smoothstep',
-                style: { stroke: '#6366f1', strokeWidth: 3 },
-                markerEnd: {
-                  type: 'arrowclosed',
-                  width: 20,
-                  height: 20,
-                  color: '#6366f1',
-                },
-                animated: true,
-              });
-            }
-
-            // Add success edges between main flow steps in sequence
-            mainFlowSteps.forEach((step, index) => {
-              if (index < mainFlowSteps.length - 1) {
-                const nextStep = mainFlowSteps[index + 1];
+            if (workflowData.workflow.steps.length > 0) {
+              // Find the first step (step_1)
+              const firstStep = workflowData.workflow.steps.find(step => step.id === 'step_1');
+              if (firstStep) {
                 edges.push({
-                  id: \`\${step.id}-to-\${nextStep.id}\`,
-                  source: step.id,
-                  target: nextStep.id,
-                  type: 'smoothstep',
-                  style: { stroke: '#10b981', strokeWidth: 3 },
+                  id: 'trigger-to-first',
+                  source: 'trigger',
+                  target: firstStep.id,
+                  sourceHandle: null,
+                  targetHandle: null,
+                  type: 'straight',
+                  style: { stroke: '#6366f1', strokeWidth: 2 },
                   markerEnd: {
                     type: 'arrowclosed',
                     width: 20,
                     height: 20,
-                    color: '#10b981',
-                  },
-                  animated: true,
-                  label: '✓',
-                  labelStyle: {
-                    fontSize: 12,
-                    fontWeight: 'bold',
-                    fill: '#10b981',
+                    color: '#6366f1',
                   },
                 });
               }
+            }
+
+            // Filter edges to show only main flow (success connections between main steps)
+            const mainFlowEdges = workflowData.edges.filter(edge => {
+              const isSuccess = edge.type === 'success';
+              const sourceIsMain = !edge.source.includes('error') && !edge.source.includes('success');
+              const targetIsMain = !edge.target.includes('error') && !edge.target.includes('success');
+              
+              // Only show success connections between main workflow steps
+              return isSuccess && sourceIsMain && targetIsMain;
+            });
+
+            // Convert filtered edges to ReactFlow format
+            mainFlowEdges.forEach(edge => {
+              edges.push({
+                id: edge.id,
+                source: edge.source,
+                target: edge.target,
+                sourceHandle: null,
+                targetHandle: null,
+                type: 'straight',
+                style: { 
+                  stroke: '#10b981', 
+                  strokeWidth: 2
+                },
+                markerEnd: {
+                  type: 'arrowclosed',
+                  width: 20,
+                  height: 20,
+                  color: '#10b981',
+                },
+                label: '✓',
+                labelStyle: {
+                  fontSize: 12,
+                  fontWeight: 'bold',
+                  fill: '#10b981',
+                  backgroundColor: 'white',
+                  padding: '2px 4px',
+                  borderRadius: '4px',
+                },
+              });
             });
 
             return edges;
-          }, [mainFlowSteps]);
+          }, [workflowData]);
 
           const [nodes] = useNodesState(initialNodes);
           const [edges] = useEdgesState(initialEdges);
@@ -357,7 +411,14 @@ export const getWorkflowFiles = (content: string) => {
                   <p className="text-sm text-gray-600 mt-1">{workflowData.workflow.description}</p>
                 )}
                 <div className="flex gap-4 mt-2 text-xs text-gray-500">
-                  <span>Steps: {mainFlowSteps.length}</span>
+                  <span>Steps: {workflowData.workflow.steps.filter(step => {
+                    const isErrorStep = step.name.toLowerCase().includes('error') || 
+                                       step.name.toLowerCase().includes('handler') ||
+                                       step.id.toLowerCase().includes('error');
+                    const isSuccessStep = step.name.toLowerCase().includes('success') ||
+                                         step.id.toLowerCase().includes('success');
+                    return !isErrorStep && !isSuccessStep;
+                  }).length}</span>
                   <span>Trigger: {workflowData.trigger.type}</span>
                   {workflowData.trigger.config?.schedule && (
                     <span>Schedule: {cronToHuman(workflowData.trigger.config.schedule)}</span>

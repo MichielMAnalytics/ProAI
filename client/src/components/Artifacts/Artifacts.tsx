@@ -1,7 +1,7 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import { useSetRecoilState } from 'recoil';
 import * as Tabs from '@radix-ui/react-tabs';
-import { ArrowLeft, ChevronLeft, ChevronRight, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, RefreshCw, X, Play, Pause, TestTube, Trash2 } from 'lucide-react';
 import type { SandpackPreviewRef, CodeEditorRef } from '@codesandbox/sandpack-react';
 import useArtifacts from '~/hooks/Artifacts/useArtifacts';
 import DownloadArtifact from './DownloadArtifact';
@@ -10,15 +10,28 @@ import useLocalize from '~/hooks/useLocalize';
 import ArtifactTabs from './ArtifactTabs';
 import { CopyCodeButton } from './Code';
 import store from '~/store';
+import {
+  useDeleteWorkflowMutation,
+  useToggleWorkflowMutation,
+  useTestWorkflowMutation,
+} from '~/data-provider';
+import { NotificationSeverity } from '~/common';
+import { useToastContext } from '~/Providers';
 
 export default function Artifacts() {
   const localize = useLocalize();
   const { isMutating } = useEditorContext();
+  const { showToast } = useToastContext();
   const editorRef = useRef<CodeEditorRef>();
   const previewRef = useRef<SandpackPreviewRef>();
   const [isVisible, setIsVisible] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const setArtifactsVisible = useSetRecoilState(store.artifactsVisibility);
+
+  // Workflow mutations
+  const toggleMutation = useToggleWorkflowMutation();
+  const deleteMutation = useDeleteWorkflowMutation();
+  const testMutation = useTestWorkflowMutation();
 
   useEffect(() => {
     setIsVisible(true);
@@ -34,6 +47,26 @@ export default function Artifacts() {
     currentArtifact,
     orderedArtifactIds,
   } = useArtifacts();
+
+  // Extract workflow data from artifact content
+  const workflowData = useMemo(() => {
+    if (currentArtifact?.type !== 'application/vnd.workflow' || !currentArtifact.content) {
+      return null;
+    }
+    
+    try {
+      const parsedContent = JSON.parse(currentArtifact.content);
+      return parsedContent;
+    } catch (error) {
+      console.error('Failed to parse workflow artifact content:', error);
+      return null;
+    }
+  }, [currentArtifact]);
+
+  const isWorkflowArtifact = currentArtifact?.type === 'application/vnd.workflow';
+  const workflowId = workflowData?.workflow?.id;
+  const isWorkflowActive = workflowData?.workflow?.isActive;
+  const isDraft = workflowData?.workflow?.isDraft;
 
   if (currentArtifact === null || currentArtifact === undefined) {
     return null;
@@ -51,6 +84,71 @@ export default function Artifacts() {
   const closeArtifacts = () => {
     setIsVisible(false);
     setTimeout(() => setArtifactsVisible(false), 300);
+  };
+
+  // Workflow management handlers
+  const handleToggleWorkflow = () => {
+    if (!workflowId) return;
+    
+    toggleMutation.mutate(
+      { workflowId, isActive: !isWorkflowActive },
+      {
+        onSuccess: () => {
+          showToast({
+            message: `Workflow ${isWorkflowActive ? 'deactivated' : 'activated'} successfully`,
+            severity: NotificationSeverity.SUCCESS,
+          });
+        },
+        onError: (error: unknown) => {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          showToast({
+            message: `Failed to ${isWorkflowActive ? 'deactivate' : 'activate'} workflow: ${errorMessage}`,
+            severity: NotificationSeverity.ERROR,
+          });
+        },
+      }
+    );
+  };
+
+  const handleDeleteWorkflow = () => {
+    if (!workflowId) return;
+    
+    deleteMutation.mutate(workflowId, {
+      onSuccess: () => {
+        showToast({
+          message: 'Workflow deleted successfully',
+          severity: NotificationSeverity.SUCCESS,
+        });
+        closeArtifacts(); // Close artifact since workflow is deleted
+      },
+      onError: (error: unknown) => {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        showToast({
+          message: `Failed to delete workflow: ${errorMessage}`,
+          severity: NotificationSeverity.ERROR,
+        });
+      },
+    });
+  };
+
+  const handleTestWorkflow = () => {
+    if (!workflowId) return;
+    
+    testMutation.mutate(workflowId, {
+      onSuccess: () => {
+        showToast({
+          message: 'Workflow test started successfully',
+          severity: NotificationSeverity.SUCCESS,
+        });
+      },
+      onError: (error: unknown) => {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        showToast({
+          message: `Failed to test workflow: ${errorMessage}`,
+          severity: NotificationSeverity.ERROR,
+        });
+      },
+    });
   };
 
   return (
@@ -133,6 +231,41 @@ export default function Artifacts() {
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
+            
+            {/* Workflow Management Buttons - Centered */}
+            {isWorkflowArtifact && workflowId && (
+              <div className="flex items-center gap-2">
+                <button
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+                  onClick={handleTestWorkflow}
+                  disabled={testMutation.isLoading}
+                  title="Test workflow"
+                >
+                  <TestTube className="h-4 w-4" />
+                </button>
+                <button
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+                  onClick={handleToggleWorkflow}
+                  disabled={toggleMutation.isLoading}
+                  title={isWorkflowActive ? 'Deactivate workflow' : 'Activate workflow'}
+                >
+                  {isWorkflowActive ? (
+                    <Pause className="h-4 w-4" />
+                  ) : (
+                    <Play className="h-4 w-4" />
+                  )}
+                </button>
+                <button
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-red-500 transition-colors hover:bg-red-50 hover:text-red-600"
+                  onClick={handleDeleteWorkflow}
+                  disabled={deleteMutation.isLoading}
+                  title="Delete workflow"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+            
             <div className="flex items-center gap-2">
               <CopyCodeButton content={currentArtifact.content ?? ''} />
               {/* Download Button */}

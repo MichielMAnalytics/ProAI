@@ -223,6 +223,18 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
     return 'active';
   };
 
+  // Function to count only main workflow steps (excluding error/success handlers)
+  const getMainStepCount = (steps: TUserWorkflow['steps']) => {
+    return steps.filter(step => {
+      const isErrorStep = step.name.toLowerCase().includes('error') || 
+                         step.name.toLowerCase().includes('handler') ||
+                         step.id.toLowerCase().includes('error');
+      const isSuccessStep = step.name.toLowerCase().includes('success') ||
+                           step.id.toLowerCase().includes('success');
+      return !isErrorStep && !isSuccessStep;
+    }).length;
+  };
+
   // Function to get description length based on sidebar width
   const getDescriptionLength = () => {
     return {
@@ -289,7 +301,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
               <span className="font-medium">Trigger:</span> {workflow.trigger.type}
             </div>
             <div className="text-xs text-text-secondary">
-              <span className="font-medium">Steps:</span> {workflow.steps.length}
+              <span className="font-medium">Steps:</span> {getMainStepCount(workflow.steps)}
             </div>
             {workflow.next_run && (
               <div className="text-xs text-text-secondary">
@@ -307,7 +319,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
           <div className="hidden md:block lg:hidden">
             <div className="text-xs text-text-secondary">
               <span className="font-medium">Trigger:</span> {workflow.trigger.type} | 
-              <span className="font-medium"> Steps:</span> {workflow.steps.length}
+              <span className="font-medium"> Steps:</span> {getMainStepCount(workflow.steps)}
             </div>
             {workflow.next_run && (
               <div className="text-xs text-text-secondary">
