@@ -53,12 +53,37 @@ class WorkflowTool extends Tool {
     - test_workflow: Execute a workflow once for testing
     - get_available_tools: Get available MCP tools and Pipedream actions for workflow creation
 
+    CRITICAL REQUIREMENT FOR ALL WORKFLOW UPDATES
+    
+    WHENEVER YOU UPDATE A WORKFLOW, YOU MUST INCLUDE THE 'description' FIELD!
+    
+    The description field is REQUIRED for ALL update_workflow calls and must reflect:
+    - Current schedule timing (daily, hourly, every 5 minutes, etc.)
+    - What actions the workflow performs
+    - Who receives emails or notifications
+    - Any filtering or processing logic
+    
+    WRONG - Missing description update:
+    {
+      "action": "update_workflow",
+      "workflow_id": "workflow_123",
+      "trigger": {"type": "schedule", "config": {"schedule": "*/5 * * * *"}}
+    }
+    
+    CORRECT - With description update:
+    {
+      "action": "update_workflow", 
+      "workflow_id": "workflow_123",
+      "description": "Every 5 minutes fetch Strava activity and email coach",
+      "trigger": {"type": "schedule", "config": {"schedule": "*/5 * * * *"}}
+    }
+
     CRITICAL: WORKFLOW STEPS MUST BE CONNECTED!
     
     Every workflow step (except the final one) MUST have an "onSuccess" property pointing to the next step ID.
     This creates the execution flow: step1 -> step2 -> step3 -> etc.
     
-    ✅ CORRECT STEP WITH CONNECTION:
+    CORRECT STEP WITH CONNECTION:
     {
       "id": "step_1",
       "name": "Get Data", 
@@ -68,7 +93,7 @@ class WorkflowTool extends Tool {
       "position": {"x": 100, "y": 100}
     }
     
-    ❌ WRONG: MISSING CONNECTION:
+    WRONG: MISSING CONNECTION:
     {
       "id": "step_1", 
       "name": "Get Data",
@@ -85,7 +110,7 @@ class WorkflowTool extends Tool {
     
     When users provide specific information in their requests, you MUST extract and store these details in the workflow step configurations:
     
-    ✅ EXTRACT THESE DETAILS:
+    EXTRACT THESE DETAILS:
     - Email addresses and recipients
     - Subject lines and content templates
     - Specific parameters and filters
@@ -94,7 +119,7 @@ class WorkflowTool extends Tool {
     - File paths and locations
     - API endpoints and configurations
     
-    ❌ DO NOT CREATE GENERIC PLACEHOLDERS:
+    DO NOT CREATE GENERIC PLACEHOLDERS:
     - Don't use "coach@example.com" when user says "michiel.voortman@hotmail.com"
     - Don't use "Recent Activity Update" when user wants specific content
     - Don't use generic parameters when user provides specific ones
@@ -135,6 +160,62 @@ class WorkflowTool extends Tool {
          "steps": [...] // All new steps
        }
 
+    CRITICAL: ALWAYS UPDATE DESCRIPTION TO MATCH CHANGES!
+    
+    When updating workflows, you MUST also update the description to accurately reflect the changes made.
+    This is especially important for:
+    
+    SCHEDULE CHANGES:
+    - User changes trigger from "daily at 9 AM" to "every minute"
+    - OLD: "Daily at 9 AM fetch activity and email [name]"
+    - NEW: "Every minute fetch activity and email [name]"
+    
+    STEP MODIFICATIONS:
+    - User adds email filtering step
+    - OLD: "Fetch activity and email [name]"
+    - NEW: "Fetch activity, filter by running activities, and email [name]"
+    
+    RECIPIENT CHANGES:
+    - User changes email recipient
+    - OLD: "Send activity summary to [name]@[domain]"
+    - NEW: "Send activity summary to [name]@[domain]"
+    
+    TRIGGER CONFIGURATION FORMAT:
+    
+    For schedule triggers, use this exact format:
+    {
+      "trigger": {
+        "type": "schedule",
+        "config": {
+          "schedule": "*/1 * * * *"  // ← Use 'schedule' field, not 'cron'
+        }
+      }
+    }
+    
+    Common cron expressions:
+    - "*/1 * * * *" = Every minute
+    - "*/5 * * * *" = Every 5 minutes  
+    - "0 9 * * *" = Daily at 9 AM UTC
+    - "0 14 * * *" = Daily at 2 PM UTC
+    - "0 */6 * * *" = Every 6 hours
+    
+    COMPLETE UPDATE EXAMPLE:
+    
+    User request: "Change the workflow to run every 5 minutes instead of daily"
+    
+    Correct update with description change:
+    {
+      "action": "update_workflow",
+      "workflow_id": "workflow_123",
+      "description": "Every 5 minutes fetch the most recent Strava activity, summarize duration and distance, and send an email to running coach Michiel.",
+      "trigger": {
+        "type": "schedule", 
+        "config": {
+          "schedule": "*/5 * * * *"
+        }
+      }
+    }
+
     STEP CONFIGURATION PATTERNS WITH REAL USER DATA:
     
     CRITICAL: ALL WORKFLOW STEPS MUST BE CONNECTED!
@@ -149,10 +230,10 @@ class WorkflowTool extends Tool {
          "config": {
            "toolName": "MICROSOFT_OUTLOOK-SEND-EMAIL",
            "parameters": {
-             "recipient": "coach.actual.email@domain.com",
+             "recipient": "[name]@[domain]",
              "subject": "Activity Update - [Date]",
              "contentTemplate": "Detailed activity information including duration, distance, and performance metrics",
-             "recipientName": "Coach Name"
+             "recipientName": "[name]"
            },
            "instruction": "Send detailed activity update email to coach with specified recipient and content"
          },
@@ -229,7 +310,7 @@ class WorkflowTool extends Tool {
           "config": {
             "toolName": "MICROSOFT_OUTLOOK-SEND-EMAIL",
             "parameters": {
-              "recipient": "coach@training.com",
+              "recipient": "[name]@[domain]",
               "subject": "Activity Analysis - {{activity.date}}",
               "contentTemplate": "Here's the activity analysis: {{formatted_data}}"
             },
@@ -279,11 +360,11 @@ class WorkflowTool extends Tool {
       - Let the user decide when they want to test or activate their workflow
       
     PARAMETER EXTRACTION CHECKLIST:
-    ✅ Did you extract all email addresses mentioned by the user?
-    ✅ Did you preserve all specific names and identifiers?
-    ✅ Did you capture the intended content and formatting requirements?
-    ✅ Did you include all filters, limits, and data requirements?
-    ✅ Are the step configurations complete and executable?`;
+    Did you extract all email addresses mentioned by the user?
+    Did you preserve all specific names and identifiers?
+    Did you capture the intended content and formatting requirements?
+    Did you include all filters, limits, and data requirements?
+    Are the step configurations complete and executable?`;
 
     
     this.schema = z.object({
@@ -303,7 +384,7 @@ class WorkflowTool extends Tool {
       name: z.string().optional()
         .describe('Name of the workflow (required for create_workflow)'),
       description: z.string().optional()
-        .describe('Description of the workflow'),
+        .describe('CRITICAL: Description of the workflow. For update_workflow actions, this field is MANDATORY and must be updated to reflect any changes made (schedule timing, step modifications, recipient changes, etc.). NEVER skip this field when updating workflows!'),
       trigger: z.object({
         type: z.enum(['manual', 'schedule', 'webhook', 'email', 'event']),
         config: z.record(z.unknown()).optional(),
@@ -770,20 +851,31 @@ class WorkflowTool extends Tool {
     const processedTrigger = { ...trigger };
 
     if (trigger.type === 'schedule') {
-      // If no config provided, try to parse from description or set default
-      if (!trigger.config?.schedule) {
-        processedTrigger.config = processedTrigger.config || {};
-        
+      // Ensure config object exists
+      processedTrigger.config = processedTrigger.config || {};
+      
+      // Handle both 'schedule' and 'cron' fields - normalize to 'schedule'
+      let cronExpression = trigger.config?.schedule || trigger.config?.cron;
+      
+      // If no cron expression provided, try to parse from description or set default
+      if (!cronExpression) {
         // Try to extract schedule from description
         const scheduleFromDescription = this.extractScheduleFromDescription(description);
         if (scheduleFromDescription) {
-          processedTrigger.config.schedule = scheduleFromDescription;
-          logger.info(`[WorkflowTool] Extracted schedule from description: ${scheduleFromDescription}`);
+          cronExpression = scheduleFromDescription;
+          logger.info(`[WorkflowTool] Extracted schedule from description: ${cronExpression}`);
         } else {
           // Default to daily at 9 AM UTC if no schedule specified
-          processedTrigger.config.schedule = '0 9 * * *';
+          cronExpression = '0 9 * * *';
           logger.info(`[WorkflowTool] No schedule found, using default: 0 9 * * *`);
         }
+      }
+      
+      // Normalize to 'schedule' field and remove 'cron' field if it exists
+      processedTrigger.config.schedule = cronExpression;
+      if (processedTrigger.config.cron) {
+        delete processedTrigger.config.cron;
+        logger.debug(`[WorkflowTool] Normalized 'cron' field to 'schedule': ${cronExpression}`);
       }
     }
 
@@ -1036,7 +1128,7 @@ class WorkflowTool extends Tool {
 
       return {
         success: true,
-        message: `Workflow deleted successfully`
+        message: `Workflow with ID ${workflowId} deleted successfully`
       };
     } catch (error) {
       logger.error(`[WorkflowTool] Error deleting workflow:`, error);
@@ -1232,4 +1324,4 @@ class WorkflowTool extends Tool {
   }
 }
 
-module.exports = WorkflowTool; 
+module.exports = WorkflowTool;
