@@ -260,9 +260,6 @@ class WorkflowExecutor {
         case 'condition':
           result = await this.executeConditionStep(step, context);
           break;
-        case 'mcp_tool':
-          result = await this.executeMCPToolStep(step, context, execution.user);
-          break;
         case 'action':
           result = await this.executePipedreamActionStep(step, context, execution.user);
           break;
@@ -348,51 +345,6 @@ class WorkflowExecutor {
   }
 
   /**
-   * Execute an MCP tool step
-   * @param {Object} step - The MCP tool step
-   * @param {Object} context - Execution context
-   * @param {string} userId - User ID for the execution
-   * @returns {Promise<Object>} Step result
-   */
-  async executeMCPToolStep(step, context, userId) {
-    const { toolName, parameters = {} } = step.config;
-    
-    logger.info(`[WorkflowExecutor] Executing MCP tool: ${toolName}`);
-    
-    if (!toolName) {
-      throw new Error('Tool name is required for MCP tool step');
-    }
-
-    try {
-      // Get user's MCP tools
-      const mcpTools = await UserMCPService.getUserMCPTools(userId);
-      const tool = mcpTools.find(t => t.name === toolName);
-      
-      if (!tool) {
-        throw new Error(`MCP tool not found: ${toolName}`);
-      }
-
-      // Resolve parameters from context
-      const resolvedParameters = this.resolveParameters(parameters, context);
-
-      // Execute the MCP tool
-      // Note: This is a simplified implementation. In a real scenario,
-      // you would need to use the MCP client to execute the tool
-      const result = await this.executeMCPTool(tool, resolvedParameters, userId);
-
-      return {
-        type: 'mcp_tool',
-        toolName,
-        parameters: resolvedParameters,
-        result,
-      };
-    } catch (error) {
-      logger.error(`[WorkflowExecutor] MCP tool execution failed: ${toolName}`, error);
-      throw error;
-    }
-  }
-
-  /**
    * Execute a Pipedream action step using agent with MCP tools
    * @param {Object} step - The action step
    * @param {Object} context - Execution context
@@ -452,12 +404,27 @@ INSTRUCTIONS:`;
         // If a specific tool is configured, instruct the agent to use it directly
         prompt += `\n1. Call the MCP tool "${step.config.toolName}" directly`;
         
+        // Handle different parameter structures
+        let parametersToUse = {};
         if (step.config.parameters) {
+          parametersToUse = this.resolveParameters(step.config.parameters, context);
+        }
+        if (step.config.toolParameters) {
+          parametersToUse = { ...parametersToUse, ...step.config.toolParameters };
+        }
+        
+        if (Object.keys(parametersToUse).length > 0) {
           prompt += `\n2. Use these parameters:`;
-          const resolvedParams = this.resolveParameters(step.config.parameters, context);
-          for (const [key, value] of Object.entries(resolvedParams)) {
+          for (const [key, value] of Object.entries(parametersToUse)) {
             prompt += `\n   - ${key}: ${JSON.stringify(value)}`;
           }
+        } else {
+          prompt += `\n2. Check the step configuration for parameter requirements`;
+        }
+        
+        // Add special handling for email steps
+        if (step.config.toolName.includes('EMAIL')) {
+          prompt += this.generateEmailStepGuidance(step, context);
         }
         
         if (step.config.instruction) {
@@ -473,25 +440,8 @@ INSTRUCTIONS:`;
         prompt += `\n3. Make only ONE tool call to complete this task`;
         prompt += `\n4. Return the result in a structured format`;
       }
-    } else if (step.type === 'mcp_tool') {
-      // For direct MCP tool steps, be extremely explicit
-      const { toolName, parameters = {} } = step.config;
-      prompt += `\n1. Execute MCP tool: ${toolName}`;
-      
-      const resolvedParams = this.resolveParameters(parameters, context);
-      if (Object.keys(resolvedParams).length > 0) {
-        prompt += `\n2. With these exact parameters:`;
-        for (const [key, value] of Object.entries(resolvedParams)) {
-          prompt += `\n   - ${key}: ${JSON.stringify(value)}`;
-        }
-      } else {
-        prompt += `\n2. No parameters required`;
-      }
-      
-      prompt += `\n3. Return the raw tool output`;
-      prompt += `\n\nIMPORTANT: Execute the tool exactly once with the specified parameters and return the result.`;
     }
-
+    
     // Add context from previous steps if available and relevant
     if (context.steps && Object.keys(context.steps).length > 0) {
       prompt += `\n\nPREVIOUS STEP RESULTS (for reference only):`;
@@ -530,6 +480,83 @@ INSTRUCTIONS:`;
     prompt += `\n5. Do not ask for clarification or additional input`;
     
     return prompt;
+  }
+
+  /**
+   * Generate specific guidance for email steps
+   * @param {Object} step - Workflow step
+   * @param {Object} context - Execution context
+   * @returns {string} Email-specific guidance
+   */
+  generateEmailStepGuidance(step, context) {
+    let guidance = `\n\nEMAIL STEP GUIDANCE:`;
+    
+    // Check if recipient is configured
+    if (step.config.parameters?.recipient) {
+      guidance += `\n- Send to: ${step.config.parameters.recipient}`;
+    } else {
+      guidance += `\n- WARNING: No recipient configured. Use a default or derive from context.`;
+    }
+    
+    // Check if subject is configured
+    if (step.config.parameters?.subject) {
+      guidance += `\n- Subject: ${step.config.parameters.subject}`;
+    } else {
+      guidance += `\n- Generate appropriate subject line based on step purpose`;
+    }
+    
+    // Check if content template is provided
+    if (step.config.parameters?.contentTemplate) {
+      guidance += `\n- Content template: ${step.config.parameters.contentTemplate}`;
+      guidance += `\n- Populate template with data from previous steps`;
+    } else {
+      guidance += `\n- Generate email content based on step name and previous step data`;
+    }
+    
+    // Add data availability guidance
+    const availableData = this.identifyAvailableDataForEmail(context);
+    if (availableData.length > 0) {
+      guidance += `\n- Available data: ${availableData.join(', ')}`;
+    }
+    
+    return guidance;
+  }
+
+  /**
+   * Identify what data is available from previous steps for email content
+   * @param {Object} context - Execution context
+   * @returns {Array} Array of available data types
+   */
+  identifyAvailableDataForEmail(context) {
+    const availableData = [];
+    
+    if (context.steps) {
+      for (const [stepId, stepResult] of Object.entries(context.steps)) {
+        if (stepResult.success && stepResult.result) {
+          const result = stepResult.result;
+          
+          // Check for agent response text
+          if (result.agentResponse && typeof result.agentResponse === 'string') {
+            availableData.push('text data from previous steps');
+          }
+          
+          // Check if result contains structured data
+          if (typeof result === 'object' && result !== null) {
+            const keys = Object.keys(result);
+            if (keys.length > 0) {
+              availableData.push('structured data');
+            }
+          }
+          
+          // Check for arrays (lists of items)
+          if (Array.isArray(result)) {
+            availableData.push('list data');
+          }
+        }
+      }
+    }
+    
+    return [...new Set(availableData)]; // Remove duplicates
   }
 
   /**
@@ -919,6 +946,38 @@ INSTRUCTIONS:`;
       executionId: id,
       ...data,
     }));
+  }
+
+  /**
+   * Generate execution hints for a workflow step
+   * @param {Object} step - Workflow step
+   * @returns {Object} Execution hints
+   */
+  generateExecutionHints(step) {
+    const hints = {
+      expectedExecutionTime: 'fast', // fast, medium, slow
+      retryable: true,
+      criticalPath: false,
+    };
+
+    const stepName = step.name.toLowerCase();
+
+    // Adjust hints based on step type and name
+    if (step.type === 'action') {
+      if (stepName.includes('create') || stepName.includes('post') || stepName.includes('publish')) {
+        hints.expectedExecutionTime = 'medium';
+        hints.criticalPath = true; // Creating content is usually critical
+      } else if (stepName.includes('get') || stepName.includes('fetch')) {
+        hints.expectedExecutionTime = 'fast';
+      } else if (stepName.includes('analyze') || stepName.includes('process') || stepName.includes('compose')) {
+        hints.expectedExecutionTime = 'medium';
+      }
+    } else if (step.type === 'delay') {
+      hints.expectedExecutionTime = 'slow';
+      hints.retryable = false;
+    }
+
+    return hints;
   }
 }
 

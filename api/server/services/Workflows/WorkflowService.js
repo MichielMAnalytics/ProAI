@@ -347,7 +347,7 @@ class WorkflowService {
       throw new Error(`Step ${index} missing name`);
     }
 
-    const validStepTypes = ['action', 'condition', 'delay', 'mcp_tool'];
+    const validStepTypes = ['action', 'condition', 'delay'];
     if (!validStepTypes.includes(step.type)) {
       throw new Error(`Step ${index} has invalid type: ${step.type}`);
     }
@@ -368,15 +368,10 @@ class WorkflowService {
           throw new Error(`Step ${index} condition missing condition expression`);
         }
         break;
-      case 'mcp_tool':
-        if (!step.config.toolName) {
-          throw new Error(`Step ${index} MCP tool missing toolName`);
-        }
-        break;
       case 'action':
-        // Action steps now use MCP tools dynamically, so no specific config validation needed
-        // The agent will determine which tools to use based on step name and available MCP tools
-        logger.debug(`[WorkflowService] Action step ${index} will use dynamic MCP tool selection`);
+        // Action steps can use MCP tools dynamically via agent selection
+        // or be configured with specific toolName for direct tool calls
+        logger.debug(`[WorkflowService] Action step ${index} configured for ${step.config.toolName ? 'direct tool call' : 'agent-driven execution'}`);
         break;
     }
 
