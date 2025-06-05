@@ -16,6 +16,16 @@ export interface ISchedulerTask extends Document {
   endpoint?: string;
   ai_model?: string;
   agent_id?: string;
+  metadata?: {
+    type?: 'task' | 'workflow';
+    workflowId?: string;
+    workflowVersion?: number;
+    trigger?: any;
+    steps?: any[];
+    description?: string;
+    isDraft?: boolean;
+    [key: string]: any;
+  };
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -81,6 +91,12 @@ const schedulerTaskSchema: Schema<ISchedulerTask> = new Schema(
     agent_id: {
       type: String,
       required: false,
+    },
+    metadata: {
+      type: Schema.Types.Mixed,
+      default: function() {
+        return { type: 'task' };
+      },
     },
   },
   { 

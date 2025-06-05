@@ -14,6 +14,7 @@ const {
   disableSchedulerTask
 } = require('~/models/SchedulerTask');
 const { getAgent } = require('~/models/Agent'); // Import getAgent to fetch agent details
+const { EModelEndpoint } = require('librechat-data-provider'); // Import EModelEndpoint for model endpoint
 
 class SchedulerTool extends Tool {
   static lc_name() {
@@ -40,6 +41,9 @@ class SchedulerTool extends Tool {
       model: this.model,
       override: this.override,
       hasReq: !!this.req,
+      reqBodyModel: this.req?.body?.model,
+      reqBodyEndpoint: this.req?.body?.endpoint,
+      reqBodyEndpointOption: this.req?.body?.endpointOption,
     });
     
     this.name = 'scheduler';
@@ -82,6 +86,37 @@ class SchedulerTool extends Tool {
     }
   }
 
+  /**
+   * Determine the correct endpoint based on the model name
+   * @param {string} modelName - The model name
+   * @returns {string} The appropriate endpoint
+   */
+  determineEndpointFromModel(modelName) {
+    if (!modelName) {
+      return EModelEndpoint.openAI; // Default fallback
+    }
+
+    const model = modelName.toLowerCase();
+    
+    // Google models
+    if (model.includes('gemini') || model.includes('palm') || model.includes('bison')) {
+      return EModelEndpoint.google;
+    }
+    
+    // Anthropic models
+    if (model.includes('claude')) {
+      return EModelEndpoint.anthropic;
+    }
+    
+    // Azure OpenAI models (if they have azure in the name)
+    if (model.includes('azure')) {
+      return EModelEndpoint.azureOpenAI;
+    }
+    
+    // OpenAI models (gpt-*, o1-*, etc.) or fallback
+    return EModelEndpoint.openAI;
+  }
+
   async createTask(data, userId, conversationId, parentMessageId, endpoint, model) {
     const { name, schedule, prompt, do_only_once, enabled } = data;
 
@@ -119,19 +154,43 @@ class SchedulerTool extends Tool {
     logger.info(`[SchedulerTool] Creating task with endpoint: ${currentEndpoint}, model: ${currentModel}`);
 
     if (currentEndpoint === 'agents') {
-      taskData.agent_id = currentModel; // For agents endpoint, model is the agent_id
-      logger.info(`[SchedulerTool] Setting agent_id: ${currentModel}`);
-      
-      // Fetch the agent's underlying model
-      try {
-        const agent = await getAgent({ id: currentModel, author: userId });
-        if (agent && agent.model) {
-          taskData.ai_model = agent.model; // Store the agent's underlying model
-          logger.info(`[SchedulerTool] Set ai_model from agent: ${agent.model}`);
+      // Special handling for ephemeral agent
+      if (currentModel === 'ephemeral') {
+        // For ephemeral agents, get the actual underlying model from request context
+        let actualModel = 'gpt-4o-mini'; // Fallback default
+        
+        // Try to get the actual model from the request body
+        if (this.req?.body?.model) {
+          actualModel = this.req.body.model;
+          logger.info(`[SchedulerTool] Using model from request: ${actualModel}`);
+        } else if (this.req?.body?.endpointOption?.model) {
+          actualModel = this.req.body.endpointOption.model;
+          logger.info(`[SchedulerTool] Using model from endpointOption: ${actualModel}`);
+        } else {
+          logger.warn(`[SchedulerTool] Could not determine actual model for ephemeral agent, using fallback: ${actualModel}`);
         }
-      } catch (error) {
-        logger.warn(`[SchedulerTool] Could not fetch agent ${currentModel} to get underlying model: ${error.message}`);
-        // Continue without the underlying model - it's not critical for task creation
+        
+        // Store the correct endpoint and actual model
+        taskData.endpoint = this.determineEndpointFromModel(actualModel);
+        taskData.ai_model = actualModel;
+        taskData.agent_id = 'ephemeral'; // Keep track that this was from ephemeral agent
+        
+        logger.info(`[SchedulerTool] Ephemeral agent detected, storing endpoint: ${taskData.endpoint}, model: ${taskData.ai_model}, agent_id: ephemeral`);
+      } else {
+        // For real agents, fetch the agent's underlying model
+        taskData.agent_id = currentModel; // For agents endpoint, model is the agent_id
+        logger.info(`[SchedulerTool] Setting agent_id: ${currentModel}`);
+        
+        try {
+          const agent = await getAgent({ id: currentModel, author: userId });
+          if (agent && agent.model) {
+            taskData.ai_model = agent.model; // Store the agent's underlying model
+            logger.info(`[SchedulerTool] Set ai_model from agent: ${agent.model}`);
+          }
+        } catch (error) {
+          logger.warn(`[SchedulerTool] Could not fetch agent ${currentModel} to get underlying model: ${error.message}`);
+          // Continue without the underlying model - it's not critical for task creation
+        }
       }
     } else {
       taskData.ai_model = currentModel;

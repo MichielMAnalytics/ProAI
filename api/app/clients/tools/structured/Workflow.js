@@ -2,14 +2,6 @@ const { z } = require('zod');
 const { Tool } = require('@langchain/core/tools');
 const { v4: uuidv4 } = require('uuid');
 const { logger } = require('~/config');
-const { 
-  createUserWorkflow, 
-  getUserWorkflows, 
-  getUserWorkflowById,
-  updateUserWorkflow,
-  deleteUserWorkflow,
-  toggleUserWorkflow
-} = require('~/models/UserWorkflow');
 const WorkflowService = require('~/server/services/Workflows/WorkflowService');
 const UserMCPService = require('~/server/services/UserMCPService');
 const PipedreamUserIntegrations = require('~/server/services/Pipedream/PipedreamUserIntegrations');
@@ -929,7 +921,8 @@ class WorkflowTool extends Tool {
 
   async listWorkflows(userId) {
     try {
-      const workflows = await getUserWorkflows(userId);
+      const workflowService = new WorkflowService();
+      const workflows = await workflowService.getUserWorkflows(userId);
       
       return {
         success: true,
@@ -962,7 +955,8 @@ class WorkflowTool extends Tool {
     }
 
     try {
-      const workflow = await getUserWorkflowById(workflowId, userId);
+      const workflowService = new WorkflowService();
+      const workflow = await workflowService.getWorkflowById(workflowId, userId);
       
       if (!workflow) {
         return {
@@ -1004,7 +998,8 @@ class WorkflowTool extends Tool {
 
     try {
       // Get the current workflow first
-      const currentWorkflow = await getUserWorkflowById(workflowId, userId);
+      const workflowService = new WorkflowService();
+      const currentWorkflow = await workflowService.getWorkflowById(workflowId, userId);
       
       if (!currentWorkflow) {
         return {
@@ -1016,7 +1011,7 @@ class WorkflowTool extends Tool {
       // Process the update data to handle intelligent step merging
       const processedUpdateData = await this.processWorkflowUpdate(currentWorkflow, updateData);
       
-      const updatedWorkflow = await updateUserWorkflow(workflowId, userId, processedUpdateData);
+      const updatedWorkflow = await workflowService.updateWorkflow(workflowId, userId, processedUpdateData);
       
       if (!updatedWorkflow) {
         return {
@@ -1117,9 +1112,10 @@ class WorkflowTool extends Tool {
     }
 
     try {
-      const result = await deleteUserWorkflow(workflowId, userId);
+      const workflowService = new WorkflowService();
+      const success = await workflowService.deleteWorkflow(workflowId, userId);
       
-      if (result.deletedCount === 0) {
+      if (!success) {
         return {
           success: false,
           message: `Workflow with ID ${workflowId} not found`
@@ -1142,7 +1138,8 @@ class WorkflowTool extends Tool {
     }
 
     try {
-      const workflow = await toggleUserWorkflow(workflowId, userId, isActive);
+      const workflowService = new WorkflowService();
+      const workflow = await workflowService.toggleWorkflow(workflowId, userId, isActive);
       
       if (!workflow) {
         return {
@@ -1168,7 +1165,7 @@ class WorkflowTool extends Tool {
 
     try {
       const workflowService = new WorkflowService();
-      const workflow = await getUserWorkflowById(workflowId, userId);
+      const workflow = await workflowService.getWorkflowById(workflowId, userId);
       
       if (!workflow) {
         return {

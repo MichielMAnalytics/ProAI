@@ -1,27 +1,26 @@
 const { logger } = require('~/config');
+// Remove userworkflow imports - using scheduler collections only
 const { 
-  createUserWorkflow, 
-  getUserWorkflows, 
-  getUserWorkflowById,
-  updateUserWorkflow,
-  deleteUserWorkflow,
-  toggleUserWorkflow,
-  getActiveWorkflows,
-  updateWorkflowStats
-} = require('~/models/UserWorkflow');
+  createSchedulerTask,
+  deleteSchedulerTask,
+  getSchedulerTasksByUser,
+  getSchedulerTaskById,
+  updateSchedulerTask
+} = require('~/models/SchedulerTask');
 const { 
-  createWorkflowExecution,
-  updateWorkflowExecution,
-  getWorkflowExecution,
-  createWorkflowStepExecution,
-  updateWorkflowStepExecution
-} = require('~/models/WorkflowExecution');
-const WorkflowExecutor = require('./WorkflowExecutor');
+  createSchedulerExecution,
+  updateSchedulerExecution,
+  getSchedulerExecutionById,
+  getSchedulerExecutionsByTask,
+  getSchedulerExecutionsByUser
+} = require('~/models/SchedulerExecution');
+const { calculateNextRun } = require('~/server/services/Scheduler/utils/cronUtils');
 const { v4: uuidv4 } = require('uuid');
 
 class WorkflowService {
   constructor() {
-    this.executor = new WorkflowExecutor();
+    // Don't import SchedulerTaskExecutor here to avoid circular dependency
+    // We'll use it dynamically when needed
   }
 
   /**
@@ -37,11 +36,50 @@ class WorkflowService {
       // Validate workflow data
       this.validateWorkflowData(workflowData);
       
-      // Create workflow
-      const workflow = await createUserWorkflow({
-        ...workflowData,
+      // Generate scheduler task ID for the workflow
+      const schedulerTaskId = `workflow_${workflowData.id.replace('workflow_', '')}`;
+      
+      // Calculate next run time if it's a schedule trigger
+      let nextRun = null;
+      if (workflowData.trigger.type === 'schedule') {
+        nextRun = calculateNextRun(workflowData.trigger.config.schedule);
+        if (!nextRun) {
+          throw new Error(`Invalid cron expression: ${workflowData.trigger.config.schedule}`);
+        }
+      }
+      
+      // Create scheduler task with workflow metadata
+      const schedulerTaskData = {
+        id: schedulerTaskId,
+        name: `Workflow: ${workflowData.name}`,
+        schedule: workflowData.trigger.type === 'schedule' ? workflowData.trigger.config.schedule : '0 0 1 1 *', // Dummy schedule for non-schedule triggers
+        prompt: `WORKFLOW_EXECUTION:${workflowData.id}:${workflowData.name}`,
+        enabled: workflowData.isActive || false,
+        do_only_once: false, // Workflows are typically recurring
+        next_run: nextRun,
+        status: workflowData.isActive ? 'pending' : 'disabled',
         user: userId,
-      });
+        conversation_id: workflowData.conversation_id,
+        parent_message_id: workflowData.parent_message_id,
+        endpoint: workflowData.endpoint,
+        ai_model: workflowData.ai_model,
+        agent_id: workflowData.agent_id,
+        metadata: {
+          type: 'workflow',
+          workflowId: workflowData.id,
+          workflowVersion: workflowData.version || 1,
+          trigger: workflowData.trigger,
+          steps: workflowData.steps,
+          description: workflowData.description,
+          isDraft: workflowData.isDraft,
+          created_from_agent: workflowData.created_from_agent
+        }
+      };
+      
+      const schedulerTask = await createSchedulerTask(schedulerTaskData);
+      
+      // Convert scheduler task back to workflow format for response
+      const workflow = this.schedulerTaskToWorkflow(schedulerTask);
       
       logger.info(`[WorkflowService] Created workflow ${workflow.id} for user ${userId}`);
       return workflow;
@@ -61,7 +99,14 @@ class WorkflowService {
     try {
       logger.debug(`[WorkflowService] Getting workflows for user ${userId}`);
       
-      const workflows = await getUserWorkflows(userId, filters);
+      // Get all scheduler tasks for the user
+      const allTasks = await getSchedulerTasksByUser(userId);
+      
+      // Filter to get only workflow tasks
+      const workflowTasks = this.filterWorkflowTasks(allTasks);
+      
+      // Convert to workflow format
+      const workflows = workflowTasks.map(task => this.schedulerTaskToWorkflow(task));
       
       logger.debug(`[WorkflowService] Found ${workflows.length} workflows for user ${userId}`);
       return workflows;
@@ -81,12 +126,18 @@ class WorkflowService {
     try {
       logger.debug(`[WorkflowService] Getting workflow ${workflowId} for user ${userId}`);
       
-      const workflow = await getUserWorkflowById(workflowId, userId);
+      // Convert workflow ID to scheduler task ID
+      const schedulerTaskId = `workflow_${workflowId.replace('workflow_', '')}`;
       
-      if (!workflow) {
+      const schedulerTask = await getSchedulerTaskById(schedulerTaskId, userId);
+      
+      if (!schedulerTask || !schedulerTask.metadata || schedulerTask.metadata.type !== 'workflow') {
         logger.warn(`[WorkflowService] Workflow ${workflowId} not found for user ${userId}`);
         return null;
       }
+      
+      // Convert to workflow format
+      const workflow = this.schedulerTaskToWorkflow(schedulerTask);
       
       return workflow;
     } catch (error) {
@@ -108,15 +159,64 @@ class WorkflowService {
       
       // Validate update data if changing workflow structure
       if (updateData.trigger || updateData.steps) {
-        this.validateWorkflowData(updateData);
+        this.validateWorkflowUpdateData(updateData);
       }
       
-      const updatedWorkflow = await updateUserWorkflow(workflowId, userId, updateData);
+      // Convert workflow ID to scheduler task ID
+      const schedulerTaskId = `workflow_${workflowId.replace('workflow_', '')}`;
       
-      if (!updatedWorkflow) {
+      // Get current scheduler task
+      const currentTask = await getSchedulerTaskById(schedulerTaskId, userId);
+      if (!currentTask || !currentTask.metadata || currentTask.metadata.type !== 'workflow') {
         logger.warn(`[WorkflowService] Workflow ${workflowId} not found for update`);
         return null;
       }
+      
+      // Prepare update data for scheduler task
+      const schedulerUpdateData = {};
+      
+      // Update name if provided
+      if (updateData.name) {
+        schedulerUpdateData.name = `Workflow: ${updateData.name}`;
+        schedulerUpdateData.prompt = `WORKFLOW_EXECUTION:${workflowId}:${updateData.name}`;
+      }
+      
+      // Update schedule if trigger changed
+      if (updateData.trigger?.type === 'schedule') {
+        schedulerUpdateData.schedule = updateData.trigger.config.schedule;
+        const nextRun = calculateNextRun(updateData.trigger.config.schedule);
+        if (nextRun) {
+          schedulerUpdateData.next_run = nextRun;
+        }
+      }
+      
+      // Update metadata
+      const updatedMetadata = {
+        ...currentTask.metadata,
+        ...updateData.trigger && { trigger: updateData.trigger },
+        ...updateData.steps && { steps: updateData.steps },
+        ...updateData.description && { description: updateData.description },
+        ...updateData.isDraft !== undefined && { isDraft: updateData.isDraft },
+        workflowVersion: (currentTask.metadata.workflowVersion || 1) + 1
+      };
+      
+      schedulerUpdateData.metadata = updatedMetadata;
+      
+      // Update other fields
+      if (updateData.isActive !== undefined) {
+        schedulerUpdateData.enabled = updateData.isActive;
+        schedulerUpdateData.status = updateData.isActive ? 'pending' : 'disabled';
+      }
+      
+      const updatedTask = await updateSchedulerTask(schedulerTaskId, userId, schedulerUpdateData);
+      
+      if (!updatedTask) {
+        logger.warn(`[WorkflowService] Workflow ${workflowId} not found for update`);
+        return null;
+      }
+      
+      // Convert back to workflow format
+      const updatedWorkflow = this.schedulerTaskToWorkflow(updatedTask);
       
       logger.info(`[WorkflowService] Updated workflow ${workflowId}`);
       return updatedWorkflow;
@@ -136,14 +236,17 @@ class WorkflowService {
     try {
       logger.info(`[WorkflowService] Deleting workflow ${workflowId} for user ${userId}`);
       
-      const result = await deleteUserWorkflow(workflowId, userId);
+      // Convert workflow ID to scheduler task ID
+      const schedulerTaskId = `workflow_${workflowId.replace('workflow_', '')}`;
+      
+      const result = await deleteSchedulerTask(schedulerTaskId, userId);
       
       if (result.deletedCount === 0) {
         logger.warn(`[WorkflowService] Workflow ${workflowId} not found for deletion`);
         return false;
       }
       
-      logger.info(`[WorkflowService] Deleted workflow ${workflowId}`);
+      logger.info(`[WorkflowService] Deleted workflow ${workflowId} successfully`);
       return true;
     } catch (error) {
       logger.error(`[WorkflowService] Error deleting workflow ${workflowId}:`, error);
@@ -162,17 +265,49 @@ class WorkflowService {
     try {
       logger.info(`[WorkflowService] ${isActive ? 'Activating' : 'Deactivating'} workflow ${workflowId}`);
       
-      const workflow = await toggleUserWorkflow(workflowId, userId, isActive);
+      // Convert workflow ID to scheduler task ID
+      const schedulerTaskId = `workflow_${workflowId.replace('workflow_', '')}`;
       
-      if (!workflow) {
+      // Get current task to access metadata
+      const currentTask = await getSchedulerTaskById(schedulerTaskId, userId);
+      if (!currentTask) {
         logger.warn(`[WorkflowService] Workflow ${workflowId} not found for toggle`);
         return null;
       }
       
-      // If activating, schedule the workflow if it has a schedule trigger
-      if (isActive && workflow.trigger.type === 'schedule') {
-        await this.scheduleWorkflow(workflow);
+      // Update scheduler task enabled status
+      const updateData = {
+        enabled: isActive,
+        status: isActive ? 'pending' : 'disabled'
+      };
+      
+      // Update metadata - when activating, remove draft status
+      if (currentTask.metadata) {
+        updateData.metadata = {
+          ...currentTask.metadata,
+          isDraft: isActive ? false : currentTask.metadata.isDraft // When activating, set isDraft to false
+        };
       }
+      
+      // If activating a schedule workflow, calculate next run
+      if (isActive) {
+        if (currentTask && currentTask.metadata?.trigger?.type === 'schedule') {
+          const nextRun = calculateNextRun(currentTask.metadata.trigger.config.schedule);
+          if (nextRun) {
+            updateData.next_run = nextRun;
+          }
+        }
+      }
+      
+      const updatedTask = await updateSchedulerTask(schedulerTaskId, userId, updateData);
+      
+      if (!updatedTask) {
+        logger.warn(`[WorkflowService] Workflow ${workflowId} not found for toggle`);
+        return null;
+      }
+      
+      // Convert back to workflow format
+      const workflow = this.schedulerTaskToWorkflow(updatedTask);
       
       logger.info(`[WorkflowService] ${isActive ? 'Activated' : 'Deactivated'} workflow ${workflowId}`);
       return workflow;
@@ -199,13 +334,25 @@ class WorkflowService {
       if (!workflow) {
         throw new Error(`Workflow ${workflowId} not found`);
       }
-      
-      // Create execution record
-      const executionId = `exec_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
-      const execution = await createWorkflowExecution({
+
+      // Determine if this is a scheduled execution
+      const isScheduledExecution = context.trigger?.source === 'scheduler';
+
+      // For scheduled executions, this should not be called directly
+      // The SchedulerTaskExecutor should handle workflow execution directly
+      if (isScheduledExecution) {
+        throw new Error('Scheduled workflow executions should be handled by SchedulerTaskExecutor directly');
+      }
+
+      // For manual/test executions, create execution record and use WorkflowExecutor
+      let execution = null;
+      let executionId = null;
+
+      executionId = `exec_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
+      execution = await createSchedulerExecution({
         id: executionId,
-        workflowId: workflow.id,
-        workflowName: workflow.name,
+        task_id: `workflow_${workflowId.replace('workflow_', '')}`,
+        task_name: `Workflow: ${workflow.name}`,
         user: userId,
         trigger: {
           type: context.trigger?.type || 'manual',
@@ -213,40 +360,40 @@ class WorkflowService {
           data: context.trigger?.data || {}
         },
         status: 'running',
-        startTime: new Date(),
-        context,
-        isTest,
+        start_time: new Date(),
+        metadata: {
+          workflowId: workflowId,
+          workflowName: workflow.name,
+          isTest: isTest,
+          context: context
+        }
       });
-      
+
       try {
-        // Execute workflow
-        const result = await this.executor.executeWorkflow(workflow, execution, context);
+        // Use WorkflowExecutor directly for manual/test executions
+        const WorkflowExecutor = require('~/server/services/Workflows/WorkflowExecutor');
+        const executor = new WorkflowExecutor();
+        
+        // Execute workflow using WorkflowExecutor
+        const result = await executor.executeWorkflow(workflow, { id: executionId, user: userId }, context);
         
         // Update execution status
-        await updateWorkflowExecution(execution.id, result.success ? 'completed' : 'failed', {
-          endTime: new Date(),
+        await updateSchedulerExecution(execution.id, userId, {
+          status: result.success ? 'completed' : 'failed',
+          end_time: new Date(),
           result: result.result,
           error: result.error,
         });
-        
-        // Update workflow stats (only for non-test executions)
-        if (!isTest) {
-          await updateWorkflowStats(workflowId, result.success);
-        }
         
         logger.info(`[WorkflowService] ${isTest ? 'Test' : 'Execution'} completed for workflow ${workflowId}: ${result.success ? 'success' : 'failed'}`);
         return result;
       } catch (error) {
         // Update execution status on error
-        await updateWorkflowExecution(execution.id, 'failed', {
-          endTime: new Date(),
+        await updateSchedulerExecution(execution.id, userId, {
+          status: 'failed',
+          end_time: new Date(),
           error: error.message,
         });
-        
-        // Update workflow stats (only for non-test executions)
-        if (!isTest) {
-          await updateWorkflowStats(workflowId, false);
-        }
         
         throw error;
       }
@@ -264,7 +411,10 @@ class WorkflowService {
     try {
       logger.debug('[WorkflowService] Getting active workflows');
       
-      const workflows = await getActiveWorkflows();
+      // Get all scheduler tasks across all users (for admin purposes)
+      // Note: This requires a new model method to get all tasks, not just for a user
+      // For now, we'll return empty array since this method was primarily used by the old scheduler
+      const workflows = [];
       
       logger.debug(`[WorkflowService] Found ${workflows.length} active workflows`);
       return workflows;
@@ -275,22 +425,51 @@ class WorkflowService {
   }
 
   /**
-   * Schedule workflow (placeholder for scheduler integration)
-   * @param {Object} workflow - Workflow to schedule
-   * @returns {Promise<void>}
+   * Convert scheduler task to workflow format
+   * @param {Object} schedulerTask - Scheduler task object
+   * @returns {Object} Workflow object
    */
-  async scheduleWorkflow(workflow) {
-    try {
-      logger.info(`[WorkflowService] Scheduling workflow ${workflow.id}`);
-      
-      // TODO: Integrate with scheduler service
-      // This would register the workflow with the scheduler based on trigger configuration
-      
-      logger.info(`[WorkflowService] Scheduled workflow ${workflow.id}`);
-    } catch (error) {
-      logger.error(`[WorkflowService] Error scheduling workflow ${workflow.id}:`, error);
-      throw error;
+  schedulerTaskToWorkflow(schedulerTask) {
+    if (!schedulerTask.metadata || schedulerTask.metadata.type !== 'workflow') {
+      throw new Error('Scheduler task is not a workflow');
     }
+
+    return {
+      id: schedulerTask.metadata.workflowId,
+      name: schedulerTask.name.replace('Workflow: ', ''),
+      description: schedulerTask.metadata.description,
+      trigger: schedulerTask.metadata.trigger,
+      steps: schedulerTask.metadata.steps,
+      isDraft: schedulerTask.metadata.isDraft,
+      isActive: schedulerTask.enabled,
+      version: schedulerTask.metadata.workflowVersion,
+      user: schedulerTask.user,
+      conversation_id: schedulerTask.conversation_id,
+      parent_message_id: schedulerTask.parent_message_id,
+      endpoint: schedulerTask.endpoint,
+      ai_model: schedulerTask.ai_model,
+      agent_id: schedulerTask.agent_id,
+      last_run: schedulerTask.last_run,
+      next_run: schedulerTask.next_run,
+      status: schedulerTask.status,
+      created_from_agent: schedulerTask.metadata.created_from_agent,
+      createdAt: schedulerTask.createdAt,
+      updatedAt: schedulerTask.updatedAt,
+    };
+  }
+
+  /**
+   * Filter scheduler tasks to get only workflow tasks
+   * @param {Array} tasks - Array of scheduler tasks
+   * @returns {Array} Array of workflow tasks
+   */
+  filterWorkflowTasks(tasks) {
+    return tasks.filter(task => 
+      task.metadata && 
+      task.metadata.type === 'workflow' &&
+      task.prompt && 
+      task.prompt.startsWith('WORKFLOW_EXECUTION:')
+    );
   }
 
   /**
@@ -399,6 +578,47 @@ class WorkflowService {
         throw new Error(`Step ${index} (${step.id}) onFailure references non-existent step: ${step.onFailure}. Available steps: [${allStepIds.join(', ')}]`);
       }
     });
+  }
+
+  /**
+   * Validate workflow update data
+   * @param {Object} updateData - Update data to validate
+   * @throws {Error} If validation fails
+   */
+  validateWorkflowUpdateData(updateData) {
+    // Validate required fields
+    if (!updateData.name && !updateData.trigger && !updateData.steps && !updateData.description && !updateData.isDraft) {
+      throw new Error('No valid fields to update');
+    }
+
+    // Validate trigger
+    if (updateData.trigger) {
+      const validTriggerTypes = ['manual', 'schedule', 'webhook', 'email', 'event'];
+      if (!validTriggerTypes.includes(updateData.trigger.type)) {
+        throw new Error(`Invalid trigger type: ${updateData.trigger.type}`);
+      }
+
+      // Validate schedule trigger
+      if (updateData.trigger.type === 'schedule' && !updateData.trigger.config?.schedule) {
+        throw new Error('Schedule trigger requires a schedule configuration');
+      }
+    }
+
+    // Validate steps
+    if (updateData.steps) {
+      if (!Array.isArray(updateData.steps) || updateData.steps.length === 0) {
+        throw new Error('Workflow must have at least one step');
+      }
+
+      updateData.steps.forEach((step, index) => {
+        this.validateWorkflowStep(step, index);
+      });
+    }
+
+    // Validate step connections
+    if (updateData.steps) {
+      this.validateStepConnections(updateData.steps);
+    }
   }
 }
 

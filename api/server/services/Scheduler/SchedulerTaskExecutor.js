@@ -9,6 +9,7 @@ const { calculateNextRun } = require('./utils/cronUtils');
 const { createMockRequest, createMockResponse, createMinimalMockResponse } = require('./utils/mockUtils');
 const SchedulerClientFactory = require('./SchedulerClientFactory');
 const SchedulerAgentHandler = require('./SchedulerAgentHandler');
+const SchedulerRetryManager = require('./SchedulerRetryManager');
 const SchedulerNotificationManager = require('./SchedulerNotificationManager');
 
 class SchedulerTaskExecutor {
@@ -59,15 +60,27 @@ class SchedulerTaskExecutor {
 
       let result;
       
-      // Check if we need to use MCP tools (automatic ephemeral agent switch)
-      const shouldUseEphemeralAgent = await this.agentHandler.shouldUseEphemeralAgent(task);
-      
-      if (shouldUseEphemeralAgent) {
-        logger.info(`[SchedulerTaskExecutor] Using ephemeral agent for task ${task.id} due to MCP tools`);
-        result = await this.executeWithEphemeralAgent(task);
+      // Check if this is a workflow execution task
+      if (this.isWorkflowTask(task)) {
+        logger.info(`[SchedulerTaskExecutor] Detected workflow task ${task.id}, executing workflow`);
+        result = await this.executeWorkflowTask(task, executionId);
       } else {
-        logger.info(`[SchedulerTaskExecutor] Using direct endpoint for task ${task.id}`);
-        result = await this.executePrompt(task);
+        // Regular task execution
+        // Check if we should use ephemeral agent (either explicitly requested or due to MCP tools)
+        const isEphemeralTask = task.agent_id === 'ephemeral';
+        const shouldUseEphemeralAgent = isEphemeralTask || await this.agentHandler.shouldUseEphemeralAgent(task);
+        
+        if (shouldUseEphemeralAgent) {
+          if (isEphemeralTask) {
+            logger.info(`[SchedulerTaskExecutor] Using ephemeral agent for task ${task.id} (originally created with ephemeral agent)`);
+          } else {
+            logger.info(`[SchedulerTaskExecutor] Using ephemeral agent for task ${task.id} due to MCP tools`);
+          }
+          result = await this.executeWithEphemeralAgent(task);
+        } else {
+          logger.info(`[SchedulerTaskExecutor] Using direct endpoint for task ${task.id}`);
+          result = await this.executePrompt(task);
+        }
       }
 
       const endTime = new Date();
@@ -129,7 +142,7 @@ class SchedulerTaskExecutor {
    * @returns {Promise<string>} Execution result
    */
   async executeWithEphemeralAgent(task) {
-    logger.info(`[SchedulerTaskExecutor] Using direct agents client for task ${task.id}`);
+    logger.info(`[SchedulerTaskExecutor] Using ephemeral agent execution for task ${task.id}`);
     
     // Set up ephemeral agent configuration
     const setupResult = await this.agentHandler.createEphemeralAgentSetup(task);
@@ -154,7 +167,7 @@ class SchedulerTaskExecutor {
       throw new Error('Failed to initialize agents client');
     }
     
-    logger.debug(`[SchedulerTaskExecutor] AgentClient initialized successfully`);
+    logger.debug(`[SchedulerTaskExecutor] AgentClient initialized successfully with underlying endpoint: ${setupResult.underlyingEndpoint}`);
     
     // Execute using the client's sendMessage method
     const response = await client.sendMessage(task.prompt, {
@@ -318,6 +331,118 @@ class SchedulerTaskExecutor {
     }
 
     await updateSchedulerTask(task.id, task.user, updateData);
+  }
+
+  /**
+   * Check if a task is a workflow execution task
+   * @param {Object} task - The scheduler task
+   * @returns {boolean} True if this is a workflow task
+   */
+  isWorkflowTask(task) {
+    return task.prompt && task.prompt.startsWith('WORKFLOW_EXECUTION:');
+  }
+
+  /**
+   * Execute a workflow task
+   * @param {Object} task - The scheduler task representing a workflow
+   * @param {string} executionId - The scheduler execution ID
+   * @returns {Promise<string>} Execution result
+   */
+  async executeWorkflowTask(task, executionId) {
+    try {
+      // Parse workflow information from the task prompt
+      const workflowInfo = this.parseWorkflowInfo(task.prompt);
+      
+      if (!workflowInfo) {
+        throw new Error('Invalid workflow task format');
+      }
+
+      logger.info(`[SchedulerTaskExecutor] Executing workflow ${workflowInfo.workflowId} (${workflowInfo.workflowName})`);
+
+      // Get workflow data from task metadata
+      if (!task.metadata || task.metadata.type !== 'workflow') {
+        throw new Error('Task is not a workflow or missing workflow metadata');
+      }
+
+      // Create workflow object from task metadata
+      const workflow = {
+        id: task.metadata.workflowId,
+        name: workflowInfo.workflowName,
+        description: task.metadata.description,
+        trigger: task.metadata.trigger,
+        steps: task.metadata.steps,
+        isDraft: task.metadata.isDraft,
+        isActive: task.enabled,
+        user: task.user,
+        conversation_id: task.conversation_id,
+        parent_message_id: task.parent_message_id,
+        endpoint: task.endpoint,
+        ai_model: task.ai_model,
+        agent_id: task.agent_id,
+      };
+
+      // Create execution context for scheduler-triggered execution
+      const context = {
+        trigger: {
+          type: 'schedule',
+          source: 'scheduler',
+          data: {
+            schedulerTaskId: task.id,
+            schedulerExecutionId: executionId,
+            schedule: task.schedule
+          }
+        }
+      };
+
+      // Use WorkflowExecutor directly to avoid circular dependency
+      const WorkflowExecutor = require('~/server/services/Workflows/WorkflowExecutor');
+      const workflowExecutor = new WorkflowExecutor();
+
+      // Execute the workflow using WorkflowExecutor
+      const workflowResult = await workflowExecutor.executeWorkflow(
+        workflow,
+        { id: executionId, user: task.user },
+        context
+      );
+
+      if (workflowResult.success) {
+        logger.info(`[SchedulerTaskExecutor] Workflow ${workflowInfo.workflowId} executed successfully`);
+        return `Workflow "${workflowInfo.workflowName}" executed successfully. ${workflowResult.result?.summary || ''}`;
+      } else {
+        logger.error(`[SchedulerTaskExecutor] Workflow ${workflowInfo.workflowId} execution failed:`, workflowResult.error);
+        throw new Error(`Workflow execution failed: ${workflowResult.error}`);
+      }
+
+    } catch (error) {
+      logger.error(`[SchedulerTaskExecutor] Error executing workflow task ${task.id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Parse workflow information from task prompt
+   * @param {string} prompt - The task prompt in format "WORKFLOW_EXECUTION:workflowId:workflowName"
+   * @returns {Object|null} Parsed workflow info or null if invalid
+   */
+  parseWorkflowInfo(prompt) {
+    try {
+      if (!prompt || !prompt.startsWith('WORKFLOW_EXECUTION:')) {
+        return null;
+      }
+
+      const parts = prompt.split(':');
+      if (parts.length < 3) {
+        return null;
+      }
+
+      return {
+        workflowId: parts[1],
+        workflowName: parts.slice(2).join(':') // Handle workflow names with colons
+      };
+    } catch (error) {
+      logger.error(`[SchedulerTaskExecutor] Error parsing workflow info from prompt: ${prompt}`, error);
+      return null;
+    }
   }
 }
 

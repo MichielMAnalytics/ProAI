@@ -1,11 +1,8 @@
 const { logger } = require('~/config');
 const { EModelEndpoint, Constants } = require('librechat-data-provider');
 const { 
-  updateWorkflowExecution,
-  addStepExecution,
-  updateStepExecution,
-  updateExecutionContext
-} = require('~/models/WorkflowExecution');
+  updateSchedulerExecution,
+} = require('~/models/SchedulerExecution');
 const UserMCPService = require('~/server/services/UserMCPService');
 const { evaluateCondition } = require('./utils/conditionEvaluator');
 const { loadAgent } = require('~/models/Agent');
@@ -133,7 +130,8 @@ class WorkflowExecutor {
       };
 
       // Update execution record
-      await updateWorkflowExecution(executionId, 'running', {
+      await updateSchedulerExecution(executionId, execution.user, {
+        status: 'running',
         startTime: new Date(),
         context: executionContext,
       });
@@ -164,7 +162,8 @@ class WorkflowExecutor {
       logger.error(`[WorkflowExecutor] Workflow execution failed: ${workflowId}`, error);
       
       // Update execution status
-      await updateWorkflowExecution(executionId, 'failed', {
+      await updateSchedulerExecution(executionId, execution.user, {
+        status: 'failed',
         endTime: new Date(),
         error: error.message,
       });
@@ -202,10 +201,10 @@ class WorkflowExecutor {
 
       // Update execution context with step result
       context.steps[step.id] = stepResult;
-      await updateExecutionContext(execution.id, context);
+      await updateSchedulerExecution(execution.id, execution.user, { context });
 
       // Update current step in execution
-      await updateWorkflowExecution(execution.id, execution.status || 'running', {
+      await updateSchedulerExecution(execution.id, execution.user, {
         currentStepId: step.id,
       });
 
@@ -249,7 +248,7 @@ class WorkflowExecutor {
       retryCount: 0,
     };
     
-    await addStepExecution(execution.id, stepExecutionData);
+    await updateSchedulerExecution(execution.id, execution.user, stepExecutionData);
 
     try {
       let result;
@@ -269,10 +268,8 @@ class WorkflowExecutor {
       }
 
       // Update step execution with success
-      await updateStepExecution(execution.id, step.id, {
-        status: 'completed',
-        endTime: new Date(),
-        output: result,
+      await updateSchedulerExecution(execution.id, execution.user, {
+        currentStepId: step.id,
       });
 
       logger.info(`[WorkflowExecutor] Step completed: ${step.name}`);
@@ -285,9 +282,8 @@ class WorkflowExecutor {
       logger.error(`[WorkflowExecutor] Step failed: ${step.name}`, error);
 
       // Update step execution with failure
-      await updateStepExecution(execution.id, step.id, {
-        status: 'failed',
-        endTime: new Date(),
+      await updateSchedulerExecution(execution.id, execution.user, {
+        currentStepId: step.id,
         error: error.message,
       });
 
@@ -1002,15 +998,17 @@ INSTRUCTIONS:`;
   /**
    * Cancel a running workflow execution
    * @param {string} executionId - Execution ID to cancel
+   * @param {string} userId - User ID for the execution 
    * @returns {Promise<boolean>} Success status
    */
-  async cancelExecution(executionId) {
+  async cancelExecution(executionId, userId) {
     if (this.runningExecutions.has(executionId)) {
       logger.info(`[WorkflowExecutor] Cancelling execution: ${executionId}`);
       
       this.runningExecutions.delete(executionId);
       
-      await updateWorkflowExecution(executionId, 'cancelled', {
+      await updateSchedulerExecution(executionId, userId, {
+        status: 'cancelled',
         endTime: new Date(),
       });
       

@@ -144,6 +144,18 @@ async function disableSchedulerTask(id, userId) {
   }
 }
 
+/**
+ * Get all scheduler tasks across all users (for admin/startup purposes)
+ * @returns {Promise<ISchedulerTask[]>} Array of all task documents
+ */
+async function getAllSchedulerTasks() {
+  try {
+    return await SchedulerTask.find({}).lean();
+  } catch (error) {
+    throw new Error(`Error fetching all scheduler tasks: ${error.message}`);
+  }
+}
+
 module.exports = {
   createSchedulerTask,
   getSchedulerTaskById,
@@ -154,4 +166,5 @@ module.exports = {
   deleteSchedulerTasksByUser,
   enableSchedulerTask,
   disableSchedulerTask,
+  getAllSchedulerTasks,
 }; 

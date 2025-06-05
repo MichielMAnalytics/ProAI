@@ -22,7 +22,6 @@ const staticCache = require('./utils/staticCache');
 const noIndex = require('./middleware/noIndex');
 const routes = require('./routes');
 const SchedulerExecutionService = require('./services/Scheduler/SchedulerExecutionService');
-const { getWorkflowScheduler } = require('./services/Workflows');
 
 const { PORT, HOST, ALLOW_SOCIAL_LOGIN, DISABLE_COMPRESSION, TRUST_PROXY } = process.env ?? {};
 
@@ -160,15 +159,6 @@ const startServer = async () => {
       logger.info('Scheduler execution service started');
     } catch (error) {
       logger.error('Failed to start scheduler execution service:', error);
-    }
-    
-    // Start the workflow scheduler
-    try {
-      const workflowScheduler = getWorkflowScheduler();
-      await workflowScheduler.initialize();
-      logger.info('Workflow scheduler initialized');
-    } catch (error) {
-      logger.error('Failed to initialize workflow scheduler:', error);
     }
   });
 };

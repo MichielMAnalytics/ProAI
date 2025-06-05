@@ -1,5 +1,11 @@
-const { WorkflowService, getWorkflowScheduler } = require('~/server/services/Workflows');
 const { logger } = require('~/config');
+const WorkflowService = require('~/server/services/Workflows/WorkflowService');
+const { 
+  getSchedulerTasksByUser 
+} = require('~/models/SchedulerTask');
+const {
+  getSchedulerExecutionsByTask
+} = require('~/models/SchedulerExecution');
 
 /**
  * Get all workflows for the authenticated user
@@ -169,12 +175,6 @@ const updateWorkflow = async (req, res) => {
       });
     }
     
-    // If workflow was activated and has a schedule trigger, update scheduler
-    if (updateData.isActive && updatedWorkflow.trigger.type === 'schedule') {
-      const scheduler = getWorkflowScheduler();
-      await scheduler.scheduleWorkflow(updatedWorkflow);
-    }
-    
     res.json({
       success: true,
       message: `Workflow "${updatedWorkflow.name}" updated successfully`,
@@ -209,10 +209,6 @@ const deleteWorkflow = async (req, res) => {
   try {
     const userId = req.user.id;
     const { workflowId } = req.params;
-    
-    // Unschedule the workflow first if it's scheduled
-    const scheduler = getWorkflowScheduler();
-    await scheduler.unscheduleWorkflow(workflowId);
     
     const workflowService = new WorkflowService();
     const success = await workflowService.deleteWorkflow(workflowId, userId);
@@ -287,10 +283,6 @@ const deactivateWorkflow = async (req, res) => {
   try {
     const userId = req.user.id;
     const { workflowId } = req.params;
-    
-    // Unschedule the workflow first
-    const scheduler = getWorkflowScheduler();
-    await scheduler.unscheduleWorkflow(workflowId);
     
     const workflowService = new WorkflowService();
     const workflow = await workflowService.toggleWorkflow(workflowId, userId, false);
@@ -387,30 +379,39 @@ const executeWorkflow = async (req, res) => {
  */
 const getWorkflowExecutions = async (req, res) => {
   try {
-    const userId = req.user.id;
     const { workflowId } = req.params;
-    const { limit = 50, page = 1 } = req.query;
+    const userId = req.user.id;
+    const limit = parseInt(req.query.limit) || 10;
     
-    const { getWorkflowExecutions } = require('~/models/WorkflowExecution');
-    const executions = await getWorkflowExecutions(workflowId, userId, {
-      limit: parseInt(limit),
-      skip: (parseInt(page) - 1) * parseInt(limit),
-      sort: { createdAt: -1 },
-    });
+    logger.info(`[WorkflowController] Getting executions for workflow ${workflowId}`);
     
-    res.json({
+    // Convert workflow ID to scheduler task ID
+    const schedulerTaskId = `workflow_${workflowId.replace('workflow_', '')}`;
+    
+    // Get scheduler executions for this workflow
+    const executions = await getSchedulerExecutionsByTask(schedulerTaskId, userId, limit);
+    
+    // Convert scheduler executions to workflow execution format
+    const formattedExecutions = executions.map(exec => ({
+      id: exec.id,
+      workflowId: exec.metadata?.workflowId || workflowId,
+      workflowName: exec.metadata?.workflowName || exec.task_name.replace('Workflow: ', ''),
+      status: exec.status,
+      trigger: exec.trigger || { type: 'unknown' },
+      result: exec.result,
+      error: exec.error,
+      duration: exec.end_time && exec.start_time ? 
+        new Date(exec.end_time) - new Date(exec.start_time) : null,
+      startTime: exec.start_time,
+      endTime: exec.end_time,
+      isTest: exec.metadata?.isTest || false,
+      createdAt: exec.createdAt,
+    }));
+    
+    res.status(200).json({
       success: true,
-      executions: executions.map(exec => ({
-        id: exec.id,
-        workflowId: exec.workflowId,
-        status: exec.status,
-        startTime: exec.startTime,
-        endTime: exec.endTime,
-        trigger: exec.trigger,
-        error: exec.error,
-        stepExecutions: exec.stepExecutions,
-        createdAt: exec.createdAt,
-      }))
+      message: `Found ${formattedExecutions.length} executions`,
+      executions: formattedExecutions
     });
   } catch (error) {
     logger.error('[WorkflowController] Error getting workflow executions:', error);
@@ -428,9 +429,38 @@ const getWorkflowExecutions = async (req, res) => {
  */
 const getSchedulerStatus = async (req, res) => {
   try {
-    const scheduler = getWorkflowScheduler();
-    const stats = scheduler.getStats();
-    const scheduledWorkflows = scheduler.getScheduledWorkflows();
+    const userId = req.user.id;
+    
+    // Get workflow-related scheduler tasks
+    const allTasks = await getSchedulerTasksByUser(userId);
+    
+    // Filter for workflow tasks
+    const workflowTasks = allTasks.filter(task => 
+      task.prompt && task.prompt.startsWith('WORKFLOW_EXECUTION:')
+    );
+    
+    // Calculate statistics
+    const stats = {
+      totalWorkflowTasks: workflowTasks.length,
+      activeWorkflowTasks: workflowTasks.filter(task => task.enabled).length,
+      pendingWorkflowTasks: workflowTasks.filter(task => task.status === 'pending').length,
+      failedWorkflowTasks: workflowTasks.filter(task => task.status === 'failed').length,
+    };
+    
+    // Format scheduled workflows info
+    const scheduledWorkflows = workflowTasks.map(task => {
+      const workflowInfo = task.prompt.split(':');
+      return {
+        taskId: task.id,
+        workflowId: workflowInfo[1] || 'unknown',
+        workflowName: workflowInfo.slice(2).join(':') || 'unknown',
+        schedule: task.schedule,
+        enabled: task.enabled,
+        status: task.status,
+        lastRun: task.last_run,
+        nextRun: task.next_run,
+      };
+    });
     
     res.json({
       success: true,

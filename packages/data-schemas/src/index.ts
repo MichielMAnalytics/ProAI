@@ -83,9 +83,3 @@ export type { IUser } from './schema/user';
 
 export { default as userIntegrationSchema } from './schema/userIntegration';
 export type { IUserIntegration } from './schema/userIntegration';
-
-export { default as userWorkflowSchema } from './schema/userWorkflow';
-export type { IUserWorkflow, IWorkflowStep, IWorkflowTrigger } from './schema/userWorkflow';
-
-export { default as workflowExecutionSchema } from './schema/workflowExecution';
-export type { IWorkflowExecution, IWorkflowStepExecution } from './schema/workflowExecution';

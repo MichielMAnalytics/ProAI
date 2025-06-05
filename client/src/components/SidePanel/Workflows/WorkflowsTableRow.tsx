@@ -208,19 +208,19 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
   };
 
   const getStatusColor = (isActive: boolean, isDraft: boolean) => {
+    if (isActive) {
+      return 'bg-green-100 text-green-700'; // Active workflows are always green
+    }
     if (isDraft) {
-      return 'bg-orange-100 text-orange-700';
+      return 'bg-orange-100 text-orange-700'; // Inactive drafts are orange
     }
-    if (!isActive) {
-      return 'bg-gray-100 text-gray-600';
-    }
-    return 'bg-green-100 text-green-700';
+    return 'bg-gray-100 text-gray-600'; // Inactive non-drafts are gray
   };
 
   const getStatusText = (isActive: boolean, isDraft: boolean) => {
-    if (isDraft) return 'draft';
-    if (!isActive) return 'inactive';
-    return 'active';
+    if (isActive) return 'active'; // Active workflows are always "active"
+    if (isDraft) return 'draft';   // Inactive drafts are "draft"
+    return 'inactive';             // Inactive non-drafts are "inactive"
   };
 
   // Function to count only main workflow steps (excluding error/success handlers)

@@ -103,6 +103,9 @@ class SchedulerExecutionService {
     logger.info('[SchedulerExecutionService] Starting scheduler...');
     this.isRunning = true;
 
+    // Log detailed startup information
+    await this.logStartupState();
+
     const schedulerLoop = async () => {
       if (!this.isRunning) {
         return;
@@ -130,6 +133,222 @@ class SchedulerExecutionService {
     this.schedulerInterval = setInterval(schedulerLoop, 30000);
     
     logger.info('[SchedulerExecutionService] Scheduler started successfully');
+  }
+
+  /**
+   * Log detailed startup state information
+   */
+  async logStartupState() {
+    try {
+      const { getAllSchedulerTasks } = require('~/models/SchedulerTask');
+      
+      // Get all scheduler tasks for comprehensive overview
+      let allTasks = [];
+      try {
+        allTasks = await getAllSchedulerTasks();
+        
+        logger.info('📊 [SchedulerExecutionService] Startup State Summary:');
+        logger.info('='.repeat(60));
+        
+        if (allTasks.length === 0) {
+          logger.info('📋 No scheduler tasks found in database');
+          logger.info('   💡 This is normal for fresh installations');
+          logger.info('   📝 Tasks and workflows will appear here once created');
+          logger.info('='.repeat(60));
+          return;
+        }
+
+        // Analyze tasks
+        const taskStats = this.analyzeTaskStats(allTasks);
+        
+        // Log overall statistics
+        logger.info(`📈 Overall Statistics:`);
+        logger.info(`   Total Tasks: ${allTasks.length}`);
+        logger.info(`   📋 Regular Tasks: ${taskStats.regularTasks.total} (${taskStats.regularTasks.enabled} enabled, ${taskStats.regularTasks.disabled} disabled)`);
+        logger.info(`   🔄 Workflow Tasks: ${taskStats.workflowTasks.total} (${taskStats.workflowTasks.enabled} enabled, ${taskStats.workflowTasks.disabled} disabled)`);
+        
+        // Log status breakdown
+        logger.info(`📊 Status Breakdown:`);
+        logger.info(`   ✅ Pending: ${taskStats.statusCounts.pending}`);
+        logger.info(`   🏃 Running: ${taskStats.statusCounts.running}`);
+        logger.info(`   ❌ Failed: ${taskStats.statusCounts.failed}`);
+        logger.info(`   ⏸️  Disabled: ${taskStats.statusCounts.disabled}`);
+        logger.info(`   ✅ Completed: ${taskStats.statusCounts.completed || 0}`);
+        
+        // Log ready tasks
+        const readyTasks = allTasks.filter(task => {
+          if (!task.enabled) return false;
+          if (!task.next_run) return true; // Tasks without next_run are ready
+          return new Date(task.next_run) <= new Date();
+        });
+        
+        if (readyTasks.length > 0) {
+          logger.info(`🚀 Ready for Execution: ${readyTasks.length} task(s)`);
+          readyTasks.slice(0, 3).forEach((task, index) => {
+            const taskType = task.metadata?.type === 'workflow' ? '🔄' : '📋';
+            logger.info(`   ${index + 1}. ${taskType} ${task.name}`);
+          });
+          if (readyTasks.length > 3) {
+            logger.info(`   ... and ${readyTasks.length - 3} more ready tasks`);
+          }
+        }
+        
+        // Log next executions
+        if (taskStats.nextExecutions.length > 0) {
+          logger.info(`⏰ Next Scheduled Executions:`);
+          taskStats.nextExecutions.slice(0, 5).forEach((task, index) => {
+            const timeUntil = this.getTimeUntilExecution(task.next_run);
+            const taskType = task.metadata?.type === 'workflow' ? '🔄' : '📋';
+            logger.info(`   ${index + 1}. ${taskType} ${task.name} - ${timeUntil}`);
+          });
+          if (taskStats.nextExecutions.length > 5) {
+            logger.info(`   ... and ${taskStats.nextExecutions.length - 5} more scheduled`);
+          }
+        }
+        
+        // Log workflow details if any
+        if (taskStats.workflowTasks.total > 0) {
+          logger.info(`🔄 Workflow Details:`);
+          const workflows = allTasks.filter(task => task.metadata?.type === 'workflow');
+          workflows.slice(0, 3).forEach((workflow, index) => {
+            const status = workflow.enabled ? '✅ Active' : '⏸️  Paused';
+            const schedule = workflow.schedule || 'No schedule';
+            const description = workflow.metadata?.description || workflow.name.replace('Workflow: ', '');
+            logger.info(`   ${index + 1}. ${description} (${status})`);
+            logger.info(`      Schedule: ${schedule}`);
+            if (workflow.metadata?.steps) {
+              logger.info(`      Steps: ${workflow.metadata.steps.length}`);
+            }
+          });
+          if (workflows.length > 3) {
+            logger.info(`   ... and ${workflows.length - 3} more workflows`);
+          }
+        }
+        
+        // Log any overdue tasks
+        const overdueTasks = allTasks.filter(task => {
+          if (!task.enabled || !task.next_run) return false;
+          return new Date(task.next_run) < new Date() && task.status !== 'running';
+        });
+        
+        if (overdueTasks.length > 0) {
+          logger.warn(`⚠️  Overdue Tasks: ${overdueTasks.length}`);
+          overdueTasks.slice(0, 3).forEach((task, index) => {
+            const taskType = task.metadata?.type === 'workflow' ? '🔄' : '📋';
+            const overdue = this.getTimeUntilExecution(task.next_run);
+            logger.warn(`   ${index + 1}. ${taskType} ${task.name} - ${overdue}`);
+          });
+        }
+        
+        logger.info('='.repeat(60));
+        
+      } catch (error) {
+        logger.warn('[SchedulerExecutionService] Could not load comprehensive task state:', error.message);
+        
+        // Fallback to ready tasks only
+        try {
+          const readyTasks = await this.getReadyTasks();
+          if (readyTasks.length > 0) {
+            logger.info(`📋 Ready Tasks Available: ${readyTasks.length}`);
+            const workflows = readyTasks.filter(task => task.metadata?.type === 'workflow' || 
+              (task.prompt && task.prompt.startsWith('WORKFLOW_EXECUTION:')));
+            const regularTasks = readyTasks.length - workflows.length;
+            logger.info(`   📋 Regular Tasks: ${regularTasks}`);
+            logger.info(`   🔄 Workflow Tasks: ${workflows.length}`);
+          } else {
+            logger.info('📋 No tasks ready for immediate execution');
+          }
+        } catch (fallbackError) {
+          logger.error('[SchedulerExecutionService] Could not load even ready tasks:', fallbackError.message);
+        }
+      }
+      
+    } catch (error) {
+      logger.error('[SchedulerExecutionService] Error logging startup state:', error);
+    }
+  }
+
+  /**
+   * Analyze task statistics for startup logging
+   * @param {Array} tasks - Array of scheduler tasks
+   * @returns {Object} Task statistics
+   */
+  analyzeTaskStats(tasks) {
+    const stats = {
+      regularTasks: { total: 0, enabled: 0, disabled: 0 },
+      workflowTasks: { total: 0, enabled: 0, disabled: 0 },
+      statusCounts: { pending: 0, running: 0, failed: 0, disabled: 0, completed: 0 },
+      nextExecutions: []
+    };
+    
+    tasks.forEach(task => {
+      // Categorize by type
+      if (task.metadata?.type === 'workflow' || (task.prompt && task.prompt.startsWith('WORKFLOW_EXECUTION:'))) {
+        stats.workflowTasks.total++;
+        if (task.enabled) {
+          stats.workflowTasks.enabled++;
+        } else {
+          stats.workflowTasks.disabled++;
+        }
+      } else {
+        stats.regularTasks.total++;
+        if (task.enabled) {
+          stats.regularTasks.enabled++;
+        } else {
+          stats.regularTasks.disabled++;
+        }
+      }
+      
+      // Count by status (treat enabled/disabled separately from running status)
+      if (!task.enabled) {
+        stats.statusCounts.disabled++;
+      } else {
+        const status = task.status || 'pending';
+        stats.statusCounts[status] = (stats.statusCounts[status] || 0) + 1;
+      }
+      
+      // Collect next execution times for enabled tasks
+      if (task.next_run && task.enabled) {
+        stats.nextExecutions.push({
+          name: task.name,
+          next_run: task.next_run,
+          metadata: task.metadata
+        });
+      }
+    });
+    
+    // Sort next executions by time
+    stats.nextExecutions.sort((a, b) => new Date(a.next_run) - new Date(b.next_run));
+    
+    return stats;
+  }
+
+  /**
+   * Get human-readable time until execution
+   * @param {Date} nextRun - Next execution time
+   * @returns {string} Human-readable time description
+   */
+  getTimeUntilExecution(nextRun) {
+    const now = new Date();
+    const diff = new Date(nextRun) - now;
+    
+    if (diff < 0) {
+      return 'Overdue';
+    }
+    
+    const minutes = Math.floor(diff / (1000 * 60));
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    
+    if (days > 0) {
+      return `in ${days} day${days > 1 ? 's' : ''}`;
+    } else if (hours > 0) {
+      return `in ${hours} hour${hours > 1 ? 's' : ''} ${minutes % 60}min`;
+    } else if (minutes > 0) {
+      return `in ${minutes} minute${minutes > 1 ? 's' : ''}`;
+    } else {
+      return 'in less than 1 minute';
+    }
   }
 
   /**
