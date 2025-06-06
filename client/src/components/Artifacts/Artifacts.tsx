@@ -156,7 +156,7 @@ export default function Artifacts() {
     testMutation.mutate(workflowId, {
       onSuccess: () => {
         showToast({
-          message: 'Workflow test started successfully',
+          message: 'Workflow test successfully',
           severity: NotificationSeverity.SUCCESS,
         });
       },
