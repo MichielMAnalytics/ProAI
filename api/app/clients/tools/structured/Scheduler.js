@@ -178,18 +178,18 @@ class SchedulerTool extends Tool {
         logger.info(`[SchedulerTool] Ephemeral agent detected, storing endpoint: ${taskData.endpoint}, model: ${taskData.ai_model}, agent_id: ephemeral`);
       } else {
         // For real agents, fetch the agent's underlying model
-        taskData.agent_id = currentModel; // For agents endpoint, model is the agent_id
-        logger.info(`[SchedulerTool] Setting agent_id: ${currentModel}`);
-        
-        try {
-          const agent = await getAgent({ id: currentModel, author: userId });
-          if (agent && agent.model) {
-            taskData.ai_model = agent.model; // Store the agent's underlying model
-            logger.info(`[SchedulerTool] Set ai_model from agent: ${agent.model}`);
-          }
-        } catch (error) {
-          logger.warn(`[SchedulerTool] Could not fetch agent ${currentModel} to get underlying model: ${error.message}`);
-          // Continue without the underlying model - it's not critical for task creation
+      taskData.agent_id = currentModel; // For agents endpoint, model is the agent_id
+      logger.info(`[SchedulerTool] Setting agent_id: ${currentModel}`);
+      
+      try {
+        const agent = await getAgent({ id: currentModel, author: userId });
+        if (agent && agent.model) {
+          taskData.ai_model = agent.model; // Store the agent's underlying model
+          logger.info(`[SchedulerTool] Set ai_model from agent: ${agent.model}`);
+        }
+      } catch (error) {
+        logger.warn(`[SchedulerTool] Could not fetch agent ${currentModel} to get underlying model: ${error.message}`);
+        // Continue without the underlying model - it's not critical for task creation
         }
       }
     } else {

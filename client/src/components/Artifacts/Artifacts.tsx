@@ -1,5 +1,5 @@
-import { useRef, useState, useEffect, useMemo } from 'react';
-import { useSetRecoilState } from 'recoil';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useRecoilState, useSetRecoilState } from 'recoil';
 import * as Tabs from '@radix-ui/react-tabs';
 import { ArrowLeft, ChevronLeft, ChevronRight, RefreshCw, X, Play, Pause, TestTube, Trash2 } from 'lucide-react';
 import type { SandpackPreviewRef, CodeEditorRef } from '@codesandbox/sandpack-react';
@@ -14,6 +14,7 @@ import {
   useDeleteWorkflowMutation,
   useToggleWorkflowMutation,
   useTestWorkflowMutation,
+  useWorkflowQuery,
 } from '~/data-provider';
 import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
@@ -27,11 +28,27 @@ export default function Artifacts() {
   const [isVisible, setIsVisible] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const setArtifactsVisible = useSetRecoilState(store.artifactsVisibility);
+  const setArtifactRefreshFunction = useSetRecoilState(store.artifactRefreshFunction);
 
   // Workflow mutations
   const toggleMutation = useToggleWorkflowMutation();
   const deleteMutation = useDeleteWorkflowMutation();
   const testMutation = useTestWorkflowMutation();
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    const client = previewRef.current?.getClient();
+    if (client != null) {
+      client.dispatch({ type: 'refresh' });
+    }
+    setTimeout(() => setIsRefreshing(false), 750);
+  };
+
+  // Store refresh function reference in Recoil store so it can be called externally
+  useEffect(() => {
+    setArtifactRefreshFunction(() => handleRefresh);
+    return () => setArtifactRefreshFunction(null); // Cleanup on unmount
+  }, [setArtifactRefreshFunction]);
 
   useEffect(() => {
     setIsVisible(true);
@@ -65,21 +82,21 @@ export default function Artifacts() {
 
   const isWorkflowArtifact = currentArtifact?.type === 'application/vnd.workflow';
   const workflowId = workflowData?.workflow?.id;
-  const isWorkflowActive = workflowData?.workflow?.isActive;
-  const isDraft = workflowData?.workflow?.isDraft;
+  
+  // Query the current workflow state from the database
+  const { data: currentWorkflowData, refetch: refetchWorkflow } = useWorkflowQuery(workflowId, {
+    enabled: !!workflowId && isWorkflowArtifact,
+    refetchOnWindowFocus: true, // Refetch when window gains focus
+    staleTime: 30000, // Consider data fresh for 30 seconds
+  });
+  
+  // Use the current workflow data if available, fallback to artifact data
+  const isWorkflowActive = currentWorkflowData?.isActive ?? workflowData?.workflow?.isActive;
+  const isDraft = currentWorkflowData?.isDraft ?? workflowData?.workflow?.isDraft;
 
   if (currentArtifact === null || currentArtifact === undefined) {
     return null;
   }
-
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    const client = previewRef.current?.getClient();
-    if (client != null) {
-      client.dispatch({ type: 'refresh' });
-    }
-    setTimeout(() => setIsRefreshing(false), 750);
-  };
 
   const closeArtifacts = () => {
     setIsVisible(false);
@@ -98,6 +115,8 @@ export default function Artifacts() {
             message: `Workflow ${isWorkflowActive ? 'deactivated' : 'activated'} successfully`,
             severity: NotificationSeverity.SUCCESS,
           });
+          // Refetch workflow data to update button state immediately
+          refetchWorkflow();
         },
         onError: (error: unknown) => {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -249,7 +268,9 @@ export default function Artifacts() {
                   disabled={toggleMutation.isLoading}
                   title={isWorkflowActive ? 'Deactivate workflow' : 'Activate workflow'}
                 >
-                  {isWorkflowActive ? (
+                  {toggleMutation.isLoading ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : isWorkflowActive ? (
                     <Pause className="h-4 w-4" />
                   ) : (
                     <Play className="h-4 w-4" />

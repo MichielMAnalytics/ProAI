@@ -206,7 +206,7 @@ class WorkflowTool extends Tool {
           "schedule": "*/5 * * * *"
         }
       }
-    }
+       }
 
     STEP CONFIGURATION PATTERNS WITH REAL USER DATA:
     
@@ -844,8 +844,8 @@ class WorkflowTool extends Tool {
 
     if (trigger.type === 'schedule') {
       // Ensure config object exists
-      processedTrigger.config = processedTrigger.config || {};
-      
+        processedTrigger.config = processedTrigger.config || {};
+        
       // Handle both 'schedule' and 'cron' fields - normalize to 'schedule'
       let cronExpression = trigger.config?.schedule || trigger.config?.cron;
       
@@ -1321,4 +1321,4 @@ class WorkflowTool extends Tool {
   }
 }
 
-module.exports = WorkflowTool;
+module.exports = WorkflowTool; 

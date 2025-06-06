@@ -69,17 +69,17 @@ class SchedulerTaskExecutor {
         // Check if we should use ephemeral agent (either explicitly requested or due to MCP tools)
         const isEphemeralTask = task.agent_id === 'ephemeral';
         const shouldUseEphemeralAgent = isEphemeralTask || await this.agentHandler.shouldUseEphemeralAgent(task);
-        
-        if (shouldUseEphemeralAgent) {
+      
+      if (shouldUseEphemeralAgent) {
           if (isEphemeralTask) {
             logger.info(`[SchedulerTaskExecutor] Using ephemeral agent for task ${task.id} (originally created with ephemeral agent)`);
           } else {
-            logger.info(`[SchedulerTaskExecutor] Using ephemeral agent for task ${task.id} due to MCP tools`);
+        logger.info(`[SchedulerTaskExecutor] Using ephemeral agent for task ${task.id} due to MCP tools`);
           }
-          result = await this.executeWithEphemeralAgent(task);
-        } else {
-          logger.info(`[SchedulerTaskExecutor] Using direct endpoint for task ${task.id}`);
-          result = await this.executePrompt(task);
+        result = await this.executeWithEphemeralAgent(task);
+      } else {
+        logger.info(`[SchedulerTaskExecutor] Using direct endpoint for task ${task.id}`);
+        result = await this.executePrompt(task);
         }
       }
 

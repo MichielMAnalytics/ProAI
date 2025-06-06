@@ -356,6 +356,51 @@ class SchedulerService {
       return { success: false, error: error.message };
     }
   }
+
+  /**
+   * Send a workflow status update notification via SSE without creating a message
+   * This notifies about workflow status changes that don't need to appear in chat
+   * @param {Object} params - Status update parameters
+   * @param {string} params.userId - The LibreChat user ID
+   * @param {string} params.workflowName - Name of the workflow
+   * @param {string} params.workflowId - ID of the workflow
+   * @param {string} params.notificationType - Type of notification (activated, deactivated, created, updated, deleted, test_started, execution_started, execution_completed, execution_failed)
+   * @param {string} [params.details] - Optional additional details
+   * @param {Object} [params.workflowData] - Optional workflow data for context
+   * @returns {Promise<Object>} Success response
+   */
+  static async sendWorkflowStatusUpdate(params) {
+    const { userId, workflowName, workflowId, notificationType, details, workflowData } = params;
+    
+    if (!userId) {
+      return { success: false, error: 'Missing userId' };
+    }
+    
+    try {
+      // Send real-time notification via SSE if user is connected
+      const wasNotified = notificationManager.sendNotification(userId, {
+        type: 'workflow_status_update',
+        workflowId,
+        workflowName,
+        notificationType,
+        details,
+        workflowData,
+        timestamp: new Date().toISOString()
+      });
+      
+      logger.debug(`[SchedulerService] Workflow status update sent: ${wasNotified} for user ${userId}, workflow ${workflowId}, status: ${notificationType}`);
+      
+      return {
+        success: true,
+        message: 'Workflow status update sent successfully',
+        notified: wasNotified
+      };
+      
+    } catch (error) {
+      logger.error(`Error sending workflow status update for workflow ${workflowId}:`, error);
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 module.exports = SchedulerService;

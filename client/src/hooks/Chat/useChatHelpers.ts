@@ -1,7 +1,7 @@
 import { useCallback, useState, useRef, useEffect } from 'react';
 import { QueryKeys } from 'librechat-data-provider';
 import { useQueryClient } from '@tanstack/react-query';
-import { useRecoilState, useResetRecoilState, useSetRecoilState } from 'recoil';
+import { useRecoilState, useResetRecoilState, useSetRecoilState, useRecoilCallback } from 'recoil';
 import type { TMessage } from 'librechat-data-provider';
 import useChatFunctions from '~/hooks/Chat/useChatFunctions';
 import { useGetMessagesByConvoId, useGetStartupConfig } from '~/data-provider';
@@ -94,6 +94,151 @@ export default function useChatHelpers(index = 0, paramId?: string) {
     setSubmission,
     setLatestMessage,
   });
+
+  // Create a callback to update workflow artifacts
+  const updateWorkflowArtifacts = useRecoilCallback(({ snapshot, set }) => async (workflowId: string, workflowData: any) => {
+    try {
+      const currentArtifacts = await snapshot.getPromise(store.artifactsState);
+      
+      // Find workflow artifacts that need updating
+      const updatedArtifacts = { ...currentArtifacts };
+      let artifactUpdated = false;
+      
+      Object.entries(currentArtifacts || {}).forEach(([artifactId, artifact]) => {
+        if (artifact && artifact.type === 'application/vnd.workflow' && artifact.content) {
+          try {
+            const artifactWorkflowData = JSON.parse(artifact.content);
+            
+            // Check if this artifact is for the updated workflow
+            if (artifactWorkflowData?.workflow?.id === workflowId) {
+              console.log('[SchedulerSSE] 🔄 Recreating workflow artifact:', artifactId);
+              
+              // Generate new artifact ID with timestamp to force complete refresh
+              const newArtifactId = `workflow-${workflowData.id}-${Date.now()}`;
+              
+              // Generate positions for steps that don't have them
+              const nodesWithPositions = workflowData.steps.map((step: any, index: number) => {
+                // If step doesn't have position, create a default layout
+                const defaultPosition = step.position || {
+                  x: 100 + (index % 3) * 200, // Arrange in columns
+                  y: 150 + Math.floor(index / 3) * 100 // Arrange in rows
+                };
+                
+                return {
+                  id: step.id,
+                  type: step.type,
+                  position: defaultPosition,
+                  data: {
+                    label: step.name,
+                    config: step.config,
+                    status: 'pending' // Default status for viewing
+                  }
+                };
+              });
+
+              // Generate edges from workflow connections
+              const edges: Array<{
+                id: string;
+                source: string;
+                target: string;
+                type: 'success' | 'failure';
+              }> = [];
+              
+              workflowData.steps.forEach((step: any) => {
+                if (step.onSuccess) {
+                  // Check if target step exists
+                  const targetExists = workflowData.steps.some((s: any) => s.id === step.onSuccess);
+                  if (targetExists) {
+                    edges.push({
+                      id: `${step.id}-success-${step.onSuccess}`,
+                      source: step.id,
+                      target: step.onSuccess,
+                      type: 'success'
+                    });
+                  }
+                }
+                if (step.onFailure) {
+                  // Check if target step exists
+                  const targetExists = workflowData.steps.some((s: any) => s.id === step.onFailure);
+                  if (targetExists) {
+                    edges.push({
+                      id: `${step.id}-failure-${step.onFailure}`,
+                      source: step.id,
+                      target: step.onFailure,
+                      type: 'failure'
+                    });
+                  }
+                }
+              });
+
+              // Create complete new workflow visualization data
+              const newWorkflowVisualizationData = {
+                workflow: {
+                  id: workflowData.id,
+                  name: workflowData.name,
+                  description: workflowData.description,
+                  trigger: workflowData.trigger,
+                  steps: workflowData.steps
+                },
+                nodes: nodesWithPositions,
+                edges: edges,
+                trigger: workflowData.trigger
+              };
+
+              // Create completely new artifact
+              const newWorkflowArtifact = {
+                id: newArtifactId,
+                identifier: newArtifactId,
+                title: `Workflow: ${workflowData.name}`,
+                type: 'application/vnd.workflow',
+                content: JSON.stringify(newWorkflowVisualizationData, null, 2),
+                messageId: `workflow-update-${Date.now()}`,
+                index: 0,
+                lastUpdateTime: Date.now(),
+              };
+
+              // Remove old artifact and add new one
+              delete updatedArtifacts[artifactId];
+              updatedArtifacts[newArtifactId] = newWorkflowArtifact;
+              
+              // Update current artifact ID if this was the active artifact
+              const currentArtifactId = snapshot.getLoadable(store.currentArtifactId).valueOrThrow();
+              if (currentArtifactId === artifactId) {
+                set(store.currentArtifactId, newArtifactId);
+                console.log('[SchedulerSSE] 🎯 Updated current artifact ID to new recreated artifact');
+              }
+              
+              artifactUpdated = true;
+              console.log('[SchedulerSSE] ✅ Recreated workflow artifact with new visualization data');
+            }
+          } catch (error) {
+            console.warn('[SchedulerSSE] Failed to parse workflow artifact content:', error);
+          }
+        }
+      });
+      
+      // Update artifacts state if any were modified
+      if (artifactUpdated) {
+        set(store.artifactsState, updatedArtifacts);
+        console.log('[SchedulerSSE] 🎯 Applied workflow artifact recreation');
+        
+        // Trigger artifact refresh after a short delay to ensure the new artifact is rendered
+        setTimeout(async () => {
+          try {
+            const refreshFunction = await snapshot.getPromise(store.artifactRefreshFunction);
+            if (refreshFunction && typeof refreshFunction === 'function') {
+              console.log('[SchedulerSSE] 🔄 Triggering automatic artifact refresh');
+              refreshFunction();
+            }
+          } catch (error) {
+            console.warn('[SchedulerSSE] Failed to trigger artifact refresh:', error);
+          }
+        }, 100); // Small delay to ensure the artifact is rendered before refreshing
+      }
+    } catch (error) {
+      console.warn('[SchedulerSSE] Failed to recreate workflow artifacts:', error);
+    }
+  }, []);
 
   const continueGeneration = () => {
     if (!latestMessage) {
@@ -269,6 +414,90 @@ export default function useChatHelpers(index = 0, paramId?: string) {
               });
             }
           }
+        } else if (data.type === 'workflow_status_update') {
+          console.log('[SchedulerSSE] 🔄 Processing workflow status update:', data);
+          // Handle workflow status updates (activated, deactivated, created, updated, deleted, etc.)
+          // These update the workflow status in the sidebar
+          
+          // Force aggressive refresh of all workflow-related queries
+          queryClient.invalidateQueries([QueryKeys.workflows]);
+          queryClient.invalidateQueries([QueryKeys.workflow]);
+          
+          // Also refetch specific workflow queries immediately to ensure side panel updates
+          queryClient.refetchQueries({ queryKey: [QueryKeys.workflows] });
+          if (data.workflowId) {
+            queryClient.refetchQueries({ queryKey: [QueryKeys.workflow, data.workflowId] });
+          }
+          
+          // Additional aggressive cache invalidation for workflow lists
+          queryClient.removeQueries({ queryKey: [QueryKeys.workflows] });
+          
+          console.log('[SchedulerSSE] 🔄 Invalidated and refetched workflow queries for side panel update');
+          
+          // Update workflow artifacts if any are currently open and match the updated workflow
+          if (data.notificationType === 'updated' && data.workflowData && data.workflowId) {
+            updateWorkflowArtifacts(data.workflowId, data.workflowData);
+          }
+          
+          // Show a brief status notification for workflows
+          if (data.workflowName && data.notificationType) {
+            const workflowStatusMessages = {
+              activated: '▶️ Workflow activated',
+              deactivated: '⏸️ Workflow deactivated',
+              created: '➕ Workflow created',
+              updated: '✏️ Workflow updated',
+              deleted: '🗑️ Workflow deleted',
+              test_started: '🧪 Workflow test started',
+              execution_started: '⚡ Workflow execution started',
+              execution_completed: '✅ Workflow execution completed',
+              execution_failed: '❌ Workflow execution failed'
+            };
+            
+            const message = workflowStatusMessages[data.notificationType] || '🔄 Workflow updated';
+            
+            // Only show toast for certain operations to avoid spam
+            const showToastFor = ['activated', 'deactivated', 'created', 'deleted', 'execution_completed', 'execution_failed'];
+            if (showToastFor.includes(data.notificationType)) {
+              // Play notification sound for workflow events
+              try {
+                // Check if sound notifications are enabled in config for workflows
+                const soundEnabled = startupConfig?.workflows?.notifications?.sound ?? true;
+                const volume = startupConfig?.workflows?.notifications?.volume ?? 0.3;
+                
+                if (soundEnabled) {
+                  // Create a slightly different sound for workflows (higher frequency)
+                  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+                  const oscillator = audioContext.createOscillator();
+                  const gainNode = audioContext.createGain();
+                  
+                  oscillator.connect(gainNode);
+                  gainNode.connect(audioContext.destination);
+                  
+                  // Configure workflow notification sound (slightly higher pitch than scheduler)
+                  oscillator.frequency.setValueAtTime(900, audioContext.currentTime); // 900Hz frequency
+                  oscillator.type = 'sine';
+                  
+                  // Configure volume envelope
+                  gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+                  gainNode.gain.linearRampToValueAtTime(volume, audioContext.currentTime + 0.01);
+                  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+                  
+                  // Play the sound
+                  oscillator.start(audioContext.currentTime);
+                  oscillator.stop(audioContext.currentTime + 0.4);
+                }
+              } catch (error) {
+                console.debug('[SchedulerSSE] Could not play workflow notification sound:', error);
+              }
+              
+              const severity = data.notificationType.includes('failed') ? NotificationSeverity.ERROR : NotificationSeverity.SUCCESS;
+              showToast({
+                message: `${message}: ${data.workflowName}`,
+                severity,
+                duration: 3000,
+              });
+            }
+          }
         } else if (data.type === 'heartbeat') {
           // Handle heartbeat (keep-alive)
           console.debug('[SchedulerSSE] 💓 Heartbeat received');
@@ -301,7 +530,7 @@ export default function useChatHelpers(index = 0, paramId?: string) {
       eventSource.close();
       sseConnectionRef.current = null;
     };
-  }, [isAuthenticated, token, conversationId, queryClient, showToast, startupConfig]);
+  }, [isAuthenticated, token, conversationId, queryClient, showToast, startupConfig, updateWorkflowArtifacts]);
 
   const [showPopover, setShowPopover] = useRecoilState(store.showPopoverFamily(index));
   const [abortScroll, setAbortScroll] = useRecoilState(store.abortScrollFamily(index));

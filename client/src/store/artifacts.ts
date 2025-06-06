@@ -61,3 +61,18 @@ export const visibleArtifacts = atom<Record<string, Artifact | undefined> | null
     },
   ] as const,
 });
+
+export const artifactRefreshFunction = atom<(() => void) | null>({
+  key: 'artifactRefreshFunction',
+  default: null,
+  effects: [
+    ({ onSet, node }) => {
+      onSet(async (newValue) => {
+        logger.log('artifacts', 'Recoil Effect: Setting artifactRefreshFunction', {
+          key: node.key,
+          hasFunction: !!newValue,
+        });
+      });
+    },
+  ] as const,
+});

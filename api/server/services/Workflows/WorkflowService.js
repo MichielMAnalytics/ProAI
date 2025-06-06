@@ -15,6 +15,7 @@ const {
   getSchedulerExecutionsByUser
 } = require('~/models/SchedulerExecution');
 const { calculateNextRun } = require('~/server/services/Scheduler/utils/cronUtils');
+const SchedulerService = require('~/server/services/Scheduler/SchedulerService');
 const { v4: uuidv4 } = require('uuid');
 
 class WorkflowService {
@@ -80,6 +81,21 @@ class WorkflowService {
       
       // Convert scheduler task back to workflow format for response
       const workflow = this.schedulerTaskToWorkflow(schedulerTask);
+      
+      // Send real-time notification for workflow creation
+      try {
+        await SchedulerService.sendWorkflowStatusUpdate({
+          userId: userId,
+          workflowName: workflow.name,
+          workflowId: workflow.id,
+          notificationType: 'created',
+          details: `Workflow "${workflow.name}" created successfully`,
+          workflowData: workflow
+        });
+      } catch (notificationError) {
+        logger.warn(`[WorkflowService] Failed to send workflow creation notification: ${notificationError.message}`);
+        // Don't fail workflow creation if notification fails
+      }
       
       logger.info(`[WorkflowService] Created workflow ${workflow.id} for user ${userId}`);
       return workflow;
@@ -218,6 +234,21 @@ class WorkflowService {
       // Convert back to workflow format
       const updatedWorkflow = this.schedulerTaskToWorkflow(updatedTask);
       
+      // Send real-time notification for workflow update
+      try {
+        await SchedulerService.sendWorkflowStatusUpdate({
+          userId: userId,
+          workflowName: updatedWorkflow.name,
+          workflowId: updatedWorkflow.id,
+          notificationType: 'updated',
+          details: `Workflow "${updatedWorkflow.name}" updated successfully`,
+          workflowData: updatedWorkflow
+        });
+      } catch (notificationError) {
+        logger.warn(`[WorkflowService] Failed to send workflow update notification: ${notificationError.message}`);
+        // Don't fail workflow update if notification fails
+      }
+      
       logger.info(`[WorkflowService] Updated workflow ${workflowId}`);
       return updatedWorkflow;
     } catch (error) {
@@ -239,11 +270,33 @@ class WorkflowService {
       // Convert workflow ID to scheduler task ID
       const schedulerTaskId = `workflow_${workflowId.replace('workflow_', '')}`;
       
+      // Get workflow data before deletion for notification
+      const currentTask = await getSchedulerTaskById(schedulerTaskId, userId);
+      let workflowName = 'Unknown Workflow';
+      if (currentTask && currentTask.metadata) {
+        const workflow = this.schedulerTaskToWorkflow(currentTask);
+        workflowName = workflow.name;
+      }
+      
       const result = await deleteSchedulerTask(schedulerTaskId, userId);
       
       if (result.deletedCount === 0) {
         logger.warn(`[WorkflowService] Workflow ${workflowId} not found for deletion`);
         return false;
+      }
+      
+      // Send real-time notification for workflow deletion
+      try {
+        await SchedulerService.sendWorkflowStatusUpdate({
+          userId: userId,
+          workflowName: workflowName,
+          workflowId: workflowId,
+          notificationType: 'deleted',
+          details: `Workflow "${workflowName}" deleted successfully`
+        });
+      } catch (notificationError) {
+        logger.warn(`[WorkflowService] Failed to send workflow deletion notification: ${notificationError.message}`);
+        // Don't fail workflow deletion if notification fails
       }
       
       logger.info(`[WorkflowService] Deleted workflow ${workflowId} successfully`);
@@ -309,6 +362,21 @@ class WorkflowService {
       // Convert back to workflow format
       const workflow = this.schedulerTaskToWorkflow(updatedTask);
       
+      // Send real-time notification for workflow status change
+      try {
+        await SchedulerService.sendWorkflowStatusUpdate({
+          userId: userId,
+          workflowName: workflow.name,
+          workflowId: workflow.id,
+          notificationType: isActive ? 'activated' : 'deactivated',
+          details: `Workflow "${workflow.name}" ${isActive ? 'activated' : 'deactivated'} successfully`,
+          workflowData: workflow
+        });
+      } catch (notificationError) {
+        logger.warn(`[WorkflowService] Failed to send workflow toggle notification: ${notificationError.message}`);
+        // Don't fail workflow toggle if notification fails
+      }
+      
       logger.info(`[WorkflowService] ${isActive ? 'Activated' : 'Deactivated'} workflow ${workflowId}`);
       return workflow;
     } catch (error) {
@@ -334,7 +402,7 @@ class WorkflowService {
       if (!workflow) {
         throw new Error(`Workflow ${workflowId} not found`);
       }
-
+      
       // Determine if this is a scheduled execution
       const isScheduledExecution = context.trigger?.source === 'scheduler';
 
@@ -369,6 +437,20 @@ class WorkflowService {
         }
       });
 
+      // Send real-time notification for workflow execution start
+      try {
+        await SchedulerService.sendWorkflowStatusUpdate({
+          userId: userId,
+          workflowName: workflow.name,
+          workflowId: workflow.id,
+          notificationType: isTest ? 'test_started' : 'execution_started',
+          details: `Workflow "${workflow.name}" ${isTest ? 'test' : 'execution'} started`
+        });
+      } catch (notificationError) {
+        logger.warn(`[WorkflowService] Failed to send workflow execution start notification: ${notificationError.message}`);
+        // Don't fail workflow execution if notification fails
+      }
+
       try {
         // Use WorkflowExecutor directly for manual/test executions
         const WorkflowExecutor = require('~/server/services/Workflows/WorkflowExecutor');
@@ -385,6 +467,20 @@ class WorkflowService {
           error: result.error,
         });
         
+        // Send real-time notification for workflow execution completion
+        try {
+          await SchedulerService.sendWorkflowStatusUpdate({
+            userId: userId,
+            workflowName: workflow.name,
+            workflowId: workflow.id,
+            notificationType: result.success ? 'execution_completed' : 'execution_failed',
+            details: `Workflow "${workflow.name}" ${isTest ? 'test' : 'execution'} ${result.success ? 'completed successfully' : 'failed'}`
+          });
+        } catch (notificationError) {
+          logger.warn(`[WorkflowService] Failed to send workflow execution completion notification: ${notificationError.message}`);
+          // Don't fail workflow execution if notification fails
+        }
+        
         logger.info(`[WorkflowService] ${isTest ? 'Test' : 'Execution'} completed for workflow ${workflowId}: ${result.success ? 'success' : 'failed'}`);
         return result;
       } catch (error) {
@@ -394,6 +490,20 @@ class WorkflowService {
           end_time: new Date(),
           error: error.message,
         });
+        
+        // Send real-time notification for workflow execution failure
+        try {
+          await SchedulerService.sendWorkflowStatusUpdate({
+            userId: userId,
+            workflowName: workflow.name,
+            workflowId: workflow.id,
+            notificationType: 'execution_failed',
+            details: `Workflow "${workflow.name}" ${isTest ? 'test' : 'execution'} failed: ${error.message}`
+          });
+        } catch (notificationError) {
+          logger.warn(`[WorkflowService] Failed to send workflow execution failure notification: ${notificationError.message}`);
+          // Don't fail workflow execution if notification fails
+        }
         
         throw error;
       }
