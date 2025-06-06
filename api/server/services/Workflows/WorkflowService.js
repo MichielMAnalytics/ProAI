@@ -541,9 +541,11 @@ class WorkflowService {
    * @returns {Object} Workflow object
    */
   schedulerTaskToWorkflow(schedulerTask) {
-    if (!schedulerTask.metadata || schedulerTask.metadata.type !== 'workflow') {
+    if (!schedulerTask.metadata || schedulerTask.type !== 'workflow') {
       throw new Error('Scheduler task is not a workflow');
     }
+
+
 
     // Helper function to convert MongoDB date objects to JavaScript Date objects
     const convertDate = (dateValue) => {
@@ -574,6 +576,7 @@ class WorkflowService {
       description: schedulerTask.metadata.description,
       trigger: schedulerTask.metadata.trigger,
       steps: schedulerTask.metadata.steps,
+      type: schedulerTask.type, // Add the type field from scheduler task
       isDraft: schedulerTask.metadata.isDraft,
       isActive: schedulerTask.enabled,
       version: schedulerTask.metadata.workflowVersion,
@@ -600,7 +603,7 @@ class WorkflowService {
   filterWorkflowTasks(tasks) {
     return tasks.filter(task => 
       task.metadata && 
-      task.metadata.type === 'workflow' &&
+      task.type === 'workflow' &&  // Check type field at root level, not in metadata
       task.prompt && 
       task.prompt.startsWith('WORKFLOW_EXECUTION:')
     );

@@ -28,27 +28,34 @@ const getUserWorkflows = async (req, res) => {
     const workflowService = new WorkflowService();
     const workflows = await workflowService.getUserWorkflows(userId, filters);
     
+
+    
+    const mappedWorkflows = workflows.map(workflow => ({
+      id: workflow.id,
+      name: workflow.name,
+      description: workflow.description,
+      trigger: workflow.trigger,
+      steps: workflow.steps,
+      type: workflow.type,
+      isActive: workflow.isActive,
+      isDraft: workflow.isDraft,
+      last_run: workflow.last_run,
+      next_run: workflow.next_run,
+      run_count: workflow.run_count,
+      success_count: workflow.success_count,
+      failure_count: workflow.failure_count,
+      version: workflow.version,
+      created_from_agent: workflow.created_from_agent,
+      artifact_identifier: workflow.artifact_identifier,
+      createdAt: workflow.createdAt,
+      updatedAt: workflow.updatedAt,
+    }));
+    
+
+    
     res.json({
       success: true,
-      workflows: workflows.map(workflow => ({
-        id: workflow.id,
-        name: workflow.name,
-        description: workflow.description,
-        trigger: workflow.trigger,
-        steps: workflow.steps,
-        isActive: workflow.isActive,
-        isDraft: workflow.isDraft,
-        last_run: workflow.last_run,
-        next_run: workflow.next_run,
-        run_count: workflow.run_count,
-        success_count: workflow.success_count,
-        failure_count: workflow.failure_count,
-        version: workflow.version,
-        created_from_agent: workflow.created_from_agent,
-        artifact_identifier: workflow.artifact_identifier,
-        createdAt: workflow.createdAt,
-        updatedAt: workflow.updatedAt,
-      }))
+      workflows: mappedWorkflows
     });
   } catch (error) {
     logger.error('[WorkflowController] Error getting user workflows:', error);
@@ -88,6 +95,7 @@ const getWorkflowById = async (req, res) => {
         description: workflow.description,
         trigger: workflow.trigger,
         steps: workflow.steps,
+        type: workflow.type,
         isActive: workflow.isActive,
         isDraft: workflow.isDraft,
         conversation_id: workflow.conversation_id,
@@ -138,6 +146,7 @@ const createWorkflow = async (req, res) => {
         description: workflow.description,
         trigger: workflow.trigger,
         steps: workflow.steps,
+        type: workflow.type,
         isActive: workflow.isActive,
         isDraft: workflow.isDraft,
         version: workflow.version,
@@ -184,6 +193,7 @@ const updateWorkflow = async (req, res) => {
         description: updatedWorkflow.description,
         trigger: updatedWorkflow.trigger,
         steps: updatedWorkflow.steps,
+        type: updatedWorkflow.type,
         isActive: updatedWorkflow.isActive,
         isDraft: updatedWorkflow.isDraft,
         version: updatedWorkflow.version,
