@@ -741,6 +741,7 @@ export type TSchedulerTask = {
   prompt: string;
   enabled: boolean;
   do_only_once: boolean;
+  type: 'task' | 'workflow';
   last_run?: Date | { $date: string };
   next_run?: Date | { $date: string };
   status: 'pending' | 'running' | 'completed' | 'failed' | 'disabled';
@@ -750,6 +751,17 @@ export type TSchedulerTask = {
   endpoint?: string;
   ai_model?: string;
   agent_id?: string;
+  metadata?: {
+    type?: 'task' | 'workflow';
+    workflowId?: string;
+    workflowVersion?: number;
+    trigger?: any;
+    steps?: any[];
+    description?: string;
+    isDraft?: boolean;
+    created_from_agent?: boolean;
+    [key: string]: any;
+  };
   createdAt?: Date | { $date: string };
   updatedAt?: Date | { $date: string };
 };

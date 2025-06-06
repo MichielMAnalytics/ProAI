@@ -34,6 +34,13 @@ class SchedulerExecutionService {
   async executeTaskWithRetry(task, attempt = 1) {
     try {
       const result = await this.taskExecutor.executeTask(task);
+      
+      // Handle skipped tasks (no retry needed)
+      if (result && result.skipped) {
+        logger.debug(`[SchedulerExecutionService] Task ${task.id} was skipped: ${result.error}`);
+        return result;
+      }
+      
       return result;
     } catch (error) {
       const retryInfo = this.retryManager.handleTaskFailure(task, error, attempt);

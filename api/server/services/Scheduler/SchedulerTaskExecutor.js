@@ -1,5 +1,5 @@
 const { logger } = require('~/config');
-const { EModelEndpoint } = require('librechat-data-provider');
+const { EModelEndpoint, Constants } = require('librechat-data-provider');
 const { 
   createSchedulerExecution, 
   updateSchedulerExecution 
@@ -32,6 +32,26 @@ class SchedulerTaskExecutor {
     
     logger.info(`[SchedulerTaskExecutor] Starting execution: ${executionId} for task ${task.id} (${task.name})`);
     
+    // Check if task is already running to prevent double execution
+    if (task.status === 'running') {
+      logger.warn(`[SchedulerTaskExecutor] Task ${task.id} is already running, skipping execution`);
+      return {
+        success: false,
+        error: 'Task is already running',
+        skipped: true,
+      };
+    }
+    
+    // Check if one-time task is already completed/disabled
+    if (task.do_only_once && (!task.enabled || task.status === 'completed')) {
+      logger.warn(`[SchedulerTaskExecutor] One-time task ${task.id} is already completed or disabled, skipping execution`);
+      return {
+        success: false,
+        error: 'One-time task already completed',
+        skipped: true,
+      };
+    }
+    
     // Create execution record
     const execution = await createSchedulerExecution({
       id: executionId,
@@ -49,11 +69,21 @@ class SchedulerTaskExecutor {
     });
 
     try {
-      // Update task status to running
-      await updateSchedulerTask(task.id, task.user, { 
+      // Update task status to running (atomic update to prevent race conditions)
+      const updatedTask = await updateSchedulerTask(task.id, task.user, { 
         status: 'running',
         last_run: startTime,
       });
+      
+      // Verify the update succeeded and task wasn't modified by another process
+      if (!updatedTask) {
+        throw new Error('Failed to update task status to running - task may have been deleted');
+      }
+      
+      logger.debug(`[SchedulerTaskExecutor] Task ${task.id} status updated to running`);
+
+      // Use the updated task for the rest of the execution
+      task = updatedTask;
 
       // Send notification that task has started
       await this.notificationManager.sendTaskStartedNotification(task);
@@ -67,7 +97,7 @@ class SchedulerTaskExecutor {
       } else {
         // Regular task execution
         // Check if we should use ephemeral agent (either explicitly requested or due to MCP tools)
-        const isEphemeralTask = task.agent_id === 'ephemeral';
+        const isEphemeralTask = task.agent_id === Constants.EPHEMERAL_AGENT_ID;
         const shouldUseEphemeralAgent = isEphemeralTask || await this.agentHandler.shouldUseEphemeralAgent(task);
       
       if (shouldUseEphemeralAgent) {
@@ -150,13 +180,21 @@ class SchedulerTaskExecutor {
     // Load ephemeral agent
     const agent = await this.agentHandler.loadEphemeralAgent(setupResult);
     
-    // Create proper endpointOption for agents endpoint
-    const endpointOption = this.clientFactory.createAgentsEndpointOption(agent, setupResult.underlyingModel);
+    // For ephemeral agents, use the underlying endpoint directly, not the agents endpoint
+    const endpointOption = this.clientFactory.createEndpointOption(
+      setupResult.underlyingEndpoint, 
+      setupResult.underlyingModel, 
+      agent.model_parameters || {}
+    );
+    
+    // Set the agent data for tool access
+    endpointOption.agent = Promise.resolve(agent);
+    endpointOption.agent_id = agent.id;
     
     // Create minimal mock response for client initialization
     const mockRes = createMinimalMockResponse();
 
-    // Initialize the agents client directly
+    // Initialize the underlying client directly (e.g., OpenAI client with agent tools)
     const { client } = await this.clientFactory.initializeClient({ 
       req: setupResult.mockReq, 
       res: mockRes, 
@@ -164,10 +202,10 @@ class SchedulerTaskExecutor {
     });
     
     if (!client) {
-      throw new Error('Failed to initialize agents client');
+      throw new Error(`Failed to initialize ${setupResult.underlyingEndpoint} client`);
     }
     
-    logger.debug(`[SchedulerTaskExecutor] AgentClient initialized successfully with underlying endpoint: ${setupResult.underlyingEndpoint}`);
+    logger.debug(`[SchedulerTaskExecutor] Client initialized successfully with underlying endpoint: ${setupResult.underlyingEndpoint}`);
     
     // Execute using the client's sendMessage method
     const response = await client.sendMessage(task.prompt, {
@@ -311,26 +349,40 @@ class SchedulerTaskExecutor {
    * @returns {Promise<void>}
    */
   async updateTaskAfterSuccess(task, endTime) {
-    const updateData = { 
-      status: 'completed',
-      last_run: endTime,
-    };
-
-    if (!task.do_only_once) {
-      // Calculate next run time for recurring tasks
+    if (task.do_only_once) {
+      // For one-time tasks, disable immediately to prevent double execution
+      const updateData = { 
+        status: 'completed',
+        last_run: endTime,
+        enabled: false, // Disable immediately
+      };
+      
+      logger.info(`[SchedulerTaskExecutor] Disabling one-time task ${task.id} after successful execution`);
+      await updateSchedulerTask(task.id, task.user, updateData);
+    } else {
+      // For recurring tasks, calculate next run time
       const cronTime = calculateNextRun(task.schedule);
       if (cronTime) {
-        updateData.next_run = cronTime;
-        updateData.status = 'pending';
+        const updateData = { 
+          status: 'pending',
+          last_run: endTime,
+          next_run: cronTime,
+        };
+        
+        logger.info(`[SchedulerTaskExecutor] Scheduling next run for recurring task ${task.id} at ${cronTime.toISOString()}`);
+        await updateSchedulerTask(task.id, task.user, updateData);
       } else {
-        updateData.enabled = false; // Disable if we can't calculate next run
+        // Disable if we can't calculate next run
+        const updateData = { 
+          status: 'failed',
+          last_run: endTime,
+          enabled: false,
+        };
+        
+        logger.warn(`[SchedulerTaskExecutor] Unable to calculate next run for task ${task.id}, disabling`);
+        await updateSchedulerTask(task.id, task.user, updateData);
       }
-    } else {
-      // Disable one-time tasks after execution
-      updateData.enabled = false;
     }
-
-    await updateSchedulerTask(task.id, task.user, updateData);
   }
 
   /**

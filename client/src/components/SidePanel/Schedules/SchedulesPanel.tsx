@@ -2,7 +2,7 @@ import { useSchedulerTasksQuery } from '~/data-provider';
 import SchedulesTable from './SchedulesTable';
 
 const SchedulesPanel = () => {
-  const { data: tasks, isLoading, error } = useSchedulerTasksQuery();
+  const { data: tasks, isLoading, error } = useSchedulerTasksQuery('task');
 
   if (isLoading) {
     return (

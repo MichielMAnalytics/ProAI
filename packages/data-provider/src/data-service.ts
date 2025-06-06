@@ -857,8 +857,9 @@ export function getUserMCPTools(): Promise<s.TPlugin[]> {
 }
 
 /* Scheduler Tasks */
-export function getSchedulerTasks(): Promise<t.TSchedulerTask[]> {
-  return request.get(endpoints.schedulerTasks()).then((response: any) => response.tasks || []);
+export function getSchedulerTasks(type?: 'task' | 'workflow'): Promise<t.TSchedulerTask[]> {
+  const url = type ? `${endpoints.schedulerTasks()}?type=${type}` : endpoints.schedulerTasks();
+  return request.get(url).then((response: any) => response.tasks || []);
 }
 
 export function getSchedulerTask(taskId: string): Promise<t.TSchedulerTask> {

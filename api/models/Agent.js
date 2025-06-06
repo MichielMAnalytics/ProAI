@@ -74,6 +74,9 @@ const loadEphemeralAgent = ({ req, agent_id, endpoint, model_parameters: _m }) =
   if (ephemeralAgent?.scheduler === true) {
     tools.push('scheduler');
   }
+  if (ephemeralAgent?.workflow === true) {
+    tools.push('workflows');
+  }
 
   if (mcpServers.size > 0) {
     for (const toolName of Object.keys(availableTools)) {

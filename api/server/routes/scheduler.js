@@ -6,7 +6,9 @@ const SchedulerExecutionService = require('~/server/services/Scheduler/Scheduler
 const { notificationManager } = require('~/server/services/Scheduler/SchedulerService');
 const { setHeaders } = require('~/server/middleware');
 const { 
-  getSchedulerTasksByUser, 
+  getSchedulerTasksByUser,
+  getSchedulerTasksOnlyByUser,
+  getSchedulerWorkflowsByUser,
   getSchedulerTaskById,
   updateSchedulerTask,
   deleteSchedulerTask,
@@ -19,12 +21,22 @@ const router = express.Router();
 /**
  * Get all scheduler tasks for the authenticated user
  * @route GET /scheduler/tasks
+ * @query {string} [type] - Optional type filter ('task' | 'workflow')
  * @returns {object} Array of scheduler tasks
  */
 router.get('/tasks', requireJwtAuth, async (req, res) => {
   try {
     const userId = req.user.id;
-    const tasks = await getSchedulerTasksByUser(userId);
+    const { type } = req.query;
+    
+    let tasks;
+    if (type === 'task') {
+      tasks = await getSchedulerTasksOnlyByUser(userId);
+    } else if (type === 'workflow') {
+      tasks = await getSchedulerWorkflowsByUser(userId);
+    } else {
+      tasks = await getSchedulerTasksByUser(userId, type);
+    }
     
     res.json({
       success: true,
@@ -35,6 +47,7 @@ router.get('/tasks', requireJwtAuth, async (req, res) => {
         prompt: task.prompt,
         enabled: task.enabled,
         do_only_once: task.do_only_once,
+        type: task.type,
         status: task.status,
         last_run: task.last_run,
         next_run: task.next_run,
@@ -77,13 +90,14 @@ router.get('/tasks/:taskId', requireJwtAuth, async (req, res) => {
     
     res.json({
       success: true,
-      task: {
+              task: {
         id: task.id,
         name: task.name,
         schedule: task.schedule,
         prompt: task.prompt,
         enabled: task.enabled,
         do_only_once: task.do_only_once,
+        type: task.type,
         status: task.status,
         last_run: task.last_run,
         next_run: task.next_run,
@@ -128,13 +142,14 @@ router.put('/tasks/:taskId', requireJwtAuth, async (req, res) => {
     res.json({
       success: true,
       message: `Task "${updatedTask.name}" updated successfully`,
-      task: {
+              task: {
         id: updatedTask.id,
         name: updatedTask.name,
         schedule: updatedTask.schedule,
         prompt: updatedTask.prompt,
         enabled: updatedTask.enabled,
         do_only_once: updatedTask.do_only_once,
+        type: updatedTask.type,
         status: updatedTask.status,
         next_run: updatedTask.next_run,
         conversation_id: updatedTask.conversation_id,
@@ -211,6 +226,7 @@ router.post('/tasks/:taskId/enable', requireJwtAuth, async (req, res) => {
         id: task.id,
         name: task.name,
         enabled: task.enabled,
+        type: task.type,
         status: task.status,
       }
     });
@@ -249,6 +265,7 @@ router.post('/tasks/:taskId/disable', requireJwtAuth, async (req, res) => {
         id: task.id,
         name: task.name,
         enabled: task.enabled,
+        type: task.type,
         status: task.status,
       }
     });

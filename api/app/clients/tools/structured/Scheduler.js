@@ -13,7 +13,7 @@ const {
   disableSchedulerTask
 } = require('~/models/SchedulerTask');
 const { getAgent } = require('~/models/Agent'); // Import getAgent to fetch agent details
-const { EModelEndpoint } = require('librechat-data-provider'); // Import EModelEndpoint for model endpoint
+const { EModelEndpoint, Constants } = require('librechat-data-provider'); // Import EModelEndpoint for model endpoint and Constants for ephemeral agent ID
 const { validateCronExpression, calculateNextRun } = require('~/server/services/Scheduler/utils/cronUtils'); // Use standardized cron utilities
 
 class SchedulerTool extends Tool {
@@ -168,6 +168,17 @@ class SchedulerTool extends Tool {
     const currentEndpoint = endpoint || this.endpoint;
     const currentModel = model || this.model;
 
+    // For ephemeral agents, use the underlying endpoint instead of "agents"
+    let taskEndpoint = currentEndpoint;
+    let taskModel = currentModel;
+    
+    if (currentModel === Constants.EPHEMERAL_AGENT_ID && (currentEndpoint === EModelEndpoint.agents || currentEndpoint === 'agents')) {
+      // Default to OpenAI for ephemeral agents unless specified otherwise
+      taskEndpoint = EModelEndpoint.openAI;
+      taskModel = 'gpt-4o-mini'; // Default model for ephemeral agent tasks
+      logger.info(`[SchedulerTool] Converting ephemeral agent task to use underlying endpoint: ${taskEndpoint}, model: ${taskModel}`);
+    }
+
     const taskData = {
       id: taskId,
       name,
@@ -175,34 +186,42 @@ class SchedulerTool extends Tool {
       prompt,
       enabled: enabled !== undefined ? enabled : true,
       do_only_once: do_only_once !== undefined ? do_only_once : true,
+      type: 'task',
       next_run: cronValidation.nextRun,
       status: 'pending',
       user: userId,
       conversation_id: conversationId,
       parent_message_id: parentMessageId,
-      endpoint: currentEndpoint,
+      endpoint: taskEndpoint,
     };
 
-    logger.info(`[SchedulerTool] Creating task with endpoint: ${currentEndpoint}, model: ${currentModel}`);
+    logger.info(`[SchedulerTool] Creating task with endpoint: ${taskEndpoint}, model: ${taskModel}`);
     logger.debug(`[SchedulerTool] Task data:`, { ...taskData, prompt: prompt.substring(0, 100) + '...' });
 
-    // Set agent_id if using agents endpoint
+    // Handle agent_id and ai_model based on the original endpoint (before conversion)
     if (currentEndpoint === EModelEndpoint.agents || currentEndpoint === 'agents') {
-      taskData.agent_id = currentModel;
-      
-      // Validate agent exists and user has access
-      try {
-        const agent = await getAgent({ id: currentModel, author: userId });
-        if (!agent) {
-          throw new Error(`Agent not found or access denied: ${currentModel}`);
+      // For ephemeral agents, mark it as such but use underlying model
+      if (currentModel === Constants.EPHEMERAL_AGENT_ID) {
+        taskData.agent_id = Constants.EPHEMERAL_AGENT_ID;
+        taskData.ai_model = taskModel; // Store the underlying model
+        logger.debug(`[SchedulerTool] Using ephemeral agent with underlying model: ${taskModel}`);
+      } else {
+        // Regular agent - validate and store agent_id
+        taskData.agent_id = currentModel;
+        
+        try {
+          const agent = await getAgent({ id: currentModel, author: userId });
+          if (!agent) {
+            throw new Error(`Agent not found or access denied: ${currentModel}`);
+          }
+          logger.debug(`[SchedulerTool] Using agent: ${agent.name} (${currentModel})`);
+        } catch (error) {
+          logger.error(`[SchedulerTool] Agent validation failed:`, error);
+          throw new Error(`Failed to validate agent: ${error.message}`);
         }
-        logger.debug(`[SchedulerTool] Using agent: ${agent.name} (${currentModel})`);
-      } catch (error) {
-        logger.error(`[SchedulerTool] Agent validation failed:`, error);
-        throw new Error(`Failed to validate agent: ${error.message}`);
       }
     } else {
-      taskData.ai_model = currentModel;
+      taskData.ai_model = taskModel;
     }
 
     try {

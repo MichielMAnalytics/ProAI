@@ -7,6 +7,7 @@ export interface ISchedulerTask extends Document {
   prompt: string;
   enabled: boolean;
   do_only_once: boolean;
+  type: 'task' | 'workflow';
   last_run?: Date;
   next_run?: Date;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'disabled';
@@ -59,6 +60,11 @@ const schedulerTaskSchema: Schema<ISchedulerTask> = new Schema(
       required: true,
       default: true,
     },
+    type: {
+      type: String,
+      required: true,
+      enum: ['task', 'workflow'],
+    },
     last_run: {
       type: Date,
     },
@@ -95,7 +101,7 @@ const schedulerTaskSchema: Schema<ISchedulerTask> = new Schema(
     metadata: {
       type: Schema.Types.Mixed,
       default: function() {
-        return { type: 'task' };
+        return { type: this.type || 'task' };
       },
     },
   },

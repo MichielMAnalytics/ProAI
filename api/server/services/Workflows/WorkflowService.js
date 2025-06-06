@@ -57,6 +57,7 @@ class WorkflowService {
         prompt: `WORKFLOW_EXECUTION:${workflowData.id}:${workflowData.name}`,
         enabled: workflowData.isActive || false,
         do_only_once: false, // Workflows are typically recurring
+        type: 'workflow',
         next_run: nextRun,
         status: workflowData.isActive ? 'pending' : 'disabled',
         user: userId,

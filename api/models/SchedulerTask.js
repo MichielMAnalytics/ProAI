@@ -32,11 +32,16 @@ async function getSchedulerTaskById(id, userId) {
 /**
  * Get all scheduler tasks for a user
  * @param {string} userId - The user's ObjectId
+ * @param {string} [type] - Optional type filter ('task' | 'workflow')
  * @returns {Promise<ISchedulerTask[]>} Array of task documents
  */
-async function getSchedulerTasksByUser(userId) {
+async function getSchedulerTasksByUser(userId, type = null) {
   try {
-    return await SchedulerTask.find({ user: userId }).lean();
+    const query = { user: userId };
+    if (type) {
+      query.type = type;
+    }
+    return await SchedulerTask.find(query).lean();
   } catch (error) {
     throw new Error(`Error fetching scheduler tasks: ${error.message}`);
   }
@@ -51,10 +56,24 @@ async function getReadySchedulerTasks() {
     const now = new Date();
     return await SchedulerTask.find({
       enabled: true,
-      status: { $in: ['pending', 'completed'] },
       $or: [
-        { next_run: { $lte: now } },
-        { next_run: null }
+        // Pending tasks that are ready to run
+        {
+          status: 'pending',
+          $or: [
+            { next_run: { $lte: now } },
+            { next_run: null }
+          ]
+        },
+        // Only recurring tasks (not do_only_once) that have completed and are ready for next run
+        {
+          status: 'completed',
+          do_only_once: false,
+          $or: [
+            { next_run: { $lte: now } },
+            { next_run: null }
+          ]
+        }
       ]
     }).lean();
   } catch (error) {
@@ -156,10 +175,38 @@ async function getAllSchedulerTasks() {
   }
 }
 
+/**
+ * Get only task-type scheduler tasks for a user
+ * @param {string} userId - The user's ObjectId
+ * @returns {Promise<ISchedulerTask[]>} Array of task documents
+ */
+async function getSchedulerTasksOnlyByUser(userId) {
+  try {
+    return await SchedulerTask.find({ user: userId, type: 'task' }).lean();
+  } catch (error) {
+    throw new Error(`Error fetching scheduler tasks: ${error.message}`);
+  }
+}
+
+/**
+ * Get only workflow-type scheduler tasks for a user
+ * @param {string} userId - The user's ObjectId
+ * @returns {Promise<ISchedulerTask[]>} Array of workflow documents
+ */
+async function getSchedulerWorkflowsByUser(userId) {
+  try {
+    return await SchedulerTask.find({ user: userId, type: 'workflow' }).lean();
+  } catch (error) {
+    throw new Error(`Error fetching scheduler workflows: ${error.message}`);
+  }
+}
+
 module.exports = {
   createSchedulerTask,
   getSchedulerTaskById,
   getSchedulerTasksByUser,
+  getSchedulerTasksOnlyByUser,
+  getSchedulerWorkflowsByUser,
   getReadySchedulerTasks,
   updateSchedulerTask,
   deleteSchedulerTask,

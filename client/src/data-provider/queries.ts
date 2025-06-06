@@ -650,10 +650,13 @@ export const useAppComponentsQuery = (
 };
 
 // Scheduler Tasks
-export const useSchedulerTasksQuery = (options?: UseQueryOptions<t.TSchedulerTask[]>) =>
+export const useSchedulerTasksQuery = (
+  type?: 'task' | 'workflow',
+  options?: UseQueryOptions<t.TSchedulerTask[]>
+) =>
   useQuery<t.TSchedulerTask[]>({
-    queryKey: [QueryKeys.schedulerTasks],
-    queryFn: () => dataService.getSchedulerTasks(),
+    queryKey: [QueryKeys.schedulerTasks, type],
+    queryFn: () => dataService.getSchedulerTasks(type),
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,
