@@ -10,6 +10,7 @@ export interface IUser extends Document {
   avatar?: string;
   provider: string;
   role?: string;
+  timezone?: string; // User's preferred timezone (e.g., 'America/New_York', 'Europe/London')
   googleId?: string;
   facebookId?: string;
   openidId?: string;
@@ -96,6 +97,18 @@ const User = new Schema<IUser>(
     role: {
       type: String,
       default: SystemRoles.USER,
+    },
+    timezone: {
+      type: String,
+      default: 'UTC',
+      validate: {
+        validator: function(v: string) {
+          // Basic validation for timezone strings
+          // Accept IANA timezone identifiers and UTC
+          return !v || v === 'UTC' || /^[A-Za-z_]+\/[A-Za-z_]+/.test(v) || /^GMT[+-]\d{1,2}/.test(v);
+        },
+        message: 'Invalid timezone format. Use IANA timezone identifiers like "America/New_York" or "UTC"'
+      }
     },
     googleId: {
       type: String,

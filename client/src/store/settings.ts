@@ -2,6 +2,7 @@ import { atom } from 'recoil';
 import { SettingsViews, LocalStorageKeys } from 'librechat-data-provider';
 import { atomWithLocalStorage } from '~/store/utils';
 import type { TOptionSettings } from '~/common';
+import { getDetectedTimezone } from '~/utils/timezone';
 
 // Static atoms without localStorage
 const staticAtoms = {
@@ -17,11 +18,42 @@ const staticAtoms = {
   showPopover: atom<boolean>({ key: 'showPopover', default: false }),
 };
 
+/**
+ * Get initial timezone value with proper fallback strategy
+ * Order: localStorage > browser detection > UTC
+ */
+function getInitialTimezone(): string {
+  try {
+    // First try localStorage
+    const stored = localStorage.getItem('timezone');
+    if (stored) {
+      try {
+        // Try to parse as JSON first (new format)
+        return JSON.parse(stored);
+      } catch (e) {
+        // If not JSON, treat as plain string (old format) and migrate it
+        localStorage.setItem('timezone', JSON.stringify(stored));
+        return stored;
+      }
+    }
+    
+    // Then try browser detection
+    const detected = getDetectedTimezone();
+    localStorage.setItem('timezone', JSON.stringify(detected));
+    return detected;
+  } catch (error) {
+    console.warn('Failed to get initial timezone, falling back to UTC:', error);
+    localStorage.setItem('timezone', JSON.stringify('UTC'));
+    return 'UTC';
+  }
+}
+
 const localStorageAtoms = {
   // General settings
   autoScroll: atomWithLocalStorage('autoScroll', false),
   hideSidePanel: atomWithLocalStorage('hideSidePanel', false),
   fontSize: atomWithLocalStorage('fontSize', 'text-base'),
+  timezone: atomWithLocalStorage('timezone', getInitialTimezone()),
   enableUserMsgMarkdown: atomWithLocalStorage<boolean>(
     LocalStorageKeys.ENABLE_USER_MSG_MARKDOWN,
     true,

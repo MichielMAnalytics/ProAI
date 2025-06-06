@@ -10,6 +10,7 @@ import ToggleSwitch from '../ToggleSwitch';
 import { Dropdown } from '~/components';
 import { useGetStartupConfig } from '~/data-provider';
 import store from '~/store';
+import { TimezoneSelector } from './TimezoneSelector';
 
 const toggleSwitchConfigs = [
   {
@@ -131,6 +132,7 @@ function General() {
   const generalItemsConfig = startupConfig?.interface?.settingsTabs?.generalItems || {
     theme: true,
     language: true,
+    timezone: true,
     userMsgMarkdown: true,
     autoScroll: true,
     hideSidePanel: true,
@@ -170,6 +172,11 @@ function General() {
       {generalItemsConfig.language !== false && (
         <div className="pb-3">
           <LangSelector langcode={langcode} onChange={changeLang} />
+        </div>
+      )}
+      {generalItemsConfig.timezone !== false && (
+        <div className="pb-3">
+          <TimezoneSelector />
         </div>
       )}
       {generalItemsConfig.userMsgMarkdown !== false && (

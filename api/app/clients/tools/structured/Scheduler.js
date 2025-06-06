@@ -1,6 +1,5 @@
 const { z } = require('zod');
 const { Tool } = require('@langchain/core/tools');
-const { parseCronExpression } = require('cron-schedule');
 const { v4: uuidv4 } = require('uuid');
 const { logger } = require('~/config');
 const SchedulerService = require('~/server/services/Scheduler/SchedulerService');
@@ -15,6 +14,7 @@ const {
 } = require('~/models/SchedulerTask');
 const { getAgent } = require('~/models/Agent'); // Import getAgent to fetch agent details
 const { EModelEndpoint } = require('librechat-data-provider'); // Import EModelEndpoint for model endpoint
+const { validateCronExpression, calculateNextRun } = require('~/server/services/Scheduler/utils/cronUtils'); // Use standardized cron utilities
 
 class SchedulerTool extends Tool {
   static lc_name() {
@@ -47,16 +47,79 @@ class SchedulerTool extends Tool {
     });
     
     this.name = 'scheduler';
-    this.description = `Schedule and manage automated tasks with AI prompts. When a scheduled task runs, the prompt will be sent to the AI agent who can then decide what tools to use and actions to take.
+    this.description = `Create and manage scheduled tasks that can execute prompts at specified times using cron expressions.
     
     Available actions:
-    - create_task: Create a new scheduled task with a prompt
-    - list_tasks: List all user's tasks
+    - create_task: Create a new scheduled task with cron timing
+    - list_tasks: List all user's scheduled tasks  
     - get_task: Get details of a specific task
-    - update_task: Update an existing task
-    - delete_task: Delete a task
+    - update_task: Update an existing task (schedule, prompt, settings)
+    - delete_task: Delete a scheduled task
     - enable_task: Enable a disabled task
-    - disable_task: Disable a task`;
+    - disable_task: Disable an active task
+    
+    SCHEDULE CONFIGURATION:
+    
+    All schedules use UTC-based cron expressions for consistency with workflows.
+    
+    Cron format: "minute hour day_of_month month day_of_week"
+    - minute: 0-59 or * (every minute) or */N (every N minutes)
+    - hour: 0-23 or * (every hour) or */N (every N hours)  
+    - day_of_month: 1-31 or * (every day)
+    - month: 1-12 or * (every month)
+    - day_of_week: 0-6 (0=Sunday) or * (every day)
+    
+    Common UTC-based cron expressions:
+    - "0 9 * * *" = Daily at 9 AM UTC
+    - "0 14 * * *" = Daily at 2 PM UTC
+    - "*/30 * * * *" = Every 30 minutes
+    - "0 */6 * * *" = Every 6 hours
+    - "0 9 * * 1" = Every Monday at 9 AM UTC
+    - "0 0 1 * *" = First day of every month at midnight UTC
+    
+    TASK CONFIGURATION OPTIONS:
+    
+    - do_only_once: true = Task runs only once then disables itself
+    - do_only_once: false = Task runs repeatedly according to schedule
+    - enabled: true = Task is active and will execute on schedule
+    - enabled: false = Task is created but disabled (won't execute)
+    
+    EXAMPLE USAGE:
+    
+    Create a daily reminder:
+    {
+      "action": "create_task",
+      "name": "Daily Status Report",
+      "schedule": "0 9 * * *",
+      "prompt": "Generate a daily status report for the team",
+      "do_only_once": false,
+      "enabled": true
+    }
+    
+    Create a one-time reminder:
+    {
+      "action": "create_task", 
+      "name": "Meeting Reminder",
+      "schedule": "30 14 25 12 *",
+      "prompt": "Remind about the year-end meeting tomorrow",
+      "do_only_once": true,
+      "enabled": true
+    }
+    
+    Update task schedule:
+    {
+      "action": "update_task",
+      "task_id": "task_abc123",
+      "schedule": "*/15 * * * *"
+    }
+    
+    IMPORTANT NOTES:
+    - All times are interpreted as UTC
+    - Tasks are automatically enabled when created unless specified otherwise
+    - Use do_only_once: true for one-time reminders or notifications
+    - Use do_only_once: false for recurring tasks like daily reports
+    - Tasks can be temporarily disabled without deletion using disable_task
+    - Cron expressions are validated before task creation`;
     
     this.schema = z.object({
       action: z.enum(['create_task', 'list_tasks', 'get_task', 'update_task', 'delete_task', 'enable_task', 'disable_task'])
@@ -76,47 +139,16 @@ class SchedulerTool extends Tool {
     });
   }
 
-  validateCronExpression(cronExpr) {
-    try {
-      const cron = parseCronExpression(cronExpr);
-      const nextRun = cron.getNextDate();
-      return { valid: true, nextRun };
-    } catch (error) {
-      return { valid: false, error: error.message };
-    }
-  }
-
   /**
-   * Determine the correct endpoint based on the model name
-   * @param {string} modelName - The model name
-   * @returns {string} The appropriate endpoint
+   * Create a new scheduled task
+   * @param {Object} data - Task data
+   * @param {string} userId - User ID  
+   * @param {string} conversationId - Conversation ID
+   * @param {string} parentMessageId - Parent message ID
+   * @param {string} endpoint - Endpoint name
+   * @param {string} model - Model name
+   * @returns {Promise<Object>} Created task result
    */
-  determineEndpointFromModel(modelName) {
-    if (!modelName) {
-      return EModelEndpoint.openAI; // Default fallback
-    }
-
-    const model = modelName.toLowerCase();
-    
-    // Google models
-    if (model.includes('gemini') || model.includes('palm') || model.includes('bison')) {
-      return EModelEndpoint.google;
-    }
-    
-    // Anthropic models
-    if (model.includes('claude')) {
-      return EModelEndpoint.anthropic;
-    }
-    
-    // Azure OpenAI models (if they have azure in the name)
-    if (model.includes('azure')) {
-      return EModelEndpoint.azureOpenAI;
-    }
-    
-    // OpenAI models (gpt-*, o1-*, etc.) or fallback
-    return EModelEndpoint.openAI;
-  }
-
   async createTask(data, userId, conversationId, parentMessageId, endpoint, model) {
     const { name, schedule, prompt, do_only_once, enabled } = data;
 
@@ -125,8 +157,8 @@ class SchedulerTool extends Tool {
       throw new Error('Missing required fields: name, schedule, and prompt are required');
     }
 
-    // Validate cron expression
-    const cronValidation = this.validateCronExpression(schedule);
+    // Validate cron expression using standardized validation
+    const cronValidation = validateCronExpression(schedule);
     if (!cronValidation.valid) {
       throw new Error(`Invalid cron expression: ${cronValidation.error}`);
     }
@@ -152,56 +184,31 @@ class SchedulerTool extends Tool {
     };
 
     logger.info(`[SchedulerTool] Creating task with endpoint: ${currentEndpoint}, model: ${currentModel}`);
+    logger.debug(`[SchedulerTool] Task data:`, { ...taskData, prompt: prompt.substring(0, 100) + '...' });
 
-    if (currentEndpoint === 'agents') {
-      // Special handling for ephemeral agent
-      if (currentModel === 'ephemeral') {
-        // For ephemeral agents, get the actual underlying model from request context
-        let actualModel = 'gpt-4o-mini'; // Fallback default
-        
-        // Try to get the actual model from the request body
-        if (this.req?.body?.model) {
-          actualModel = this.req.body.model;
-          logger.info(`[SchedulerTool] Using model from request: ${actualModel}`);
-        } else if (this.req?.body?.endpointOption?.model) {
-          actualModel = this.req.body.endpointOption.model;
-          logger.info(`[SchedulerTool] Using model from endpointOption: ${actualModel}`);
-        } else {
-          logger.warn(`[SchedulerTool] Could not determine actual model for ephemeral agent, using fallback: ${actualModel}`);
-        }
-        
-        // Store the correct endpoint and actual model
-        taskData.endpoint = this.determineEndpointFromModel(actualModel);
-        taskData.ai_model = actualModel;
-        taskData.agent_id = 'ephemeral'; // Keep track that this was from ephemeral agent
-        
-        logger.info(`[SchedulerTool] Ephemeral agent detected, storing endpoint: ${taskData.endpoint}, model: ${taskData.ai_model}, agent_id: ephemeral`);
-      } else {
-        // For real agents, fetch the agent's underlying model
-      taskData.agent_id = currentModel; // For agents endpoint, model is the agent_id
-      logger.info(`[SchedulerTool] Setting agent_id: ${currentModel}`);
+    // Set agent_id if using agents endpoint
+    if (currentEndpoint === EModelEndpoint.agents || currentEndpoint === 'agents') {
+      taskData.agent_id = currentModel;
       
+      // Validate agent exists and user has access
       try {
         const agent = await getAgent({ id: currentModel, author: userId });
-        if (agent && agent.model) {
-          taskData.ai_model = agent.model; // Store the agent's underlying model
-          logger.info(`[SchedulerTool] Set ai_model from agent: ${agent.model}`);
+        if (!agent) {
+          throw new Error(`Agent not found or access denied: ${currentModel}`);
         }
+        logger.debug(`[SchedulerTool] Using agent: ${agent.name} (${currentModel})`);
       } catch (error) {
-        logger.warn(`[SchedulerTool] Could not fetch agent ${currentModel} to get underlying model: ${error.message}`);
-        // Continue without the underlying model - it's not critical for task creation
-        }
+        logger.error(`[SchedulerTool] Agent validation failed:`, error);
+        throw new Error(`Failed to validate agent: ${error.message}`);
       }
     } else {
       taskData.ai_model = currentModel;
-      logger.info(`[SchedulerTool] Setting ai_model: ${currentModel}`);
     }
 
     try {
       const task = await createSchedulerTask(taskData);
-      logger.info(`[SchedulerTool] Created task: ${taskId} (${name}) for endpoint: ${taskData.endpoint}, agent_id: ${taskData.agent_id}, ai_model: ${taskData.ai_model}, parent_message_id: ${taskData.parent_message_id}`);
       
-      // Send notification to refresh schedules panel
+      // Send notification to refresh schedules panel  
       try {
         await SchedulerService.sendTaskStatusUpdate({
           userId: userId,
@@ -213,12 +220,13 @@ class SchedulerTool extends Tool {
         logger.debug(`[SchedulerTool] Sent task creation notification for task ${taskId}`);
       } catch (notificationError) {
         logger.warn(`[SchedulerTool] Failed to send task creation notification: ${notificationError.message}`);
-        // Don't fail the task creation if notification fails
       }
+
+      logger.info(`[SchedulerTool] Created task: ${taskId} (${name}) for user ${userId}`);
       
       return {
         success: true,
-        message: `Task "${name}" created successfully`,
+        message: `Task "${name}" created successfully. ${do_only_once ? 'It will run once' : 'It will run repeatedly'} according to schedule: ${schedule}`,
         task: {
           id: task.id,
           name: task.name,
@@ -226,8 +234,8 @@ class SchedulerTool extends Tool {
           prompt: task.prompt,
           enabled: task.enabled,
           do_only_once: task.do_only_once,
-          next_run: task.next_run,
           status: task.status,
+          next_run: task.next_run,
           conversation_id: task.conversation_id,
           parent_message_id: task.parent_message_id,
           endpoint: task.endpoint,
@@ -321,11 +329,12 @@ class SchedulerTool extends Tool {
 
     // Validate cron expression if schedule is being updated
     if (updateData.schedule) {
-      const cronValidation = this.validateCronExpression(updateData.schedule);
+      const cronValidation = validateCronExpression(updateData.schedule);
       if (!cronValidation.valid) {
         throw new Error(`Invalid cron expression: ${cronValidation.error}`);
       }
       updateData.next_run = cronValidation.nextRun;
+      logger.debug(`[SchedulerTool] Updated schedule for task ${taskId}: ${updateData.schedule}, next run: ${cronValidation.nextRun?.toISOString()}`);
     }
 
     try {
@@ -372,7 +381,7 @@ class SchedulerTool extends Tool {
         }
       };
     } catch (error) {
-      logger.error(`[SchedulerTool] Error updating task:`, error);
+      logger.error(`[SchedulerTool] Error updating task ${taskId}:`, error);
       throw new Error(`Failed to update task: ${error.message}`);
     }
   }

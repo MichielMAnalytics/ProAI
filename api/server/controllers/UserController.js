@@ -19,7 +19,7 @@ const {
 const User = require('~/models/User');
 const { updateUserPluginAuth, deleteUserPluginAuth } = require('~/server/services/PluginService');
 const { updateUserPluginsService, deleteUserKey } = require('~/server/services/UserService');
-const { verifyEmail, resendVerificationEmail } = require('~/server/services/AuthService');
+const { verifyEmail, resendVerificationEmail, isValidTimezone } = require('~/server/services/AuthService');
 const { needsRefresh, getNewS3URL } = require('~/server/services/Files/S3/crud');
 const { processDeleteRequest } = require('~/server/services/Files/process');
 const { deleteAllSharedLinks } = require('~/models/Share');
@@ -210,6 +210,56 @@ const resendVerificationController = async (req, res) => {
   }
 };
 
+const updateUserTimezoneController = async (req, res) => {
+  try {
+    const { timezone } = req.body;
+    const userId = req.user.id;
+
+    // Validate timezone
+    if (!timezone || typeof timezone !== 'string') {
+      return res.status(400).json({ 
+        message: 'Invalid timezone provided',
+        error: 'Timezone must be a valid string'
+      });
+    }
+
+    // Use standardized timezone validation
+    if (!isValidTimezone(timezone)) {
+      return res.status(400).json({ 
+        message: 'Invalid timezone format',
+        error: 'Use IANA timezone identifiers like "America/New_York" or "UTC"'
+      });
+    }
+
+    // Update user timezone
+    const updatedUser = await updateUser(userId, { timezone });
+    
+    if (!updatedUser) {
+      return res.status(404).json({ 
+        message: 'User not found'
+      });
+    }
+
+    logger.info(`[UserController] Updated timezone for user ${userId}: ${timezone}`);
+    
+    // Return success response without sensitive data
+    const userData = { ...updatedUser };
+    delete userData.totpSecret;
+    delete userData.password;
+    
+    res.status(200).json({
+      message: 'Timezone updated successfully',
+      user: userData
+    });
+  } catch (error) {
+    logger.error('[UserController] Error updating user timezone:', error);
+    res.status(500).json({ 
+      message: 'Failed to update timezone',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getUserController,
   getTermsStatusController,
@@ -218,4 +268,5 @@ module.exports = {
   verifyEmailController,
   updateUserPluginsController,
   resendVerificationController,
+  updateUserTimezoneController,
 };

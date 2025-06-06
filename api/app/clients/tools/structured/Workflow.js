@@ -172,9 +172,10 @@ class WorkflowTool extends Tool {
     - OLD: "Send activity summary to [name]@[domain]"
     - NEW: "Send activity summary to [name]@[domain]"
     
-    TRIGGER CONFIGURATION FORMAT:
+    SCHEDULE TRIGGER CONFIGURATION:
     
-    For schedule triggers, use this exact format:
+    All schedule triggers use UTC-based cron expressions for consistency.
+    Use this exact format:
     {
       "trigger": {
         "type": "schedule",
@@ -184,12 +185,22 @@ class WorkflowTool extends Tool {
       }
     }
     
-    Common cron expressions:
+    Common cron expressions (UTC-based):
     - "*/1 * * * *" = Every minute
     - "*/5 * * * *" = Every 5 minutes  
     - "0 9 * * *" = Daily at 9 AM UTC
     - "0 14 * * *" = Daily at 2 PM UTC
     - "0 */6 * * *" = Every 6 hours
+    - "0 * * * *" = Every hour
+    
+    SCHEDULE EXTRACTION FROM DESCRIPTIONS:
+    
+    When users describe schedules in natural language, the system will extract
+    UTC-based cron expressions automatically. Common patterns:
+    - "daily at 9 AM" → "0 9 * * *" (9 AM UTC)
+    - "every 5 minutes" → "*/5 * * * *"
+    - "every hour" → "0 * * * *"
+    - "every morning" → "0 9 * * *" (9 AM UTC)
     
     COMPLETE UPDATE EXAMPLE:
     
@@ -738,8 +749,23 @@ class WorkflowTool extends Tool {
       throw new Error('Missing required fields: name, trigger, and steps are required');
     }
 
-    // Process trigger configuration
-    const processedTrigger = this.processTriggerConfig(trigger, description);
+    // Get user's timezone for schedule processing
+    let userTimezone = 'UTC'; // Default fallback
+    try {
+      const User = require('~/models/User');
+      const user = await User.findById(userId).select('timezone');
+      if (user && user.timezone) {
+        userTimezone = user.timezone;
+        logger.debug(`[WorkflowTool] Using user timezone: ${userTimezone}`);
+      } else {
+        logger.debug(`[WorkflowTool] No user timezone found, using UTC default`);
+      }
+    } catch (error) {
+      logger.warn(`[WorkflowTool] Failed to get user timezone, using UTC:`, error);
+    }
+
+    // Process trigger configuration with user timezone
+    const processedTrigger = this.processTriggerConfig(trigger, description, userTimezone);
 
     // Auto-fix step connections to prevent validation errors
     const fixedSteps = this.autoFixStepConnections(steps);
@@ -837,30 +863,59 @@ class WorkflowTool extends Tool {
    * Process trigger configuration, especially for schedule triggers
    * @param {Object} trigger - Raw trigger object
    * @param {string} description - Workflow description for context
+   * @param {string} userTimezone - User's timezone for conversion
    * @returns {Object} Processed trigger with proper config
    */
-  processTriggerConfig(trigger, description) {
+  processTriggerConfig(trigger, description, userTimezone = 'UTC') {
     const processedTrigger = { ...trigger };
 
     if (trigger.type === 'schedule') {
       // Ensure config object exists
-        processedTrigger.config = processedTrigger.config || {};
+      processedTrigger.config = processedTrigger.config || {};
         
       // Handle both 'schedule' and 'cron' fields - normalize to 'schedule'
-      let cronExpression = trigger.config?.schedule || trigger.config?.cron;
+      let scheduleInput = trigger.config?.schedule || trigger.config?.cron;
+      let cronExpression = null;
       
-      // If no cron expression provided, try to parse from description or set default
+      // If we have a schedule input, check if it's already a cron expression or natural language
+      if (scheduleInput) {
+        const { isCronExpression, parseScheduleToUTCCron } = require('~/server/services/Scheduler/utils/cronUtils');
+        
+        if (isCronExpression(scheduleInput)) {
+          // It's already a valid cron expression
+          cronExpression = scheduleInput;
+          logger.debug(`[WorkflowTool] Using provided cron expression: ${cronExpression}`);
+        } else {
+          // It's natural language, parse it
+          cronExpression = parseScheduleToUTCCron(scheduleInput, userTimezone);
+          if (cronExpression) {
+            logger.info(`[WorkflowTool] Converted "${scheduleInput}" to UTC cron (${userTimezone}): ${cronExpression}`);
+          } else {
+            logger.warn(`[WorkflowTool] Could not parse schedule "${scheduleInput}", will try description`);
+          }
+        }
+      }
+      
+      // If no valid cron expression yet, try to extract from description or use default
       if (!cronExpression) {
-        // Try to extract schedule from description
-        const scheduleFromDescription = this.extractScheduleFromDescription(description);
+        // Try to extract schedule from description with user timezone
+        const scheduleFromDescription = this.extractScheduleFromDescription(description, userTimezone);
         if (scheduleFromDescription) {
           cronExpression = scheduleFromDescription;
-          logger.info(`[WorkflowTool] Extracted schedule from description: ${cronExpression}`);
+          logger.info(`[WorkflowTool] Extracted schedule from description (${userTimezone}): ${cronExpression}`);
         } else {
-          // Default to daily at 9 AM UTC if no schedule specified
-          cronExpression = '0 9 * * *';
-          logger.info(`[WorkflowTool] No schedule found, using default: 0 9 * * *`);
+          // Use the timezone-aware parsing for the default time
+          const { parseScheduleToUTCCron } = require('~/server/services/Scheduler/utils/cronUtils');
+          cronExpression = parseScheduleToUTCCron('daily at 9 AM', userTimezone) || '0 9 * * *';
+          logger.info(`[WorkflowTool] No schedule found, using default for ${userTimezone}: ${cronExpression}`);
         }
+      }
+      
+      // Validate the cron expression using the same validation as scheduler
+      const { calculateNextRun } = require('~/server/services/Scheduler/utils/cronUtils');
+      const nextRun = calculateNextRun(cronExpression);
+      if (!nextRun) {
+        throw new Error(`Invalid cron expression: ${cronExpression}. Please provide a valid cron schedule.`);
       }
       
       // Normalize to 'schedule' field and remove 'cron' field if it exists
@@ -869,6 +924,8 @@ class WorkflowTool extends Tool {
         delete processedTrigger.config.cron;
         logger.debug(`[WorkflowTool] Normalized 'cron' field to 'schedule': ${cronExpression}`);
       }
+      
+      logger.debug(`[WorkflowTool] Processed schedule trigger: ${cronExpression}, next run: ${nextRun.toISOString()}`);
     }
 
     return processedTrigger;
@@ -877,42 +934,69 @@ class WorkflowTool extends Tool {
   /**
    * Extract cron schedule from workflow description
    * @param {string} description - Workflow description
+   * @param {string} userTimezone - User's timezone for conversion
    * @returns {string|null} Cron expression or null if not found
    */
-  extractScheduleFromDescription(description) {
+  extractScheduleFromDescription(description, userTimezone = 'UTC') {
     if (!description) return null;
 
+    // Use the enhanced cronUtils parsing function
+    const { parseScheduleToUTCCron } = require('~/server/services/Scheduler/utils/cronUtils');
+    
+    const cronExpr = parseScheduleToUTCCron(description, userTimezone);
+    if (cronExpr) {
+      logger.debug(`[WorkflowTool] Extracted schedule from description "${description}" (${userTimezone}): ${cronExpr}`);
+      return cronExpr;
+    }
+
+    // Fallback to basic pattern matching for compatibility
     const desc = description.toLowerCase();
     
-    // Common schedule patterns
+    // Common schedule patterns - all treated as UTC-based cron expressions
     const patterns = [
-      // "9 AM (UTC+2)" -> 7 AM UTC
-      { regex: /(\d{1,2})\s*am.*utc\+(\d{1,2})/, handler: (match) => {
+      // "daily at 9 AM" or "daily at 9" -> 9 AM UTC
+      { regex: /daily.*?at\s+(\d{1,2})\s*(?:am|a\.m\.)?/i, handler: (match) => {
         const hour = parseInt(match[1]);
-        const offset = parseInt(match[2]);
-        const utcHour = (hour - offset + 24) % 24;
+        return `0 ${hour} * * *`;
+      }},
+      // "daily at 2 PM" or "daily at 2 p.m." -> 14 UTC (2 PM)
+      { regex: /daily.*?at\s+(\d{1,2})\s*(?:pm|p\.m\.)/i, handler: (match) => {
+        const hour = parseInt(match[1]);
+        const utcHour = hour === 12 ? 12 : hour + 12; // Convert PM to 24-hour
         return `0 ${utcHour} * * *`;
       }},
-      // "9 AM" -> 9 AM UTC
-      { regex: /(\d{1,2})\s*am/, handler: (match) => {
-        const hour = parseInt(match[1]);
-        return `0 ${hour} * * *`;
+      // "every X minutes" -> */X * * * *
+      { regex: /every\s+(\d+)\s+minutes?/i, handler: (match) => {
+        const minutes = parseInt(match[1]);
+        return `*/${minutes} * * * *`;
       }},
-      // "daily at 9" -> 9 AM UTC
-      { regex: /daily.*?(\d{1,2})/, handler: (match) => {
-        const hour = parseInt(match[1]);
-        return `0 ${hour} * * *`;
-      }},
+      // "every hour" -> 0 * * * *
+      { regex: /every\s+hour/i, handler: () => '0 * * * *' },
+      // "hourly" -> 0 * * * *
+      { regex: /hourly/i, handler: () => '0 * * * *' },
       // "every morning" -> 9 AM UTC
-      { regex: /every morning/, handler: () => '0 9 * * *' },
-      // "every day" -> 9 AM UTC
-      { regex: /every day/, handler: () => '0 9 * * *' },
+      { regex: /every\s+morning/i, handler: () => '0 9 * * *' },
+      // "every day" or "daily" -> 9 AM UTC
+      { regex: /(?:every\s+day|daily)(?!\s+at)/i, handler: () => '0 9 * * *' },
+      // "at 9" or "9 AM" (standalone) -> 9 AM UTC
+      { regex: /(?:^|\s)(?:at\s+)?(\d{1,2})\s*am(?:\s|$)/i, handler: (match) => {
+        const hour = parseInt(match[1]);
+        return `0 ${hour} * * *`;
+      }},
+      // "at 2 PM" (standalone) -> 14 UTC
+      { regex: /(?:^|\s)(?:at\s+)?(\d{1,2})\s*pm(?:\s|$)/i, handler: (match) => {
+        const hour = parseInt(match[1]);
+        const utcHour = hour === 12 ? 12 : hour + 12;
+        return `0 ${utcHour} * * *`;
+      }},
     ];
 
     for (const pattern of patterns) {
       const match = desc.match(pattern.regex);
       if (match) {
-        return pattern.handler(match);
+        const cronExpr = pattern.handler(match);
+        logger.debug(`[WorkflowTool] Extracted schedule from description "${description}": ${cronExpr}`);
+        return cronExpr;
       }
     }
 

@@ -8,6 +8,7 @@ const {
   resendVerificationController,
   getTermsStatusController,
   acceptTermsController,
+  updateUserTimezoneController,
 } = require('~/server/controllers/UserController');
 
 const router = express.Router();
@@ -15,7 +16,7 @@ const router = express.Router();
 router.get('/', requireJwtAuth, getUserController);
 router.get('/terms', requireJwtAuth, getTermsStatusController);
 router.post('/terms/accept', requireJwtAuth, acceptTermsController);
-router.post('/plugins', requireJwtAuth, updateUserPluginsController);
+router.post('/timezone', requireJwtAuth, updateUserTimezoneController);
 router.delete('/delete', requireJwtAuth, canDeleteAccount, deleteUserController);
 router.post('/verify', verifyEmailController);
 router.post('/verify/resend', verifyEmailLimiter, resendVerificationController);

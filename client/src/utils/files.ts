@@ -122,10 +122,22 @@ export const getFileType = (
  * Format a date string to a human readable format
  * @example
  * formatDate('2020-01-01T00:00:00.000Z') // '1 Jan 2020'
+ * formatDate('2020-01-01T00:00:00.000Z', false, 'America/New_York') // '31 Dec 2019' (timezone-aware)
  */
-export function formatDate(dateString: string, isSmallScreen = false) {
+export function formatDate(dateString: string, isSmallScreen = false, timezone?: string) {
   if (!dateString) {
     return '';
+  }
+
+  // If timezone is provided, use timezone-aware formatting
+  if (timezone) {
+    try {
+      const { formatDateInTimezone } = require('~/utils/timezone');
+      return formatDateInTimezone(dateString, timezone, isSmallScreen);
+    } catch (error) {
+      console.warn('Failed to use timezone-aware formatting, falling back to local time:', error);
+      // Fall through to original logic
+    }
   }
 
   const date = new Date(dateString);

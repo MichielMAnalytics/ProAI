@@ -114,7 +114,7 @@ export const getWorkflowFiles = (content: string) => {
             const hourNum = parseInt(hour);
             const period = hourNum >= 12 ? 'PM' : 'AM';
             const displayHour = hourNum === 0 ? 12 : hourNum > 12 ? hourNum - 12 : hourNum;
-            return \`Daily at \${displayHour}:00 \${period} UTC\`;
+            return \`Daily at \${displayHour}:00 \${period}\`;
           }
           
           if (minute !== '*' && hour !== '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
@@ -122,7 +122,22 @@ export const getWorkflowFiles = (content: string) => {
             const minuteNum = parseInt(minute);
             const period = hourNum >= 12 ? 'PM' : 'AM';
             const displayHour = hourNum === 0 ? 12 : hourNum > 12 ? hourNum - 12 : hourNum;
-            return \`Daily at \${displayHour}:\${minuteNum.toString().padStart(2, '0')} \${period} UTC\`;
+            return \`Daily at \${displayHour}:\${minuteNum.toString().padStart(2, '0')} \${period}\`;
+          }
+          
+          // Handle minute-based schedules
+          if (minute.startsWith('*/') && hour === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+            const intervalMinutes = parseInt(minute.substring(2));
+            if (intervalMinutes === 1) {
+              return 'Every minute';
+            } else if (intervalMinutes < 60) {
+              return \`Every \${intervalMinutes} minutes\`;
+            }
+          }
+          
+          // Handle hourly schedules
+          if (minute === '0' && hour === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+            return 'Every hour';
           }
           
           return cron; // Fallback to original if we can't parse it

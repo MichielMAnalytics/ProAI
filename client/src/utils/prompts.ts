@@ -59,7 +59,18 @@ export const extractVariableInfo = (text: string) => {
   };
 };
 
-export function formatDateTime(dateTimeString: string) {
+export function formatDateTime(dateTimeString: string, timezone?: string) {
+  // If timezone is provided, use timezone-aware formatting
+  if (timezone) {
+    try {
+      const { formatDateTimeInTimezone } = require('~/utils/timezone');
+      return formatDateTimeInTimezone(dateTimeString, timezone, { showSeconds: true });
+    } catch (error) {
+      console.warn('Failed to use timezone-aware formatting, falling back to local time:', error);
+      // Fall through to original logic
+    }
+  }
+
   const date = new Date(dateTimeString);
 
   const month = date.getMonth() + 1;

@@ -1,4 +1,5 @@
 const express = require('express');
+const { logger } = require('~/config');
 const {
   refreshController,
   registrationController,
@@ -29,6 +30,7 @@ const {
   validateRegistration,
   validatePasswordReset,
 } = require('~/server/middleware');
+const { autoSetUserTimezone, isValidTimezone } = require('~/server/services/AuthService');
 
 const router = express.Router();
 
@@ -68,5 +70,40 @@ router.post('/2fa/verify-temp', checkBan, verify2FAWithTempToken);
 router.post('/2fa/confirm', requireJwtAuth, confirm2FA);
 router.post('/2fa/disable', requireJwtAuth, disable2FA);
 router.post('/2fa/backup/regenerate', requireJwtAuth, regenerateBackupCodes);
+
+/**
+ * Auto-set user timezone after login
+ * @route POST /auth/enhance-profile
+ * @desc Auto-detect and set user timezone if not already set
+ * @access Private
+ */
+router.post('/enhance-profile', requireJwtAuth, async (req, res) => {
+  try {
+    const { timezone: detectedTimezone } = req.body;
+    const userId = req.user.id;
+
+    if (!detectedTimezone) {
+      return res.status(400).json({ 
+        message: 'Detected timezone is required',
+        success: false 
+      });
+    }
+
+    // Auto-set timezone for user
+    await autoSetUserTimezone(userId, detectedTimezone);
+    
+    res.status(200).json({ 
+      message: 'Profile enhanced successfully',
+      success: true
+    });
+  } catch (error) {
+    logger.error('[AuthRoute] Error enhancing user profile:', error);
+    res.status(500).json({ 
+      message: 'Failed to enhance profile',
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 module.exports = router;

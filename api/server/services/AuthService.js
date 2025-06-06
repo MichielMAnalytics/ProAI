@@ -495,6 +495,49 @@ const resendVerificationEmail = async (req) => {
   }
 };
 
+/**
+ * Detect and set user timezone if not already set
+ * @param {string} userId - User ID
+ * @param {string} detectedTimezone - Browser-detected timezone
+ * @returns {Promise<void>}
+ */
+async function autoSetUserTimezone(userId, detectedTimezone) {
+  try {
+    // Get current user to check if timezone is already set
+    const { getUserById } = require('~/models/userMethods');
+    const user = await getUserById(userId, 'timezone');
+    
+    // Only set timezone if user doesn't have one set
+    if (!user?.timezone) {
+      // Validate the detected timezone
+      const isValid = isValidTimezone(detectedTimezone);
+      const timezoneToSet = isValid ? detectedTimezone : 'UTC';
+      
+      await updateUser(userId, { timezone: timezoneToSet });
+      logger.info(`[AuthService] Auto-set timezone for user ${userId}: ${timezoneToSet}`);
+    }
+  } catch (error) {
+    logger.error('[AuthService] Failed to auto-set user timezone:', error);
+    // Don't throw - this is a non-critical enhancement
+  }
+}
+
+/**
+ * Validate timezone string using IANA timezone identifiers
+ */
+function isValidTimezone(timezone) {
+  if (!timezone || typeof timezone !== 'string') return false;
+  if (timezone === 'UTC') return true;
+  
+  try {
+    // Test if timezone is valid by trying to format a date with it
+    Intl.DateTimeFormat('en-US', { timeZone: timezone });
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 module.exports = {
   logoutUser,
   verifyEmail,
@@ -504,4 +547,6 @@ module.exports = {
   requestPasswordReset,
   resendVerificationEmail,
   setOpenIDAuthTokens,
+  autoSetUserTimezone,
+  isValidTimezone,
 };

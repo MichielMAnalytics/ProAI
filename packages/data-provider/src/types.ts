@@ -127,6 +127,7 @@ export type TUser = {
   avatar: string;
   role: string;
   provider: string;
+  timezone?: string; // User's preferred timezone
   plugins?: string[];
   twoFactorEnabled?: boolean;
   backupCodes?: TBackupCode[];
@@ -740,8 +741,8 @@ export type TSchedulerTask = {
   prompt: string;
   enabled: boolean;
   do_only_once: boolean;
-  last_run?: Date;
-  next_run?: Date;
+  last_run?: Date | { $date: string };
+  next_run?: Date | { $date: string };
   status: 'pending' | 'running' | 'completed' | 'failed' | 'disabled';
   user: string;
   conversation_id?: string;
@@ -749,8 +750,8 @@ export type TSchedulerTask = {
   endpoint?: string;
   ai_model?: string;
   agent_id?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt?: Date | { $date: string };
+  updatedAt?: Date | { $date: string };
 };
 
 export type TWorkflowStep = {
@@ -798,9 +799,9 @@ export type TUserWorkflow = {
   endpoint?: string;
   ai_model?: string;
   agent_id?: string;
-  // Execution tracking
-  last_run?: Date;
-  next_run?: Date;
+  // Execution tracking - can be Date objects or MongoDB date format
+  last_run?: Date | { $date: string };
+  next_run?: Date | { $date: string };
   run_count?: number;
   success_count?: number;
   failure_count?: number;
@@ -809,8 +810,8 @@ export type TUserWorkflow = {
   created_from_agent?: boolean;
   // UI state
   artifact_identifier?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt?: Date | { $date: string };
+  updatedAt?: Date | { $date: string };
 };
 
 export type TWorkflowStepExecution = {

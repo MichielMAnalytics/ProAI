@@ -17,6 +17,7 @@ import {
 import { useDeleteSharedLinkMutation, useSharedLinksQuery } from '~/data-provider';
 import OGDialogTemplate from '~/components/ui/OGDialogTemplate';
 import { useLocalize, useMediaQuery } from '~/hooks';
+import { useTimezone } from '~/hooks/useTimezone';
 import DataTable from '~/components/ui/DataTable';
 import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
@@ -33,6 +34,7 @@ const DEFAULT_PARAMS: SharedLinksListParams = {
 };
 
 export default function SharedLinks() {
+  const { formatDate: formatDateTZ } = useTimezone();
   const localize = useLocalize();
   const { showToast } = useToastContext();
   const isSmallScreen = useMediaQuery('(max-width: 768px)');
@@ -223,7 +225,7 @@ export default function SharedLinks() {
             </Button>
           );
         },
-        cell: ({ row }) => formatDate(row.original.createdAt?.toString() ?? '', isSmallScreen),
+        cell: ({ row }) => formatDateTZ(row.original.createdAt?.toString() ?? '', isSmallScreen),
         meta: {
           size: '10%',
           mobileSize: '20%',
@@ -277,7 +279,7 @@ export default function SharedLinks() {
         ),
       },
     ],
-    [isSmallScreen, localize, queryParams, handleSort],
+    [isSmallScreen, localize, queryParams, handleSort, formatDateTZ],
   );
 
   return (

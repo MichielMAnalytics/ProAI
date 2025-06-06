@@ -523,6 +523,7 @@ export const intefaceSchema = z
           .object({
             theme: z.boolean().optional().default(true),
             language: z.boolean().optional().default(true),
+            timezone: z.boolean().optional().default(true),
             userMsgMarkdown: z.boolean().optional().default(true),
             autoScroll: z.boolean().optional().default(true),
             hideSidePanel: z.boolean().optional().default(true),

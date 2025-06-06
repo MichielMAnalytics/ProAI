@@ -11,6 +11,7 @@ import {
 import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
 import store from '~/store';
+import { useTimezone } from '~/hooks/useTimezone';
 
 interface WorkflowsTableRowProps {
   workflow: TUserWorkflow;
@@ -18,6 +19,7 @@ interface WorkflowsTableRowProps {
 
 const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
   const { showToast } = useToastContext();
+  const { formatDateTime, getTimezoneAbbr } = useTimezone();
   const toggleMutation = useToggleWorkflowMutation();
   const deleteMutation = useDeleteWorkflowMutation();
   const testMutation = useTestWorkflowMutation();
@@ -70,7 +72,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
     testMutation.mutate(workflow.id, {
       onSuccess: () => {
         showToast({
-          message: 'Workflow test started successfully',
+          message: 'Workflow test successfully',
           severity: NotificationSeverity.SUCCESS,
         });
       },
@@ -197,12 +199,22 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
     }
   };
 
-  const formatDate = (dateString?: string | Date) => {
-    if (!dateString) return 'Not scheduled';
+  const formatDate = (dateInput?: string | Date | { $date: string }) => {
+    if (!dateInput) return 'Not scheduled';
+    
     try {
-      const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
-      return date.toLocaleString();
-    } catch {
+      let dateToFormat: string | Date;
+      
+      // Handle MongoDB date objects { "$date": "ISO_STRING" }
+      if (typeof dateInput === 'object' && dateInput !== null && '$date' in dateInput) {
+        dateToFormat = dateInput.$date;
+      } else {
+        dateToFormat = dateInput as string | Date;
+      }
+      
+      return formatDateTime(dateToFormat);
+    } catch (error) {
+      console.warn('Failed to format date:', dateInput, error);
       return 'Invalid date';
     }
   };

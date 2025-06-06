@@ -8,6 +8,7 @@ import {
 } from '~/data-provider';
 import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
+import { useTimezone } from '~/hooks/useTimezone';
 
 interface SchedulesTableRowProps {
   task: TSchedulerTask;
@@ -15,6 +16,7 @@ interface SchedulesTableRowProps {
 
 const SchedulesTableRow: React.FC<SchedulesTableRowProps> = ({ task }) => {
   const { showToast } = useToastContext();
+  const { formatDateTime, getTimezoneAbbr } = useTimezone();
   const toggleMutation = useToggleSchedulerTaskMutation();
   const deleteMutation = useDeleteSchedulerTaskMutation();
 
@@ -57,12 +59,22 @@ const SchedulesTableRow: React.FC<SchedulesTableRowProps> = ({ task }) => {
     });
   };
 
-  const formatDate = (dateString?: string | Date) => {
-    if (!dateString) return 'Not scheduled';
+  const formatDate = (dateInput?: string | Date | { $date: string }) => {
+    if (!dateInput) return 'Not scheduled';
+    
     try {
-      const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
-      return date.toLocaleString();
-    } catch {
+      let dateToFormat: string | Date;
+      
+      // Handle MongoDB date objects { "$date": "ISO_STRING" }
+      if (typeof dateInput === 'object' && dateInput !== null && '$date' in dateInput) {
+        dateToFormat = dateInput.$date;
+      } else {
+        dateToFormat = dateInput as string | Date;
+      }
+      
+      return formatDateTime(dateToFormat);
+    } catch (error) {
+      console.warn('Failed to format date:', dateInput, error);
       return 'Invalid date';
     }
   };

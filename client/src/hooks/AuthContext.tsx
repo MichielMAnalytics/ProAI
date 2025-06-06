@@ -48,6 +48,36 @@ const AuthContextProvider = ({
 
   const navigate = useNavigate();
 
+  const enhanceUserProfile = useCallback(async (authToken: string) => {
+    try {
+      const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      console.log('[AuthContext] Enhancing user profile with timezone:', detectedTimezone);
+      
+      const response = await fetch('/api/auth/enhance-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ timezone: detectedTimezone }),
+      });
+      
+      if (!response.ok) {
+        console.error('[AuthContext] Profile enhancement failed with status:', response.status);
+        return;
+      }
+      
+      const result = await response.json();
+      console.log('[AuthContext] Profile enhancement result:', result);
+      
+      // Note: We don't need to handle the response since this is best-effort enhancement
+      // The user's timezone will be properly loaded from the database on next page load
+    } catch (error) {
+      // Silently fail - this is a non-critical enhancement
+      console.error('[AuthContext] Profile enhancement failed:', error);
+    }
+  }, []);
+
   const setUserContext = useMemo(
     () =>
       debounce((userContext: TUserContext) => {
@@ -57,6 +87,11 @@ const AuthContextProvider = ({
         //@ts-ignore - ok for token to be undefined initially
         setTokenHeader(token);
         setIsAuthenticated(isAuthenticated);
+
+        // Auto-enhance user profile with timezone if just logged in
+        if (isAuthenticated && user && token) {
+          enhanceUserProfile(token);
+        }
 
         // Use a custom redirect if set
         const finalRedirect = logoutRedirectRef.current || redirect;
@@ -73,7 +108,7 @@ const AuthContextProvider = ({
           navigate(finalRedirect, { replace: true });
         }
       }, 50),
-    [navigate, setUser],
+    [navigate, setUser, enhanceUserProfile],
   );
   const doSetError = useTimeout({ callback: (error) => setError(error as string | undefined) });
 

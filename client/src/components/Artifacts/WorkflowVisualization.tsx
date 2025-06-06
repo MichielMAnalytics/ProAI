@@ -8,8 +8,12 @@ import ReactFlow, {
   useEdgesState,
   ConnectionMode,
   NodeTypes,
+  Handle,
+  Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import { useTimezone } from '~/hooks/useTimezone';
+import { cronToHumanReadable } from '~/utils/timezone';
 
 interface WorkflowData {
   workflow: {
@@ -114,6 +118,8 @@ const WorkflowStepNode = ({ data, selected }: { data: any; selected: boolean }) 
 
 // Custom node component for trigger
 const TriggerNode = ({ data }: { data: any }) => {
+  const { timezone } = useTimezone();
+  
   const getIcon = (type: string) => {
     switch (type) {
       case 'manual': return '👤';
@@ -125,19 +131,36 @@ const TriggerNode = ({ data }: { data: any }) => {
     }
   };
 
+  const formatScheduleDisplay = (config: any) => {
+    if (!config?.schedule) return null;
+    
+    // Use timezone-aware formatting
+    const humanReadable = cronToHumanReadable(config.schedule, timezone);
+    return humanReadable !== config.schedule ? humanReadable : `Cron: ${config.schedule}`;
+  };
+
   return (
-    <div className="px-4 py-2 rounded-lg border-2 bg-gray-100 border-gray-300 min-w-32">
-      <div className="flex items-center gap-2">
-        <span className="text-lg">{getIcon(data.type || 'manual')}</span>
-        <div>
-          <div className="font-medium text-sm">Trigger</div>
-          <div className="text-xs text-gray-600">{data.type || 'manual'}</div>
-          {data.config?.schedule && (
-            <div className="text-xs text-gray-600">Cron: {data.config.schedule}</div>
-          )}
+    <>
+      {/* Connection handle for trigger */}
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        style={{ background: '#6366f1' }}
+      />
+      
+      <div className="px-4 py-2 rounded-lg border-2 bg-gray-100 border-gray-300 min-w-32">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">{getIcon(data.type || 'manual')}</span>
+          <div>
+            <div className="font-medium text-sm">Trigger</div>
+            <div className="text-xs text-gray-600">{data.type || 'manual'}</div>
+            {data.config?.schedule && (
+              <div className="text-xs text-gray-600">{formatScheduleDisplay(data.config)}</div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

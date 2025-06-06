@@ -544,6 +544,29 @@ class WorkflowService {
       throw new Error('Scheduler task is not a workflow');
     }
 
+    // Helper function to convert MongoDB date objects to JavaScript Date objects
+    const convertDate = (dateValue) => {
+      if (!dateValue) return undefined;
+      
+      // If it's already a Date object, return it
+      if (dateValue instanceof Date) {
+        return dateValue;
+      }
+      
+      // If it's a MongoDB date object with $date property
+      if (typeof dateValue === 'object' && dateValue.$date) {
+        return new Date(dateValue.$date);
+      }
+      
+      // If it's a string, convert to Date
+      if (typeof dateValue === 'string') {
+        return new Date(dateValue);
+      }
+      
+      // Otherwise return as-is
+      return dateValue;
+    };
+
     return {
       id: schedulerTask.metadata.workflowId,
       name: schedulerTask.name.replace('Workflow: ', ''),
@@ -559,12 +582,12 @@ class WorkflowService {
       endpoint: schedulerTask.endpoint,
       ai_model: schedulerTask.ai_model,
       agent_id: schedulerTask.agent_id,
-      last_run: schedulerTask.last_run,
-      next_run: schedulerTask.next_run,
+      last_run: convertDate(schedulerTask.last_run),
+      next_run: convertDate(schedulerTask.next_run),
       status: schedulerTask.status,
       created_from_agent: schedulerTask.metadata.created_from_agent,
-      createdAt: schedulerTask.createdAt,
-      updatedAt: schedulerTask.updatedAt,
+      createdAt: convertDate(schedulerTask.createdAt),
+      updatedAt: convertDate(schedulerTask.updatedAt),
     };
   }
 
