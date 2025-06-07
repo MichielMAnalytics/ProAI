@@ -7,6 +7,7 @@ const {
 const { updateSchedulerTask } = require('~/models/SchedulerTask');
 const { calculateNextRun } = require('./utils/cronUtils');
 const { createMockRequest, createMockResponse, createMinimalMockResponse } = require('./utils/mockUtils');
+const { getCustomConfig } = require('~/server/services/Config');
 const SchedulerClientFactory = require('./SchedulerClientFactory');
 const SchedulerAgentHandler = require('./SchedulerAgentHandler');
 const SchedulerRetryManager = require('./SchedulerRetryManager');
@@ -19,6 +20,45 @@ class SchedulerTaskExecutor {
     this.notificationManager = new SchedulerNotificationManager();
     
     logger.debug('[SchedulerTaskExecutor] Initialized');
+  }
+
+  /**
+   * Get configured model and endpoint from librechat.yaml scheduler config
+   * @returns {Promise<Object>} Configuration with model, endpoint, and endpointName
+   */
+  async getConfiguredModelAndEndpoint() {
+    try {
+      const config = await getCustomConfig();
+      const configuredModel = config?.scheduler?.defaultModel || 'gpt-4o-mini';
+      const configuredEndpoint = config?.scheduler?.defaultEndpoint || 'openAI';
+      
+      // Map config endpoint names to EModelEndpoint values
+      const endpointMapping = {
+        'openAI': EModelEndpoint.openAI,
+        'anthropic': EModelEndpoint.anthropic,
+        'google': EModelEndpoint.google,
+        'azureOpenAI': EModelEndpoint.azureOpenAI,
+        'custom': EModelEndpoint.custom,
+        'bedrock': EModelEndpoint.bedrock,
+      };
+      
+      const mappedEndpoint = endpointMapping[configuredEndpoint] || EModelEndpoint.openAI;
+      
+      logger.info(`[SchedulerTaskExecutor] Using configured model: ${configuredModel} on endpoint: ${configuredEndpoint} (${mappedEndpoint})`);
+      
+      return {
+        model: configuredModel,
+        endpoint: mappedEndpoint,
+        endpointName: configuredEndpoint
+      };
+    } catch (error) {
+      logger.warn('[SchedulerTaskExecutor] Failed to load scheduler config, using defaults:', error);
+      return {
+        model: 'gpt-4o-mini',
+        endpoint: EModelEndpoint.openAI,
+        endpointName: 'openAI'
+      };
+    }
   }
 
   /**
@@ -96,20 +136,35 @@ class SchedulerTaskExecutor {
         result = await this.executeWorkflowTask(task, executionId);
       } else {
         // Regular task execution
+        logger.info(`[SchedulerTaskExecutor] Starting regular task execution for ${task.id}`);
+        logger.debug(`[SchedulerTaskExecutor] Task details:`, {
+          id: task.id,
+          name: task.name,
+          endpoint: task.endpoint,
+          ai_model: task.ai_model,
+          agent_id: task.agent_id,
+          user: task.user,
+          conversation_id: task.conversation_id,
+          parent_message_id: task.parent_message_id
+        });
+        
         // Check if we should use ephemeral agent (either explicitly requested or due to MCP tools)
         const isEphemeralTask = task.agent_id === Constants.EPHEMERAL_AGENT_ID;
+        logger.info(`[SchedulerTaskExecutor] Task ${task.id} ephemeral check: isEphemeralTask=${isEphemeralTask}`);
+        
         const shouldUseEphemeralAgent = isEphemeralTask || await this.agentHandler.shouldUseEphemeralAgent(task);
+        logger.info(`[SchedulerTaskExecutor] Task ${task.id} final decision: shouldUseEphemeralAgent=${shouldUseEphemeralAgent}`);
       
-      if (shouldUseEphemeralAgent) {
+        if (shouldUseEphemeralAgent) {
           if (isEphemeralTask) {
             logger.info(`[SchedulerTaskExecutor] Using ephemeral agent for task ${task.id} (originally created with ephemeral agent)`);
           } else {
-        logger.info(`[SchedulerTaskExecutor] Using ephemeral agent for task ${task.id} due to MCP tools`);
+            logger.info(`[SchedulerTaskExecutor] Using ephemeral agent for task ${task.id} due to MCP tools`);
           }
-        result = await this.executeWithEphemeralAgent(task);
-      } else {
-        logger.info(`[SchedulerTaskExecutor] Using direct endpoint for task ${task.id}`);
-        result = await this.executePrompt(task);
+          result = await this.executeWithEphemeralAgent(task);
+        } else {
+          logger.info(`[SchedulerTaskExecutor] Using direct endpoint for task ${task.id} - no ephemeral agent needed`);
+          result = await this.executePrompt(task);
         }
       }
 
@@ -167,64 +222,105 @@ class SchedulerTaskExecutor {
   }
 
   /**
-   * Execute task using ephemeral agent pattern (for MCP tools support)
+   * Execute task using ephemeral agent pattern with agents endpoint (simplified workflow approach)
    * @param {Object} task - The scheduler task
    * @returns {Promise<string>} Execution result
    */
   async executeWithEphemeralAgent(task) {
-    logger.info(`[SchedulerTaskExecutor] Using ephemeral agent execution for task ${task.id}`);
+    logger.info(`[SchedulerTaskExecutor] Using simplified ephemeral agent execution for task ${task.id}`);
     
-    // Set up ephemeral agent configuration
-    const setupResult = await this.agentHandler.createEphemeralAgentSetup(task);
-    
-    // Load ephemeral agent
-    const agent = await this.agentHandler.loadEphemeralAgent(setupResult);
-    
-    // For ephemeral agents, use the underlying endpoint directly, not the agents endpoint
-    const endpointOption = this.clientFactory.createEndpointOption(
-      setupResult.underlyingEndpoint, 
-      setupResult.underlyingModel, 
-      agent.model_parameters || {}
-    );
-    
-    // Set the agent data for tool access
-    endpointOption.agent = Promise.resolve(agent);
-    endpointOption.agent_id = agent.id;
-    
-    // Create minimal mock response for client initialization
-    const mockRes = createMinimalMockResponse();
-
-    // Initialize the underlying client directly (e.g., OpenAI client with agent tools)
-    const { client } = await this.clientFactory.initializeClient({ 
-      req: setupResult.mockReq, 
-      res: mockRes, 
-      endpointOption 
-    });
-    
-    if (!client) {
-      throw new Error(`Failed to initialize ${setupResult.underlyingEndpoint} client`);
-    }
-    
-    logger.debug(`[SchedulerTaskExecutor] Client initialized successfully with underlying endpoint: ${setupResult.underlyingEndpoint}`);
-    
-    // Execute using the client's sendMessage method
-    const response = await client.sendMessage(task.prompt, {
-      user: task.user,
-      conversationId: task.conversation_id,
-      parentMessageId: task.parent_message_id,
-      onProgress: (data) => {
-        logger.debug(`[SchedulerTaskExecutor] Agent progress for task ${task.id}:`, data?.text?.substring(0, 100));
+    try {
+      // Get configured model and endpoint from librechat.yaml
+      const config = await this.getConfiguredModelAndEndpoint();
+      const configuredModel = config.model;
+      const configuredEndpoint = config.endpoint;
+      const endpointName = config.endpointName;
+      
+      logger.info(`[SchedulerTaskExecutor] Using configured ${endpointName}/${configuredModel} for task ${task.id}`);
+      
+      // Set up ephemeral agent configuration (reuse existing agent handler for MCP setup)
+      const setupResult = await this.agentHandler.createEphemeralAgentSetup(task);
+      
+      logger.info(`[SchedulerTaskExecutor] MCP setup complete for task ${task.id}: ${setupResult.mcpServerNames.length} servers, ${setupResult.availableToolsCount} tools`);
+      
+      // Create ephemeral agent configuration
+      const ephemeralAgent = {
+        scheduler: true,
+        workflow: true,
+        execute_code: false,
+        web_search: true,
+        mcp: setupResult.mcpServerNames
+      };
+      
+      // Update request for ephemeral agent (use configured model/endpoint instead of task's)
+      const { updateRequestForEphemeralAgent } = require('./utils/mockUtils');
+      updateRequestForEphemeralAgent(setupResult.mockReq, task, ephemeralAgent, configuredEndpoint, configuredModel);
+      
+      // Load ephemeral agent using configured endpoint
+      const { loadAgent } = require('~/models/Agent');
+      const agent = await loadAgent({
+        req: setupResult.mockReq,
+        agent_id: Constants.EPHEMERAL_AGENT_ID,
+        endpoint: configuredEndpoint,
+        model_parameters: { model: configuredModel }
+      });
+      
+      if (!agent) {
+        throw new Error('Failed to load ephemeral agent for scheduler task');
       }
-    });
-    
-    if (!response) {
-      throw new Error('No response received from agent');
+      
+      logger.info(`[SchedulerTaskExecutor] Loaded ephemeral agent for task ${task.id}: ${agent.tools?.length || 0} tools using ${endpointName}/${configuredModel}`);
+      
+      // === KEY CHANGE: Use agents endpoint instead of underlying endpoint ===
+      const endpointOption = this.clientFactory.createAgentsEndpointOption(agent, configuredModel);
+      
+      // Disable automatic title generation to preserve conversation flow
+      endpointOption.titleConvo = false;
+      
+      // Create minimal mock response for client initialization
+      const mockRes = createMinimalMockResponse();
+      
+      // Initialize the AGENTS client (not the underlying endpoint client)
+      const clientResult = await this.clientFactory.initializeClient({ 
+        req: setupResult.mockReq, 
+        res: mockRes, 
+        endpointOption 
+      });
+      
+      const client = clientResult.client;
+      
+      if (!client) {
+        throw new Error('Failed to initialize agents client for scheduler task');
+      }
+      
+      logger.info(`[SchedulerTaskExecutor] AgentClient initialized successfully for task ${task.id} using ${endpointName}/${configuredModel}`);
+      
+      // Execute using the agents client (automatically handles all tools)
+      const response = await client.sendMessage(task.prompt, {
+        user: task.user,
+        conversationId: task.conversation_id,
+        parentMessageId: task.parent_message_id,
+        onProgress: (data) => {
+          logger.debug(`[SchedulerTaskExecutor] Agent progress for task ${task.id}:`, data?.text?.substring(0, 100));
+        }
+      });
+      
+      if (!response) {
+        throw new Error('No response received from agent');
+      }
+      
+      logger.info(`[SchedulerTaskExecutor] Agent execution completed for task ${task.id}`);
+      
+      // Extract response text from agent response
+      const result = this.extractResponseText(response);
+      logger.info(`[SchedulerTaskExecutor] Extracted result for task ${task.id}: ${result?.substring(0, 200)}...`);
+      
+      return result;
+      
+    } catch (error) {
+      logger.error(`[SchedulerTaskExecutor] Ephemeral agent execution failed for task ${task.id}:`, error);
+      throw error;
     }
-    
-    logger.info(`[SchedulerTaskExecutor] Agent execution completed for task ${task.id}`);
-    
-    // Extract response text from agent response
-    return this.extractResponseText(response);
   }
 
   /**

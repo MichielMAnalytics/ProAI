@@ -53,9 +53,6 @@ router.get('/tasks', requireJwtAuth, async (req, res) => {
         next_run: task.next_run,
         conversation_id: task.conversation_id,
         parent_message_id: task.parent_message_id,
-        endpoint: task.endpoint,
-        ai_model: task.ai_model,
-        agent_id: task.agent_id,
         created_at: task.createdAt,
         updated_at: task.updatedAt,
       }))
@@ -103,9 +100,6 @@ router.get('/tasks/:taskId', requireJwtAuth, async (req, res) => {
         next_run: task.next_run,
         conversation_id: task.conversation_id,
         parent_message_id: task.parent_message_id,
-        endpoint: task.endpoint,
-        ai_model: task.ai_model,
-        agent_id: task.agent_id,
         created_at: task.createdAt,
         updated_at: task.updatedAt,
       }
@@ -154,9 +148,6 @@ router.put('/tasks/:taskId', requireJwtAuth, async (req, res) => {
         next_run: updatedTask.next_run,
         conversation_id: updatedTask.conversation_id,
         parent_message_id: updatedTask.parent_message_id,
-        endpoint: updatedTask.endpoint,
-        ai_model: updatedTask.ai_model,
-        agent_id: updatedTask.agent_id,
       }
     });
   } catch (error) {

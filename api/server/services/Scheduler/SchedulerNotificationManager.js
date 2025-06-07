@@ -119,6 +119,32 @@ class SchedulerNotificationManager {
   }
 
   /**
+   * Send conversation refresh notification to update UI
+   * @param {Object} task - The scheduler task
+   * @param {string} messageId - The message ID that was created
+   * @returns {Promise<void>}
+   */
+  async sendConversationRefreshNotification(task, messageId) {
+    try {
+      await SchedulerService.sendTaskStatusUpdate({
+        userId: task.user.toString(),
+        taskId: task.id,
+        taskName: task.name,
+        notificationType: 'conversation_refresh',
+        details: JSON.stringify({
+          conversationId: task.conversation_id,
+          messageId: messageId,
+          action: 'refresh_messages'
+        })
+      });
+      logger.debug(`[SchedulerNotificationManager] Sent conversation refresh notification for task ${task.id}`);
+    } catch (error) {
+      logger.warn(`[SchedulerNotificationManager] Failed to send conversation refresh notification: ${error.message}`);
+      // Don't fail the task execution if notification fails
+    }
+  }
+
+  /**
    * Send all notifications for a successful task completion
    * @param {Object} task - The scheduler task
    * @param {string} result - The task execution result
@@ -126,11 +152,28 @@ class SchedulerNotificationManager {
    * @returns {Promise<void>}
    */
   async sendSuccessNotifications(task, result, duration) {
-    // Send result message to user (critical)
-    await this.sendTaskResultMessage(task, result);
+    // For tasks that execute within a conversation context (have conversation_id),
+    // the agent execution already creates a message in the conversation via client.sendMessage().
+    // We should NOT send an additional scheduler message to avoid duplicates.
+    // Only send scheduler messages for:
+    // 1. Tasks without conversation_id (standalone tasks)
+    // 2. Tasks that don't execute through agents (direct endpoint execution)
     
-    // Note: We intentionally skip sendTaskCompletedNotification here to avoid duplicate notifications
-    // The task result message already indicates successful completion
+    const hasConversationContext = task.conversation_id && task.conversation_id !== '00000000-0000-0000-0000-000000000000';
+    
+    if (!hasConversationContext) {
+      // This is a standalone task (no conversation context), send the result message
+      logger.debug(`[SchedulerNotificationManager] Sending task result message for standalone task ${task.id}`);
+      await this.sendTaskResultMessage(task, result);
+    } else {
+      // This task executed within a conversation context, the result is already in the conversation
+      // Send a conversation refresh notification to update the UI instead
+      logger.debug(`[SchedulerNotificationManager] Sending conversation refresh notification for task ${task.id} in conversation ${task.conversation_id}`);
+      await this.sendConversationRefreshNotification(task, null); // messageId will be determined by the client
+    }
+    
+    // Always send status update notification (SSE only, no conversation message)
+    await this.sendTaskCompletedNotification(task, duration);
   }
 
   /**
@@ -141,10 +184,25 @@ class SchedulerNotificationManager {
    * @returns {Promise<void>}
    */
   async sendFailureNotifications(task, error, duration) {
-    // Send failure message to user (less critical than status)
-    await this.sendTaskFailureMessage(task, error);
+    // For tasks that execute within a conversation context (have conversation_id),
+    // we should be more careful about sending failure messages to avoid duplicates.
+    // However, unlike success cases, failures might not always create conversation messages,
+    // so we'll still send failure messages but with more context.
     
-    // Send status notification (non-critical)
+    const hasConversationContext = task.conversation_id && task.conversation_id !== '00000000-0000-0000-0000-000000000000';
+    
+    if (!hasConversationContext) {
+      // This is a standalone task (no conversation context), send the failure message
+      logger.debug(`[SchedulerNotificationManager] Sending task failure message for standalone task ${task.id}`);
+      await this.sendTaskFailureMessage(task, error);
+    } else {
+      // This task executed within a conversation context
+      // For now, still send failure messages as they may not always be captured in conversation
+      logger.debug(`[SchedulerNotificationManager] Sending task failure message for conversation task ${task.id} in conversation ${task.conversation_id}`);
+      await this.sendTaskFailureMessage(task, error);
+    }
+    
+    // Always send status notification (SSE only, no conversation message)
     await this.sendTaskFailedNotification(task, duration, error);
   }
 }

@@ -399,13 +399,38 @@ export default function useChatHelpers(index = 0, paramId?: string) {
               updated: '✏️ Task updated',
               deleted: '🗑️ Task deleted',
               enabled: '▶️ Task enabled',
-              disabled: '⏸️ Task disabled'
+              disabled: '⏸️ Task disabled',
+              conversation_refresh: '🔄 Task completed'
             };
             
             const message = statusMessages[data.notificationType] || '📋 Task updated';
             
+            // Handle conversation refresh for tasks that executed in conversation context
+            if (data.notificationType === 'conversation_refresh') {
+              console.log('[SchedulerSSE] 🔄 Processing conversation refresh notification');
+              try {
+                const details = JSON.parse(data.details || '{}');
+                if (details.conversationId) {
+                  console.log('[SchedulerSSE] 🔄 Refreshing messages for conversation:', details.conversationId);
+                  console.log('[SchedulerSSE] Current conversation ID:', conversationId);
+                  
+                  // Refresh the conversation messages to show the new scheduler result
+                  if (details.conversationId === conversationId) {
+                    console.log('[SchedulerSSE] ⚡ Refetching current conversation messages');
+                    queryClient.refetchQueries([QueryKeys.messages, details.conversationId]);
+                  } else {
+                    console.log('[SchedulerSSE] 📝 Invalidating background conversation messages');
+                    // Also invalidate for background conversations to refresh when user navigates
+                    queryClient.invalidateQueries([QueryKeys.messages, details.conversationId]);
+                  }
+                }
+              } catch (error) {
+                console.error('[SchedulerSSE] Error parsing conversation refresh details:', error);
+              }
+            }
+            
             // Only show toast for certain operations to avoid spam
-            const showToastFor = ['started', 'completed', 'failed', 'created', 'deleted'];
+            const showToastFor = ['started', 'completed', 'failed', 'created', 'deleted', 'conversation_refresh'];
             if (showToastFor.includes(data.notificationType)) {
               showToast({
                 message: `${message}: ${data.taskName}`,

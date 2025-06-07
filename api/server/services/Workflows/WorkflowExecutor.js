@@ -23,6 +23,7 @@ const SchedulerClientFactory = require('~/server/services/Scheduler/SchedulerCli
  * - Execution flow control (success/failure paths)
  * - Dynamic MCP server initialization
  * - Dedicated workflow execution conversation management
+ * - Workflow-level agent initialization and reuse across steps
  * 
  * CONVERSATION MANAGEMENT:
  * - Creates a dedicated conversation for each workflow execution
@@ -99,6 +100,7 @@ class WorkflowExecutor {
     const workflowId = workflow.id;
     const executionId = execution.id;
     const userId = execution.user;
+    let executionContext = null; // Initialize here to ensure it's in scope for error handling
 
     try {
       logger.info(`[WorkflowExecutor] Starting workflow execution: ${workflowId}`);
@@ -169,8 +171,99 @@ class WorkflowExecutor {
         logger.info(`[WorkflowExecutor] Created dedicated execution conversation: ${workflowExecutionConversationId} with title: ${workflowExecutionTitle}`);
       }
 
-      // Initialize execution context with MCP tools and dedicated conversation
-      let executionContext = {
+      // Initialize workflow-level agent for reuse across all steps
+      let workflowAgent = null;
+      let workflowClient = null;
+      
+      if (mcpResult.success && mcpResult.toolCount > 0) {
+        try {
+          logger.info(`[WorkflowExecutor] Initializing workflow-level agent with ${mcpResult.toolCount} MCP tools`);
+          
+          // Get the configured model and endpoint
+          const config = await this.getConfiguredModelAndEndpoint();
+          const { model: configuredModel, endpoint: configuredEndpoint, endpointName } = config;
+          
+          // Create mock request for agent initialization with proper MCP context
+          const mockReq = this.createMockRequestForWorkflow(
+            { name: 'Workflow Agent', config: {} }, 
+            { 
+              workflow: { conversationId: workflowExecutionConversationId },
+              mcp: { availableTools: mcpResult.availableTools }
+            }, 
+            userId, 
+            'Workflow execution agent', 
+            configuredModel, 
+            configuredEndpoint
+          );
+          
+          // Extract MCP server names from available tools
+          const mcpServerNames = this.extractMCPServerNames(mcpResult.availableTools);
+          
+          // Create ephemeral agent configuration
+          const ephemeralAgent = {
+            workflow: true,
+            execute_code: false,
+            web_search: false,
+            mcp: mcpServerNames
+          };
+          
+          // Update request for ephemeral agent
+          const underlyingEndpoint = configuredEndpoint;
+          const underlyingModel = configuredModel;
+          
+          updateRequestForEphemeralAgent(mockReq, {
+            prompt: 'Workflow execution agent',
+            user: userId,
+            conversation_id: workflowExecutionConversationId,
+            parent_message_id: null,
+          }, ephemeralAgent, underlyingEndpoint, underlyingModel);
+          
+          // Load ephemeral agent
+          const agent = await loadAgent({
+            req: mockReq,
+            agent_id: Constants.EPHEMERAL_AGENT_ID,
+            endpoint: underlyingEndpoint,
+            model_parameters: { model: underlyingModel }
+          });
+          
+          if (agent) {
+            logger.info(`[WorkflowExecutor] Loaded workflow-level agent with ${agent.tools?.length || 0} tools using ${endpointName}/${underlyingModel}`);
+            
+            // Initialize client factory and create agents endpoint option
+            const clientFactory = new SchedulerClientFactory();
+            const endpointOption = clientFactory.createAgentsEndpointOption(agent, underlyingModel);
+            
+            // Disable automatic title generation to preserve our custom workflow execution title
+            endpointOption.titleConvo = false;
+            
+            // Create minimal mock response for client initialization
+            const mockRes = createMinimalMockResponse();
+            
+            // Initialize the agents client
+            const { client } = await clientFactory.initializeClient({ 
+              req: mockReq, 
+              res: mockRes, 
+              endpointOption 
+            });
+            
+            if (client) {
+              workflowAgent = agent;
+              workflowClient = client;
+              logger.info(`[WorkflowExecutor] Workflow-level agent and client initialized successfully`);
+            } else {
+              logger.warn(`[WorkflowExecutor] Failed to initialize workflow-level client`);
+            }
+          } else {
+            logger.warn(`[WorkflowExecutor] Failed to load workflow-level agent`);
+          }
+        } catch (error) {
+          logger.error(`[WorkflowExecutor] Failed to initialize workflow-level agent:`, error);
+          // Continue without workflow-level agent - steps will fall back to individual initialization
+        }
+      }
+
+      // Initialize execution context with MCP tools, dedicated conversation, and workflow-level agent
+      executionContext = {
         ...context,
         workflow: {
           id: workflowId,
@@ -178,6 +271,9 @@ class WorkflowExecutor {
           // Use dedicated conversation for all workflow execution logging
           conversationId: workflowExecutionConversationId,
           parentMessageId: null, // Start fresh in the execution conversation
+          // Store workflow-level agent and client for reuse
+          agent: workflowAgent,
+          client: workflowClient,
         },
         execution: {
           id: executionId,
@@ -193,11 +289,12 @@ class WorkflowExecutor {
         variables: {},
       };
 
-      // Update execution record
+      // Update execution record with serializable context
+      const serializableContext = this.createSerializableContext(executionContext);
       await updateSchedulerExecution(executionId, execution.user, {
         status: 'running',
         startTime: new Date(),
-        context: executionContext,
+        context: serializableContext,
       });
 
       // Find the first step (usually the one without any incoming connections)
@@ -214,12 +311,32 @@ class WorkflowExecutor {
         executionContext
       );
 
+      // Clean up workflow-level agent resources
+      if (executionContext.workflow?.client) {
+        try {
+          // Note: AgentClient typically doesn't require explicit cleanup
+          // but we can add any necessary cleanup here in the future
+          logger.debug(`[WorkflowExecutor] Workflow-level agent cleanup completed for ${workflowId}`);
+        } catch (cleanupError) {
+          logger.warn(`[WorkflowExecutor] Error during workflow-level agent cleanup:`, cleanupError);
+        }
+      }
+
       // Clean up tracking
       this.runningExecutions.delete(executionId);
 
       logger.info(`[WorkflowExecutor] Workflow execution completed: ${workflowId}`);
       return result;
     } catch (error) {
+      // Clean up workflow-level agent resources in error case
+      try {
+        if (executionContext && executionContext.workflow?.client) {
+          logger.debug(`[WorkflowExecutor] Workflow-level agent cleanup in error case for ${workflowId}`);
+        }
+      } catch (cleanupError) {
+        logger.warn(`[WorkflowExecutor] Error during workflow-level agent cleanup in error case:`, cleanupError);
+      }
+
       // Clean up tracking
       this.runningExecutions.delete(executionId);
 
@@ -271,7 +388,10 @@ class WorkflowExecutor {
 
       // Update execution context with step result
       context.steps[step.id] = stepResult;
-      await updateSchedulerExecution(execution.id, execution.user, { context });
+      
+      // Create a clean, serializable version of context for database storage
+      const serializableContext = this.createSerializableContext(context);
+      await updateSchedulerExecution(execution.id, execution.user, { context: serializableContext });
 
       // Update current step in execution
       await updateSchedulerExecution(execution.id, execution.user, {
@@ -768,7 +888,7 @@ INSTRUCTIONS:`;
   }
 
   /**
-   * Execute a step using agent with MCP tools (similar to scheduler approach)
+   * Execute a step using agent with MCP tools (reuses workflow-level agent when available)
    * @param {Object} step - Workflow step
    * @param {string} prompt - Task prompt
    * @param {Object} context - Execution context
@@ -779,73 +899,97 @@ INSTRUCTIONS:`;
     logger.info(`[WorkflowExecutor] Executing step "${step.name}" with agent`);
     
     try {
-      // Get the configured model and endpoint
-      const config = await this.getConfiguredModelAndEndpoint();
-      const { model: configuredModel, endpoint: configuredEndpoint, endpointName } = config;
+      let agent, client, configuredModel, configuredEndpoint, endpointName;
       
-      // Create mock request and setup ephemeral agent (similar to scheduler)
-      const mockReq = this.createMockRequestForWorkflow(step, context, userId, prompt, configuredModel, configuredEndpoint);
-      
-      // Extract MCP server names from available tools
-      const mcpServerNames = this.extractMCPServerNames(context.mcp.availableTools);
-      
-      // Create ephemeral agent configuration
-      const ephemeralAgent = {
-        workflow: true,
-        execute_code: false,
-        web_search: false,
-        mcp: mcpServerNames
-      };
-      
-      // Update request for ephemeral agent
-      const underlyingEndpoint = configuredEndpoint;
-      const underlyingModel = configuredModel;
-      
-      updateRequestForEphemeralAgent(mockReq, {
-        prompt,
-        user: userId,
-        conversation_id: context.workflow?.conversationId,
-        parent_message_id: context.workflow?.parentMessageId,
-      }, ephemeralAgent, underlyingEndpoint, underlyingModel);
-      
-      // Load ephemeral agent
-      const agent = await loadAgent({
-        req: mockReq,
-        agent_id: Constants.EPHEMERAL_AGENT_ID,
-        endpoint: underlyingEndpoint,
-        model_parameters: { model: underlyingModel }
-      });
-      
-      if (!agent) {
-        throw new Error('Failed to load ephemeral agent for workflow step');
+      // Check if we have a workflow-level agent and client to reuse
+      if (context.workflow?.agent && context.workflow?.client) {
+        // Reuse workflow-level agent and client
+        agent = context.workflow.agent;
+        client = context.workflow.client;
+        
+        // Get the configured model and endpoint info for logging
+        const config = await this.getConfiguredModelAndEndpoint();
+        configuredModel = config.model;
+        configuredEndpoint = config.endpoint;
+        endpointName = config.endpointName;
+        
+        logger.info(`[WorkflowExecutor] Reusing workflow-level agent with ${agent.tools?.length || 0} tools for step "${step.name}"`);
+      } else {
+        // Fall back to individual step initialization (original behavior)
+        logger.warn(`[WorkflowExecutor] No workflow-level agent available, initializing new agent for step "${step.name}"`);
+        
+        // Get the configured model and endpoint
+        const config = await this.getConfiguredModelAndEndpoint();
+        configuredModel = config.model;
+        configuredEndpoint = config.endpoint;
+        endpointName = config.endpointName;
+        
+        // Create mock request and setup ephemeral agent (similar to scheduler)
+        const mockReq = this.createMockRequestForWorkflow(step, context, userId, prompt, configuredModel, configuredEndpoint);
+        
+        // Extract MCP server names from available tools
+        const mcpServerNames = this.extractMCPServerNames(context.mcp.availableTools);
+        
+        // Create ephemeral agent configuration
+        const ephemeralAgent = {
+          workflow: true,
+          execute_code: false,
+          web_search: false,
+          mcp: mcpServerNames
+        };
+        
+        // Update request for ephemeral agent
+        const underlyingEndpoint = configuredEndpoint;
+        const underlyingModel = configuredModel;
+        
+        updateRequestForEphemeralAgent(mockReq, {
+          prompt,
+          user: userId,
+          conversation_id: context.workflow?.conversationId,
+          parent_message_id: context.workflow?.parentMessageId,
+        }, ephemeralAgent, underlyingEndpoint, underlyingModel);
+        
+        // Load ephemeral agent
+        agent = await loadAgent({
+          req: mockReq,
+          agent_id: Constants.EPHEMERAL_AGENT_ID,
+          endpoint: underlyingEndpoint,
+          model_parameters: { model: underlyingModel }
+        });
+        
+        if (!agent) {
+          throw new Error('Failed to load ephemeral agent for workflow step');
+        }
+        
+        logger.info(`[WorkflowExecutor] Loaded ephemeral agent with ${agent.tools?.length || 0} tools using ${endpointName}/${underlyingModel}`);
+        
+        // Initialize client factory and create agents endpoint option
+        const clientFactory = new SchedulerClientFactory();
+        const endpointOption = clientFactory.createAgentsEndpointOption(agent, underlyingModel);
+        
+        // Disable automatic title generation to preserve our custom workflow execution title
+        endpointOption.titleConvo = false;
+        
+        // Create minimal mock response for client initialization
+        const mockRes = createMinimalMockResponse();
+        
+        // Initialize the agents client
+        const clientResult = await clientFactory.initializeClient({ 
+          req: mockReq, 
+          res: mockRes, 
+          endpointOption 
+        });
+        
+        client = clientResult.client;
+        
+        if (!client) {
+          throw new Error('Failed to initialize agents client for workflow step');
+        }
+        
+        logger.info(`[WorkflowExecutor] AgentClient initialized successfully for step "${step.name}"`);
       }
       
-      logger.info(`[WorkflowExecutor] Loaded ephemeral agent with ${agent.tools?.length || 0} tools using ${endpointName}/${underlyingModel}`);
-      
-      // Initialize client factory and create agents endpoint option
-      const clientFactory = new SchedulerClientFactory();
-      const endpointOption = clientFactory.createAgentsEndpointOption(agent, underlyingModel);
-      
-      // Disable automatic title generation to preserve our custom workflow execution title
-      endpointOption.titleConvo = false;
-      
-      // Create minimal mock response for client initialization
-      const mockRes = createMinimalMockResponse();
-      
-      // Initialize the agents client
-      const { client } = await clientFactory.initializeClient({ 
-        req: mockReq, 
-        res: mockRes, 
-        endpointOption 
-      });
-      
-      if (!client) {
-        throw new Error('Failed to initialize agents client for workflow step');
-      }
-      
-      logger.info(`[WorkflowExecutor] AgentClient initialized successfully for step "${step.name}"`);
-      
-      // Execute the step using the agent
+      // Execute the step using the agent (either reused or newly created)
       const response = await client.sendMessage(prompt, {
         user: userId,
         conversationId: context.workflow?.conversationId,
@@ -866,11 +1010,11 @@ INSTRUCTIONS:`;
       
       return {
         status: 'success',
-        message: `Successfully executed step "${step.name}" with agent using ${endpointName}/${underlyingModel}`,
+        message: `Successfully executed step "${step.name}" with ${context.workflow?.agent ? 'reused workflow-level' : 'new'} agent using ${endpointName}/${configuredModel}`,
         agentResponse: responseText,
         toolsUsed: agent.tools || [],
         mcpToolsCount: agent.tools?.filter(tool => tool.includes(Constants.mcp_delimiter)).length || 0,
-        modelUsed: underlyingModel,
+        modelUsed: configuredModel,
         endpointUsed: endpointName,
         timestamp: new Date().toISOString(),
         // Capture the response message ID for conversation threading
@@ -1107,6 +1251,44 @@ INSTRUCTIONS:`;
       executionId: id,
       ...data,
     }));
+  }
+
+  /**
+   * Create a serializable version of the execution context for database storage
+   * Removes non-serializable objects like agents and clients
+   * @param {Object} context - Execution context
+   * @returns {Object} Clean, serializable context
+   */
+  createSerializableContext(context) {
+    if (!context) return null;
+    
+    const serializable = {
+      ...context,
+      workflow: {
+        ...context.workflow,
+        // Remove non-serializable agent and client objects
+        agent: undefined,
+        client: undefined,
+        // Keep only essential workflow info
+        id: context.workflow?.id,
+        name: context.workflow?.name,
+        conversationId: context.workflow?.conversationId,
+        parentMessageId: context.workflow?.parentMessageId,
+      },
+      // Keep other context properties, ensuring they are serializable
+      execution: context.execution,
+      mcp: {
+        // Keep MCP info but remove the actual availableTools object which might have circular refs
+        available: context.mcp?.available,
+        toolCount: context.mcp?.toolCount,
+        serverCount: context.mcp?.serverCount,
+        // Don't store the actual availableTools object as it may contain circular references
+      },
+      steps: context.steps,
+      variables: context.variables,
+    };
+    
+    return serializable;
   }
 
   /**

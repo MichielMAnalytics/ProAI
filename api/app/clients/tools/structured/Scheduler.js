@@ -12,8 +12,7 @@ const {
   enableSchedulerTask,
   disableSchedulerTask
 } = require('~/models/SchedulerTask');
-const { getAgent } = require('~/models/Agent'); // Import getAgent to fetch agent details
-const { EModelEndpoint, Constants } = require('librechat-data-provider'); // Import EModelEndpoint for model endpoint and Constants for ephemeral agent ID
+const { EModelEndpoint } = require('librechat-data-provider'); // Import EModelEndpoint for model endpoint
 const { validateCronExpression, calculateNextRun } = require('~/server/services/Scheduler/utils/cronUtils'); // Use standardized cron utilities
 
 class SchedulerTool extends Tool {
@@ -164,20 +163,6 @@ class SchedulerTool extends Tool {
     }
 
     const taskId = `task_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
-    
-    const currentEndpoint = endpoint || this.endpoint;
-    const currentModel = model || this.model;
-
-    // For ephemeral agents, use the underlying endpoint instead of "agents"
-    let taskEndpoint = currentEndpoint;
-    let taskModel = currentModel;
-    
-    if (currentModel === Constants.EPHEMERAL_AGENT_ID && (currentEndpoint === EModelEndpoint.agents || currentEndpoint === 'agents')) {
-      // Default to OpenAI for ephemeral agents unless specified otherwise
-      taskEndpoint = EModelEndpoint.openAI;
-      taskModel = 'gpt-4o-mini'; // Default model for ephemeral agent tasks
-      logger.info(`[SchedulerTool] Converting ephemeral agent task to use underlying endpoint: ${taskEndpoint}, model: ${taskModel}`);
-    }
 
     const taskData = {
       id: taskId,
@@ -192,37 +177,10 @@ class SchedulerTool extends Tool {
       user: userId,
       conversation_id: conversationId,
       parent_message_id: parentMessageId,
-      endpoint: taskEndpoint,
     };
 
-    logger.info(`[SchedulerTool] Creating task with endpoint: ${taskEndpoint}, model: ${taskModel}`);
+    logger.info(`[SchedulerTool] Creating task: ${taskId} (${name}) - will use configured model/endpoint from librechat.yaml`);
     logger.debug(`[SchedulerTool] Task data:`, { ...taskData, prompt: prompt.substring(0, 100) + '...' });
-
-    // Handle agent_id and ai_model based on the original endpoint (before conversion)
-    if (currentEndpoint === EModelEndpoint.agents || currentEndpoint === 'agents') {
-      // For ephemeral agents, mark it as such but use underlying model
-      if (currentModel === Constants.EPHEMERAL_AGENT_ID) {
-        taskData.agent_id = Constants.EPHEMERAL_AGENT_ID;
-        taskData.ai_model = taskModel; // Store the underlying model
-        logger.debug(`[SchedulerTool] Using ephemeral agent with underlying model: ${taskModel}`);
-      } else {
-        // Regular agent - validate and store agent_id
-        taskData.agent_id = currentModel;
-        
-        try {
-          const agent = await getAgent({ id: currentModel, author: userId });
-          if (!agent) {
-            throw new Error(`Agent not found or access denied: ${currentModel}`);
-          }
-          logger.debug(`[SchedulerTool] Using agent: ${agent.name} (${currentModel})`);
-        } catch (error) {
-          logger.error(`[SchedulerTool] Agent validation failed:`, error);
-          throw new Error(`Failed to validate agent: ${error.message}`);
-        }
-      }
-    } else {
-      taskData.ai_model = taskModel;
-    }
 
     try {
       const task = await createSchedulerTask(taskData);
@@ -257,9 +215,6 @@ class SchedulerTool extends Tool {
           next_run: task.next_run,
           conversation_id: task.conversation_id,
           parent_message_id: task.parent_message_id,
-          endpoint: task.endpoint,
-          ai_model: task.ai_model,
-          agent_id: task.agent_id,
         }
       };
     } catch (error) {
@@ -287,9 +242,6 @@ class SchedulerTool extends Tool {
           next_run: task.next_run,
           conversation_id: task.conversation_id,
           parent_message_id: task.parent_message_id,
-          endpoint: task.endpoint,
-          ai_model: task.ai_model,
-          agent_id: task.agent_id,
         }))
       };
     } catch (error) {
@@ -328,9 +280,6 @@ class SchedulerTool extends Tool {
           next_run: task.next_run,
           conversation_id: task.conversation_id,
           parent_message_id: task.parent_message_id,
-          endpoint: task.endpoint,
-          ai_model: task.ai_model,
-          agent_id: task.agent_id,
           created_at: task.createdAt,
           updated_at: task.updatedAt,
         }
@@ -394,9 +343,6 @@ class SchedulerTool extends Tool {
           next_run: updatedTask.next_run,
           conversation_id: updatedTask.conversation_id,
           parent_message_id: updatedTask.parent_message_id,
-          endpoint: updatedTask.endpoint,
-          ai_model: updatedTask.ai_model,
-          agent_id: updatedTask.agent_id,
         }
       };
     } catch (error) {

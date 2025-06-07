@@ -14,9 +14,6 @@ export interface ISchedulerTask extends Document {
   user: Types.ObjectId;
   conversation_id?: string;
   parent_message_id?: string;
-  endpoint?: string;
-  ai_model?: string;
-  agent_id?: string;
   metadata?: {
     type?: 'task' | 'workflow';
     workflowId?: string;
@@ -88,16 +85,6 @@ const schedulerTaskSchema: Schema<ISchedulerTask> = new Schema(
     parent_message_id: {
       type: String,
     },
-    endpoint: {
-      type: String,
-    },
-    ai_model: {
-      type: String,
-    },
-    agent_id: {
-      type: String,
-      required: false,
-    },
     metadata: {
       type: Schema.Types.Mixed,
       default: function() {
@@ -116,6 +103,5 @@ schedulerTaskSchema.index({ user: 1 });
 schedulerTaskSchema.index({ enabled: 1, status: 1 });
 schedulerTaskSchema.index({ next_run: 1 });
 schedulerTaskSchema.index({ user: 1, enabled: 1 });
-schedulerTaskSchema.index({ user: 1, agent_id: 1 });
 
 export default schedulerTaskSchema; 
