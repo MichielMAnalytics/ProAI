@@ -41,6 +41,9 @@ function WebSearch({ conversationId }: { conversationId?: string | null }) {
     permission: Permissions.USE,
   });
   const [ephemeralAgent, setEphemeralAgent] = useRecoilState(ephemeralAgentByConvoId(key));
+  const isWebSearchToggleEnabled = useMemo(() => {
+    return ephemeralAgent?.web_search ?? true;
+  }, [ephemeralAgent?.web_search]);
 
   const { data } = useVerifyAgentToolAuth(
     { toolId: Tools.web_search },
@@ -65,7 +68,7 @@ function WebSearch({ conversationId }: { conversationId?: string | null }) {
 
   const [webSearch, setWebSearch] = useLocalStorage<boolean>(
     `${LocalStorageKeys.LAST_WEB_SEARCH_TOGGLE_}${key}`,
-    true, // Static default value - localStorage will override this if it exists
+    isWebSearchToggleEnabled,
     setValue,
     storageCondition,
   );
