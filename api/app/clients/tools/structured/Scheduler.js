@@ -2,6 +2,7 @@ const { z } = require('zod');
 const { Tool } = require('@langchain/core/tools');
 const { v4: uuidv4 } = require('uuid');
 const { logger } = require('~/config');
+const { EModelEndpoint } = require('librechat-data-provider');
 const SchedulerService = require('~/server/services/Scheduler/SchedulerService');
 const { 
   createSchedulerTask, 
@@ -12,7 +13,6 @@ const {
   enableSchedulerTask,
   disableSchedulerTask
 } = require('~/models/SchedulerTask');
-const { EModelEndpoint } = require('librechat-data-provider'); // Import EModelEndpoint for model endpoint
 const { validateCronExpression, calculateNextRun } = require('~/server/services/Scheduler/utils/cronUtils'); // Use standardized cron utilities
 
 class SchedulerTool extends Tool {
@@ -164,6 +164,33 @@ class SchedulerTool extends Tool {
 
     const taskId = `task_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
 
+    // Determine the correct endpoint, model, and agent_id to store
+    let taskEndpoint = endpoint;
+    let taskModel = model;
+    let taskAgentId = null;
+
+    // Check if we're in an agent context
+    if (endpoint === 'agents' && model) {
+      // In agent context, the model is actually the agent_id
+      taskEndpoint = EModelEndpoint.agents;
+      taskAgentId = model;
+      // For agents, we'll use the underlying model from the agent during execution
+      taskModel = null; // Will be determined during execution based on agent
+      logger.info(`[SchedulerTool] Creating task with agent context: agent_id=${taskAgentId}`);
+    } else if (endpoint && model) {
+      // Regular endpoint context
+      taskEndpoint = endpoint;
+      taskModel = model;
+      taskAgentId = null;
+      logger.info(`[SchedulerTool] Creating task with endpoint context: endpoint=${taskEndpoint}, model=${taskModel}`);
+    } else {
+      // Fallback to default values (shouldn't happen in normal operation)
+      taskEndpoint = EModelEndpoint.openAI;
+      taskModel = 'gpt-4o-mini';
+      taskAgentId = null;
+      logger.warn(`[SchedulerTool] Using fallback values for task ${taskId}: endpoint=${taskEndpoint}, model=${taskModel}`);
+    }
+
     const taskData = {
       id: taskId,
       name,
@@ -177,9 +204,13 @@ class SchedulerTool extends Tool {
       user: userId,
       conversation_id: conversationId,
       parent_message_id: parentMessageId,
+      // Store the current conversation's model/endpoint/agent context
+      endpoint: taskEndpoint,
+      ai_model: taskModel,
+      agent_id: taskAgentId,
     };
 
-    logger.info(`[SchedulerTool] Creating task: ${taskId} (${name}) - will use configured model/endpoint from librechat.yaml`);
+    logger.info(`[SchedulerTool] Creating task: ${taskId} (${name}) - will use stored context: endpoint=${taskEndpoint}, model=${taskModel}, agent_id=${taskAgentId}`);
     logger.debug(`[SchedulerTool] Task data:`, { ...taskData, prompt: prompt.substring(0, 100) + '...' });
 
     try {
@@ -203,7 +234,7 @@ class SchedulerTool extends Tool {
       
       return {
         success: true,
-        message: `Task "${name}" created successfully. ${do_only_once ? 'It will run once' : 'It will run repeatedly'} according to schedule: ${schedule}`,
+        message: `Task "${name}" created successfully. ${do_only_once ? 'It will run once' : 'It will run repeatedly'} according to schedule: ${schedule}. Will use ${taskAgentId ? `agent ${taskAgentId}` : `${taskEndpoint}/${taskModel}`} for execution.`,
         task: {
           id: task.id,
           name: task.name,
@@ -215,6 +246,9 @@ class SchedulerTool extends Tool {
           next_run: task.next_run,
           conversation_id: task.conversation_id,
           parent_message_id: task.parent_message_id,
+          endpoint: task.endpoint,
+          ai_model: task.ai_model,
+          agent_id: task.agent_id,
         }
       };
     } catch (error) {
@@ -242,6 +276,9 @@ class SchedulerTool extends Tool {
           next_run: task.next_run,
           conversation_id: task.conversation_id,
           parent_message_id: task.parent_message_id,
+          endpoint: task.endpoint,
+          ai_model: task.ai_model,
+          agent_id: task.agent_id,
         }))
       };
     } catch (error) {
@@ -280,6 +317,9 @@ class SchedulerTool extends Tool {
           next_run: task.next_run,
           conversation_id: task.conversation_id,
           parent_message_id: task.parent_message_id,
+          endpoint: task.endpoint,
+          ai_model: task.ai_model,
+          agent_id: task.agent_id,
           created_at: task.createdAt,
           updated_at: task.updatedAt,
         }

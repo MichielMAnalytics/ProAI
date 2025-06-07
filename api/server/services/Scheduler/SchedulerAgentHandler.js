@@ -9,52 +9,6 @@ class SchedulerAgentHandler {
   }
 
   /**
-   * Determine if we should use ephemeral agent pattern for a task
-   * Only switch to ephemeral agent for non-agent tasks that have MCP tools
-   * @param {Object} task - The scheduler task
-   * @returns {Promise<boolean>} True if should use ephemeral agent
-   */
-  async shouldUseEphemeralAgent(task) {
-    logger.info(`[SchedulerAgentHandler] Checking if task ${task.id} should use ephemeral agent`);
-    logger.debug(`[SchedulerAgentHandler] Task agent_id: ${task.agent_id}, user: ${task.user}`);
-    
-    // If task already has an agent_id, it's a real agent task - don't convert it
-    if (task.agent_id) {
-      logger.info(`[SchedulerAgentHandler] Task ${task.id} has agent_id ${task.agent_id}, using real agent`);
-      return false;
-    }
-    
-    // For non-agent tasks, check if user has MCP tools
-    logger.info(`[SchedulerAgentHandler] Task ${task.id} has no agent_id, checking for MCP tools for user ${task.user}`);
-    
-    const MCPInitializer = require('~/server/services/MCPInitializer');
-    const mcpInitializer = MCPInitializer.getInstance();
-    
-    logger.debug(`[SchedulerAgentHandler] Calling ensureUserMCPReady for user ${task.user}`);
-    
-    const mcpResult = await mcpInitializer.ensureUserMCPReady(
-      task.user, 
-      'SchedulerAgentHandler.shouldUseEphemeralAgent',
-      {}
-    );
-    
-    logger.info(`[SchedulerAgentHandler] MCP initialization result for user ${task.user}:`, {
-      success: mcpResult.success,
-      serverCount: mcpResult.serverCount,
-      toolCount: mcpResult.toolCount,
-      error: mcpResult.error
-    });
-    
-    if (mcpResult.toolCount > 0) {
-      logger.info(`[SchedulerAgentHandler] Found ${mcpResult.toolCount} MCP tools for user ${task.user}, switching to ephemeral agent`);
-      return true;
-    }
-    
-    logger.info(`[SchedulerAgentHandler] No MCP tools found for user ${task.user}, using direct endpoint`);
-    return false;
-  }
-
-  /**
    * Load agent for a scheduler task
    * @param {Object} task - The scheduler task
    * @returns {Promise<Object|null>} Loaded agent or null if not found
@@ -98,19 +52,24 @@ class SchedulerAgentHandler {
   async createEphemeralAgentSetup(task) {
     logger.info(`[SchedulerAgentHandler] Creating ephemeral agent setup for task ${task.id}`);
     
+    // Ensure user ID is properly formatted as string (convert from ObjectId if needed)
+    const userId = task.user.toString();
+    logger.debug(`[SchedulerAgentHandler] Converted user ID: ${userId} (type: ${typeof userId})`);
+    
     // Create mock request structure for agent initialization
     const mockReq = createMockRequest(task);
     logger.debug(`[SchedulerAgentHandler] Created mock request for task ${task.id}`);
+    logger.debug(`[SchedulerAgentHandler] Mock request user ID: ${mockReq.user.id} (type: ${typeof mockReq.user.id})`);
     logger.debug(`[SchedulerAgentHandler] Initial availableTools count: ${Object.keys(mockReq.app.locals.availableTools).length}`);
     
-    // Initialize MCP tools and populate availableTools
+    // Initialize MCP tools and populate availableTools using the standardized initialization
     const MCPInitializer = require('~/server/services/MCPInitializer');
     const mcpInitializer = MCPInitializer.getInstance();
     
-    logger.info(`[SchedulerAgentHandler] Calling ensureUserMCPReady for user ${task.user} with availableTools reference`);
+    logger.info(`[SchedulerAgentHandler] Calling ensureUserMCPReady for user ${userId} with availableTools reference`);
     
     const mcpResult = await mcpInitializer.ensureUserMCPReady(
-      task.user, 
+      userId, // Use the properly formatted string user ID
       'SchedulerAgentHandler.createEphemeralAgentSetup',
       mockReq.app.locals.availableTools
     );
@@ -120,7 +79,8 @@ class SchedulerAgentHandler {
       serverCount: mcpResult.serverCount,
       toolCount: mcpResult.toolCount,
       error: mcpResult.error,
-      finalAvailableToolsCount: Object.keys(mockReq.app.locals.availableTools).length
+      finalAvailableToolsCount: Object.keys(mockReq.app.locals.availableTools).length,
+      cached: mcpResult.cached
     });
     
     if (!mcpResult.success) {
@@ -141,6 +101,11 @@ class SchedulerAgentHandler {
     if (mcpServerNames.length === 0) {
       logger.warn(`[SchedulerAgentHandler] No MCP server names extracted despite ${Object.keys(mockReq.app.locals.availableTools).length} available tools`);
       logger.warn(`[SchedulerAgentHandler] Available tool keys: ${availableToolKeys.join(', ')}`);
+      
+      // Check if MCP was supposed to be successful but we got no tools
+      if (mcpResult.success && mcpResult.serverCount > 0) {
+        logger.error(`[SchedulerAgentHandler] CRITICAL: MCP reported success with ${mcpResult.serverCount} servers but no tools extracted!`);
+      }
     }
     
     // Set up ephemeral agent configuration

@@ -194,16 +194,16 @@ const loadTools = async ({
       
       logger.info(`[SchedulerTool] Detection logic - reqEndpoint: ${reqEndpoint}, reqModel: ${reqModel}, hasAgent: ${!!(agent && agent.id)}, agentId: ${agent?.id}`);
       
-      if (agent && agent.id) {
-        // Running within an agent context
+      if (agent && agent.id && agent.id !== 'ephemeral') {
+        // Running within a real user-created agent context
         toolEndpoint = 'agents';
         toolModel = agent.id;
-        logger.info(`[SchedulerTool] Using agent context - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+        logger.info(`[SchedulerTool] Using real agent context - endpoint: ${toolEndpoint}, model: ${toolModel}`);
       } else if (reqEndpoint && reqModel) {
-        // Running within an endpoint context
+        // Running within an endpoint context (including when ephemeral agent is present)
         toolEndpoint = reqEndpoint;
         toolModel = reqModel;
-        logger.info(`[SchedulerTool] Using request context - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+        logger.info(`[SchedulerTool] Using request context - endpoint: ${toolEndpoint}, model: ${toolModel}${agent?.id === 'ephemeral' ? ' (ephemeral agent present but using underlying context)' : ''}`);
       } else if (options.req?.body?.endpointOption) {
         // Fallback to endpointOption
         const endpointOption = options.req.body.endpointOption;
@@ -256,16 +256,16 @@ const loadTools = async ({
       
       logger.info(`[WorkflowTool] Detection logic - reqEndpoint: ${reqEndpoint}, reqModel: ${reqModel}, hasAgent: ${!!(agent && agent.id)}, agentId: ${agent?.id}`);
       
-      if (agent && agent.id) {
-        // Running within an agent context
+      if (agent && agent.id && agent.id !== 'ephemeral') {
+        // Running within a real user-created agent context
         toolEndpoint = 'agents';
         toolModel = agent.id;
-        logger.info(`[WorkflowTool] Using agent context - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+        logger.info(`[WorkflowTool] Using real agent context - endpoint: ${toolEndpoint}, model: ${toolModel}`);
       } else if (reqEndpoint && reqModel) {
-        // Running within an endpoint context
+        // Running within an endpoint context (including when ephemeral agent is present)
         toolEndpoint = reqEndpoint;
         toolModel = reqModel;
-        logger.info(`[WorkflowTool] Using request context - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+        logger.info(`[WorkflowTool] Using request context - endpoint: ${toolEndpoint}, model: ${toolModel}${agent?.id === 'ephemeral' ? ' (ephemeral agent present but using underlying context)' : ''}`);
       } else if (options.req?.body?.endpointOption) {
         // Fallback to endpointOption
         const endpointOption = options.req.body.endpointOption;
