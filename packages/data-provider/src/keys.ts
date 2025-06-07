@@ -46,6 +46,7 @@ export enum QueryKeys {
   health = 'health',
   userTerms = 'userTerms',
   banner = 'banner',
+<<<<<<< HEAD
   // Integrations
   integrationsStatus = 'integrationsStatus',
   availableIntegrations = 'availableIntegrations',
@@ -64,6 +65,8 @@ export enum QueryKeys {
   workflow = 'workflow',
   workflowExecutions = 'workflowExecutions',
   workflowExecution = 'workflowExecution',
+  /* Memories */
+  memories = 'memories',
 }
 
 export enum MutationKeys {
@@ -88,6 +91,7 @@ export enum MutationKeys {
   updateRole = 'updateRole',
   enableTwoFactor = 'enableTwoFactor',
   verifyTwoFactor = 'verifyTwoFactor',
+<<<<<<< HEAD
   // Integrations
   createConnectToken = 'createConnectToken',
   integrationCallback = 'integrationCallback',
@@ -97,4 +101,5 @@ export enum MutationKeys {
   deployTrigger = 'deployTrigger',
   connectMCPServer = 'connectMCPServer',
   disconnectMCPServer = 'disconnectMCPServer',
+  updateMemoryPreferences = 'updateMemoryPreferences',
 }

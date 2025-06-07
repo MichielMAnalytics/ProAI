@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { MessageSquareQuote, ArrowRightToLine, Settings2, Bookmark, Calendar, Workflow } from 'lucide-react';
+import { MessageSquareQuote, ArrowRightToLine, Settings2, Database, Bookmark, Calendar, Workflow } from 'lucide-react';
 import {
   isAssistantsEndpoint,
   isAgentsEndpoint,
@@ -14,6 +14,7 @@ import AgentPanelSwitch from '~/components/SidePanel/Agents/AgentPanelSwitch';
 import BookmarkPanel from '~/components/SidePanel/Bookmarks/BookmarkPanel';
 import SchedulesPanel from '~/components/SidePanel/Schedules/SchedulesPanel';
 import WorkflowsPanel from '~/components/SidePanel/Workflows/WorkflowsPanel';
+import MemoryViewer from '~/components/SidePanel/Memories/MemoryViewer';
 import PanelSwitch from '~/components/SidePanel/Builder/PanelSwitch';
 import PromptsAccordion from '~/components/Prompts/PromptsAccordion';
 import Parameters from '~/components/SidePanel/Parameters/Panel';
@@ -51,6 +52,14 @@ export default function useSideNavLinks({
   const hasAccessToWorkflows = useHasAccess({
     permissionType: PermissionTypes.WORKFLOWS,
     permission: Permissions.USE,
+  });
+  const hasAccessToMemories = useHasAccess({
+    permissionType: PermissionTypes.MEMORIES,
+    permission: Permissions.USE,
+  });
+  const hasAccessToReadMemories = useHasAccess({
+    permissionType: PermissionTypes.MEMORIES,
+    permission: Permissions.READ,
   });
   const hasAccessToAgents = useHasAccess({
     permissionType: PermissionTypes.AGENTS,
@@ -105,6 +114,16 @@ export default function useSideNavLinks({
         icon: MessageSquareQuote,
         id: 'prompts',
         Component: PromptsAccordion,
+      });
+    }
+
+    if (hasAccessToMemories && hasAccessToReadMemories) {
+      links.push({
+        title: 'com_ui_memories',
+        label: '',
+        icon: Database,
+        id: 'memories',
+        Component: MemoryViewer,
       });
     }
 
@@ -188,6 +207,8 @@ export default function useSideNavLinks({
     endpoint,
     hasAccessToAgents,
     hasAccessToPrompts,
+    hasAccessToMemories,
+    hasAccessToReadMemories,
     hasAccessToBookmarks,
     hasAccessToSchedules,
     hasAccessToWorkflows,

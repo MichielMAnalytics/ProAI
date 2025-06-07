@@ -59,3 +59,4 @@ export { default as CircleHelpIcon } from './CircleHelpIcon';
 export { default as BedrockIcon } from './BedrockIcon';
 export { default as XAIcon } from './XAIcon';
 export { default as MCPIcon } from '../ui/MCPIcon';
+export { default as PersonalizationIcon } from './PersonalizationIcon';

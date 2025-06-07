@@ -141,6 +141,15 @@ const userSchema = new Schema<IUser>(
       type: Boolean,
       default: false,
     },
+    personalization: {
+      type: {
+        memories: {
+          type: Boolean,
+          default: true,
+        },
+      },
+      default: {},
+    },
   },
   { timestamps: true },
 );

@@ -4,10 +4,11 @@ import { MessageSquare, Command } from 'lucide-react';
 import { SettingsTabValues } from 'librechat-data-provider';
 import type { TDialogProps } from '~/common';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import { GearIcon, DataIcon, SpeechIcon, UserIcon, ExperimentIcon } from '~/components/svg';
-import { General, Chat, Speech, Beta, Commands, Data, Account } from './SettingsTabs';
+import { GearIcon, DataIcon, SpeechIcon, UserIcon, ExperimentIcon, PersonalizationIcon } from '~/components/svg';
+import { General, Chat, Speech, Beta, Commands, Data, Account, Personalization } from './SettingsTabs';
 import { useMediaQuery, useLocalize, TranslationKeys } from '~/hooks';
 import { useGetStartupConfig } from '~/data-provider';
+import usePersonalizationAccess from '~/hooks/usePersonalizationAccess';
 import { cn } from '~/utils';
 
 export default function Settings({ open, onOpenChange }: TDialogProps) {
@@ -16,6 +17,7 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
   const [activeTab, setActiveTab] = useState(SettingsTabValues.GENERAL);
   const tabRefs = useRef({});
   const { data: startupConfig } = useGetStartupConfig();
+  const { hasAnyPersonalizationFeature, hasMemoryOptOut } = usePersonalizationAccess();
 
   const settingsTabsConfig = startupConfig?.interface?.settingsTabs || {
     general: true,
@@ -31,7 +33,7 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
     value: SettingsTabValues;
     icon: React.JSX.Element;
     label: TranslationKeys;
-    configKey: keyof typeof settingsTabsConfig;
+    configKey?: keyof typeof settingsTabsConfig;
   }[] = [
     {
       value: SettingsTabValues.GENERAL,
@@ -63,6 +65,11 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
       label: 'com_nav_setting_speech',
       configKey: 'speech',
     },
+    ...(hasAnyPersonalizationFeature ? [{
+      value: SettingsTabValues.PERSONALIZATION,
+      icon: <PersonalizationIcon />,
+      label: 'com_nav_personalization',
+    }] : []),
     {
       value: SettingsTabValues.DATA,
       icon: <DataIcon />,
@@ -78,8 +85,8 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
   ];
 
   const settingsTabs = useMemo(() => {
-    return allSettingsTabs.filter(tab => settingsTabsConfig[tab.configKey] !== false);
-  }, [settingsTabsConfig]);
+    return allSettingsTabs.filter(tab => !tab.configKey || settingsTabsConfig[tab.configKey] !== false);
+  }, [settingsTabsConfig, hasAnyPersonalizationFeature]);
 
   const tabs = useMemo(() => {
     return settingsTabs.map(tab => tab.value);
@@ -235,6 +242,11 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
                     {settingsTabsConfig.speech !== false && (
                       <Tabs.Content value={SettingsTabValues.SPEECH}>
                         <Speech />
+                      </Tabs.Content>
+                    )}
+                    {hasAnyPersonalizationFeature && (
+                      <Tabs.Content value={SettingsTabValues.PERSONALIZATION}>
+                        <Personalization />
                       </Tabs.Content>
                     )}
                     {settingsTabsConfig.data !== false && (

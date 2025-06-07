@@ -24,6 +24,7 @@ export enum Tools {
   scheduler = 'scheduler',
   retrieval = 'retrieval',
   function = 'function',
+  memory = 'memory',
 }
 
 export enum EToolResources {

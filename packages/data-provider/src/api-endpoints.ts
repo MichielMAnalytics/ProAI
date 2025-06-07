@@ -254,6 +254,7 @@ export const getAllPromptGroups = () => `${prompts()}/all`;
 export const roles = () => '/api/roles';
 export const getRole = (roleName: string) => `${roles()}/${roleName.toLowerCase()}`;
 export const updatePromptPermissions = (roleName: string) => `${getRole(roleName)}/prompts`;
+export const updateMemoryPermissions = (roleName: string) => `${getRole(roleName)}/memories`;
 export const updateAgentPermissions = (roleName: string) => `${getRole(roleName)}/agents`;
 
 /* Conversation Tags */
@@ -317,3 +318,8 @@ export const workflowExecutions = (workflowId: string) => `/api/workflows/${work
 export const workflowExecution = (workflowId: string, executionId: string) => `/api/workflows/${workflowId}/executions/${executionId}`;
 export const workflowTest = (workflowId: string) => `/api/workflows/${workflowId}/test`;
 export const workflowStatus = () => '/api/workflows/status';
+
+/* Memories */
+export const memories = () => '/api/memories';
+export const memory = (key: string) => `${memories()}/${encodeURIComponent(key)}`;
+export const memoryPreferences = () => `${memories()}/preferences`;
