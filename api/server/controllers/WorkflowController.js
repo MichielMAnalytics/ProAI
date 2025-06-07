@@ -52,6 +52,7 @@ const getUserWorkflows = async (req, res) => {
       version: workflow.version,
       created_from_agent: workflow.created_from_agent,
       artifact_identifier: workflow.artifact_identifier,
+      dedicatedConversationId: workflow.metadata?.dedicatedConversationId, // Expose dedicated conversation ID
       createdAt: workflow.createdAt,
       updatedAt: workflow.updatedAt,
     }));
@@ -116,6 +117,7 @@ const getWorkflowById = async (req, res) => {
         version: workflow.version,
         created_from_agent: workflow.created_from_agent,
         artifact_identifier: workflow.artifact_identifier,
+        dedicatedConversationId: workflow.metadata?.dedicatedConversationId, // Expose dedicated conversation ID
         createdAt: workflow.createdAt,
         updatedAt: workflow.updatedAt,
       }
@@ -156,6 +158,7 @@ const createWorkflow = async (req, res) => {
         isDraft: workflow.isDraft,
         version: workflow.version,
         created_from_agent: workflow.created_from_agent,
+        dedicatedConversationId: workflow.metadata?.dedicatedConversationId, // Expose dedicated conversation ID
       }
     });
   } catch (error) {
@@ -203,6 +206,7 @@ const updateWorkflow = async (req, res) => {
         isDraft: updatedWorkflow.isDraft,
         version: updatedWorkflow.version,
         next_run: updatedWorkflow.next_run,
+        dedicatedConversationId: updatedWorkflow.metadata?.dedicatedConversationId, // Expose dedicated conversation ID
       }
     });
   } catch (error) {
@@ -277,6 +281,7 @@ const activateWorkflow = async (req, res) => {
         name: workflow.name,
         isActive: workflow.isActive,
         isDraft: workflow.isDraft,
+        dedicatedConversationId: workflow.metadata?.dedicatedConversationId, // Expose dedicated conversation ID
       }
     });
   } catch (error) {
@@ -317,6 +322,7 @@ const deactivateWorkflow = async (req, res) => {
         name: workflow.name,
         isActive: workflow.isActive,
         isDraft: workflow.isDraft,
+        dedicatedConversationId: workflow.metadata?.dedicatedConversationId, // Expose dedicated conversation ID
       }
     });
   } catch (error) {

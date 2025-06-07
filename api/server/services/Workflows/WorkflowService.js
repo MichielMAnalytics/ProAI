@@ -214,6 +214,7 @@ class WorkflowService {
         ...updateData.steps && { steps: updateData.steps },
         ...updateData.description && { description: updateData.description },
         ...updateData.isDraft !== undefined && { isDraft: updateData.isDraft },
+        ...updateData.metadata && updateData.metadata, // Allow direct metadata updates (e.g., dedicatedConversationId)
         workflowVersion: (currentTask.metadata.workflowVersion || 1) + 1
       };
       
@@ -590,6 +591,7 @@ class WorkflowService {
       next_run: convertDate(schedulerTask.next_run),
       status: schedulerTask.status,
       created_from_agent: schedulerTask.metadata.created_from_agent,
+      metadata: schedulerTask.metadata, // Expose full metadata for access to dedicatedConversationId
       createdAt: convertDate(schedulerTask.createdAt),
       updatedAt: convertDate(schedulerTask.updatedAt),
     };

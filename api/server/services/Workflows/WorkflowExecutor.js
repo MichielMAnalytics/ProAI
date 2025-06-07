@@ -115,36 +115,59 @@ class WorkflowExecutor {
         mcpResult,
       });
 
-      // Create a dedicated conversation for workflow execution logging
+      // Get or create a dedicated conversation for workflow execution logging
       const { v4: uuidv4 } = require('uuid');
-      const workflowExecutionConversationId = uuidv4();
+      let workflowExecutionConversationId;
       
-      // Extract clean workflow name (remove "Workflow: " prefix if present)
-      const cleanWorkflowName = workflow.name.replace(/^Workflow:\s*/, '');
+      // Check if workflow already has a dedicated conversation ID in metadata
+      const WorkflowService = require('./WorkflowService');
+      const workflowService = new WorkflowService();
+      const currentWorkflow = await workflowService.getWorkflowById(workflowId, userId);
       
-      // Create a human-readable timestamp
-      const now = new Date();
-      const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
-      const timeStr = now.toTimeString().split(' ')[0].slice(0, 5); // HH:MM
-      const workflowExecutionTitle = `Workflow execution: ${cleanWorkflowName} (${dateStr} ${timeStr})`;
-      
-      // Create the workflow execution conversation
-      const { saveConvo } = require('~/models/Conversation');
-      const mockReq = {
-        user: { id: userId },
-        body: {}, // Add body property to prevent saveConvo errors
-        app: { locals: {} }
-      };
-      
-      await saveConvo(mockReq, {
-        conversationId: workflowExecutionConversationId,
-        title: workflowExecutionTitle,
-        endpoint: 'openAI',
-        model: 'gpt-4o-mini',
-        isArchived: false,
-      }, { context: 'WorkflowExecutor.executeWorkflow - dedicated execution conversation' });
+      if (currentWorkflow && currentWorkflow.metadata && currentWorkflow.metadata.dedicatedConversationId) {
+        // Reuse existing conversation
+        workflowExecutionConversationId = currentWorkflow.metadata.dedicatedConversationId;
+        logger.info(`[WorkflowExecutor] Reusing existing dedicated conversation: ${workflowExecutionConversationId} for workflow: ${workflow.name}`);
+      } else {
+        // Create new conversation for this workflow
+        workflowExecutionConversationId = uuidv4();
+        
+        // Extract clean workflow name (remove "Workflow: " prefix if present)
+        const cleanWorkflowName = workflow.name.replace(/^Workflow:\s*/, '');
+        const workflowExecutionTitle = `Workflow executions: ${cleanWorkflowName}`;
+        
+        // Create the workflow execution conversation
+        const { saveConvo } = require('~/models/Conversation');
+        const mockReq = {
+          user: { id: userId },
+          body: {}, // Add body property to prevent saveConvo errors
+          app: { locals: {} }
+        };
+        
+        await saveConvo(mockReq, {
+          conversationId: workflowExecutionConversationId,
+          title: workflowExecutionTitle,
+          endpoint: 'openAI',
+          model: 'gpt-4o-mini',
+          isArchived: false,
+        }, { context: 'WorkflowExecutor.executeWorkflow - dedicated execution conversation' });
 
-      logger.info(`[WorkflowExecutor] Created dedicated execution conversation: ${workflowExecutionConversationId} with title: ${workflowExecutionTitle}`);
+        // Store the conversation ID in workflow metadata for future reuse
+        try {
+          await workflowService.updateWorkflow(workflowId, userId, {
+            metadata: {
+              ...currentWorkflow?.metadata,
+              dedicatedConversationId: workflowExecutionConversationId
+            }
+          });
+          logger.info(`[WorkflowExecutor] Created and stored dedicated conversation: ${workflowExecutionConversationId} for workflow: ${workflow.name}`);
+        } catch (metadataError) {
+          logger.warn(`[WorkflowExecutor] Failed to store conversation ID in workflow metadata: ${metadataError.message}`);
+          // Continue with execution even if metadata update fails
+        }
+        
+        logger.info(`[WorkflowExecutor] Created dedicated execution conversation: ${workflowExecutionConversationId} with title: ${workflowExecutionTitle}`);
+      }
 
       // Initialize execution context with MCP tools and dedicated conversation
       let executionContext = {

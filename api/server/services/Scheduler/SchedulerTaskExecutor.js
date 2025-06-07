@@ -431,6 +431,7 @@ class SchedulerTaskExecutor {
         endpoint: task.endpoint,
         ai_model: task.ai_model,
         agent_id: task.agent_id,
+        metadata: task.metadata, // Include full metadata for access to dedicatedConversationId
       };
 
       // Create execution context for scheduler-triggered execution
