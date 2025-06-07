@@ -40,7 +40,7 @@ function WorkflowToggle({ conversationId }: { conversationId?: string | null }) 
 
   const [ephemeralAgent, setEphemeralAgent] = useRecoilState(ephemeralAgentByConvoId(key));
   const isWorkflowToggleEnabled = useMemo(() => {
-    return ephemeralAgent?.workflow ?? true;
+    return ephemeralAgent?.workflow ?? false;
   }, [ephemeralAgent?.workflow]);
 
   const setValue = useCallback(

@@ -42,7 +42,7 @@ function WebSearch({ conversationId }: { conversationId?: string | null }) {
   });
   const [ephemeralAgent, setEphemeralAgent] = useRecoilState(ephemeralAgentByConvoId(key));
   const isWebSearchToggleEnabled = useMemo(() => {
-    return ephemeralAgent?.web_search ?? true;
+    return ephemeralAgent?.web_search ?? false;
   }, [ephemeralAgent?.web_search]);
 
   const { data } = useVerifyAgentToolAuth(

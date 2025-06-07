@@ -40,7 +40,7 @@ function SchedulerToggle({ conversationId }: { conversationId?: string | null })
 
   const [ephemeralAgent, setEphemeralAgent] = useRecoilState(ephemeralAgentByConvoId(key));
   const isSchedulerToggleEnabled = useMemo(() => {
-    return ephemeralAgent?.scheduler ?? true;
+    return ephemeralAgent?.scheduler ?? false;
   }, [ephemeralAgent?.scheduler]);
 
   const setValue = useCallback(
