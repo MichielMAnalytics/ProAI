@@ -180,7 +180,7 @@ class WorkflowExecutor {
           logger.info(`[WorkflowExecutor] Initializing workflow-level agent with ${mcpResult.toolCount} MCP tools`);
           
           // Get the configured model and endpoint
-          const config = await this.getConfiguredModelAndEndpoint();
+          const config = await this.getConfiguredModelAndEndpoint(workflow);
           const { model: configuredModel, endpoint: configuredEndpoint, endpointName } = config;
           
           // Create mock request for agent initialization with proper MCP context
@@ -266,9 +266,9 @@ class WorkflowExecutor {
       executionContext = {
         ...context,
         workflow: {
-          id: workflowId,
-          name: workflow.name,
-          // Use dedicated conversation for all workflow execution logging
+          // Include full workflow object for context access
+          ...workflow,
+          // Override/add execution-specific properties
           conversationId: workflowExecutionConversationId,
           parentMessageId: null, // Start fresh in the execution conversation
           // Store workflow-level agent and client for reuse
@@ -839,11 +839,56 @@ INSTRUCTIONS:`;
   }
 
   /**
-   * Get the configured default model and endpoint for workflows
-   * @returns {Promise<Object>} The configured model and endpoint or default fallbacks
+   * Get configured model and endpoint, preferring workflow stored context over librechat.yaml defaults
+   * @param {Object} workflow - The workflow object with stored context
+   * @returns {Promise<Object>} Configuration with model, endpoint, and endpointName
    */
-  async getConfiguredModelAndEndpoint() {
+  async getConfiguredModelAndEndpoint(workflow = null) {
     try {
+      // If workflow has stored context, use it first
+      if (workflow && workflow.endpoint && workflow.ai_model) {
+        // Use stored workflow context
+        const workflowEndpoint = workflow.endpoint;
+        const workflowModel = workflow.ai_model;
+        const workflowAgentId = workflow.agent_id;
+        
+        logger.info(`[WorkflowExecutor] Using stored workflow context: endpoint=${workflowEndpoint}, model=${workflowModel}, agent_id=${workflowAgentId}`);
+        
+        return {
+          model: workflowModel,
+          endpoint: workflowEndpoint,
+          endpointName: workflowEndpoint,
+          agent_id: workflowAgentId
+        };
+      } else if (workflow && workflow.agent_id && workflow.endpoint === EModelEndpoint.agents) {
+        // Workflow was created with an agent - load the agent to get its model/endpoint
+        logger.info(`[WorkflowExecutor] Workflow ${workflow.id} uses agent ${workflow.agent_id}, loading agent context`);
+        
+        try {
+          const { getAgent } = require('~/models/Agent');
+          const agent = await getAgent({ id: workflow.agent_id });
+          
+          if (agent) {
+            const agentEndpoint = agent.provider || EModelEndpoint.openAI;
+            const agentModel = agent.model || 'gpt-4o-mini';
+            
+            logger.info(`[WorkflowExecutor] Using agent context: endpoint=${agentEndpoint}, model=${agentModel}, agent_id=${workflow.agent_id}`);
+            
+            return {
+              model: agentModel,
+              endpoint: agentEndpoint,
+              endpointName: agentEndpoint,
+              agent_id: workflow.agent_id
+            };
+          } else {
+            logger.warn(`[WorkflowExecutor] Agent ${workflow.agent_id} not found, falling back to librechat.yaml defaults`);
+          }
+        } catch (error) {
+          logger.warn(`[WorkflowExecutor] Error loading agent ${workflow.agent_id}, falling back to librechat.yaml defaults:`, error);
+        }
+      }
+      
+      // Fallback to librechat.yaml configuration
       const config = await getCustomConfig();
       const configuredModel = config?.workflows?.defaultModel || 'gpt-4o-mini';
       const configuredEndpoint = config?.workflows?.defaultEndpoint || 'openAI';
@@ -860,19 +905,21 @@ INSTRUCTIONS:`;
       
       const mappedEndpoint = endpointMapping[configuredEndpoint] || EModelEndpoint.openAI;
       
-      logger.info(`[WorkflowExecutor] Using configured model: ${configuredModel} on endpoint: ${configuredEndpoint} (${mappedEndpoint})`);
+      logger.info(`[WorkflowExecutor] Using librechat.yaml defaults: ${configuredModel} on endpoint: ${configuredEndpoint} (${mappedEndpoint})`);
       
       return {
         model: configuredModel,
         endpoint: mappedEndpoint,
-        endpointName: configuredEndpoint
+        endpointName: configuredEndpoint,
+        agent_id: null
       };
     } catch (error) {
-      logger.warn('[WorkflowExecutor] Failed to load config, using defaults:', error);
+      logger.warn('[WorkflowExecutor] Failed to load config, using hard defaults:', error);
       return {
         model: 'gpt-4o-mini',
         endpoint: EModelEndpoint.openAI,
-        endpointName: 'openAI'
+        endpointName: 'openAI',
+        agent_id: null
       };
     }
   }
@@ -908,7 +955,7 @@ INSTRUCTIONS:`;
         client = context.workflow.client;
         
         // Get the configured model and endpoint info for logging
-        const config = await this.getConfiguredModelAndEndpoint();
+        const config = await this.getConfiguredModelAndEndpoint(context.workflow);
         configuredModel = config.model;
         configuredEndpoint = config.endpoint;
         endpointName = config.endpointName;
@@ -919,7 +966,7 @@ INSTRUCTIONS:`;
         logger.warn(`[WorkflowExecutor] No workflow-level agent available, initializing new agent for step "${step.name}"`);
         
         // Get the configured model and endpoint
-        const config = await this.getConfiguredModelAndEndpoint();
+        const config = await this.getConfiguredModelAndEndpoint(context.workflow);
         configuredModel = config.model;
         configuredEndpoint = config.endpoint;
         endpointName = config.endpointName;

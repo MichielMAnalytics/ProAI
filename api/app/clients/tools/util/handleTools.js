@@ -161,7 +161,6 @@ const loadTools = async ({
     'azure-ai-search': StructuredACS,
     traversaal_search: TraversaalSearch,
     tavily_search_results_json: TavilySearchResults,
-    workflows: WorkflowTool,
   };
 
   const customConstructors = {
@@ -196,9 +195,10 @@ const loadTools = async ({
       
       if (agent && agent.id && agent.id !== 'ephemeral') {
         // Running within a real user-created agent context
+        // Note: reqModel is expected to be undefined here since we use the agent ID instead
         toolEndpoint = 'agents';
         toolModel = agent.id;
-        logger.info(`[SchedulerTool] Using real agent context - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+        logger.info(`[SchedulerTool] Using real agent context - endpoint: ${toolEndpoint}, model: ${toolModel} (reqModel undefined is expected for agents)`);
       } else if (reqEndpoint && reqModel) {
         // Running within an endpoint context (including when ephemeral agent is present)
         toolEndpoint = reqEndpoint;
@@ -211,10 +211,20 @@ const loadTools = async ({
         toolModel = endpointOption.model;
         logger.info(`[SchedulerTool] Using endpointOption - endpoint: ${toolEndpoint}, model: ${toolModel}`);
       } else {
-        // Final fallback
-        toolEndpoint = 'openAI';
-        toolModel = 'gpt-4o-mini';
-        logger.warn(`[SchedulerTool] Using fallback - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+        // Final fallback - use configuration-based defaults
+        logger.debug(`[SchedulerTool] Using configuration-based fallback`);
+        try {
+          const { getCustomConfig } = require('~/server/services/Config');
+          const config = await getCustomConfig();
+          toolEndpoint = config?.scheduler?.defaultEndpoint || 'openAI';
+          toolModel = config?.scheduler?.defaultModel || 'gpt-4o-mini';
+          logger.info(`[SchedulerTool] Using config fallback - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+        } catch (configError) {
+          logger.warn(`[SchedulerTool] Failed to load config, using hard fallback:`, configError);
+          toolEndpoint = 'openAI';
+          toolModel = 'gpt-4o-mini';
+          logger.warn(`[SchedulerTool] Using hard fallback - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+        }
       }
       
       return new SchedulerTool({
@@ -227,8 +237,8 @@ const loadTools = async ({
         req: options.req,
       });
     },
-    workflow: async (_toolContextMap) => {
-      const authFields = getAuthFields('workflow');
+    workflows: async (_toolContextMap) => {
+      const authFields = getAuthFields('workflows');
       const authValues = await loadAuthValues({ userId: user, authFields });
       
       const reqEndpoint = options.req?.body?.endpoint;
@@ -254,13 +264,23 @@ const loadTools = async ({
       // Determine the endpoint and model/agent_id
       let toolEndpoint, toolModel;
       
+      // Enhanced debug logging for agent detection issues
+      logger.debug(`[WorkflowTool] Agent object inspection:`, {
+        hasAgent: !!agent,
+        agentId: agent?.id,
+        agentKeys: agent ? Object.keys(agent) : 'no agent',
+        agentType: typeof agent,
+        agentStringified: agent ? JSON.stringify(agent, null, 2).substring(0, 200) : 'no agent'
+      });
+      
       logger.info(`[WorkflowTool] Detection logic - reqEndpoint: ${reqEndpoint}, reqModel: ${reqModel}, hasAgent: ${!!(agent && agent.id)}, agentId: ${agent?.id}`);
       
       if (agent && agent.id && agent.id !== 'ephemeral') {
         // Running within a real user-created agent context
+        // Note: reqModel is expected to be undefined here since we use the agent ID instead
         toolEndpoint = 'agents';
         toolModel = agent.id;
-        logger.info(`[WorkflowTool] Using real agent context - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+        logger.info(`[WorkflowTool] Using real agent context - endpoint: ${toolEndpoint}, model: ${toolModel} (reqModel undefined is expected for agents)`);
       } else if (reqEndpoint && reqModel) {
         // Running within an endpoint context (including when ephemeral agent is present)
         toolEndpoint = reqEndpoint;
@@ -273,10 +293,20 @@ const loadTools = async ({
         toolModel = endpointOption.model;
         logger.info(`[WorkflowTool] Using endpointOption - endpoint: ${toolEndpoint}, model: ${toolModel}`);
       } else {
-        // Final fallback
-        toolEndpoint = 'openAI';
-        toolModel = 'gpt-4o-mini';
-        logger.warn(`[WorkflowTool] Using fallback - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+        // Final fallback - use configuration-based defaults
+        logger.debug(`[WorkflowTool] Using configuration-based fallback`);
+        try {
+          const { getCustomConfig } = require('~/server/services/Config');
+          const config = await getCustomConfig();
+          toolEndpoint = config?.workflows?.defaultEndpoint || 'openAI';
+          toolModel = config?.workflows?.defaultModel || 'gpt-4o-mini';
+          logger.info(`[WorkflowTool] Using config fallback - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+        } catch (configError) {
+          logger.warn(`[WorkflowTool] Failed to load config, using hard fallback:`, configError);
+          toolEndpoint = 'openAI';
+          toolModel = 'gpt-4o-mini';
+          logger.warn(`[WorkflowTool] Using hard fallback - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+        }
       }
       
       return new WorkflowTool({

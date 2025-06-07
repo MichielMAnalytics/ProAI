@@ -5,6 +5,7 @@ const { logger } = require('~/config');
 const WorkflowService = require('~/server/services/Workflows/WorkflowService');
 const UserMCPService = require('~/server/services/UserMCPService');
 const PipedreamUserIntegrations = require('~/server/services/Pipedream/PipedreamUserIntegrations');
+const { EModelEndpoint } = require('librechat-data-provider');
 
 class WorkflowTool extends Tool {
   static lc_name() {
@@ -742,6 +743,16 @@ class WorkflowTool extends Tool {
     return warnings;
   }
 
+  /**
+   * Create a new workflow with proper context capture
+   * @param {Object} data - Workflow data
+   * @param {string} userId - User ID
+   * @param {string} conversationId - Conversation ID
+   * @param {string} parentMessageId - Parent message ID
+   * @param {string} endpoint - Endpoint name
+   * @param {string} model - Model name
+   * @returns {Promise<Object>} Created workflow result
+   */
   async createWorkflow(data, userId, conversationId, parentMessageId, endpoint, model) {
     const { name, description, trigger, steps } = data;
 
@@ -775,6 +786,51 @@ class WorkflowTool extends Tool {
     
     const workflowId = `workflow_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
     
+    // Determine the correct endpoint, model, and agent_id to store
+    let workflowEndpoint = endpoint || this.endpoint;
+    let workflowModel = model || this.model;
+    let workflowAgentId = null;
+
+    // Debug logging to understand why fallback is triggered
+    logger.debug(`[WorkflowTool] createWorkflow endpoint analysis:`, {
+      parameterEndpoint: endpoint,
+      thisEndpoint: this.endpoint,
+      parameterModel: model,
+      thisModel: this.model,
+      finalEndpoint: workflowEndpoint,
+      finalModel: workflowModel,
+    });
+
+    // Check if we're in an agent context
+    if (workflowEndpoint === 'agents' && workflowModel) {
+      // In agent context, the model is actually the agent_id
+      workflowEndpoint = EModelEndpoint.agents;
+      workflowAgentId = workflowModel;
+      // For agents, we'll use the underlying model from the agent during execution
+      workflowModel = null; // Will be determined during execution based on agent
+      logger.info(`[WorkflowTool] Creating workflow with agent context: agent_id=${workflowAgentId}`);
+    } else if (workflowEndpoint && workflowModel) {
+      // Regular endpoint context
+      logger.info(`[WorkflowTool] Creating workflow with endpoint context: endpoint=${workflowEndpoint}, model=${workflowModel}`);
+    } else {
+      // Fallback to configuration-based defaults
+      logger.debug(`[WorkflowTool] Using configuration-based fallback for workflow creation`);
+      try {
+        const { getCustomConfig } = require('~/server/services/Config');
+        const config = await getCustomConfig();
+        workflowEndpoint = config?.workflows?.defaultEndpoint || EModelEndpoint.openAI;
+        workflowModel = config?.workflows?.defaultModel || 'gpt-4o-mini';
+        workflowAgentId = null;
+        logger.info(`[WorkflowTool] Using config fallback for workflow: endpoint=${workflowEndpoint}, model=${workflowModel}`);
+      } catch (configError) {
+        logger.warn(`[WorkflowTool] Failed to load config, using hard fallback:`, configError);
+        workflowEndpoint = EModelEndpoint.openAI;
+        workflowModel = 'gpt-4o-mini';
+        workflowAgentId = null;
+        logger.warn(`[WorkflowTool] Using hard fallback for workflow: endpoint=${workflowEndpoint}, model=${workflowModel}`);
+      }
+    }
+    
     const workflowData = {
       id: workflowId,
       name,
@@ -786,17 +842,15 @@ class WorkflowTool extends Tool {
       user: userId,
       conversation_id: conversationId,
       parent_message_id: parentMessageId,
-      endpoint: endpoint || this.endpoint,
+      // Store the current conversation's model/endpoint/agent context
+      endpoint: workflowEndpoint,
+      ai_model: workflowModel,
+      agent_id: workflowAgentId,
       version: 1,
       created_from_agent: true,
     };
 
-    // Set agent_id if using agents endpoint
-    if ((endpoint || this.endpoint) === 'agents') {
-      workflowData.agent_id = model || this.model;
-    } else {
-      workflowData.ai_model = model || this.model;
-    }
+    logger.info(`[WorkflowTool] Creating workflow: ${workflowId} (${name}) - will use stored context: endpoint=${workflowEndpoint}, model=${workflowModel}, agent_id=${workflowAgentId}`);
 
     try {
       // Use WorkflowService for proper validation
@@ -808,7 +862,7 @@ class WorkflowTool extends Tool {
       // Prepare response with warnings if any
       const response = {
         success: true,
-        message: `Workflow "${name}" created successfully as draft`,
+        message: `Workflow "${name}" created successfully as draft. Will use ${workflowAgentId ? `agent ${workflowAgentId}` : `${workflowEndpoint}/${workflowModel}`} for execution.`,
         workflow: {
           id: workflow.id,
           name: workflow.name,
@@ -817,6 +871,11 @@ class WorkflowTool extends Tool {
           steps: workflow.steps,
           isDraft: workflow.isDraft,
           isActive: workflow.isActive,
+          conversation_id: workflow.conversation_id,
+          parent_message_id: workflow.parent_message_id,
+          endpoint: workflow.endpoint,
+          ai_model: workflow.ai_model,
+          agent_id: workflow.agent_id,
           version: workflow.version,
         }
       };
