@@ -22,6 +22,13 @@ const SchedulerClientFactory = require('~/server/services/Scheduler/SchedulerCli
  * - Context management between steps
  * - Execution flow control (success/failure paths)
  * - Dynamic MCP server initialization
+ * - Dedicated workflow execution conversation management
+ * 
+ * CONVERSATION MANAGEMENT:
+ * - Creates a dedicated conversation for each workflow execution
+ * - Names conversations: "Workflow execution [name] [timestamp]"
+ * - Maintains proper message threading between steps
+ * - Prevents creation of multiple conversations per execution
  */
 class WorkflowExecutor {
   constructor() {
@@ -108,12 +115,46 @@ class WorkflowExecutor {
         mcpResult,
       });
 
-      // Initialize execution context with MCP tools
+      // Create a dedicated conversation for workflow execution logging
+      const { v4: uuidv4 } = require('uuid');
+      const workflowExecutionConversationId = uuidv4();
+      
+      // Extract clean workflow name (remove "Workflow: " prefix if present)
+      const cleanWorkflowName = workflow.name.replace(/^Workflow:\s*/, '');
+      
+      // Create a human-readable timestamp
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+      const timeStr = now.toTimeString().split(' ')[0].slice(0, 5); // HH:MM
+      const workflowExecutionTitle = `Workflow execution: ${cleanWorkflowName} (${dateStr} ${timeStr})`;
+      
+      // Create the workflow execution conversation
+      const { saveConvo } = require('~/models/Conversation');
+      const mockReq = {
+        user: { id: userId },
+        body: {}, // Add body property to prevent saveConvo errors
+        app: { locals: {} }
+      };
+      
+      await saveConvo(mockReq, {
+        conversationId: workflowExecutionConversationId,
+        title: workflowExecutionTitle,
+        endpoint: 'openAI',
+        model: 'gpt-4o-mini',
+        isArchived: false,
+      }, { context: 'WorkflowExecutor.executeWorkflow - dedicated execution conversation' });
+
+      logger.info(`[WorkflowExecutor] Created dedicated execution conversation: ${workflowExecutionConversationId} with title: ${workflowExecutionTitle}`);
+
+      // Initialize execution context with MCP tools and dedicated conversation
       let executionContext = {
         ...context,
         workflow: {
           id: workflowId,
           name: workflow.name,
+          // Use dedicated conversation for all workflow execution logging
+          conversationId: workflowExecutionConversationId,
+          parentMessageId: null, // Start fresh in the execution conversation
         },
         execution: {
           id: executionId,
@@ -198,6 +239,12 @@ class WorkflowExecutor {
 
       // Execute the current step
       const stepResult = await this.executeStep(workflow, execution, step, context);
+
+      // Update the parent message ID for the next step to maintain conversation threading
+      if (stepResult && stepResult.responseMessageId) {
+        context.workflow.parentMessageId = stepResult.responseMessageId;
+        logger.debug(`[WorkflowExecutor] Updated parentMessageId for next step: ${stepResult.responseMessageId}`);
+      }
 
       // Update execution context with step result
       context.steps[step.id] = stepResult;
@@ -756,6 +803,9 @@ INSTRUCTIONS:`;
       const clientFactory = new SchedulerClientFactory();
       const endpointOption = clientFactory.createAgentsEndpointOption(agent, underlyingModel);
       
+      // Disable automatic title generation to preserve our custom workflow execution title
+      endpointOption.titleConvo = false;
+      
       // Create minimal mock response for client initialization
       const mockRes = createMinimalMockResponse();
       
@@ -800,6 +850,9 @@ INSTRUCTIONS:`;
         modelUsed: underlyingModel,
         endpointUsed: endpointName,
         timestamp: new Date().toISOString(),
+        // Capture the response message ID for conversation threading
+        responseMessageId: response.messageId || response.id,
+        conversationId: context.workflow?.conversationId,
       };
       
     } catch (error) {
@@ -819,6 +872,10 @@ INSTRUCTIONS:`;
    * @returns {Object} Mock request object
    */
   createMockRequestForWorkflow(step, context, userId, prompt, model, endpoint) {
+    // Generate message IDs for proper conversation threading
+    const { v4: uuidv4 } = require('uuid');
+    const userMessageId = uuidv4();
+    
     return {
       user: { 
         id: userId.toString()
@@ -826,7 +883,7 @@ INSTRUCTIONS:`;
       body: {
         endpoint: endpoint,
         model: model,
-        userMessageId: null,
+        userMessageId: userMessageId,
         parentMessageId: context.workflow?.parentMessageId,
         conversationId: context.workflow?.conversationId,
         promptPrefix: prompt,
