@@ -21,6 +21,7 @@ export enum Tools {
   file_search = 'file_search',
   web_search = 'web_search',
   workflows = 'workflows',
+  scheduler = 'scheduler',
   retrieval = 'retrieval',
   function = 'function',
 }

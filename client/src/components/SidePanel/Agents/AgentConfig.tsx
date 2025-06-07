@@ -23,6 +23,7 @@ import { Panel } from '~/common';
 import { useGetStartupConfig } from '~/data-provider';
 import EndpointIcon from '~/components/Endpoints/EndpointIcon';
 import Workflows from './Workflows';
+import Scheduler from './Scheduler';
 
 const labelClass = 'mb-2 text-token-text-primary block font-medium';
 const inputClass = cn(
@@ -75,6 +76,7 @@ export default function AgentConfig({
     fileContext: true,
     artifacts: true,
     fileSearch: true,
+    scheduler: true,
   };
 
   const toolsEnabled = useMemo(
@@ -107,6 +109,10 @@ export default function AgentConfig({
   );
   const workflowsEnabled = useMemo(
     () => agentsConfig?.capabilities?.includes(AgentCapabilities.workflows) ?? false,
+    [agentsConfig],
+  );
+  const schedulerEnabled = useMemo(
+    () => agentsConfig?.capabilities?.includes(AgentCapabilities.scheduler) ?? false,
     [agentsConfig],
   );
 
@@ -299,7 +305,9 @@ export default function AgentConfig({
           (capabilityItemsConfig.artifacts !== false && artifactsEnabled) ||
           (capabilityItemsConfig.fileContext !== false && ocrEnabled) ||
           (capabilityItemsConfig.webSearch !== false && webSearchEnabled) ||
-          workflowsEnabled
+          (capabilityItemsConfig.scheduler !== false && schedulerEnabled) ||
+          workflowsEnabled ||
+          schedulerEnabled
         ) && (
           <div className="mb-4 flex w-full flex-col items-start gap-3">
             <label className="text-token-text-primary block font-medium">
@@ -315,6 +323,10 @@ export default function AgentConfig({
             {capabilityItemsConfig.artifacts !== false && artifactsEnabled && <Artifacts />}
             {/* File Search */}
             {capabilityItemsConfig.fileSearch !== false && fileSearchEnabled && <FileSearch agent_id={agent_id} files={knowledge_files} />}
+            {/* Scheduler */}
+            {capabilityItemsConfig.scheduler !== false && schedulerEnabled && (
+              <Scheduler />
+            )}
             {/* Workflows */}
             {workflowsEnabled && (
               <Workflows />

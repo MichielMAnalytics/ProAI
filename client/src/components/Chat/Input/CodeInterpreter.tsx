@@ -41,9 +41,6 @@ function CodeInterpreter({ conversationId }: { conversationId?: string | null })
     permission: Permissions.USE,
   });
   const [ephemeralAgent, setEphemeralAgent] = useRecoilState(ephemeralAgentByConvoId(key));
-  const isCodeToggleEnabled = useMemo(() => {
-    return ephemeralAgent?.execute_code ?? false;
-  }, [ephemeralAgent?.execute_code]);
 
   const { data } = useVerifyAgentToolAuth(
     { toolId: Tools.execute_code },
@@ -68,7 +65,7 @@ function CodeInterpreter({ conversationId }: { conversationId?: string | null })
 
   const [runCode, setRunCode] = useLocalStorage<boolean>(
     `${LocalStorageKeys.LAST_CODE_TOGGLE_}${key}`,
-    isCodeToggleEnabled,
+    false, // Static default value - localStorage will override this if it exists
     setValue,
     storageCondition,
   );

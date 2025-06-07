@@ -196,6 +196,9 @@ export default function AgentPanel({
       if (data.workflows === true) {
         tools.push('workflows');
       }
+      if (data.scheduler === true) {
+        tools.push('scheduler');
+      }
 
       const {
         name,

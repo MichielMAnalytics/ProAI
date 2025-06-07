@@ -116,8 +116,9 @@ class SchedulerAgentHandler {
     // Create ephemeral agent configuration
     const ephemeralAgent = {
       scheduler: true,
+      workflow: true,
       execute_code: false,
-      web_search: false,
+      web_search: true,
       mcp: mcpServerNames
     };
     

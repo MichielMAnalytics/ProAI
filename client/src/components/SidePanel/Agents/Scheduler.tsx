@@ -1,45 +1,54 @@
-import { memo, useMemo } from 'react';
-import { AgentCapabilities } from 'librechat-data-provider';
+import React, { useMemo } from 'react';
 import { useFormContext, useWatch } from 'react-hook-form';
+import { AgentCapabilities } from 'librechat-data-provider';
 import type { AgentForm } from '~/common';
 import {
   Switch,
   HoverCard,
-  HoverCardContent,
   HoverCardPortal,
+  HoverCardContent,
   HoverCardTrigger,
 } from '~/components/ui';
-import { CircleHelpIcon } from '~/components/svg';
 import { useLocalize } from '~/hooks';
+import { CircleHelpIcon } from '~/components/svg';
 import { ESide } from '~/common';
 
-function FileSearchCheckbox() {
+export default function Scheduler() {
   const localize = useLocalize();
   const methods = useFormContext<AgentForm>();
   const { control, setValue } = methods;
 
-  const fileSearchEnabled = useWatch({
+  const schedulerEnabled = useWatch({
     control,
-    name: AgentCapabilities.file_search,
+    name: 'scheduler' as any,
   });
 
-  const handleFileSearchChange = (value: boolean) => {
-    setValue(AgentCapabilities.file_search, value, { shouldDirty: true });
+  const handleSchedulerChange = (value: boolean) => {
+    setValue('scheduler' as any, value, { shouldDirty: true });
   };
 
-  const fileSearchValue = useMemo(() => {
-    return Boolean(fileSearchEnabled);
-  }, [fileSearchEnabled]);
+  const schedulerValue = useMemo(() => {
+    return Boolean(schedulerEnabled);
+  }, [schedulerEnabled]);
 
   return (
-    <div className="flex flex-col gap-3">
-      <SwitchItem
-        id="file_search"
-        label={localize('com_agents_enable_file_search')}
-        checked={fileSearchValue}
-        onCheckedChange={handleFileSearchChange}
-        hoverCardText={localize('com_agents_file_search_info')}
-      />
+    <div className="w-full">
+      <div className="mb-1.5 flex items-center gap-2">
+        <span>
+          <label className="text-token-text-primary block font-medium">
+            {localize('com_ui_schedules')}
+          </label>
+        </span>
+      </div>
+      <div className="flex flex-col gap-3">
+        <SwitchItem
+          id="scheduler"
+          label={localize('com_ui_schedules')}
+          checked={schedulerValue}
+          onCheckedChange={handleSchedulerChange}
+          hoverCardText={localize('com_ui_scheduler_agent_description')}
+        />
+      </div>
     </div>
   );
 }
@@ -86,6 +95,4 @@ function SwitchItem({
       </div>
     </HoverCard>
   );
-}
-
-export default memo(FileSearchCheckbox);
+} 

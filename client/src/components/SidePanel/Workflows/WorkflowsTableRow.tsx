@@ -2,6 +2,7 @@ import React from 'react';
 import { Play, Pause, Trash2, TestTube, Eye } from 'lucide-react';
 import { useSetRecoilState } from 'recoil';
 import type { TUserWorkflow } from 'librechat-data-provider';
+import { EModelEndpoint } from 'librechat-data-provider';
 import { Button, TableCell, TableRow } from '~/components/ui';
 import {
   useDeleteWorkflowMutation,
@@ -10,6 +11,7 @@ import {
 } from '~/data-provider';
 import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
+import { useNavigateToConvo } from '~/hooks';
 import store from '~/store';
 import { useTimezone } from '~/hooks/useTimezone';
 
@@ -20,6 +22,7 @@ interface WorkflowsTableRowProps {
 const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
   const { showToast } = useToastContext();
   const { formatDateTime, getTimezoneAbbr } = useTimezone();
+  const { navigateToConvo } = useNavigateToConvo();
   const toggleMutation = useToggleWorkflowMutation();
   const deleteMutation = useDeleteWorkflowMutation();
   const testMutation = useTestWorkflowMutation();
@@ -89,6 +92,8 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
   const handleView = () => {
     try {
       console.log('Opening workflow visualization for:', workflow);
+      console.log('Workflow conversation_id:', workflow.conversation_id);
+      console.log('Workflow fields:', Object.keys(workflow));
       
       // Create workflow artifact with proper positioning
       const artifactId = `workflow-${workflow.id}`;
@@ -168,27 +173,74 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
         title: `Workflow: ${workflow.name}`,
         type: 'application/vnd.workflow',
         content: JSON.stringify(workflowData, null, 2),
-        messageId: `workflow-view-${Date.now()}`,
+        messageId: workflow.parent_message_id || `workflow-view-${Date.now()}`,
         index: 0,
         lastUpdateTime: Date.now(),
       };
 
       console.log('Creating artifact:', workflowArtifact);
 
-      // Set the artifact in state
-      setArtifacts(prev => ({
-        ...prev,
-        [artifactId]: workflowArtifact
-      }));
+      // Check if we have conversation info for navigation
+      if (workflow.conversation_id) {
+        // Navigate to the conversation where the workflow was created
+        const targetConversation = {
+          conversationId: workflow.conversation_id,
+          title: `Workflow: ${workflow.name}`,
+          endpoint: (workflow.endpoint as EModelEndpoint) || null,
+          model: workflow.ai_model || null,
+          createdAt: workflow.createdAt ? 
+            (typeof workflow.createdAt === 'object' && '$date' in workflow.createdAt ? 
+              workflow.createdAt.$date : workflow.createdAt.toString()) : 
+            new Date().toISOString(),
+          updatedAt: workflow.updatedAt ? 
+            (typeof workflow.updatedAt === 'object' && '$date' in workflow.updatedAt ? 
+              workflow.updatedAt.$date : workflow.updatedAt.toString()) : 
+            new Date().toISOString(),
+          // Include other necessary fields
+        };
 
-      // Set as current artifact and show artifacts panel
-      setCurrentArtifactId(artifactId);
-      setArtifactsVisible(true);
+        // Set up artifacts after navigation using a slight delay to ensure navigation completes
+        const setupArtifacts = () => {
+          // Set the artifact in state
+          setArtifacts(prev => ({
+            ...prev,
+            [artifactId]: workflowArtifact
+          }));
 
-      showToast({
-        message: 'Opening workflow visualization',
-        severity: NotificationSeverity.SUCCESS,
-      });
+          // Set as current artifact and show artifacts panel
+          setCurrentArtifactId(artifactId);
+          setArtifactsVisible(true);
+        };
+
+        // Navigate to conversation first, then set up artifacts
+        navigateToConvo(targetConversation);
+        
+        // Use setTimeout to ensure navigation completes before setting artifacts
+        setTimeout(setupArtifacts, 100);
+
+        showToast({
+          message: 'Opening workflow visualization',
+          severity: NotificationSeverity.SUCCESS,
+        });
+      } else {
+        // Fallback: Just show the artifact in the current conversation
+        console.log('No conversation_id found, showing artifact in current conversation');
+        
+        // Set the artifact in state
+        setArtifacts(prev => ({
+          ...prev,
+          [artifactId]: workflowArtifact
+        }));
+
+        // Set as current artifact and show artifacts panel
+        setCurrentArtifactId(artifactId);
+        setArtifactsVisible(true);
+
+        showToast({
+          message: 'Workflow visualization opened (no source conversation found)',
+          severity: NotificationSeverity.SUCCESS,
+        });
+      }
     } catch (error) {
       console.error('Failed to open workflow visualization:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';

@@ -174,6 +174,7 @@ export enum AgentCapabilities {
   chain = 'chain',
   ocr = 'ocr',
   workflows = 'workflows',
+  scheduler = 'scheduler',
 }
 
 export const defaultAssistantsVersion = {
@@ -244,6 +245,7 @@ export const defaultAgentCapabilities = [
   AgentCapabilities.chain,
   AgentCapabilities.ocr,
   AgentCapabilities.workflows,
+  AgentCapabilities.scheduler,
 ];
 
 export const agentsEndpointSChema = baseEndpointSchema.merge(
@@ -572,6 +574,8 @@ export const intefaceSchema = z
             artifacts: z.boolean().optional().default(true),
             // Hide the file search capability section
             fileSearch: z.boolean().optional().default(true),
+            // Hide the scheduler capability section
+            scheduler: z.boolean().optional().default(true),
           })
           .optional(),
       })

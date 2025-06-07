@@ -105,7 +105,8 @@ export const isEphemeralAgent = (
   const hasCodeSelected = (ephemeralAgent?.execute_code ?? false) === true;
   const hasSearchSelected = (ephemeralAgent?.web_search ?? false) === true;
   const hasSchedulerSelected = (ephemeralAgent?.scheduler ?? false) === true;
-  return hasMCPSelected || hasCodeSelected || hasSearchSelected || hasSchedulerSelected;
+  const hasWorkflowSelected = (ephemeralAgent?.workflow ?? false) === true;
+  return hasMCPSelected || hasCodeSelected || hasSearchSelected || hasSchedulerSelected || hasWorkflowSelected;
 };
 
 export const isParamEndpoint = (
@@ -173,7 +174,7 @@ export const defaultAgentFormValues = {
   instructions: '',
   model: '',
   model_parameters: {},
-  tools: ['scheduler'],
+  tools: [],
   provider: {},
   projectIds: [],
   artifacts: ArtifactModes.DEFAULT,
@@ -182,7 +183,8 @@ export const defaultAgentFormValues = {
   [Tools.execute_code]: false,
   [Tools.file_search]: false,
   [Tools.web_search]: true,
-  [Tools.workflows]: false,
+  [Tools.workflows]: true,
+  [Tools.scheduler]: true,
 };
 
 export const ImageVisionTool: FunctionTool = {

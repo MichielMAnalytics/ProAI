@@ -39,9 +39,6 @@ function SchedulerToggle({ conversationId }: { conversationId?: string | null })
   });
 
   const [ephemeralAgent, setEphemeralAgent] = useRecoilState(ephemeralAgentByConvoId(key));
-  const isSchedulerToggleEnabled = useMemo(() => {
-    return ephemeralAgent?.scheduler ?? false;
-  }, [ephemeralAgent?.scheduler]);
 
   const setValue = useCallback(
     (isChecked: boolean) => {
@@ -55,7 +52,7 @@ function SchedulerToggle({ conversationId }: { conversationId?: string | null })
 
   const [scheduler, setScheduler] = useLocalStorage<boolean>(
     `${LocalStorageKeys.LAST_SCHEDULER_TOGGLE_}${key}`,
-    isSchedulerToggleEnabled,
+    true, // Static default value - localStorage will override this if it exists
     setValue,
     storageCondition,
   );

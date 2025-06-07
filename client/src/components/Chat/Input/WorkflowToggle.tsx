@@ -39,9 +39,6 @@ function WorkflowToggle({ conversationId }: { conversationId?: string | null }) 
   });
 
   const [ephemeralAgent, setEphemeralAgent] = useRecoilState(ephemeralAgentByConvoId(key));
-  const isWorkflowToggleEnabled = useMemo(() => {
-    return ephemeralAgent?.workflow ?? false;
-  }, [ephemeralAgent?.workflow]);
 
   const setValue = useCallback(
     (isChecked: boolean) => {
@@ -55,7 +52,7 @@ function WorkflowToggle({ conversationId }: { conversationId?: string | null }) 
 
   const [workflow, setWorkflow] = useLocalStorage<boolean>(
     `${LocalStorageKeys.LAST_WORKFLOW_TOGGLE_}${key}`,
-    isWorkflowToggleEnabled,
+    true, // Static default value - localStorage will override this if it exists
     setValue,
     storageCondition,
   );
