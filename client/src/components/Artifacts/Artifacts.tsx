@@ -230,6 +230,7 @@ export default function Artifacts() {
             </div>
           </div>
           {/* Content */}
+          <div className="flex-1 overflow-hidden">
           <ArtifactTabs
             isMermaid={isMermaid}
             artifact={currentArtifact}
@@ -237,6 +238,7 @@ export default function Artifacts() {
             editorRef={editorRef as React.MutableRefObject<CodeEditorRef>}
             previewRef={previewRef as React.MutableRefObject<SandpackPreviewRef>}
           />
+          </div>
           {/* Footer */}
           <div className="flex items-center justify-between border-t border-border-medium bg-surface-primary-alt p-2 text-sm text-text-secondary">
             <div className="flex items-center">

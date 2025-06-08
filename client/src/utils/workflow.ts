@@ -145,114 +145,232 @@ export const getWorkflowFiles = (content: string) => {
 
         // Custom node component for workflow steps
         const WorkflowStepNode = ({ data, selected }: { data: any; selected: boolean }) => {
-          const getNodeColor = (type: string, status: string) => {
-            const baseColors = {
-              action: 'bg-blue-100 border-blue-300',
-              condition: 'bg-yellow-100 border-yellow-300',
-              delay: 'bg-purple-100 border-purple-300',
-              mcp_tool: 'bg-green-100 border-green-300',
+          const getNodeStyle = (type: string, status: string) => {
+            const baseStyles = {
+              action: {
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                border: '2px solid #5a67d8',
+                color: 'white',
+                icon: '⚙️'
+              },
+              condition: {
+                background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                border: '2px solid #ed64a6',
+                color: 'white',
+                icon: '❓'
+              },
+              delay: {
+                background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+                border: '2px solid #38b2ac',
+                color: '#2d3748',
+                icon: '⏱️'
+              },
+              mcp_tool: {
+                background: 'linear-gradient(135deg, #d299c2 0%, #fef9d7 100%)',
+                border: '2px solid #9f7aea',
+                color: '#2d3748',
+                icon: '🔧'
+              },
             };
 
-            const statusColors = {
-              pending: 'opacity-60',
-              running: 'ring-2 ring-blue-400 animate-pulse',
-              completed: 'ring-2 ring-green-400',
-              failed: 'ring-2 ring-red-400',
-              skipped: 'opacity-40',
+            const statusOverrides = {
+              running: {
+                boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.3), 0 10px 25px rgba(0, 0, 0, 0.15)',
+                transform: 'scale(1.02)',
+              },
+              completed: {
+                boxShadow: '0 0 0 3px rgba(34, 197, 94, 0.3), 0 10px 25px rgba(0, 0, 0, 0.15)',
+              },
+              failed: {
+                boxShadow: '0 0 0 3px rgba(239, 68, 68, 0.3), 0 10px 25px rgba(0, 0, 0, 0.15)',
+              },
+              skipped: {
+                opacity: '0.5',
+                filter: 'grayscale(100%)',
+              },
             };
 
-            return \`\${baseColors[type] || baseColors.action} \${statusColors[status] || ''}\`;
+            const baseStyle = baseStyles[type] || baseStyles.action;
+            const statusStyle = statusOverrides[status] || {};
+
+            return {
+              ...baseStyle,
+              ...statusStyle,
+            };
           };
 
-          const getIcon = (type: string) => {
-            switch (type) {
-              case 'action': return '⚙️';
-              case 'condition': return '❓';
-              case 'delay': return '⏱️';
-              case 'mcp_tool': return '🔧';
-              default: return '📝';
-            }
-          };
+          const style = getNodeStyle(data.type || 'action', data.status || 'pending');
 
           return (
             <>
-              {/* Connection handles for edges */}
               <Handle
                 type="target"
                 position={Position.Top}
-                style={{ background: '#555' }}
-              />
-              <Handle
-                type="source"
-                position={Position.Bottom}
-                style={{ background: '#555' }}
-              />
-              <Handle
-                type="source"
-                position={Position.Right}
-                id="failure"
-                style={{ background: '#ef4444' }}
+                style={{ 
+                  background: '#ffffff',
+                  border: '2px solid #e2e8f0',
+                  width: '12px',
+                  height: '12px',
+                }}
               />
               
               <div
-                className={\`px-4 py-2 rounded-lg border-2 min-w-64 \${getNodeColor(data.type || 'action', data.status || 'pending')} \${
-                  selected ? 'ring-2 ring-blue-500' : ''
+                className={\`relative rounded-xl shadow-lg transition-all duration-300 ease-in-out hover:shadow-xl min-w-64 \${
+                  selected ? 'ring-4 ring-blue-400 ring-opacity-60' : ''
                 }\`}
+                style={{
+                  background: style.background,
+                  border: style.border,
+                  color: style.color,
+                  boxShadow: style.boxShadow || '0 8px 20px rgba(0, 0, 0, 0.12)',
+                  transform: style.transform || 'scale(1)',
+                  ...style,
+                }}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">{getIcon(data.type || 'action')}</span>
-                  <div>
-                    <div className="font-medium text-sm">{data.label}</div>
+                <div className="px-6 py-4">
+                  <div className="flex items-start gap-3">
+                    <div className="text-2xl mt-0.5" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>
+                      {style.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-base mb-1 leading-tight" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                        {data.label}
+                      </div>
                     {data.config?.toolName && (
-                      <div className="text-xs text-gray-600">{data.config.toolName}</div>
+                        <div className="text-sm opacity-90 mb-1 font-medium">
+                          {data.config.toolName}
+                        </div>
                     )}
                     {data.config?.condition && (
-                      <div className="text-xs text-gray-600">If: {data.config.condition}</div>
+                        <div className="text-sm opacity-80 leading-snug">
+                          <span className="font-medium">If:</span> {data.config.condition}
+                        </div>
                     )}
                     {data.config?.delayMs && (
-                      <div className="text-xs text-gray-600">Wait: {data.config.delayMs}ms</div>
-                    )}
+                        <div className="text-sm opacity-80 leading-snug">
+                          <span className="font-medium">Wait:</span> {data.config.delayMs}ms
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
+                
+                {/* Status indicator */}
+                {data.status && data.status !== 'pending' && (
+                  <div className="absolute -top-2 -right-2 w-4 h-4 rounded-full border-2 border-white shadow-md">
+                    {data.status === 'running' && (
+                      <div className="w-full h-full bg-blue-500 rounded-full animate-pulse"></div>
+                    )}
+                    {data.status === 'completed' && (
+                      <div className="w-full h-full bg-green-500 rounded-full"></div>
+                    )}
+                    {data.status === 'failed' && (
+                      <div className="w-full h-full bg-red-500 rounded-full"></div>
+                    )}
+                    {data.status === 'skipped' && (
+                      <div className="w-full h-full bg-gray-400 rounded-full"></div>
+                    )}
+                  </div>
+                )}
               </div>
+
+              <Handle
+                type="source"
+                position={Position.Bottom}
+                style={{ 
+                  background: '#ffffff',
+                  border: '2px solid #e2e8f0',
+                  width: '12px',
+                  height: '12px',
+                }}
+              />
             </>
           );
         };
 
         // Custom node component for trigger
         const TriggerNode = ({ data }: { data: any }) => {
-          const getIcon = (type: string) => {
-            switch (type) {
-              case 'manual': return '👤';
-              case 'schedule': return '📅';
-              case 'webhook': return '🔗';
-              case 'email': return '📧';
-              case 'event': return '⚡';
-              default: return '🚀';
-            }
+          const getTriggerStyle = (type: string) => {
+            const styles = {
+              manual: {
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                border: '2px solid #5a67d8',
+                icon: '👤'
+              },
+              schedule: {
+                background: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
+                border: '2px solid #ed8936',
+                icon: '📅'
+              },
+              webhook: {
+                background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+                border: '2px solid #38b2ac',
+                icon: '🔗'
+              },
+              email: {
+                background: 'linear-gradient(135deg, #d299c2 0%, #fef9d7 100%)',
+                border: '2px solid #9f7aea',
+                icon: '📧'
+              },
+              event: {
+                background: 'linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%)',
+                border: '2px solid #4299e1',
+                icon: '⚡'
+              },
+            };
+
+            return styles[type] || styles.manual;
           };
+
+          const style = getTriggerStyle(data.type || 'manual');
 
           return (
             <>
-              {/* Connection handle for trigger */}
+              <div
+                className="relative rounded-xl shadow-lg transition-all duration-300 ease-in-out hover:shadow-xl min-w-56"
+                style={{
+                  background: style.background,
+                  border: style.border,
+                  color: 'white',
+                  boxShadow: '0 8px 20px rgba(0, 0, 0, 0.12)',
+                }}
+              >
+                <div className="px-6 py-4">
+                  <div className="flex items-start gap-3">
+                    <div className="text-2xl mt-0.5" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>
+                      {style.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-base mb-1 leading-tight" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                        Trigger
+                      </div>
+                      <div className="text-sm opacity-90 font-medium capitalize mb-1">
+                        {data.type || 'manual'}
+                      </div>
+                      {data.config?.schedule && (
+                        <div className="text-sm opacity-80 leading-snug">
+                          {cronToHuman(data.config.schedule)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Pulse effect for active triggers */}
+                <div className="absolute inset-0 rounded-xl bg-white opacity-0 hover:opacity-10 transition-opacity duration-300"></div>
+              </div>
+
               <Handle
                 type="source"
                 position={Position.Bottom}
-                style={{ background: '#6366f1' }}
+                style={{ 
+                  background: style.border.replace('2px solid ', ''),
+                  border: '2px solid #ffffff',
+                  width: '12px',
+                  height: '12px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                }}
               />
-              
-              <div className="px-4 py-2 rounded-lg border-2 bg-gray-100 border-gray-300 min-w-32">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">{getIcon(data.type || 'manual')}</span>
-                  <div>
-                    <div className="font-medium text-sm">Trigger</div>
-                    <div className="text-xs text-gray-600">{data.type || 'manual'}</div>
-                    {data.config?.schedule && (
-                      <div className="text-xs text-gray-600">{cronToHuman(data.config.schedule)}</div>
-                    )}
-                  </div>
-                </div>
-              </div>
             </>
           );
         };
@@ -281,11 +399,11 @@ export const getWorkflowFiles = (content: string) => {
           const initialNodes: Node[] = useMemo(() => {
             const nodes: Node[] = [];
 
-            // Add trigger node at the top center
+            // Add trigger node at the top center - better positioned
             nodes.push({
               id: 'trigger',
               type: 'trigger',
-              position: { x: 400, y: 50 },
+              position: { x: 200, y: 60 }, // More centered positioning
               data: {
                 type: workflowData.trigger.type,
                 config: workflowData.trigger.config,
@@ -308,14 +426,14 @@ export const getWorkflowFiles = (content: string) => {
             // Sort main flow nodes by their original X position to maintain order
             const sortedMainNodes = [...mainFlowNodes].sort((a, b) => a.position.x - b.position.x);
 
-            // Position main flow steps vertically in the center
+            // Position main flow steps vertically in the center - better centered
             sortedMainNodes.forEach((node, index) => {
               nodes.push({
                 id: node.id,
                 type: 'workflowStep',
                 position: { 
-                  x: 350, // Center horizontally
-                  y: 150 + (index * 120) // Stack vertically with 120px spacing
+                  x: 150, // More centered horizontally
+                  y: 200 + (index * 180) // Increased spacing to 180px for better visual hierarchy
                 },
                 data: {
                   ...node.data,
@@ -343,12 +461,16 @@ export const getWorkflowFiles = (content: string) => {
                   target: firstStep.id,
                   sourceHandle: null,
                   targetHandle: null,
-                  type: 'straight',
-                  style: { stroke: '#6366f1', strokeWidth: 2 },
+                  type: 'straight', // Changed to straight for clean vertical alignment
+                  style: { 
+                    stroke: '#6366f1', 
+                    strokeWidth: 3,
+                    strokeDasharray: '0',
+                  },
                   markerEnd: {
                     type: 'arrowclosed',
-                    width: 20,
-                    height: 20,
+                    width: 24,
+                    height: 24,
                     color: '#6366f1',
                   },
                 });
@@ -365,7 +487,7 @@ export const getWorkflowFiles = (content: string) => {
               return isSuccess && sourceIsMain && targetIsMain;
             });
 
-            // Convert filtered edges to ReactFlow format
+            // Convert filtered edges to ReactFlow format - clean professional style
             mainFlowEdges.forEach(edge => {
               edges.push({
                 id: edge.id,
@@ -373,26 +495,19 @@ export const getWorkflowFiles = (content: string) => {
                 target: edge.target,
                 sourceHandle: null,
                 targetHandle: null,
-                type: 'straight',
+                type: 'straight', // Changed to straight for clean lines
                 style: { 
-                  stroke: '#10b981', 
-                  strokeWidth: 2
+                  stroke: '#22c55e', 
+                  strokeWidth: 3,
+                  strokeDasharray: '0',
                 },
                 markerEnd: {
                   type: 'arrowclosed',
-                  width: 20,
-                  height: 20,
-                  color: '#10b981',
+                  width: 24,
+                  height: 24,
+                  color: '#22c55e',
                 },
-                label: '✓',
-                labelStyle: {
-                  fontSize: 12,
-                  fontWeight: 'bold',
-                  fill: '#10b981',
-                  backgroundColor: 'white',
-                  padding: '2px 4px',
-                  borderRadius: '4px',
-                },
+                // Removed label for cleaner professional look
               });
             });
 
@@ -419,8 +534,8 @@ export const getWorkflowFiles = (content: string) => {
           }
 
           return (
-            <div className="w-full h-96">
-              <div className="mb-4 p-4 border-b">
+            <div className="w-screen h-screen relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 z-10 p-4 border-b bg-white/90 backdrop-blur-sm">
                 <h2 className="text-lg font-semibold">{workflowData.workflow.name}</h2>
                 {workflowData.workflow.description && (
                   <p className="text-sm text-gray-600 mt-1">{workflowData.workflow.description}</p>
@@ -441,20 +556,22 @@ export const getWorkflowFiles = (content: string) => {
                 </div>
               </div>
               
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                nodeTypes={nodeTypes}
-                onNodeClick={onNodeClick}
-                connectionMode={ConnectionMode.Strict}
-                fitView
-                fitViewOptions={{ padding: 0.1, maxZoom: 1 }}
-                attributionPosition="bottom-left"
-                defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
-              >
-                <Background color="#f3f4f6" />
-                <Controls />
-              </ReactFlow>
+              <div className="absolute inset-0 pt-24">
+                <ReactFlow
+                  nodes={nodes}
+                  edges={edges}
+                  nodeTypes={nodeTypes}
+                  onNodeClick={onNodeClick}
+                  connectionMode={ConnectionMode.Strict}
+                  fitView
+                  fitViewOptions={{ padding: 0.1, maxZoom: 1 }}
+                  attributionPosition="bottom-left"
+                  defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+                >
+                  <Background color="#f3f4f6" />
+                  <Controls />
+                </ReactFlow>
+              </div>
             </div>
           );
         };
