@@ -322,15 +322,15 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data }) =
     }
   }, [data]);
 
-  // Create ReactFlow nodes
+  // Create ReactFlow nodes with organic, flowing layout
   const initialNodes: Node[] = useMemo(() => {
     const nodes: Node[] = [];
 
-    // Add trigger node at the top center - better positioned
+    // Add trigger node - starting point
     nodes.push({
       id: 'trigger',
       type: 'trigger',
-      position: { x: 200, y: 60 }, // More centered positioning
+      position: { x: 400, y: 50 },
       data: {
         type: workflowData.trigger.type,
         config: workflowData.trigger.config,
@@ -338,18 +338,52 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data }) =
       draggable: false,
     });
 
-    // Add step nodes with significantly more spacing - better centered
+    // Create organic, flowing layout like n8n
     workflowData.nodes.forEach((node, index) => {
+      // Create a flowing, organic pattern
+      let x, y;
+      
+      if (index === 0) {
+        // First node - slightly offset from trigger
+        x = 300;
+        y = 200;
+      } else if (index === 1) {
+        // Second node - create a flow to the right
+        x = 500;
+        y = 350;
+      } else if (index === 2) {
+        // Third node - flow back toward center-left
+        x = 200;
+        y = 500;
+      } else {
+        // Additional nodes - continue the flowing pattern
+        const pattern = index % 4;
+        switch (pattern) {
+          case 0:
+            x = 150 + (index * 50);
+            y = 200 + (index * 120);
+            break;
+          case 1:
+            x = 450 + (index * 30);
+            y = 250 + (index * 100);
+            break;
+          case 2:
+            x = 300 - (index * 20);
+            y = 300 + (index * 110);
+            break;
+          default:
+            x = 350 + (index * 40);
+            y = 180 + (index * 130);
+        }
+      }
+
       nodes.push({
         id: node.id,
         type: 'workflowStep',
-        position: { 
-          x: 150, // More centered horizontally
-          y: 200 + (index * 180) // Increased spacing to 180px
-        },
+        position: { x, y },
         data: {
           ...node.data,
-          type: workflowData.workflow.steps.find(s => s.id === node.id)?.type || 'action',
+          type: workflowData.workflow.steps.find((s) => s.id === node.id)?.type || 'action',
         },
         draggable: false,
       });
@@ -358,7 +392,7 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data }) =
     return nodes;
   }, [workflowData]);
 
-  // Create ReactFlow edges - clean straight lines since nodes are vertically aligned
+  // Create ReactFlow edges with smooth bezier curves
   const initialEdges: Edge[] = useMemo(() => {
     const edges: Edge[] = [];
 
@@ -369,40 +403,37 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data }) =
         id: 'trigger-to-first',
         source: 'trigger',
         target: firstStep.id,
-        type: 'straight', // Changed to straight for clean vertical alignment
-        style: { 
-          stroke: '#6366f1', 
-          strokeWidth: 3,
-          strokeDasharray: '0',
+        type: 'default', // Use bezier curves for natural flow
+        style: {
+          stroke: '#9ca3af',
+          strokeWidth: 2,
         },
         markerEnd: {
           type: 'arrowclosed',
-          width: 24,
-          height: 24,
-          color: '#6366f1',
+          width: 12,
+          height: 12,
+          color: '#9ca3af',
         },
       });
     }
 
-    // Add edges from workflow data - clean straight style
+    // Add edges from workflow data with smooth curves
     workflowData.edges.forEach((edge) => {
       edges.push({
         id: edge.id,
         source: edge.source,
         target: edge.target,
-        type: 'straight', // Changed to straight for clean lines
+        type: 'default', // Use bezier curves for natural flow
         style: {
-          stroke: edge.type === 'success' ? '#22c55e' : '#ef4444',
-          strokeWidth: 3,
-          strokeDasharray: edge.type === 'success' ? '0' : '8,4',
+          stroke: '#9ca3af',
+          strokeWidth: 2,
         },
         markerEnd: {
           type: 'arrowclosed',
-          width: 24,
-          height: 24,
-          color: edge.type === 'success' ? '#22c55e' : '#ef4444',
+          width: 12,
+          height: 12,
+          color: '#9ca3af',
         },
-        // Removed labels for cleaner look
       });
     });
 

@@ -395,15 +395,15 @@ export const getWorkflowFiles = (content: string) => {
             }
           }, [data]);
 
-          // Create ReactFlow nodes from the provided nodes array
+          // Create ReactFlow nodes with organic, flowing layout
           const initialNodes: Node[] = useMemo(() => {
             const nodes: Node[] = [];
 
-            // Add trigger node at the top center - better positioned
+            // Add trigger node - starting point
             nodes.push({
               id: 'trigger',
               type: 'trigger',
-              position: { x: 200, y: 60 }, // More centered positioning
+              position: { x: 400, y: 50 },
               data: {
                 type: workflowData.trigger.type,
                 config: workflowData.trigger.config,
@@ -426,15 +426,49 @@ export const getWorkflowFiles = (content: string) => {
             // Sort main flow nodes by their original X position to maintain order
             const sortedMainNodes = [...mainFlowNodes].sort((a, b) => a.position.x - b.position.x);
 
-            // Position main flow steps vertically in the center - better centered
+            // Create organic, flowing layout like n8n
             sortedMainNodes.forEach((node, index) => {
+              // Create a flowing, organic pattern
+              let x, y;
+              
+              if (index === 0) {
+                // First node - slightly offset from trigger
+                x = 300;
+                y = 200;
+              } else if (index === 1) {
+                // Second node - create a flow to the right
+                x = 500;
+                y = 350;
+              } else if (index === 2) {
+                // Third node - flow back toward center-left
+                x = 200;
+                y = 500;
+              } else {
+                // Additional nodes - continue the flowing pattern
+                const pattern = index % 4;
+                switch (pattern) {
+                  case 0:
+                    x = 150 + (index * 50);
+                    y = 200 + (index * 120);
+                    break;
+                  case 1:
+                    x = 450 + (index * 30);
+                    y = 250 + (index * 100);
+                    break;
+                  case 2:
+                    x = 300 - (index * 20);
+                    y = 300 + (index * 110);
+                    break;
+                  default:
+                    x = 350 + (index * 40);
+                    y = 180 + (index * 130);
+                }
+              }
+
               nodes.push({
                 id: node.id,
                 type: 'workflowStep',
-                position: { 
-                  x: 150, // More centered horizontally
-                  y: 200 + (index * 180) // Increased spacing to 180px for better visual hierarchy
-                },
+                position: { x, y },
                 data: {
                   ...node.data,
                   type: node.type || 'action',
@@ -446,7 +480,7 @@ export const getWorkflowFiles = (content: string) => {
             return nodes;
           }, [workflowData]);
 
-          // Create ReactFlow edges - show only main flow connections
+          // Create ReactFlow edges with smooth bezier curves
           const initialEdges: Edge[] = useMemo(() => {
             const edges: Edge[] = [];
 
@@ -461,17 +495,16 @@ export const getWorkflowFiles = (content: string) => {
                   target: firstStep.id,
                   sourceHandle: null,
                   targetHandle: null,
-                  type: 'straight', // Changed to straight for clean vertical alignment
-                  style: { 
-                    stroke: '#6366f1', 
-                    strokeWidth: 3,
-                    strokeDasharray: '0',
+                  type: 'default', // Use bezier curves for natural flow
+                  style: {
+                    stroke: '#9ca3af',
+                    strokeWidth: 2,
                   },
                   markerEnd: {
                     type: 'arrowclosed',
-                    width: 24,
-                    height: 24,
-                    color: '#6366f1',
+                    width: 12,
+                    height: 12,
+                    color: '#9ca3af',
                   },
                 });
               }
@@ -487,7 +520,7 @@ export const getWorkflowFiles = (content: string) => {
               return isSuccess && sourceIsMain && targetIsMain;
             });
 
-            // Convert filtered edges to ReactFlow format - clean professional style
+            // Convert filtered edges to ReactFlow format with smooth curves
             mainFlowEdges.forEach(edge => {
               edges.push({
                 id: edge.id,
@@ -495,19 +528,17 @@ export const getWorkflowFiles = (content: string) => {
                 target: edge.target,
                 sourceHandle: null,
                 targetHandle: null,
-                type: 'straight', // Changed to straight for clean lines
-                style: { 
-                  stroke: '#22c55e', 
-                  strokeWidth: 3,
-                  strokeDasharray: '0',
+                type: 'default', // Use bezier curves for natural flow
+                style: {
+                  stroke: '#9ca3af',
+                  strokeWidth: 2,
                 },
                 markerEnd: {
                   type: 'arrowclosed',
-                  width: 24,
-                  height: 24,
-                  color: '#22c55e',
+                  width: 12,
+                  height: 12,
+                  color: '#9ca3af',
                 },
-                // Removed label for cleaner professional look
               });
             });
 
