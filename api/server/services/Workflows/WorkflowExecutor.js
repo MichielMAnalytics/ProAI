@@ -1,20 +1,24 @@
 const { logger } = require('~/config');
-const { EModelEndpoint, Constants } = require('librechat-data-provider');
-const { 
-  updateSchedulerExecution,
-} = require('~/models/SchedulerExecution');
-const UserMCPService = require('~/server/services/UserMCPService');
-const { evaluateCondition } = require('./utils/conditionEvaluator');
+const { Constants } = require('librechat-data-provider');
+const { updateSchedulerExecution } = require('~/models/SchedulerExecution');
 const { loadAgent } = require('~/models/Agent');
-const { createMockRequest, createMockResponse, createMinimalMockResponse, updateRequestForEphemeralAgent } = require('~/server/services/Scheduler/utils/mockUtils');
-const { getCustomConfig } = require('~/server/services/Config/getCustomConfig');
-
-// Import client factory for agents
+const {
+  createMinimalMockResponse,
+  updateRequestForEphemeralAgent,
+} = require('~/server/services/Scheduler/utils/mockUtils');
+const {
+  findFirstStep,
+  createSerializableContext,
+  getConfiguredModelAndEndpoint,
+  createMockRequestForWorkflow,
+  extractMCPServerNames,
+  executeStep,
+} = require('./executor');
 const SchedulerClientFactory = require('~/server/services/Scheduler/SchedulerClientFactory');
 
 /**
  * WorkflowExecutor - Handles the execution of workflows
- * 
+ *
  * This service manages:
  * - Step-by-step workflow execution
  * - Integration with MCP tools and Pipedream actions
@@ -24,7 +28,7 @@ const SchedulerClientFactory = require('~/server/services/Scheduler/SchedulerCli
  * - Dynamic MCP server initialization
  * - Dedicated workflow execution conversation management
  * - Workflow-level agent initialization and reuse across steps
- * 
+ *
  * CONVERSATION MANAGEMENT:
  * - Creates a dedicated conversation for each workflow execution
  * - Names conversations: "Workflow execution [name] [timestamp]"
@@ -50,40 +54,42 @@ class WorkflowExecutor {
 
     try {
       logger.info(`[WorkflowExecutor] Initializing MCP for user ${userId}`);
-      
+
       const MCPInitializer = require('~/server/services/MCPInitializer');
       const mcpInitializer = MCPInitializer.getInstance();
-      
+
       const availableTools = {};
       const mcpResult = await mcpInitializer.ensureUserMCPReady(
-        userId, 
+        userId,
         'WorkflowExecutor',
-        availableTools
+        availableTools,
       );
-      
+
       // Store the result
       const result = {
         success: mcpResult.success,
         availableTools,
         toolCount: mcpResult.toolCount,
-        serverCount: mcpResult.serverCount
+        serverCount: mcpResult.serverCount,
       };
-      
+
       this.mcpInitialized.set(userId, result);
-      
-      logger.info(`[WorkflowExecutor] MCP initialized for user ${userId}: ${mcpResult.serverCount} servers, ${mcpResult.toolCount} tools`);
+
+      logger.info(
+        `[WorkflowExecutor] MCP initialized for user ${userId}: ${mcpResult.serverCount} servers, ${mcpResult.toolCount} tools`,
+      );
       return result;
     } catch (error) {
       logger.error(`[WorkflowExecutor] Failed to initialize MCP for user ${userId}:`, error);
-      
+
       const errorResult = {
         success: false,
         availableTools: {},
         toolCount: 0,
         serverCount: 0,
-        error: error.message
+        error: error.message,
       };
-      
+
       this.mcpInitialized.set(userId, errorResult);
       return errorResult;
     }
@@ -107,7 +113,9 @@ class WorkflowExecutor {
 
       // Initialize MCP tools for the user
       const mcpResult = await this.ensureMCPReady(userId);
-      logger.info(`[WorkflowExecutor] MCP ready for workflow ${workflowId}: ${mcpResult.toolCount} tools available`);
+      logger.info(
+        `[WorkflowExecutor] MCP ready for workflow ${workflowId}: ${mcpResult.toolCount} tools available`,
+      );
 
       // Track this execution
       this.runningExecutions.set(executionId, {
@@ -120,132 +128,162 @@ class WorkflowExecutor {
       // Get or create a dedicated conversation for workflow execution logging
       const { v4: uuidv4 } = require('uuid');
       let workflowExecutionConversationId;
-      
+
       // Check if workflow already has a dedicated conversation ID in metadata
       const WorkflowService = require('./WorkflowService');
       const workflowService = new WorkflowService();
       const currentWorkflow = await workflowService.getWorkflowById(workflowId, userId);
-      
-      if (currentWorkflow && currentWorkflow.metadata && currentWorkflow.metadata.dedicatedConversationId) {
+
+      if (
+        currentWorkflow &&
+        currentWorkflow.metadata &&
+        currentWorkflow.metadata.dedicatedConversationId
+      ) {
         // Reuse existing conversation
         workflowExecutionConversationId = currentWorkflow.metadata.dedicatedConversationId;
-        logger.info(`[WorkflowExecutor] Reusing existing dedicated conversation: ${workflowExecutionConversationId} for workflow: ${workflow.name}`);
+        logger.info(
+          `[WorkflowExecutor] Reusing existing dedicated conversation: ${workflowExecutionConversationId} for workflow: ${workflow.name}`,
+        );
       } else {
         // Create new conversation for this workflow
         workflowExecutionConversationId = uuidv4();
-        
+
         // Extract clean workflow name (remove "Workflow: " prefix if present)
         const cleanWorkflowName = workflow.name.replace(/^Workflow:\s*/, '');
         const workflowExecutionTitle = `Workflow executions: ${cleanWorkflowName}`;
-        
+
         // Create the workflow execution conversation
         const { saveConvo } = require('~/models/Conversation');
         const mockReq = {
           user: { id: userId },
           body: {}, // Add body property to prevent saveConvo errors
-          app: { locals: {} }
+          app: { locals: {} },
         };
-        
-        await saveConvo(mockReq, {
-          conversationId: workflowExecutionConversationId,
-          title: workflowExecutionTitle,
-          endpoint: 'openAI',
-          model: 'gpt-4o-mini',
-          isArchived: false,
-        }, { context: 'WorkflowExecutor.executeWorkflow - dedicated execution conversation' });
+
+        await saveConvo(
+          mockReq,
+          {
+            conversationId: workflowExecutionConversationId,
+            title: workflowExecutionTitle,
+            endpoint: 'openAI',
+            model: 'gpt-4o-mini',
+            isArchived: false,
+          },
+          { context: 'WorkflowExecutor.executeWorkflow - dedicated execution conversation' },
+        );
 
         // Store the conversation ID in workflow metadata for future reuse
         try {
           await workflowService.updateWorkflow(workflowId, userId, {
             metadata: {
               ...currentWorkflow?.metadata,
-              dedicatedConversationId: workflowExecutionConversationId
-            }
+              dedicatedConversationId: workflowExecutionConversationId,
+            },
           });
-          logger.info(`[WorkflowExecutor] Created and stored dedicated conversation: ${workflowExecutionConversationId} for workflow: ${workflow.name}`);
+          logger.info(
+            `[WorkflowExecutor] Created and stored dedicated conversation: ${workflowExecutionConversationId} for workflow: ${workflow.name}`,
+          );
         } catch (metadataError) {
-          logger.warn(`[WorkflowExecutor] Failed to store conversation ID in workflow metadata: ${metadataError.message}`);
+          logger.warn(
+            `[WorkflowExecutor] Failed to store conversation ID in workflow metadata: ${metadataError.message}`,
+          );
           // Continue with execution even if metadata update fails
         }
-        
-        logger.info(`[WorkflowExecutor] Created dedicated execution conversation: ${workflowExecutionConversationId} with title: ${workflowExecutionTitle}`);
+
+        logger.info(
+          `[WorkflowExecutor] Created dedicated execution conversation: ${workflowExecutionConversationId} with title: ${workflowExecutionTitle}`,
+        );
       }
 
       // Initialize workflow-level agent for reuse across all steps
       let workflowAgent = null;
       let workflowClient = null;
-      
+
       if (mcpResult.success && mcpResult.toolCount > 0) {
         try {
-          logger.info(`[WorkflowExecutor] Initializing workflow-level agent with ${mcpResult.toolCount} MCP tools`);
-          
-          // Get the configured model and endpoint
-          const config = await this.getConfiguredModelAndEndpoint(workflow);
-          const { model: configuredModel, endpoint: configuredEndpoint, endpointName } = config;
-          
-          // Create mock request for agent initialization with proper MCP context
-          const mockReq = this.createMockRequestForWorkflow(
-            { name: 'Workflow Agent', config: {} }, 
-            { 
-              workflow: { conversationId: workflowExecutionConversationId },
-              mcp: { availableTools: mcpResult.availableTools }
-            }, 
-            userId, 
-            'Workflow execution agent', 
-            configuredModel, 
-            configuredEndpoint
+          logger.info(
+            `[WorkflowExecutor] Initializing workflow-level agent with ${mcpResult.toolCount} MCP tools`,
           );
-          
+
+          // Get the configured model and endpoint
+          const config = await getConfiguredModelAndEndpoint(workflow);
+          const { model: configuredModel, endpoint: configuredEndpoint, endpointName } = config;
+
+          // Create mock request for agent initialization with proper MCP context
+          const mockReq = createMockRequestForWorkflow(
+            {
+              workflow: { conversationId: workflowExecutionConversationId },
+              mcp: { availableTools: mcpResult.availableTools },
+            },
+            userId,
+            'Workflow execution agent',
+            configuredModel,
+            configuredEndpoint,
+          );
+
           // Extract MCP server names from available tools
-          const mcpServerNames = this.extractMCPServerNames(mcpResult.availableTools);
-          
+          const mcpServerNames = extractMCPServerNames(mcpResult.availableTools);
+
           // Create ephemeral agent configuration
           const ephemeralAgent = {
             workflow: true,
             execute_code: false,
             web_search: false,
-            mcp: mcpServerNames
+            mcp: mcpServerNames,
           };
-          
+
           // Update request for ephemeral agent
           const underlyingEndpoint = configuredEndpoint;
           const underlyingModel = configuredModel;
-          
-          updateRequestForEphemeralAgent(mockReq, {
-            prompt: 'Workflow execution agent',
-            user: userId,
-            conversation_id: workflowExecutionConversationId,
-            parent_message_id: null,
-          }, ephemeralAgent, underlyingEndpoint, underlyingModel);
-          
+
+          updateRequestForEphemeralAgent(
+            mockReq,
+            {
+              prompt: 'Workflow execution agent',
+              user: userId,
+              conversation_id: workflowExecutionConversationId,
+              parent_message_id: null,
+            },
+            ephemeralAgent,
+            underlyingEndpoint,
+            underlyingModel,
+          );
+
           // Load ephemeral agent
           const agent = await loadAgent({
             req: mockReq,
             agent_id: Constants.EPHEMERAL_AGENT_ID,
             endpoint: underlyingEndpoint,
-            model_parameters: { model: underlyingModel }
+            model_parameters: { model: underlyingModel },
           });
-          
+
           if (agent) {
-            logger.info(`[WorkflowExecutor] Loaded workflow-level agent with ${agent.tools?.length || 0} tools using ${endpointName}/${underlyingModel}`);
-            
+            logger.info(
+              `[WorkflowExecutor] Loaded workflow-level agent with ${
+                agent.tools?.length || 0
+              } tools using ${endpointName}/${underlyingModel}`,
+            );
+
             // Initialize client factory and create agents endpoint option
             const clientFactory = new SchedulerClientFactory();
-            const endpointOption = clientFactory.createAgentsEndpointOption(agent, underlyingModel);
-            
+            const endpointOption = clientFactory.createAgentsEndpointOption(
+              agent,
+              underlyingModel,
+            );
+
             // Disable automatic title generation to preserve our custom workflow execution title
             endpointOption.titleConvo = false;
-            
+
             // Create minimal mock response for client initialization
             const mockRes = createMinimalMockResponse();
-            
+
             // Initialize the agents client
-            const { client } = await clientFactory.initializeClient({ 
-              req: mockReq, 
-              res: mockRes, 
-              endpointOption 
+            const { client } = await clientFactory.initializeClient({
+              req: mockReq,
+              res: mockRes,
+              endpointOption,
             });
-            
+
             if (client) {
               workflowAgent = agent;
               workflowClient = client;
@@ -290,7 +328,7 @@ class WorkflowExecutor {
       };
 
       // Update execution record with serializable context
-      const serializableContext = this.createSerializableContext(executionContext);
+      const serializableContext = createSerializableContext(executionContext);
       await updateSchedulerExecution(executionId, execution.user, {
         status: 'running',
         startTime: new Date(),
@@ -298,18 +336,13 @@ class WorkflowExecutor {
       });
 
       // Find the first step (usually the one without any incoming connections)
-      const firstStep = this.findFirstStep(workflow.steps);
+      const firstStep = findFirstStep(workflow.steps);
       if (!firstStep) {
         throw new Error('No starting step found in workflow');
       }
 
       // Execute steps starting from the first step
-      const result = await this.executeStepChain(
-        workflow, 
-        execution, 
-        firstStep.id, 
-        executionContext
-      );
+      const result = await this.executeStepChain(workflow, execution, firstStep.id, executionContext);
 
       // Clean up workflow-level agent resources
       if (executionContext.workflow?.client) {
@@ -331,17 +364,22 @@ class WorkflowExecutor {
       // Clean up workflow-level agent resources in error case
       try {
         if (executionContext && executionContext.workflow?.client) {
-          logger.debug(`[WorkflowExecutor] Workflow-level agent cleanup in error case for ${workflowId}`);
+          logger.debug(
+            `[WorkflowExecutor] Workflow-level agent cleanup in error case for ${workflowId}`,
+          );
         }
       } catch (cleanupError) {
-        logger.warn(`[WorkflowExecutor] Error during workflow-level agent cleanup in error case:`, cleanupError);
+        logger.warn(
+          `[WorkflowExecutor] Error during workflow-level agent cleanup in error case:`,
+          cleanupError,
+        );
       }
 
       // Clean up tracking
       this.runningExecutions.delete(executionId);
 
       logger.error(`[WorkflowExecutor] Workflow execution failed: ${workflowId}`, error);
-      
+
       // Update execution status
       await updateSchedulerExecution(executionId, execution.user, {
         status: 'failed',
@@ -379,7 +417,7 @@ class WorkflowExecutor {
       logger.info(`[WorkflowExecutor] Executing step: ${step.name} (${step.type})`);
 
       // Execute the current step
-      const stepResult = await this.executeStep(workflow, execution, step, context);
+      const stepResult = await executeStep(workflow, execution, step, context);
 
       // Update the parent message ID for the next step to maintain conversation threading
       if (stepResult && stepResult.responseMessageId) {
@@ -403,7 +441,7 @@ class WorkflowExecutor {
       context.steps[step.id] = stepResult;
 
       // Create a clean, serializable version of context for database storage
-      const serializableContext = this.createSerializableContext(context);
+      const serializableContext = createSerializableContext(context);
       await updateSchedulerExecution(execution.id, execution.user, {
         context: serializableContext,
       });
@@ -433,995 +471,25 @@ class WorkflowExecutor {
   }
 
   /**
-   * Execute a single workflow step
-   * @param {Object} workflow - The workflow
-   * @param {Object} execution - The execution record
-   * @param {Object} step - The step to execute
-   * @param {Object} context - Execution context
-   * @returns {Promise<Object>} Step execution result
-   */
-  async executeStep(workflow, execution, step, context) {
-    // Send notification that step is starting
-    try {
-      const SchedulerService = require('~/server/services/Scheduler/SchedulerService');
-      await SchedulerService.sendWorkflowStatusUpdate({
-        userId: execution.user,
-        workflowName: workflow.name,
-        workflowId: workflow.id,
-        notificationType: 'step_started',
-        details: `Executing step: ${step.name}`,
-        stepData: {
-          stepId: step.id,
-          stepName: step.name,
-          stepType: step.type,
-          status: 'running'
-        }
-      });
-    } catch (notificationError) {
-      logger.warn(`[WorkflowExecutor] Failed to send step start notification: ${notificationError.message}`);
-    }
-
-    const stepExecutionData = {
-      stepId: step.id,
-      stepName: step.name,
-      stepType: step.type,
-      status: 'running',
-      startTime: new Date(),
-      input: step.config,
-      retryCount: 0,
-    };
-    
-    await updateSchedulerExecution(execution.id, execution.user, stepExecutionData);
-
-    try {
-      let result;
-
-      switch (step.type) {
-        case 'delay':
-          result = await this.executeDelayStep(step, context);
-          break;
-        case 'condition':
-          result = await this.executeConditionStep(step, context);
-          break;
-        case 'action':
-          result = await this.executePipedreamActionStep(step, context, execution.user);
-          break;
-        default:
-          throw new Error(`Unknown step type: ${step.type}`);
-      }
-
-      // Update step execution with success
-      await updateSchedulerExecution(execution.id, execution.user, {
-        currentStepId: step.id,
-      });
-
-      // Send notification that step completed successfully
-      try {
-        const SchedulerService = require('~/server/services/Scheduler/SchedulerService');
-        await SchedulerService.sendWorkflowStatusUpdate({
-          userId: execution.user,
-          workflowName: workflow.name,
-          workflowId: workflow.id,
-          notificationType: 'step_completed',
-          details: `Step completed: ${step.name}`,
-          stepData: {
-            stepId: step.id,
-            stepName: step.name,
-            stepType: step.type,
-            status: 'completed',
-            result: this.getFullStepResult(result)
-          }
-        });
-      } catch (notificationError) {
-        logger.warn(`[WorkflowExecutor] Failed to send step completion notification: ${notificationError.message}`);
-      }
-
-      logger.info(`[WorkflowExecutor] Step completed: ${step.name}`);
-      return {
-        success: true,
-        result: result,
-        stepId: step.id,
-      };
-    } catch (error) {
-      logger.error(`[WorkflowExecutor] Step failed: ${step.name}`, error);
-
-      // Update step execution with failure
-      await updateSchedulerExecution(execution.id, execution.user, {
-        currentStepId: step.id,
-        error: error.message,
-      });
-
-      // Send notification that step failed
-      try {
-        const SchedulerService = require('~/server/services/Scheduler/SchedulerService');
-        await SchedulerService.sendWorkflowStatusUpdate({
-          userId: execution.user,
-          workflowName: workflow.name,
-          workflowId: workflow.id,
-          notificationType: 'step_failed',
-          details: `Step failed: ${step.name} - ${error.message}`,
-          stepData: {
-            stepId: step.id,
-            stepName: step.name,
-            stepType: step.type,
-            status: 'failed',
-            error: error.message
-          }
-        });
-      } catch (notificationError) {
-        logger.warn(`[WorkflowExecutor] Failed to send step failure notification: ${notificationError.message}`);
-      }
-
-      return {
-        success: false,
-        error: error.message,
-        result: null,
-        stepId: step.id,
-      };
-    }
-  }
-
-  /**
-   * Execute a delay step
-   * @param {Object} step - The delay step
-   * @param {Object} context - Execution context
-   * @returns {Promise<Object>} Step result
-   */
-  async executeDelayStep(step, context) {
-    const delayMs = step.config.delayMs || 1000;
-    
-    logger.info(`[WorkflowExecutor] Executing delay: ${delayMs}ms`);
-    
-    await new Promise(resolve => setTimeout(resolve, delayMs));
-    
-    return {
-      type: 'delay',
-      delayMs,
-      message: `Delayed execution for ${delayMs}ms`,
-    };
-  }
-
-  /**
-   * Execute a condition step
-   * @param {Object} step - The condition step
-   * @param {Object} context - Execution context
-   * @returns {Promise<Object>} Step result
-   */
-  async executeConditionStep(step, context) {
-    const condition = step.config.condition;
-    
-    logger.info(`[WorkflowExecutor] Evaluating condition: ${condition}`);
-    
-    if (!condition) {
-      throw new Error('Condition expression is required');
-    }
-
-    const result = evaluateCondition(condition, context);
-    
-    return {
-      type: 'condition',
-      condition,
-      result,
-      evaluated: true,
-    };
-  }
-
-  /**
-   * Execute a Pipedream action step using agent with MCP tools
-   * @param {Object} step - The action step
-   * @param {Object} context - Execution context
-   * @param {string} userId - User ID for the execution
-   * @returns {Promise<Object>} Step result
-   */
-  async executePipedreamActionStep(step, context, userId) {
-    logger.info(`[WorkflowExecutor] Executing action step: "${step.name}"`);
-    
-    // Check if MCP tools are available
-    if (!context.mcp?.available || context.mcp.toolCount === 0) {
-      logger.warn(`[WorkflowExecutor] No MCP tools available for action step "${step.name}". Returning mock result.`);
-      return this.createMockActionResult(step, 'No MCP tools available');
-    }
-
-    try {
-      logger.info(`[WorkflowExecutor] Using agent with ${context.mcp.toolCount} MCP tools for action step "${step.name}"`);
-      
-      // Create a task prompt based on the step
-      const taskPrompt = this.createTaskPromptForStep(step, context);
-      
-      // Execute using agent with MCP tools (similar to scheduler approach)
-      const result = await this.executeStepWithAgent(step, taskPrompt, context, userId);
-      
-      return {
-        type: 'mcp_agent_action',
-        stepName: step.name,
-        prompt: taskPrompt,
-        result,
-      };
-    } catch (error) {
-      logger.error(`[WorkflowExecutor] Agent execution failed for step "${step.name}":`, error);
-      
-      // Fall back to mock result if agent execution fails
-      return this.createMockActionResult(step, `Agent execution failed: ${error.message}`);
-    }
-  }
-
-  /**
-   * Create a task prompt for a workflow step
-   * @param {Object} step - Workflow step
-   * @param {Object} context - Execution context
-   * @returns {string} Task prompt for the agent
-   */
-  createTaskPromptForStep(step, context) {
-    // Start with a more specific, actionable prompt
-    let prompt = `WORKFLOW STEP EXECUTION:
-
-Step Name: "${step.name}"
-Step Type: ${step.type}
-
-CRITICAL: This is a NEW step execution. Ignore any previous tool calls or responses.
-
-INSTRUCTIONS:`;
-
-    // For action steps, be very specific about what tool to use and how
-    if (step.type === 'action') {
-      if (step.config.toolName) {
-        // If a specific tool is configured, instruct the agent to use it directly
-        prompt += `\n1. Call the MCP tool "${step.config.toolName}" directly`;
-        prompt += `\n   - Do NOT call any other tools, especially "${step.config.toolName === 'STRAVA-GET-ACTIVITY-BY-ID' ? 'STRAVA-GET-ACTIVITY-LIST' : 'any other tools'}"`;
-        prompt += `\n   - This step requires EXACTLY "${step.config.toolName}" and no other tool`;
-        
-        // Handle parameters from the standard parameters object
-        let parametersToUse = {};
-        
-        // Primary source: parameters object
-        if (step.config.parameters) {
-          parametersToUse = this.resolveParameters(step.config.parameters, context);
-        }
-        
-        // Secondary source: toolParameters (for backward compatibility)
-        if (step.config.toolParameters) {
-          parametersToUse = { ...parametersToUse, ...step.config.toolParameters };
-        }
-        
-        if (Object.keys(parametersToUse).length > 0) {
-          prompt += `\n2. Use these parameters:`;
-          for (const [key, value] of Object.entries(parametersToUse)) {
-            prompt += `\n   - ${key}: ${JSON.stringify(value)}`;
-          }
-        } else {
-          prompt += `\n2. Check the step configuration for parameter requirements`;
-        }
-        
-        // Add special handling for email steps
-        if (step.config.toolName.includes('EMAIL')) {
-          prompt += this.generateEmailStepGuidance(step, context);
-        }
-        
-        if (step.config.instruction) {
-          prompt += `\n3. Additional instruction: ${step.config.instruction}`;
-        }
-        
-        prompt += `\n4. Return the raw tool result without additional commentary`;
-        prompt += `\n\nIMPORTANT: Call the specified tool exactly once and return its result immediately. Do not make multiple tool calls or attempt to interpret the data.`;
-      } else {
-        // If no specific tool is configured, give guidance based on step name
-        prompt += `\n1. ${this.generateActionInstructions(step.name, step.config)}`;
-        prompt += `\n2. Use the most appropriate MCP tool from the available tools`;
-        prompt += `\n3. Make only ONE tool call to complete this task`;
-        prompt += `\n4. Return the result in a structured format`;
-      }
-    }
-    
-    // Add context from previous steps if available and relevant
-    if (context.steps && Object.keys(context.steps).length > 0) {
-      prompt += `\n\nPREVIOUS STEP RESULTS (for reference only):`;
-      
-      // Only include the last 2 steps to avoid overwhelming the agent
-      const stepEntries = Object.entries(context.steps);
-      const recentSteps = stepEntries.slice(-2);
-      
-      for (const [stepId, stepResult] of recentSteps) {
-        if (stepResult.success && stepResult.result) {
-          // Use full results for data flow, not summaries
-          const fullResult = this.getFullStepResult(stepResult.result);
-          prompt += `\n- ${stepId}: ${fullResult}`;
-        }
-      }
-      
-      // Add workflow execution context
-      prompt += `\n\nWORKFLOW CONTEXT:`;
-      prompt += `\n- Workflow: ${context.workflow?.name || 'Unknown'}`;
-      prompt += `\n- Current Step: ${step.id}`;
-      prompt += `\n- Step ${stepEntries.length + 1} of ${context.workflow?.totalSteps || 'unknown'}`;
-    } else {
-      // Add workflow execution context even if no previous steps
-      prompt += `\n\nWORKFLOW CONTEXT:`;
-      prompt += `\n- Workflow: ${context.workflow?.name || 'Unknown'}`;
-      prompt += `\n- Current Step: ${step.id}`;
-      prompt += `\n- Step 1 of ${context.workflow?.totalSteps || 'unknown'}`;
-    }
-
-    // Final instructions to prevent recursion and enforce tool selection
-    prompt += `\n\nEXECUTION RULES:`;
-    prompt += `\n1. Execute this step exactly once`;
-    if (step.config.toolName) {
-      prompt += `\n2. ONLY call the tool "${step.config.toolName}" - do not call any other tools`;
-      prompt += `\n3. If the specified tool is not available, report an error immediately`;
-    } else {
-      prompt += `\n2. Do not call multiple tools unless explicitly required`;
-    }
-    prompt += `\n4. Do not attempt to validate or modify the results`;
-    prompt += `\n5. Return results immediately after tool execution`;
-    prompt += `\n6. Do not ask for clarification or additional input`;
-    prompt += `\n7. Do not call tools from previous workflow steps`;
-    prompt += `\n8. This is a fresh execution - ignore any previous conversation history`;
-    
-    return prompt;
-  }
-
-  /**
-   * Generate specific guidance for email steps
-   * @param {Object} step - Workflow step
-   * @param {Object} context - Execution context
-   * @returns {string} Email-specific guidance
-   */
-  generateEmailStepGuidance(step, context) {
-    let guidance = `\n\nEMAIL STEP GUIDANCE:`;
-    
-    // Helper function to find parameter - prioritize parameters object
-    const findParameter = (paramNames) => {
-      const names = Array.isArray(paramNames) ? paramNames : [paramNames];
-      
-      for (const paramName of names) {
-        // Primary location: parameters object
-        if (step.config.parameters?.[paramName]) {
-          return step.config.parameters[paramName];
-        }
-        
-        // Fallback: toolParameters for backward compatibility
-        if (step.config.toolParameters?.[paramName]) {
-          return step.config.toolParameters[paramName];
-        }
-      }
-      return null;
-    };
-    
-    // Check if recipient is configured
-    const recipient = findParameter(['recipient', 'to', 'email']);
-    if (recipient) {
-      guidance += `\n- Send to: ${recipient}`;
-    } else {
-      guidance += `\n- WARNING: No recipient configured. Use a default or derive from context.`;
-    }
-    
-    // Check if subject is configured
-    const subject = findParameter(['subject', 'title']);
-    if (subject) {
-      guidance += `\n- Subject: ${subject}`;
-    } else {
-      guidance += `\n- Generate appropriate subject line based on step purpose`;
-    }
-    
-    // Check if content template is provided
-    const content = findParameter(['contentTemplate', 'content', 'message', 'body']);
-    if (content) {
-      guidance += `\n- Content template: ${content}`;
-      guidance += `\n- IMPORTANT: Replace the template with actual data from previous steps`;
-      guidance += `\n- Include specific details like activity name, distance, duration, and metrics`;
-    } else {
-      guidance += `\n- Generate email content based on step name and previous step data`;
-    }
-    
-    // Add specific instructions for using previous step data
-    if (context.steps && Object.keys(context.steps).length > 0) {
-      guidance += `\n- USE DATA FROM PREVIOUS STEPS: Don't send generic templates!`;
-      guidance += `\n- Extract activity details from step results and include them in the email`;
-      guidance += `\n- Include specific metrics like distance, time, pace, heart rate if available`;
-    }
-    
-    // Add data availability guidance
-    const availableData = this.identifyAvailableDataForEmail(context);
-    if (availableData.length > 0) {
-      guidance += `\n- Available data: ${availableData.join(', ')}`;
-    }
-    
-    return guidance;
-  }
-
-  /**
-   * Identify what data is available from previous steps for email content
-   * @param {Object} context - Execution context
-   * @returns {Array} Array of available data types
-   */
-  identifyAvailableDataForEmail(context) {
-    const availableData = [];
-    
-    if (context.steps) {
-      for (const [stepId, stepResult] of Object.entries(context.steps)) {
-        if (stepResult.success && stepResult.result) {
-          const result = stepResult.result;
-          
-          // Check for agent response text
-          if (result.agentResponse && typeof result.agentResponse === 'string') {
-            availableData.push('text data from previous steps');
-          }
-          
-          // Check if result contains structured data
-          if (typeof result === 'object' && result !== null) {
-            const keys = Object.keys(result);
-            if (keys.length > 0) {
-              availableData.push('structured data');
-            }
-          }
-          
-          // Check for arrays (lists of items)
-          if (Array.isArray(result)) {
-            availableData.push('list data');
-          }
-        }
-      }
-    }
-    
-    return [...new Set(availableData)]; // Remove duplicates
-  }
-
-  /**
-   * Generate specific action instructions based on step name patterns
-   * @param {string} stepName - Name of the step
-   * @param {Object} config - Step configuration
-   * @returns {string} Specific instruction
-   */
-  generateActionInstructions(stepName, config) {
-    const name = stepName.toLowerCase();
-    
-    // Pattern matching for common workflow step types
-    if (name.includes('fetch') || name.includes('get') || name.includes('retrieve')) {
-      if (name.includes('strava')) {
-        return 'Use a Strava MCP tool to fetch the requested data';
-      } else if (name.includes('linkedin')) {
-        return 'Use a LinkedIn MCP tool to retrieve the requested information';
-      } else {
-        return 'Use the appropriate MCP tool to fetch the requested data';
-      }
-    }
-    
-    if (name.includes('create') || name.includes('post') || name.includes('publish')) {
-      if (name.includes('linkedin')) {
-        return 'Use the LinkedIn CREATE-TEXT-POST-USER tool to create a post';
-      } else {
-        return 'Use the appropriate MCP tool to create the requested content';
-      }
-    }
-    
-    if (name.includes('extract') || name.includes('parse') || name.includes('analyze')) {
-      return 'Process the data from previous steps and extract the required information';
-    }
-    
-    if (name.includes('compose') || name.includes('format') || name.includes('generate')) {
-      return 'Generate the requested text/content based on the available data';
-    }
-    
-    // Default instruction
-    return `Complete the task: "${stepName}"`;
-  }
-
-  /**
-   * Summarize step result for logging and context
-   * @param {*} result - Step result to summarize  
-   * @returns {string} Summary of the result
-   */
-  summarizeStepResult(result) {
-    if (typeof result === 'string') {
-      return result.length > 200 ? result.substring(0, 200) + '...' : result;
-    }
-    
-    if (typeof result === 'object' && result !== null) {
-      // For objects, provide a brief summary
-      if (Array.isArray(result)) {
-        return `Array with ${result.length} items: ${JSON.stringify(result.slice(0, 2))}${result.length > 2 ? '...' : ''}`;
-      } else {
-        const keys = Object.keys(result);
-        if (keys.length > 5) {
-          return `Object with keys: ${keys.slice(0, 5).join(', ')}... (${keys.length} total)`;
-        } else {
-          return JSON.stringify(result);
-        }
-      }
-    }
-    
-    return JSON.stringify(result);
-  }
-
-  /**
-   * Get full step result for passing data between workflow steps
-   * @param {*} result - Step result
-   * @returns {string} Full result as string for step context
-   */
-  getFullStepResult(result) {
-    if (typeof result === 'string') {
-      return result;
-    }
-    
-    if (typeof result === 'object' && result !== null) {
-      try {
-        return JSON.stringify(result, null, 2);
-      } catch (error) {
-        logger.warn('[WorkflowExecutor] Failed to stringify step result:', error);
-        return String(result);
-      }
-    }
-    
-    return String(result);
-  }
-
-  /**
-   * Get configured model and endpoint, preferring workflow stored context over librechat.yaml defaults
-   * @param {Object} workflow - The workflow object with stored context
-   * @returns {Promise<Object>} Configuration with model, endpoint, and endpointName
-   */
-  async getConfiguredModelAndEndpoint(workflow = null) {
-    try {
-      // If workflow has stored context, use it first
-      if (workflow && workflow.endpoint && workflow.ai_model) {
-        // Use stored workflow context
-        const workflowEndpoint = workflow.endpoint;
-        const workflowModel = workflow.ai_model;
-        const workflowAgentId = workflow.agent_id;
-        
-        logger.info(`[WorkflowExecutor] Using stored workflow context: endpoint=${workflowEndpoint}, model=${workflowModel}, agent_id=${workflowAgentId}`);
-        
-        return {
-          model: workflowModel,
-          endpoint: workflowEndpoint,
-          endpointName: workflowEndpoint,
-          agent_id: workflowAgentId
-        };
-      } else if (workflow && workflow.agent_id && workflow.endpoint === EModelEndpoint.agents) {
-        // Workflow was created with an agent - load the agent to get its model/endpoint
-        logger.info(`[WorkflowExecutor] Workflow ${workflow.id} uses agent ${workflow.agent_id}, loading agent context`);
-        
-        try {
-          const { getAgent } = require('~/models/Agent');
-          const agent = await getAgent({ id: workflow.agent_id });
-          
-          if (agent) {
-            const agentEndpoint = agent.provider || EModelEndpoint.openAI;
-            const agentModel = agent.model || 'gpt-4o-mini';
-            
-            logger.info(`[WorkflowExecutor] Using agent context: endpoint=${agentEndpoint}, model=${agentModel}, agent_id=${workflow.agent_id}`);
-            
-            return {
-              model: agentModel,
-              endpoint: agentEndpoint,
-              endpointName: agentEndpoint,
-              agent_id: workflow.agent_id
-            };
-          } else {
-            logger.warn(`[WorkflowExecutor] Agent ${workflow.agent_id} not found, falling back to librechat.yaml defaults`);
-          }
-        } catch (error) {
-          logger.warn(`[WorkflowExecutor] Error loading agent ${workflow.agent_id}, falling back to librechat.yaml defaults:`, error);
-        }
-      }
-      
-      // Fallback to librechat.yaml configuration
-      const config = await getCustomConfig();
-      const configuredModel = config?.workflows?.defaultModel || 'gpt-4o-mini';
-      const configuredEndpoint = config?.workflows?.defaultEndpoint || 'openAI';
-      
-      // Map config endpoint names to EModelEndpoint values
-      const endpointMapping = {
-        'openAI': EModelEndpoint.openAI,
-        'anthropic': EModelEndpoint.anthropic,
-        'google': EModelEndpoint.google,
-        'azureOpenAI': EModelEndpoint.azureOpenAI,
-        'custom': EModelEndpoint.custom,
-        'bedrock': EModelEndpoint.bedrock,
-      };
-      
-      const mappedEndpoint = endpointMapping[configuredEndpoint] || EModelEndpoint.openAI;
-      
-      logger.info(`[WorkflowExecutor] Using librechat.yaml defaults: ${configuredModel} on endpoint: ${configuredEndpoint} (${mappedEndpoint})`);
-      
-      return {
-        model: configuredModel,
-        endpoint: mappedEndpoint,
-        endpointName: configuredEndpoint,
-        agent_id: null
-      };
-    } catch (error) {
-      logger.warn('[WorkflowExecutor] Failed to load config, using hard defaults:', error);
-      return {
-        model: 'gpt-4o-mini',
-        endpoint: EModelEndpoint.openAI,
-        endpointName: 'openAI',
-        agent_id: null
-      };
-    }
-  }
-
-  /**
-   * Get the configured default model for workflows
-   * @returns {Promise<string>} The configured model or default fallback
-   * @deprecated Use getConfiguredModelAndEndpoint() instead
-   */
-  async getConfiguredModel() {
-    const config = await this.getConfiguredModelAndEndpoint();
-    return config.model;
-  }
-
-  /**
-   * Execute a step using agent with MCP tools (reuses workflow-level agent when available)
-   * @param {Object} step - Workflow step
-   * @param {string} prompt - Task prompt
-   * @param {Object} context - Execution context
-   * @param {string} userId - User ID
-   * @returns {Promise<Object>} Execution result
-   */
-  async executeStepWithAgent(step, prompt, context, userId) {
-    logger.info(`[WorkflowExecutor] Executing step "${step.name}" with agent`);
-    
-    try {
-      let agent, client, configuredModel, configuredEndpoint, endpointName;
-      
-      // Force fresh agent for steps with specific tool requirements to prevent confusion
-      const requiresFreshAgent = step.config.toolName && step.config.toolName.length > 0;
-      
-      // Check if we have a workflow-level agent and client to reuse (only if not forcing fresh agent)
-      if (!requiresFreshAgent && context.workflow?.agent && context.workflow?.client) {
-        // Reuse workflow-level agent and client
-        agent = context.workflow.agent;
-        client = context.workflow.client;
-        
-        // Get the configured model and endpoint info for logging
-        const config = await this.getConfiguredModelAndEndpoint(context.workflow);
-        configuredModel = config.model;
-        configuredEndpoint = config.endpoint;
-        endpointName = config.endpointName;
-        
-        logger.info(`[WorkflowExecutor] Reusing workflow-level agent with ${agent.tools?.length || 0} tools for step "${step.name}"`);
-      } else {
-        // Create fresh agent (either no workflow-level agent or step requires fresh context)
-        if (requiresFreshAgent) {
-          logger.info(`[WorkflowExecutor] Creating fresh agent for step "${step.name}" (requires specific tool: ${step.config.toolName})`);
-        } else {
-          logger.warn(`[WorkflowExecutor] No workflow-level agent available, initializing new agent for step "${step.name}"`);
-        }
-        
-        // Get the configured model and endpoint
-        const config = await this.getConfiguredModelAndEndpoint(context.workflow);
-        configuredModel = config.model;
-        configuredEndpoint = config.endpoint;
-        endpointName = config.endpointName;
-        
-        // Create mock request and setup ephemeral agent (similar to scheduler)
-        const mockReq = this.createMockRequestForWorkflow(step, context, userId, prompt, configuredModel, configuredEndpoint);
-        
-        // Extract MCP server names from available tools
-        const mcpServerNames = this.extractMCPServerNames(context.mcp.availableTools);
-        
-        // Create ephemeral agent configuration
-        const ephemeralAgent = {
-          workflow: true,
-          execute_code: false,
-          web_search: false,
-          mcp: mcpServerNames
-        };
-        
-        // Update request for ephemeral agent
-        const underlyingEndpoint = configuredEndpoint;
-        const underlyingModel = configuredModel;
-        
-        updateRequestForEphemeralAgent(mockReq, {
-          prompt,
-          user: userId,
-          conversation_id: context.workflow?.conversationId,
-          parent_message_id: context.workflow?.parentMessageId,
-        }, ephemeralAgent, underlyingEndpoint, underlyingModel);
-        
-        // Load ephemeral agent
-        agent = await loadAgent({
-          req: mockReq,
-          agent_id: Constants.EPHEMERAL_AGENT_ID,
-          endpoint: underlyingEndpoint,
-          model_parameters: { model: underlyingModel }
-        });
-        
-        if (!agent) {
-          throw new Error('Failed to load ephemeral agent for workflow step');
-        }
-        
-        logger.info(`[WorkflowExecutor] Loaded ${requiresFreshAgent ? 'fresh' : 'ephemeral'} agent with ${agent.tools?.length || 0} tools using ${endpointName}/${underlyingModel}`);
-        
-        // Initialize client factory and create agents endpoint option
-        const clientFactory = new SchedulerClientFactory();
-        const endpointOption = clientFactory.createAgentsEndpointOption(agent, underlyingModel);
-        
-        // Disable automatic title generation to preserve our custom workflow execution title
-        endpointOption.titleConvo = false;
-        
-        // Create minimal mock response for client initialization
-        const mockRes = createMinimalMockResponse();
-        
-        // Initialize the agents client
-        const clientResult = await clientFactory.initializeClient({ 
-          req: mockReq, 
-          res: mockRes, 
-          endpointOption 
-        });
-        
-        client = clientResult.client;
-        
-        if (!client) {
-          throw new Error('Failed to initialize agents client for workflow step');
-        }
-        
-        logger.info(`[WorkflowExecutor] AgentClient initialized successfully for step "${step.name}"`);
-        
-        // For steps requiring fresh context, don't store the agent in workflow context
-        if (!requiresFreshAgent) {
-          // Store the agent and client in workflow context for reuse in subsequent steps
-          context.workflow.agent = agent;
-          context.workflow.client = client;
-        }
-      }
-      
-      // Execute the step using the agent (either reused or newly created)
-      const response = await client.sendMessage(prompt, {
-        user: userId,
-        conversationId: context.workflow?.conversationId,
-        parentMessageId: context.workflow?.parentMessageId,
-        onProgress: (data) => {
-          logger.debug(`[WorkflowExecutor] Agent progress for step "${step.name}":`, data?.text?.substring(0, 100));
-        }
-      });
-      
-      if (!response) {
-        throw new Error('No response received from agent');
-      }
-      
-      logger.info(`[WorkflowExecutor] Agent execution completed for step "${step.name}"`);
-      
-      // Extract response text from agent response
-      const responseText = this.extractResponseText(response);
-      
-      return {
-        status: 'success',
-        message: `Successfully executed step "${step.name}" with ${requiresFreshAgent ? 'fresh' : (context.workflow?.agent ? 'reused workflow-level' : 'new')} agent using ${endpointName}/${configuredModel}`,
-        agentResponse: responseText,
-        toolsUsed: agent.tools || [],
-        mcpToolsCount: agent.tools?.filter(tool => tool.includes(Constants.mcp_delimiter)).length || 0,
-        modelUsed: configuredModel,
-        endpointUsed: endpointName,
-        timestamp: new Date().toISOString(),
-        // Capture the response message ID for conversation threading
-        responseMessageId: response.messageId || response.id,
-        conversationId: context.workflow?.conversationId,
-      };
-      
-    } catch (error) {
-      logger.error(`[WorkflowExecutor] Agent execution failed for step "${step.name}":`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Create mock request for workflow execution
-   * @param {Object} step - Workflow step
-   * @param {Object} context - Execution context
-   * @param {string} userId - User ID
-   * @param {string} prompt - Task prompt
-   * @param {string} model - Model to use
-   * @param {string} endpoint - Endpoint to use
-   * @returns {Object} Mock request object
-   */
-  createMockRequestForWorkflow(step, context, userId, prompt, model, endpoint) {
-    // Generate message IDs for proper conversation threading
-    const { v4: uuidv4 } = require('uuid');
-    const userMessageId = uuidv4();
-    
-    return {
-      user: { 
-        id: userId.toString()
-      },
-      body: {
-        endpoint: endpoint,
-        model: model,
-        userMessageId: userMessageId,
-        parentMessageId: context.workflow?.parentMessageId,
-        conversationId: context.workflow?.conversationId,
-        promptPrefix: prompt,
-        ephemeralAgent: null, // Will be set later
-      },
-      app: {
-        locals: {
-          availableTools: context.mcp.availableTools || {},
-        }
-      }
-    };
-  }
-
-  /**
-   * Extract MCP server names from available tools
-   * @param {Object} availableTools - Available tools registry
-   * @returns {string[]} Array of MCP server names
-   */
-  extractMCPServerNames(availableTools) {
-    const mcpServerNames = [];
-    const availableToolKeys = Object.keys(availableTools || {});
-    
-    for (const toolKey of availableToolKeys) {
-      if (toolKey.includes(Constants.mcp_delimiter)) {
-        const serverName = toolKey.split(Constants.mcp_delimiter)[1];
-        if (serverName && !mcpServerNames.includes(serverName)) {
-          mcpServerNames.push(serverName);
-        }
-      }
-    }
-    
-    logger.debug(`[WorkflowExecutor] Found MCP server names: ${mcpServerNames.join(', ')}`);
-    return mcpServerNames;
-  }
-
-  /**
-   * Extract response text from agent response
-   * @param {Object} response - Agent response
-   * @returns {*} Full response with tool calls and text
-   */
-  extractResponseText(response) {
-    if (typeof response === 'string') {
-      return response;
-    }
-    
-    // Return the full response object to preserve tool calls and results
-    if (response && typeof response === 'object') {
-      return response;
-    }
-    
-    // Fallback for other response formats
-    if (response.text) {
-      return response.text;
-    }
-    
-    if (response.message) {
-      return response.message;
-    }
-    
-    if (response.content) {
-      return response.content;
-    }
-    
-    // If response is an object, return it as-is
-    return response;
-  }
-
-  /**
-   * Create a mock result for action steps
-   * @param {Object} step - Workflow step
-   * @param {string} reason - Reason for mock result
-   * @returns {Object} Mock result
-   */
-  createMockActionResult(step, reason) {
-    return {
-      type: 'action_mock',
-      stepName: step.name,
-      config: step.config,
-      result: {
-        status: 'success',
-        message: `Mock execution of action step: ${step.name}`,
-        reason,
-        data: step.config,
-        timestamp: new Date().toISOString(),
-        note: 'This step executed with mock data. Configure MCP tools for real execution.'
-      },
-    };
-  }
-
-  /**
-   * Find the first step in a workflow (step with no incoming connections)
-   * @param {Array} steps - Array of workflow steps
-   * @returns {Object|null} First step or null
-   */
-  findFirstStep(steps) {
-    const stepIds = new Set(steps.map(s => s.id));
-    const referencedSteps = new Set();
-    
-    // Collect all steps that are referenced as onSuccess or onFailure
-    steps.forEach(step => {
-      if (step.onSuccess && stepIds.has(step.onSuccess)) {
-        referencedSteps.add(step.onSuccess);
-      }
-      if (step.onFailure && stepIds.has(step.onFailure)) {
-        referencedSteps.add(step.onFailure);
-      }
-    });
-    
-    // Find steps that are not referenced (potential starting points)
-    const unreferencedSteps = steps.filter(step => !referencedSteps.has(step.id));
-    
-    // Return the first unreferenced step, or the first step if all are referenced
-    return unreferencedSteps.length > 0 ? unreferencedSteps[0] : steps[0];
-  }
-
-  /**
-   * Resolve parameters by replacing context variables
-   * @param {Object} parameters - Parameters with potential context references
-   * @param {Object} context - Execution context
-   * @returns {Object} Resolved parameters
-   */
-  resolveParameters(parameters, context) {
-    const resolved = {};
-    
-    for (const [key, value] of Object.entries(parameters)) {
-      if (typeof value === 'string' && value.startsWith('{{') && value.endsWith('}}')) {
-        // Extract variable path (e.g., "{{steps.step1.result.data}}")
-        const varPath = value.slice(2, -2).trim();
-        resolved[key] = this.getValueFromPath(context, varPath);
-      } else if (typeof value === 'object' && value !== null) {
-        resolved[key] = this.resolveParameters(value, context);
-      } else {
-        resolved[key] = value;
-      }
-    }
-    
-    return resolved;
-  }
-
-  /**
-   * Get value from object path (e.g., "steps.step1.result.data")
-   * @param {Object} obj - Object to traverse
-   * @param {string} path - Dot-separated path
-   * @returns {*} Value at path or undefined
-   */
-  getValueFromPath(obj, path) {
-    return path.split('.').reduce((current, key) => {
-      return current && current[key] !== undefined ? current[key] : undefined;
-    }, obj);
-  }
-
-  /**
-   * Execute MCP tool (placeholder implementation)
-   * @param {Object} tool - MCP tool definition
-   * @param {Object} parameters - Tool parameters
-   * @param {string} userId - User ID
-   * @returns {Promise<*>} Tool execution result
-   */
-  async executeMCPTool(tool, parameters, userId) {
-    // This is a placeholder implementation
-    // In a real scenario, you would use the MCP client to execute the tool
-    logger.info(`[WorkflowExecutor] Executing MCP tool ${tool.name} with parameters:`, parameters);
-    
-    // Simulate tool execution
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    return {
-      status: 'success',
-      message: `MCP tool ${tool.name} executed successfully`,
-      data: parameters,
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  /**
    * Cancel a running workflow execution
    * @param {string} executionId - Execution ID to cancel
-   * @param {string} userId - User ID for the execution 
+   * @param {string} userId - User ID for the execution
    * @returns {Promise<boolean>} Success status
    */
   async cancelExecution(executionId, userId) {
     if (this.runningExecutions.has(executionId)) {
       logger.info(`[WorkflowExecutor] Cancelling execution: ${executionId}`);
-      
+
       this.runningExecutions.delete(executionId);
-      
+
       await updateSchedulerExecution(executionId, userId, {
         status: 'cancelled',
         endTime: new Date(),
       });
-      
+
       return true;
     }
-    
+
     return false;
   }
 
@@ -1434,76 +502,6 @@ INSTRUCTIONS:`;
       executionId: id,
       ...data,
     }));
-  }
-
-  /**
-   * Create a serializable version of the execution context for database storage
-   * Removes non-serializable objects like agents and clients
-   * @param {Object} context - Execution context
-   * @returns {Object} Clean, serializable context
-   */
-  createSerializableContext(context) {
-    if (!context) return null;
-    
-    const serializable = {
-      ...context,
-      workflow: {
-        ...context.workflow,
-        // Remove non-serializable agent and client objects
-        agent: undefined,
-        client: undefined,
-        // Keep only essential workflow info
-        id: context.workflow?.id,
-        name: context.workflow?.name,
-        conversationId: context.workflow?.conversationId,
-        parentMessageId: context.workflow?.parentMessageId,
-      },
-      // Keep other context properties, ensuring they are serializable
-      execution: context.execution,
-      mcp: {
-        // Keep MCP info but remove the actual availableTools object which might have circular refs
-        available: context.mcp?.available,
-        toolCount: context.mcp?.toolCount,
-        serverCount: context.mcp?.serverCount,
-        // Don't store the actual availableTools object as it may contain circular references
-      },
-      steps: context.steps,
-      variables: context.variables,
-    };
-    
-    return serializable;
-  }
-
-  /**
-   * Generate execution hints for a workflow step
-   * @param {Object} step - Workflow step
-   * @returns {Object} Execution hints
-   */
-  generateExecutionHints(step) {
-    const hints = {
-      expectedExecutionTime: 'fast', // fast, medium, slow
-      retryable: true,
-      criticalPath: false,
-    };
-
-    const stepName = step.name.toLowerCase();
-
-    // Adjust hints based on step type and name
-    if (step.type === 'action') {
-      if (stepName.includes('create') || stepName.includes('post') || stepName.includes('publish')) {
-        hints.expectedExecutionTime = 'medium';
-        hints.criticalPath = true; // Creating content is usually critical
-      } else if (stepName.includes('get') || stepName.includes('fetch')) {
-        hints.expectedExecutionTime = 'fast';
-      } else if (stepName.includes('analyze') || stepName.includes('process') || stepName.includes('compose')) {
-        hints.expectedExecutionTime = 'medium';
-      }
-    } else if (step.type === 'delay') {
-      hints.expectedExecutionTime = 'slow';
-      hints.retryable = false;
-    }
-
-    return hints;
   }
 }
 
