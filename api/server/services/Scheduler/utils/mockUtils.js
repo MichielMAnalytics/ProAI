@@ -1,4 +1,4 @@
-const { EModelEndpoint } = require('librechat-data-provider');
+const { EModelEndpoint, replaceSpecialVars } = require('librechat-data-provider');
 
 /**
  * Create a mock request object for client initialization
@@ -70,10 +70,19 @@ function createMinimalMockResponse() {
  * @param {string} underlyingEndpoint - The underlying endpoint
  * @param {string} underlyingModel - The underlying model
  */
-function updateRequestForEphemeralAgent(mockReq, task, ephemeralAgent, underlyingEndpoint, underlyingModel) {
+function updateRequestForEphemeralAgent(
+  mockReq,
+  task,
+  ephemeralAgent,
+  underlyingEndpoint,
+  underlyingModel,
+) {
+  // Replace special variables in the prompt with user context
+  const prompt = replaceSpecialVars({ text: task.prompt, user: task.user });
+
   mockReq.body = {
     ...mockReq.body,
-    text: task.prompt,
+    text: prompt,
     endpoint: underlyingEndpoint,
     model: underlyingModel,
     conversationId: task.conversation_id,

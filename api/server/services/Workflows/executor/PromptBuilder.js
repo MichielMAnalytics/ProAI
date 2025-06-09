@@ -1,4 +1,5 @@
 const { getFullStepResult, resolveParameters } = require('./utils');
+const { replaceSpecialVars } = require('librechat-data-provider');
 
 /**
  * Generate specific guidance for email steps
@@ -262,6 +263,11 @@ INSTRUCTIONS:`;
   prompt += `\n6. Do not ask for clarification or additional input`;
   prompt += `\n7. Do not call tools from previous workflow steps`;
   prompt += `\n8. This is a fresh execution - ignore any previous conversation history`;
+
+  // Replace special variables like {{current_user}}
+  if (context.user) {
+    prompt = replaceSpecialVars({ text: prompt, user: context.user });
+  }
 
   return prompt;
 }

@@ -27,27 +27,33 @@ async function executeStepWithAgent(step, prompt, context, userId) {
   try {
     let agent, client, configuredModel, configuredEndpoint, endpointName;
 
-    // Force fresh agent for steps with specific tool requirements to prevent confusion
-    const requiresFreshAgent = step.config.toolName && step.config.toolName.length > 0;
+    // If a specific tool is required, create a fresh agent for this step
+    // to ensure a clean context and prevent prompt leaking
+    const requiresFreshAgent = !!step.config.toolName;
 
-    // Check if we have a workflow-level agent and client to reuse (only if not forcing fresh agent)
-    if (!requiresFreshAgent && context.workflow?.agent && context.workflow?.client) {
-      // Reuse workflow-level agent and client
+    if (requiresFreshAgent) {
+      logger.info(
+        `[WorkflowAgentExecutor] Reusing workflow agent for step "${step.name}" (requires specific tool: ${step.config.toolName})`,
+      );
+      // We will reuse the workflow-level agent and client
       agent = context.workflow.agent;
       client = context.workflow.client;
 
-      // Get the configured model and endpoint info for logging
-      const config = await getConfiguredModelAndEndpoint(context.workflow);
-      configuredModel = config.model;
-      configuredEndpoint = config.endpoint;
-      endpointName = config.endpointName;
-
-      logger.info(
-        `[WorkflowAgentExecutor] Reusing workflow-level agent with ${
-          agent.tools?.length || 0
-        } tools for step "${step.name}"`,
-      );
+      if (!agent || !client) {
+        logger.warn(
+          `[WorkflowAgentExecutor] Workflow-level agent not available for step "${step.name}". Falling back to fresh agent.`,
+        );
+        // Fallback to creating a fresh agent if workflow-level one is not available
+        ({ agent, client } = await createFreshAgent(context.workflow, step, context));
+      }
     } else {
+      // If no specific tool is required, use the main workflow agent
+      logger.info(`[WorkflowAgentExecutor] Reusing workflow agent for step "${step.name}"`);
+      agent = context.workflow.agent;
+      client = context.workflow.client;
+    }
+
+    if (!agent || !client) {
       // Create fresh agent (either no workflow-level agent or step requires fresh context)
       if (requiresFreshAgent) {
         logger.info(
@@ -197,6 +203,105 @@ async function executeStepWithAgent(step, prompt, context, userId) {
     logger.error(`[WorkflowAgentExecutor] Agent execution failed for step "${step.name}":`, error);
     throw error;
   }
+}
+
+async function createFreshAgent(workflow, step, context) {
+  const { user, mcp, workflow: workflowContext } = context;
+  const userId = user.id;
+  const { conversationId, parentMessageId } = workflowContext;
+
+  // Get the configured model and endpoint
+  const config = await getConfiguredModelAndEndpoint(workflow);
+  const { model: configuredModel, endpoint: configuredEndpoint, endpointName } = config;
+
+  // Determine which agent to load
+  const agentIdToLoad =
+    workflow.endpoint === 'agents' && workflow.agent_id
+      ? workflow.agent_id
+      : Constants.EPHEMERAL_AGENT_ID;
+
+  logger.info(`[WorkflowAgentExecutor] Determined agent for fresh agent creation: ${agentIdToLoad}`);
+
+  // Create mock request for agent initialization
+  const mockReq = createMockRequestForWorkflow(
+    context,
+    user,
+    step.config.instruction || `Executing step: ${step.name}`,
+    configuredModel,
+    configuredEndpoint,
+  );
+
+  // If we are using an ephemeral agent, we need to set up its config
+  if (agentIdToLoad === Constants.EPHEMERAL_AGENT_ID) {
+    // Extract MCP server names from available tools
+    const mcpServerNames = extractMCPServerNames(mcp.availableTools);
+
+    // Create ephemeral agent configuration
+    const ephemeralAgent = {
+      workflow: true,
+      execute_code: false,
+      web_search: false,
+      mcp: mcpServerNames,
+    };
+
+    updateRequestForEphemeralAgent(
+      mockReq,
+      {
+        prompt: step.config.instruction || `Executing step: ${step.name}`,
+        user: userId,
+        conversation_id: conversationId,
+        parent_message_id: parentMessageId,
+      },
+      ephemeralAgent,
+      configuredEndpoint,
+      configuredModel,
+    );
+  }
+
+  // Load the agent
+  const agent = await loadAgent({
+    req: mockReq,
+    agent_id: agentIdToLoad,
+    endpoint: configuredEndpoint,
+    model_parameters: { model: configuredModel },
+  });
+
+  if (!agent) {
+    throw new Error('Failed to load agent for fresh agent creation');
+  }
+
+  logger.info(
+    `[WorkflowAgentExecutor] Loaded fresh agent with ${
+      agent.tools?.length || 0
+    } tools using ${endpointName}/${configuredModel}`,
+  );
+
+  // Initialize client factory and create agents endpoint option
+  const clientFactory = new SchedulerClientFactory();
+  const endpointOption = clientFactory.createAgentsEndpointOption(agent, configuredModel);
+
+  // Disable automatic title generation to preserve our custom workflow execution title
+  endpointOption.titleConvo = false;
+
+  // Create minimal mock response for client initialization
+  const mockRes = createMinimalMockResponse();
+
+  // Initialize the agents client
+  const clientResult = await clientFactory.initializeClient({
+    req: mockReq,
+    res: mockRes,
+    endpointOption,
+  });
+
+  const client = clientResult.client;
+
+  if (!client) {
+    throw new Error('Failed to initialize agents client for fresh agent');
+  }
+
+  logger.info(`[WorkflowAgentExecutor] AgentClient initialized successfully for step "${step.name}"`);
+
+  return { agent, client };
 }
 
 module.exports = {

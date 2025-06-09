@@ -291,23 +291,21 @@ function generateExecutionHints(step) {
 }
 
 /**
- * Create mock request for workflow execution
+ * Create mock request object for workflow execution
  * @param {Object} context - Execution context
- * @param {string} userId - User ID
- * @param {string} prompt - Task prompt
- * @param {string} model - Model to use
- * @param {string} endpoint - Endpoint to use
+ * @param {Object} user - User object
+ * @param {string} prompt - The prompt for the request
+ * @param {string} model - The model for the request
+ * @param {string} endpoint - The endpoint for the request
  * @returns {Object} Mock request object
  */
-function createMockRequestForWorkflow(context, userId, prompt, model, endpoint) {
+function createMockRequestForWorkflow(context, user, prompt, model, endpoint) {
   // Generate message IDs for proper conversation threading
   const { v4: uuidv4 } = require('uuid');
   const userMessageId = uuidv4();
 
   return {
-    user: {
-      id: userId.toString(),
-    },
+    user: user,
     body: {
       endpoint: endpoint,
       model: model,

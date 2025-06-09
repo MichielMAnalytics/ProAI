@@ -503,7 +503,7 @@ export default function IntegrationsView() {
               <svg className="h-5 w-5 mr-3 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
-              <span className="text-green-700 dark:text-green-300 font-bold">2,500+</span>
+              <span className="text-green-700 dark:text-green-300 font-bold">2,700+</span>
               <span className="mx-1">Apps &</span>
               <span className="text-green-700 dark:text-green-300 font-bold">10,000+</span>
               <span className="ml-1">Tools Available</span>
@@ -511,7 +511,7 @@ export default function IntegrationsView() {
 
             {/* Main Title */}
             <h1 className="text-4xl md:text-5xl font-bold text-text-primary mb-4 leading-tight">
-              The Personal Assistant
+              The Automation
               <br />
               <span className="text-text-secondary">
                 Toolkit

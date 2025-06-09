@@ -47,13 +47,14 @@ class SchedulerAgentHandler {
   /**
    * Create ephemeral agent configuration for MCP tools
    * @param {Object} task - The scheduler task
+   * @param {Object} user - The user object
    * @returns {Promise<Object>} Ephemeral agent setup result
    */
-  async createEphemeralAgentSetup(task) {
+  async createEphemeralAgentSetup(task, user) {
     logger.info(`[SchedulerAgentHandler] Creating ephemeral agent setup for task ${task.id}`);
     
     // Ensure user ID is properly formatted as string (convert from ObjectId if needed)
-    const userId = task.user.toString();
+    const userId = user.toString();
     logger.debug(`[SchedulerAgentHandler] Converted user ID: ${userId} (type: ${typeof userId})`);
     
     // Create mock request structure for agent initialization
@@ -124,7 +125,13 @@ class SchedulerAgentHandler {
     };
     
     // Update request body for agent loading
-    updateRequestForEphemeralAgent(mockReq, task, ephemeralAgent, underlyingEndpoint, underlyingModel);
+    updateRequestForEphemeralAgent(
+      mockReq,
+      { ...task, user },
+      ephemeralAgent,
+      underlyingEndpoint,
+      underlyingModel,
+    );
     
     logger.info(`[SchedulerAgentHandler] Ephemeral agent config:`, {
       scheduler: ephemeralAgent.scheduler,

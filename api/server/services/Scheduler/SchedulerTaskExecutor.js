@@ -5,6 +5,8 @@ const {
   updateSchedulerExecution 
 } = require('~/models/SchedulerExecution');
 const { updateSchedulerTask } = require('~/models/SchedulerTask');
+const User = require('~/models/User');
+const { replaceSpecialVars } = require('librechat-data-provider');
 const { calculateNextRun } = require('./utils/cronUtils');
 const { createMockRequest, createMockResponse, createMinimalMockResponse } = require('./utils/mockUtils');
 const { getCustomConfig } = require('~/server/services/Config');
@@ -78,6 +80,12 @@ class SchedulerTaskExecutor {
     
     logger.info(`[SchedulerTaskExecutor] Starting execution: ${executionId} for task ${task.id} (${task.name})`);
     
+    // Fetch user for context replacement
+    const user = await User.findById(task.user).lean();
+    if (!user) {
+      throw new Error(`User not found: ${task.user}`);
+    }
+    
     // Check if task is already running to prevent double execution
     if (task.status === 'running') {
       logger.warn(`[SchedulerTaskExecutor] Task ${task.id} is already running, skipping execution`);
@@ -143,7 +151,7 @@ class SchedulerTaskExecutor {
       } else {
         // All scheduler tasks now use ephemeral agent execution to ensure MCP tools access
         logger.info(`[SchedulerTaskExecutor] Executing task ${task.id} with ephemeral agent (ensures MCP tools access)`);
-        result = await this.executeWithEphemeralAgent(task);
+        result = await this.executeWithEphemeralAgent(task, user);
       }
 
       const endTime = new Date();
@@ -205,7 +213,7 @@ class SchedulerTaskExecutor {
    * @param {Object} task - The scheduler task
    * @returns {Promise<string>} Execution result
    */
-  async executeWithEphemeralAgent(task) {
+  async executeWithEphemeralAgent(task, user) {
     logger.info(`[SchedulerTaskExecutor] Using ephemeral agent execution for task ${task.id}`);
     
     try {
@@ -243,8 +251,11 @@ class SchedulerTaskExecutor {
         logger.warn(`[SchedulerTaskExecutor] No stored context for task ${task.id}, using librechat.yaml defaults: ${endpointName}/${configuredModel}`);
       }
       
+      // Replace special variables in the prompt
+      const prompt = replaceSpecialVars({ text: task.prompt, user });
+      
       // Set up ephemeral agent configuration with MCP tools
-      const setupResult = await this.agentHandler.createEphemeralAgentSetup(task);
+      const setupResult = await this.agentHandler.createEphemeralAgentSetup(task, user);
       
       logger.info(`[SchedulerTaskExecutor] MCP setup complete for task ${task.id}: ${setupResult.mcpServerNames.length} servers, ${setupResult.availableToolsCount} tools`);
       
@@ -299,7 +310,7 @@ class SchedulerTaskExecutor {
       logger.info(`[SchedulerTaskExecutor] AgentClient initialized successfully for task ${task.id} using ${endpointName}/${configuredModel}`);
       
       // Execute using the agents client
-      const response = await client.sendMessage(task.prompt, {
+      const response = await client.sendMessage(prompt, {
         user: task.user,
         conversationId: task.conversation_id,
         parentMessageId: task.parent_message_id,

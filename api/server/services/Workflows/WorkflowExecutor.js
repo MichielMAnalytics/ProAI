@@ -2,6 +2,7 @@ const { logger } = require('~/config');
 const { Constants } = require('librechat-data-provider');
 const { updateSchedulerExecution } = require('~/models/SchedulerExecution');
 const { loadAgent } = require('~/models/Agent');
+const User = require('~/models/User');
 const {
   createMinimalMockResponse,
   updateRequestForEphemeralAgent,
@@ -111,6 +112,13 @@ class WorkflowExecutor {
     try {
       logger.info(`[WorkflowExecutor] Starting workflow execution: ${workflowId}`);
 
+      // Fetch user object for context
+      const userDbObject = await User.findById(userId).lean();
+      if (!userDbObject) {
+        throw new Error(`User not found: ${userId}`);
+      }
+      const user = { ...userDbObject, id: userDbObject._id.toString() };
+
       // Initialize MCP tools for the user
       const mcpResult = await this.ensureMCPReady(userId);
       logger.info(
@@ -209,66 +217,77 @@ class WorkflowExecutor {
           const config = await getConfiguredModelAndEndpoint(workflow);
           const { model: configuredModel, endpoint: configuredEndpoint, endpointName } = config;
 
+          // Determine which agent to load
+          const agentIdToLoad =
+            workflow.endpoint === 'agents' && workflow.agent_id
+              ? workflow.agent_id
+              : Constants.EPHEMERAL_AGENT_ID;
+
+          logger.info(`[WorkflowExecutor] Determined agent for workflow execution: ${agentIdToLoad}`);
+
           // Create mock request for agent initialization with proper MCP context
           const mockReq = createMockRequestForWorkflow(
             {
               workflow: { conversationId: workflowExecutionConversationId },
               mcp: { availableTools: mcpResult.availableTools },
             },
-            userId,
+            user,
             'Workflow execution agent',
             configuredModel,
             configuredEndpoint,
           );
 
-          // Extract MCP server names from available tools
-          const mcpServerNames = extractMCPServerNames(mcpResult.availableTools);
+          // If we are using an ephemeral agent, we need to set up its config
+          if (agentIdToLoad === Constants.EPHEMERAL_AGENT_ID) {
+            // Extract MCP server names from available tools
+            const mcpServerNames = extractMCPServerNames(mcpResult.availableTools);
 
-          // Create ephemeral agent configuration
-          const ephemeralAgent = {
-            workflow: true,
-            execute_code: false,
-            web_search: false,
-            mcp: mcpServerNames,
-          };
+            // Create ephemeral agent configuration
+            const ephemeralAgent = {
+              workflow: true,
+              execute_code: false,
+              web_search: false,
+              mcp: mcpServerNames,
+            };
 
-          // Update request for ephemeral agent
-          const underlyingEndpoint = configuredEndpoint;
-          const underlyingModel = configuredModel;
+            // Update request for ephemeral agent
+            const underlyingEndpoint = configuredEndpoint;
+            const underlyingModel = configuredModel;
 
-          updateRequestForEphemeralAgent(
-            mockReq,
-            {
-              prompt: 'Workflow execution agent',
-              user: userId,
-              conversation_id: workflowExecutionConversationId,
-              parent_message_id: null,
-            },
-            ephemeralAgent,
-            underlyingEndpoint,
-            underlyingModel,
-          );
+            updateRequestForEphemeralAgent(
+              mockReq,
+              {
+                prompt: 'Workflow execution agent',
+                user: userId,
+                conversation_id: workflowExecutionConversationId,
+                parent_message_id: null,
+              },
+              ephemeralAgent,
+              underlyingEndpoint,
+              underlyingModel,
+            );
+          }
 
-          // Load ephemeral agent
+          // Load agent
           const agent = await loadAgent({
             req: mockReq,
-            agent_id: Constants.EPHEMERAL_AGENT_ID,
-            endpoint: underlyingEndpoint,
-            model_parameters: { model: underlyingModel },
+            agent_id: agentIdToLoad,
+            endpoint: configuredEndpoint,
+            model_parameters: { model: configuredModel },
           });
 
           if (agent) {
             logger.info(
               `[WorkflowExecutor] Loaded workflow-level agent with ${
                 agent.tools?.length || 0
-              } tools using ${endpointName}/${underlyingModel}`,
+              } tools using ${endpointName}/${configuredModel}`,
             );
 
             // Initialize client factory and create agents endpoint option
             const clientFactory = new SchedulerClientFactory();
             const endpointOption = clientFactory.createAgentsEndpointOption(
               agent,
-              underlyingModel,
+              configuredModel,
             );
 
             // Disable automatic title generation to preserve our custom workflow execution title
@@ -303,6 +322,7 @@ class WorkflowExecutor {
       // Initialize execution context with MCP tools, dedicated conversation, and workflow-level agent
       executionContext = {
         ...context,
+        user, // Add full user object to context
         workflow: {
           // Include full workflow object for context access
           ...workflow,
