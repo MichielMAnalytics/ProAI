@@ -509,7 +509,7 @@ class WorkflowExecutor {
             stepName: step.name,
             stepType: step.type,
             status: 'completed',
-            result: this.summarizeStepResult(result)
+            result: this.getFullStepResult(result)
           }
         });
       } catch (notificationError) {
@@ -658,6 +658,8 @@ class WorkflowExecutor {
 Step Name: "${step.name}"
 Step Type: ${step.type}
 
+CRITICAL: This is a NEW step execution. Ignore any previous tool calls or responses.
+
 INSTRUCTIONS:`;
 
     // For action steps, be very specific about what tool to use and how
@@ -665,6 +667,8 @@ INSTRUCTIONS:`;
       if (step.config.toolName) {
         // If a specific tool is configured, instruct the agent to use it directly
         prompt += `\n1. Call the MCP tool "${step.config.toolName}" directly`;
+        prompt += `\n   - Do NOT call any other tools, especially "${step.config.toolName === 'STRAVA-GET-ACTIVITY-BY-ID' ? 'STRAVA-GET-ACTIVITY-LIST' : 'any other tools'}"`;
+        prompt += `\n   - This step requires EXACTLY "${step.config.toolName}" and no other tool`;
         
         // Handle parameters from the standard parameters object
         let parametersToUse = {};
@@ -718,9 +722,9 @@ INSTRUCTIONS:`;
       
       for (const [stepId, stepResult] of recentSteps) {
         if (stepResult.success && stepResult.result) {
-          // Summarize large results to avoid token limits
-          const resultSummary = this.summarizeStepResult(stepResult.result);
-          prompt += `\n- ${stepId}: ${resultSummary}`;
+          // Use full results for data flow, not summaries
+          const fullResult = this.getFullStepResult(stepResult.result);
+          prompt += `\n- ${stepId}: ${fullResult}`;
         }
       }
       
@@ -737,13 +741,20 @@ INSTRUCTIONS:`;
       prompt += `\n- Step 1 of ${context.workflow?.totalSteps || 'unknown'}`;
     }
 
-    // Final instructions to prevent recursion
+    // Final instructions to prevent recursion and enforce tool selection
     prompt += `\n\nEXECUTION RULES:`;
     prompt += `\n1. Execute this step exactly once`;
-    prompt += `\n2. Do not call multiple tools unless explicitly required`;
-    prompt += `\n3. Do not attempt to validate or modify the results`;
-    prompt += `\n4. Return results immediately after tool execution`;
-    prompt += `\n5. Do not ask for clarification or additional input`;
+    if (step.config.toolName) {
+      prompt += `\n2. ONLY call the tool "${step.config.toolName}" - do not call any other tools`;
+      prompt += `\n3. If the specified tool is not available, report an error immediately`;
+    } else {
+      prompt += `\n2. Do not call multiple tools unless explicitly required`;
+    }
+    prompt += `\n4. Do not attempt to validate or modify the results`;
+    prompt += `\n5. Return results immediately after tool execution`;
+    prompt += `\n6. Do not ask for clarification or additional input`;
+    prompt += `\n7. Do not call tools from previous workflow steps`;
+    prompt += `\n8. This is a fresh execution - ignore any previous conversation history`;
     
     return prompt;
   }
@@ -795,9 +806,17 @@ INSTRUCTIONS:`;
     const content = findParameter(['contentTemplate', 'content', 'message', 'body']);
     if (content) {
       guidance += `\n- Content template: ${content}`;
-      guidance += `\n- Populate template with data from previous steps`;
+      guidance += `\n- IMPORTANT: Replace the template with actual data from previous steps`;
+      guidance += `\n- Include specific details like activity name, distance, duration, and metrics`;
     } else {
       guidance += `\n- Generate email content based on step name and previous step data`;
+    }
+    
+    // Add specific instructions for using previous step data
+    if (context.steps && Object.keys(context.steps).length > 0) {
+      guidance += `\n- USE DATA FROM PREVIOUS STEPS: Don't send generic templates!`;
+      guidance += `\n- Extract activity details from step results and include them in the email`;
+      guidance += `\n- Include specific metrics like distance, time, pace, heart rate if available`;
     }
     
     // Add data availability guidance
@@ -887,9 +906,9 @@ INSTRUCTIONS:`;
   }
 
   /**
-   * Summarize step results to avoid overwhelming subsequent prompts
-   * @param {any} result - Step result to summarize
-   * @returns {string} Summarized result
+   * Summarize step result for logging and context
+   * @param {*} result - Step result to summarize  
+   * @returns {string} Summary of the result
    */
   summarizeStepResult(result) {
     if (typeof result === 'string') {
@@ -911,6 +930,28 @@ INSTRUCTIONS:`;
     }
     
     return JSON.stringify(result);
+  }
+
+  /**
+   * Get full step result for passing data between workflow steps
+   * @param {*} result - Step result
+   * @returns {string} Full result as string for step context
+   */
+  getFullStepResult(result) {
+    if (typeof result === 'string') {
+      return result;
+    }
+    
+    if (typeof result === 'object' && result !== null) {
+      try {
+        return JSON.stringify(result, null, 2);
+      } catch (error) {
+        logger.warn('[WorkflowExecutor] Failed to stringify step result:', error);
+        return String(result);
+      }
+    }
+    
+    return String(result);
   }
 
   /**
@@ -1023,8 +1064,11 @@ INSTRUCTIONS:`;
     try {
       let agent, client, configuredModel, configuredEndpoint, endpointName;
       
-      // Check if we have a workflow-level agent and client to reuse
-      if (context.workflow?.agent && context.workflow?.client) {
+      // Force fresh agent for steps with specific tool requirements to prevent confusion
+      const requiresFreshAgent = step.config.toolName && step.config.toolName.length > 0;
+      
+      // Check if we have a workflow-level agent and client to reuse (only if not forcing fresh agent)
+      if (!requiresFreshAgent && context.workflow?.agent && context.workflow?.client) {
         // Reuse workflow-level agent and client
         agent = context.workflow.agent;
         client = context.workflow.client;
@@ -1037,8 +1081,12 @@ INSTRUCTIONS:`;
         
         logger.info(`[WorkflowExecutor] Reusing workflow-level agent with ${agent.tools?.length || 0} tools for step "${step.name}"`);
       } else {
-        // Fall back to individual step initialization (original behavior)
-        logger.warn(`[WorkflowExecutor] No workflow-level agent available, initializing new agent for step "${step.name}"`);
+        // Create fresh agent (either no workflow-level agent or step requires fresh context)
+        if (requiresFreshAgent) {
+          logger.info(`[WorkflowExecutor] Creating fresh agent for step "${step.name}" (requires specific tool: ${step.config.toolName})`);
+        } else {
+          logger.warn(`[WorkflowExecutor] No workflow-level agent available, initializing new agent for step "${step.name}"`);
+        }
         
         // Get the configured model and endpoint
         const config = await this.getConfiguredModelAndEndpoint(context.workflow);
@@ -1083,7 +1131,7 @@ INSTRUCTIONS:`;
           throw new Error('Failed to load ephemeral agent for workflow step');
         }
         
-        logger.info(`[WorkflowExecutor] Loaded ephemeral agent with ${agent.tools?.length || 0} tools using ${endpointName}/${underlyingModel}`);
+        logger.info(`[WorkflowExecutor] Loaded ${requiresFreshAgent ? 'fresh' : 'ephemeral'} agent with ${agent.tools?.length || 0} tools using ${endpointName}/${underlyingModel}`);
         
         // Initialize client factory and create agents endpoint option
         const clientFactory = new SchedulerClientFactory();
@@ -1109,6 +1157,13 @@ INSTRUCTIONS:`;
         }
         
         logger.info(`[WorkflowExecutor] AgentClient initialized successfully for step "${step.name}"`);
+        
+        // For steps requiring fresh context, don't store the agent in workflow context
+        if (!requiresFreshAgent) {
+          // Store the agent and client in workflow context for reuse in subsequent steps
+          context.workflow.agent = agent;
+          context.workflow.client = client;
+        }
       }
       
       // Execute the step using the agent (either reused or newly created)
@@ -1132,7 +1187,7 @@ INSTRUCTIONS:`;
       
       return {
         status: 'success',
-        message: `Successfully executed step "${step.name}" with ${context.workflow?.agent ? 'reused workflow-level' : 'new'} agent using ${endpointName}/${configuredModel}`,
+        message: `Successfully executed step "${step.name}" with ${requiresFreshAgent ? 'fresh' : (context.workflow?.agent ? 'reused workflow-level' : 'new')} agent using ${endpointName}/${configuredModel}`,
         agentResponse: responseText,
         toolsUsed: agent.tools || [],
         mcpToolsCount: agent.tools?.filter(tool => tool.includes(Constants.mcp_delimiter)).length || 0,
@@ -1211,13 +1266,19 @@ INSTRUCTIONS:`;
   /**
    * Extract response text from agent response
    * @param {Object} response - Agent response
-   * @returns {string} Response text
+   * @returns {*} Full response with tool calls and text
    */
   extractResponseText(response) {
     if (typeof response === 'string') {
       return response;
     }
     
+    // Return the full response object to preserve tool calls and results
+    if (response && typeof response === 'object') {
+      return response;
+    }
+    
+    // Fallback for other response formats
     if (response.text) {
       return response.text;
     }
@@ -1230,8 +1291,8 @@ INSTRUCTIONS:`;
       return response.content;
     }
     
-    // If response is an object, stringify it
-    return JSON.stringify(response);
+    // If response is an object, return it as-is
+    return response;
   }
 
   /**
