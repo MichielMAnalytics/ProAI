@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRecoilState, useSetRecoilState } from 'recoil';
 import * as Tabs from '@radix-ui/react-tabs';
-import { ArrowLeft, ChevronLeft, ChevronRight, RefreshCw, X, Play, Pause, TestTube, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, RefreshCw, X, Play, Pause, TestTube, Trash2, Plus, Search, RotateCcw, Eye, Copy, Check } from 'lucide-react';
 import type { SandpackPreviewRef, CodeEditorRef } from '@codesandbox/sandpack-react';
 import useArtifacts from '~/hooks/Artifacts/useArtifacts';
 import DownloadArtifact from './DownloadArtifact';
@@ -19,6 +19,7 @@ import {
 import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
 import { useWorkflowNotifications } from '~/hooks/useWorkflowNotifications';
+import { Button } from '~/components/ui';
 
 export default function Artifacts() {
   const localize = useLocalize();
@@ -29,6 +30,7 @@ export default function Artifacts() {
   const [isVisible, setIsVisible] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [copiedStepId, setCopiedStepId] = useState<string | null>(null);
   const setArtifactsVisible = useSetRecoilState(store.artifactsVisibility);
   const setArtifactRefreshFunction = useSetRecoilState(store.artifactRefreshFunction);
 
@@ -220,6 +222,17 @@ export default function Artifacts() {
     }
   };
 
+  // Copy function for step outputs
+  const handleCopyStepOutput = async (stepId: string, content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedStepId(stepId);
+      setTimeout(() => setCopiedStepId(null), 2000); // Reset after 2 seconds
+    } catch (error) {
+      console.error('Failed to copy content:', error);
+    }
+  };
+
   return (
     <Tabs.Root value={effectiveActiveTab} onValueChange={setActiveTab} asChild>
       {/* Main Parent */}
@@ -332,56 +345,61 @@ export default function Artifacts() {
                       {resultData.success ? (
                         <div className="space-y-3">
                           {resultData.result && Array.isArray(resultData.result) && (
-                            <div className="space-y-3">
+                            <div className="space-y-4 max-h-96 overflow-y-auto">
                               {resultData.result.map((step: any, index: number) => (
-                                <div key={index} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                                  {/* Step Header */}
-                                  <div className="flex items-center space-x-3 mb-3">
-                                    <span className={`w-3 h-3 rounded-full ${
-                                      step.status === 'completed' ? 'bg-green-500' : 
-                                      step.status === 'failed' ? 'bg-red-500' : 'bg-gray-400'
-                                    }`}></span>
-                                    <div>
-                                      <div className="font-medium text-gray-900 dark:text-gray-100">
-                                        {step.stepName || `Step ${index + 1}`}
-                                      </div>
-                                      <div className={`text-xs uppercase font-semibold ${
-                                        step.status === 'completed' ? 'text-green-600 dark:text-green-400' :
-                                        step.status === 'failed' ? 'text-red-600 dark:text-red-400' : 'text-gray-500'
-                                      }`}>
-                                        {step.status || 'unknown'}
-                                      </div>
+                                <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800">
+                                  <div className="flex items-start justify-between mb-3">
+                                    <div className="flex items-center space-x-2">
+                                      <span className={`w-2 h-2 rounded-full ${
+                                        step.status === 'completed' ? 'bg-green-500' : 
+                                        step.status === 'failed' ? 'bg-red-500' : 'bg-gray-400'
+                                      }`}></span>
+                                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                        {step.stepName || step.name || `Step ${index + 1}`}
+                                      </span>
                                     </div>
+                                    {/* Copy button */}
+                                    {(step.result || step.output) && (
+                                      <button
+                                        onClick={() => handleCopyStepOutput(
+                                          step.stepId || `step_${index}`, 
+                                          typeof (step.result || step.output) === 'string' 
+                                            ? (step.result || step.output)
+                                            : JSON.stringify(step.result || step.output, null, 2)
+                                        )}
+                                        className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                                        title="Copy output"
+                                      >
+                                        {copiedStepId === (step.stepId || `step_${index}`) ? (
+                                          <Check className="w-4 h-4 text-green-500" />
+                                        ) : (
+                                          <Copy className="w-4 h-4" />
+                                        )}
+                                      </button>
+                                    )}
                                   </div>
                                   
-                                  {/* Step Output */}
                                   {step.result && (
-                                    <div className="mt-3">
-                                      <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                                        Output
-                                      </div>
-                                      <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded border max-h-32 overflow-y-auto">
-                                        <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words font-mono leading-relaxed">
-                                          {typeof step.result === 'string' 
-                                            ? step.result 
-                                            : JSON.stringify(step.result, null, 2)
-                                          }
-                                        </pre>
-                                      </div>
+                                    <div className="bg-white dark:bg-gray-900 rounded p-3 border border-gray-200 dark:border-gray-600">
+                                      <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-32 overflow-y-auto">
+                                        {typeof step.result === 'string' ? step.result : JSON.stringify(step.result, null, 2)}
+                                      </pre>
                                     </div>
                                   )}
                                   
-                                  {/* Step Error */}
+                                  {step.output && step.output !== step.result && (
+                                    <div className="bg-white dark:bg-gray-900 rounded p-3 border border-gray-200 dark:border-gray-600 mt-2">
+                                      <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-32 overflow-y-auto">
+                                        {typeof step.output === 'string' ? step.output : JSON.stringify(step.output, null, 2)}
+                                      </pre>
+                                    </div>
+                                  )}
+                                  
                                   {step.error && (
-                                    <div className="mt-3">
-                                      <div className="text-xs font-semibold text-red-600 dark:text-red-400 mb-2 uppercase tracking-wide">
-                                        Error
-                                      </div>
-                                      <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded border border-red-200 dark:border-red-700">
-                                        <div className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
-                                          {step.error}
-                                        </div>
-                                      </div>
+                                    <div className="bg-red-50 dark:bg-red-900/20 rounded p-3 border border-red-200 dark:border-red-700 mt-2">
+                                      <pre className="text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap">
+                                        {step.error}
+                                      </pre>
                                     </div>
                                   )}
                                 </div>
