@@ -80,11 +80,27 @@ export const useEndpoints = ({
       if (includedEndpoints.size > 0 && !includedEndpoints.has(endpoints[i])) {
         continue;
       }
+      // Check interface config for specific endpoints
+      if (endpoints[i] === EModelEndpoint.openAI && interfaceConfig.openAI === false) {
+        continue;
+      }
+      if (endpoints[i] === EModelEndpoint.google && interfaceConfig.google === false) {
+        continue;
+      }
+      if (endpoints[i] === EModelEndpoint.anthropic && interfaceConfig.anthropic === false) {
+        continue;
+      }
+      if (endpoints[i] === EModelEndpoint.assistants && interfaceConfig.assistants === false) {
+        continue;
+      }
+      if (endpoints[i] === EModelEndpoint.gptPlugins && interfaceConfig.plugins === false) {
+        continue;
+      }
       result.push(endpoints[i]);
     }
 
     return result;
-  }, [endpoints, hasAgentAccess, includedEndpoints]);
+  }, [endpoints, hasAgentAccess, includedEndpoints, interfaceConfig]);
 
   const endpointRequiresUserKey = useCallback(
     (ep: string) => {

@@ -508,6 +508,9 @@ export const intefaceSchema = z
     files: z.boolean().optional(),
     plugins: z.boolean().optional(),
     assistants: z.boolean().optional(),
+    openAI: z.boolean().optional(),
+    google: z.boolean().optional(),
+    anthropic: z.boolean().optional(),
     hidePanel: z.boolean().optional(),
     webSearch: z.boolean().optional(),
     // Settings tab controls
@@ -598,6 +601,9 @@ export const intefaceSchema = z
     files: true,
     plugins: true,
     assistants: true,
+    openAI: true,
+    google: true,
+    anthropic: true,
     hidePanel: true,
     webSearch: true,
   });
