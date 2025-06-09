@@ -18,6 +18,7 @@ import {
 } from '~/data-provider';
 import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
+import { useWorkflowNotifications } from '~/hooks/useWorkflowNotifications';
 
 export default function Artifacts() {
   const localize = useLocalize();
@@ -27,6 +28,7 @@ export default function Artifacts() {
   const previewRef = useRef<SandpackPreviewRef>();
   const [isVisible, setIsVisible] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   const setArtifactsVisible = useSetRecoilState(store.artifactsVisibility);
   const setArtifactRefreshFunction = useSetRecoilState(store.artifactRefreshFunction);
 
@@ -81,6 +83,9 @@ export default function Artifacts() {
   }, [currentArtifact]);
 
   const isWorkflowArtifact = currentArtifact?.type === 'application/vnd.workflow';
+  
+  // Force preview tab for workflow artifacts (since we hide tabs)
+  const effectiveActiveTab = isWorkflowArtifact ? 'preview' : activeTab;
   const workflowId = workflowData?.workflow?.id;
   
   // Query the current workflow state from the database
@@ -93,6 +98,43 @@ export default function Artifacts() {
   // Use the current workflow data if available, fallback to artifact data
   const isWorkflowActive = currentWorkflowData?.isActive ?? workflowData?.workflow?.isActive;
   const isDraft = currentWorkflowData?.isDraft ?? workflowData?.workflow?.isDraft;
+  
+  // Listen for workflow test notifications from agent-initiated tests
+  const { isWorkflowTesting, getCurrentStep, getExecutionResult, clearExecutionResult } = useWorkflowNotifications({
+    workflowId,
+    onTestStart: (testWorkflowId) => {
+      if (testWorkflowId === workflowId) {
+        setIsTesting(true);
+        // Result data will be managed by the hook
+      }
+    },
+    onStepUpdate: (testWorkflowId, stepData) => {
+      if (testWorkflowId === workflowId) {
+        // getCurrentStep handles step state internally
+      }
+    },
+    onTestComplete: (testWorkflowId, success, result) => {
+      if (testWorkflowId === workflowId) {
+        setIsTesting(false);
+        // Result data is now managed by the hook - no automatic clearing
+      }
+    },
+  });
+
+  // Get current step and result from the hook
+  const currentStep = workflowId ? getCurrentStep(workflowId) : null;
+  const resultData = workflowId ? getExecutionResult(workflowId) : null;
+  
+  // Determine if we should show the result overlay
+  const showingResult = !!(resultData && !isTesting && !(workflowId && isWorkflowTesting(workflowId)));
+  
+  // Debug logging
+  console.log('[Artifacts] Workflow ID:', workflowId);
+  console.log('[Artifacts] Is testing:', isTesting);
+  console.log('[Artifacts] Is workflow testing:', workflowId && isWorkflowTesting(workflowId));
+  console.log('[Artifacts] Current step:', currentStep);
+  console.log('[Artifacts] Showing result:', showingResult);
+  console.log('[Artifacts] Result data:', resultData);
 
   if (currentArtifact === null || currentArtifact === undefined) {
     return null;
@@ -153,15 +195,17 @@ export default function Artifacts() {
   const handleTestWorkflow = () => {
     if (!workflowId) return;
     
+    setIsTesting(true);
+    
     testMutation.mutate(workflowId, {
-      onSuccess: () => {
-        showToast({
-          message: 'Workflow test successfully',
-          severity: NotificationSeverity.SUCCESS,
-        });
+      onSuccess: (response) => {
+        // The workflow notification system will handle the result display
+        setIsTesting(false);
       },
       onError: (error: unknown) => {
+        setIsTesting(false);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        // We could show an immediate error toast, but the notification system should handle this too
         showToast({
           message: `Failed to test workflow: ${errorMessage}`,
           severity: NotificationSeverity.ERROR,
@@ -170,8 +214,14 @@ export default function Artifacts() {
     });
   };
 
+  const handleCloseResult = () => {
+    if (workflowId) {
+      clearExecutionResult(workflowId);
+    }
+  };
+
   return (
-    <Tabs.Root value={activeTab} onValueChange={setActiveTab} asChild>
+    <Tabs.Root value={effectiveActiveTab} onValueChange={setActiveTab} asChild>
       {/* Main Parent */}
       <div className="flex h-full w-full items-center justify-center">
         {/* Main Container */}
@@ -181,63 +231,250 @@ export default function Artifacts() {
           }`}
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-border-medium bg-surface-primary-alt p-2">
-            <div className="flex items-center">
-              <button className="mr-2 text-text-secondary" onClick={closeArtifacts}>
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-              <h3 className="truncate text-sm text-text-primary">{currentArtifact.title}</h3>
-            </div>
-            <div className="flex items-center">
-              {/* Refresh button */}
-              {activeTab === 'preview' && (
+          <div className="flex items-center justify-between border-b border-border-medium bg-surface-primary-alt p-3">
+            {/* Left: Back button */}
+            <button className="text-text-secondary hover:text-text-primary" onClick={closeArtifacts}>
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            
+            {/* Center: Main workflow actions */}
+            {isWorkflowArtifact && workflowId && (
+              <div className="flex items-center gap-4">
                 <button
-                  className={`mr-2 text-text-secondary transition-transform duration-500 ease-in-out ${
-                    isRefreshing ? 'rotate-180' : ''
-                  }`}
-                  onClick={handleRefresh}
-                  disabled={isRefreshing}
-                  aria-label="Refresh"
+                  className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 shadow-sm transition-all hover:bg-blue-100 hover:shadow-md disabled:opacity-50"
+                  onClick={handleTestWorkflow}
+                  disabled={testMutation.isLoading}
+                  title="Test workflow"
                 >
-                  <RefreshCw
-                    size={16}
-                    className={`transform ${isRefreshing ? 'animate-spin' : ''}`}
-                  />
+                  <TestTube className="h-5 w-5" />
                 </button>
-              )}
-              {activeTab !== 'preview' && isMutating && (
-                <RefreshCw size={16} className="mr-2 animate-spin text-text-secondary" />
-              )}
-              {/* Tabs */}
-              <Tabs.List className="mr-2 inline-flex h-7 rounded-full border border-border-medium bg-surface-tertiary">
-                <Tabs.Trigger
-                  value="preview"
-                  disabled={isMutating}
-                  className="border-0.5 flex items-center gap-1 rounded-full border-transparent py-1 pl-2.5 pr-2.5 text-xs font-medium text-text-secondary data-[state=active]:border-border-light data-[state=active]:bg-surface-primary-alt data-[state=active]:text-text-primary"
+                <button
+                  className={`flex h-10 w-10 items-center justify-center rounded-lg shadow-sm transition-all hover:shadow-md disabled:opacity-50 ${
+                    isWorkflowActive 
+                      ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' 
+                      : 'bg-green-50 text-green-600 hover:bg-green-100'
+                  }`}
+                  onClick={handleToggleWorkflow}
+                  disabled={toggleMutation.isLoading}
+                  title={isWorkflowActive ? 'Deactivate workflow' : 'Activate workflow'}
                 >
-                  {localize('com_ui_preview')}
-                </Tabs.Trigger>
-                <Tabs.Trigger
-                  value="code"
-                  className="border-0.5 flex items-center gap-1 rounded-full border-transparent py-1 pl-2.5 pr-2.5 text-xs font-medium text-text-secondary data-[state=active]:border-border-light data-[state=active]:bg-surface-primary-alt data-[state=active]:text-text-primary"
+                  {toggleMutation.isLoading ? (
+                    <RefreshCw className="h-5 w-5 animate-spin" />
+                  ) : isWorkflowActive ? (
+                    <Pause className="h-5 w-5" />
+                  ) : (
+                    <Play className="h-5 w-5" />
+                  )}
+                </button>
+                <button
+                  className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-50 text-red-600 shadow-sm transition-all hover:bg-red-100 hover:shadow-md disabled:opacity-50"
+                  onClick={handleDeleteWorkflow}
+                  disabled={deleteMutation.isLoading}
+                  title="Delete workflow"
                 >
-                  {localize('com_ui_code')}
-                </Tabs.Trigger>
-              </Tabs.List>
-              <button className="text-text-secondary" onClick={closeArtifacts}>
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+                  <Trash2 className="h-5 w-5" />
+                </button>
+              </div>
+            )}
+            
+            {/* Right: Close button */}
+            <button className="text-text-secondary hover:text-text-primary" onClick={closeArtifacts}>
+              <X className="h-5 w-5" />
+            </button>
           </div>
           {/* Content */}
-          <div className="flex-1 overflow-hidden">
-          <ArtifactTabs
-            isMermaid={isMermaid}
-            artifact={currentArtifact}
-            isSubmitting={isSubmitting}
-            editorRef={editorRef as React.MutableRefObject<CodeEditorRef>}
-            previewRef={previewRef as React.MutableRefObject<SandpackPreviewRef>}
-          />
+          <div className="flex-1 overflow-hidden relative">
+            <ArtifactTabs
+              isMermaid={isMermaid}
+              artifact={currentArtifact}
+              isSubmitting={isSubmitting}
+              editorRef={editorRef as React.MutableRefObject<CodeEditorRef>}
+              previewRef={previewRef as React.MutableRefObject<SandpackPreviewRef>}
+            />
+            
+            {/* Testing Overlay - Show for both button-initiated and agent-initiated tests */}
+            {(isTesting || (workflowId && isWorkflowTesting(workflowId)) || showingResult) && (
+              <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/20 backdrop-blur-sm">
+                <div className="absolute inset-0 bg-gray-900/50"></div>
+                
+                {/* Scanner Line Animation - Only show when testing */}
+                {(isTesting || (workflowId && isWorkflowTesting(workflowId))) && !showingResult && (
+                  <div className="absolute inset-0 overflow-hidden">
+                    <div className="scanner-line absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-blue-400 to-transparent opacity-80 shadow-lg shadow-blue-400/50"></div>
+                  </div>
+                )}
+                
+                {/* Testing Status or Results */}
+                {showingResult && resultData ? (
+                  // Show execution results
+                  <div className="relative z-10 flex flex-col items-center space-y-4 rounded-lg bg-white/95 px-8 py-6 backdrop-blur-sm dark:bg-gray-800/95 max-w-md mx-4">
+                    <div className="flex items-center space-x-3">
+                      {resultData.success ? (
+                        <div className="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center">
+                          <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      ) : (
+                        <div className="h-8 w-8 rounded-full bg-red-500 flex items-center justify-center">
+                          <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </div>
+                      )}
+                      <span className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                        Test {resultData.success ? 'Completed' : 'Failed'}
+                      </span>
+                    </div>
+                    
+                    {/* Result Details */}
+                    <div className="w-full space-y-4 max-h-96 overflow-y-auto">
+                      {resultData.success ? (
+                        <div className="space-y-3">
+                          {resultData.result && Array.isArray(resultData.result) && (
+                            <div className="space-y-3">
+                              {resultData.result.map((step: any, index: number) => (
+                                <div key={index} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                                  {/* Step Header */}
+                                  <div className="flex items-center space-x-3 mb-3">
+                                    <span className={`w-3 h-3 rounded-full ${
+                                      step.status === 'completed' ? 'bg-green-500' : 
+                                      step.status === 'failed' ? 'bg-red-500' : 'bg-gray-400'
+                                    }`}></span>
+                                    <div>
+                                      <div className="font-medium text-gray-900 dark:text-gray-100">
+                                        {step.stepName || `Step ${index + 1}`}
+                                      </div>
+                                      <div className={`text-xs uppercase font-semibold ${
+                                        step.status === 'completed' ? 'text-green-600 dark:text-green-400' :
+                                        step.status === 'failed' ? 'text-red-600 dark:text-red-400' : 'text-gray-500'
+                                      }`}>
+                                        {step.status || 'unknown'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Step Output */}
+                                  {step.result && (
+                                    <div className="mt-3">
+                                      <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                        Output
+                                      </div>
+                                      <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded border max-h-32 overflow-y-auto">
+                                        <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words font-mono leading-relaxed">
+                                          {typeof step.result === 'string' 
+                                            ? step.result 
+                                            : JSON.stringify(step.result, null, 2)
+                                          }
+                                        </pre>
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Step Error */}
+                                  {step.error && (
+                                    <div className="mt-3">
+                                      <div className="text-xs font-semibold text-red-600 dark:text-red-400 mb-2 uppercase tracking-wide">
+                                        Error
+                                      </div>
+                                      <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded border border-red-200 dark:border-red-700">
+                                        <div className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
+                                          {step.error}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <div className="font-medium text-red-600 dark:text-red-400 mb-4">
+                            ❌ Workflow execution failed
+                          </div>
+                          {resultData.error && (
+                            <div className="text-left bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-200 dark:border-red-700">
+                              <div className="text-xs font-semibold text-red-600 dark:text-red-400 mb-2 uppercase tracking-wide">
+                                Error Details
+                              </div>
+                              <div className="text-sm text-red-700 dark:text-red-300 leading-relaxed">
+                                {resultData.error}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleCloseResult}
+                      className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                ) : (
+                  // Show testing status with live step updates
+                  <div className="relative z-10 flex flex-col items-center space-y-6 rounded-xl bg-white/95 px-8 py-6 backdrop-blur-sm dark:bg-gray-800/95 max-w-lg mx-4 shadow-2xl border border-white/20">
+                    {/* Live step progress */}
+                    {currentStep ? (
+                      <div className="w-full space-y-4">
+                        {/* Step header */}
+                        <div className="text-center pb-3 border-b border-gray-200/50 dark:border-gray-600/50">
+                          <div className={`text-sm font-medium uppercase tracking-wider ${
+                            currentStep.status === 'running' 
+                              ? 'text-blue-600 dark:text-blue-400' 
+                              : currentStep.status === 'completed'
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-red-600 dark:text-red-400'
+                          }`}>
+                            {currentStep.status === 'running' && 'EXECUTING'}
+                            {currentStep.status === 'completed' && 'COMPLETED'}
+                            {currentStep.status === 'failed' && 'FAILED'}
+                          </div>
+                          <div className="text-lg font-semibold text-gray-900 dark:text-gray-100 mt-1">
+                            {currentStep.stepName}
+                          </div>
+                        </div>
+                        
+
+                        
+                        {/* Loading indicator for running steps */}
+                        {currentStep.status === 'running' && (
+                          <div className="flex items-center justify-center py-2">
+                            <div className="flex space-x-1">
+                              <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                              <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                              <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce"></div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center space-y-4">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg shadow-blue-500/25 animate-pulse">
+                          <TestTube className="h-8 w-8 text-white" />
+                        </div>
+                        <div className="text-center">
+                          <span className="text-xl font-semibold text-gray-900 dark:text-gray-100 block">
+                            {workflowId && isWorkflowTesting(workflowId) && !isTesting 
+                              ? 'Agent initiated test...'
+                              : 'Initializing workflow test...'
+                            }
+                          </span>
+                          <div className="flex items-center justify-center space-x-1 mt-2">
+                            <div className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                            <div className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                            <div className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-bounce"></div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           {/* Footer */}
           <div className="flex items-center justify-between border-t border-border-medium bg-surface-primary-alt p-2 text-sm text-text-secondary">
@@ -253,50 +490,22 @@ export default function Artifacts() {
               </button>
             </div>
             
-            {/* Workflow Management Buttons - Centered */}
-            {isWorkflowArtifact && workflowId && (
-              <div className="flex items-center gap-2">
-                <button
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
-                  onClick={handleTestWorkflow}
-                  disabled={testMutation.isLoading}
-                  title="Test workflow"
-                >
-                  <TestTube className="h-4 w-4" />
-                </button>
-                <button
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
-                  onClick={handleToggleWorkflow}
-                  disabled={toggleMutation.isLoading}
-                  title={isWorkflowActive ? 'Deactivate workflow' : 'Activate workflow'}
-                >
-                  {toggleMutation.isLoading ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                  ) : isWorkflowActive ? (
-                    <Pause className="h-4 w-4" />
-                  ) : (
-                    <Play className="h-4 w-4" />
-                  )}
-                </button>
-                <button
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-red-500 transition-colors hover:bg-red-50 hover:text-red-600"
-                  onClick={handleDeleteWorkflow}
-                  disabled={deleteMutation.isLoading}
-                  title="Delete workflow"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            )}
-            
             <div className="flex items-center gap-2">
+              {/* Refresh button - Moved from Header */}
+              <button
+                className={`flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary ${
+                  isRefreshing ? 'animate-pulse' : ''
+                }`}
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                title="Refresh"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+                />
+              </button>
               <CopyCodeButton content={currentArtifact.content ?? ''} />
-              {/* Download Button */}
               <DownloadArtifact artifact={currentArtifact} />
-              {/* Publish button */}
-              {/* <button className="border-0.5 min-w-[4rem] whitespace-nowrap rounded-md border-border-medium bg-[radial-gradient(ellipse,_var(--tw-gradient-stops))] from-surface-active from-50% to-surface-active px-3 py-1 text-xs font-medium text-text-primary transition-colors hover:bg-surface-active hover:text-text-primary active:scale-[0.985] active:bg-surface-active">
-                Publish
-              </button> */}
             </div>
           </div>
         </div>

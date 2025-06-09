@@ -364,13 +364,15 @@ class SchedulerService {
    * @param {string} params.userId - The LibreChat user ID
    * @param {string} params.workflowName - Name of the workflow
    * @param {string} params.workflowId - ID of the workflow
-   * @param {string} params.notificationType - Type of notification (activated, deactivated, created, updated, deleted, test_started, execution_started, execution_completed, execution_failed)
+   * @param {string} params.notificationType - Type of notification (activated, deactivated, created, updated, deleted, test_started, execution_started, execution_completed, execution_failed, step_started, step_completed, step_failed)
    * @param {string} [params.details] - Optional additional details
    * @param {Object} [params.workflowData] - Optional workflow data for context
+   * @param {Object} [params.stepData] - Optional step data for step-level notifications
+   * @param {Object} [params.executionResult] - Optional execution result data
    * @returns {Promise<Object>} Success response
    */
   static async sendWorkflowStatusUpdate(params) {
-    const { userId, workflowName, workflowId, notificationType, details, workflowData } = params;
+    const { userId, workflowName, workflowId, notificationType, details, workflowData, stepData, executionResult } = params;
     
     if (!userId) {
       return { success: false, error: 'Missing userId' };
@@ -385,10 +387,12 @@ class SchedulerService {
         notificationType,
         details,
         workflowData,
+        stepData,
+        executionResult,
         timestamp: new Date().toISOString()
       });
       
-      logger.debug(`[SchedulerService] Workflow status update sent: ${wasNotified} for user ${userId}, workflow ${workflowId}, status: ${notificationType}`);
+      logger.debug(`[SchedulerService] Workflow status update sent: ${wasNotified} for user ${userId}, workflow ${workflowId}, status: ${notificationType}${stepData ? `, step: ${stepData.stepName}` : ''}`);
       
       return {
         success: true,

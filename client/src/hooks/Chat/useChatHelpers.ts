@@ -441,6 +441,8 @@ export default function useChatHelpers(index = 0, paramId?: string) {
           }
         } else if (data.type === 'workflow_status_update') {
           console.log('[SchedulerSSE] 🔄 Processing workflow status update:', data);
+          console.log('[SchedulerSSE] 🔄 Notification type:', data.notificationType);
+          console.log('[SchedulerSSE] 🔄 Step data:', data.stepData);
           // Handle workflow status updates (activated, deactivated, created, updated, deleted, etc.)
           // These update the workflow status in the sidebar
           
@@ -464,6 +466,10 @@ export default function useChatHelpers(index = 0, paramId?: string) {
             updateWorkflowArtifacts(data.workflowId, data.workflowData);
           }
           
+          // Dispatch custom event for workflow notifications that other components can listen to
+          const workflowEvent = new CustomEvent('workflowNotification', { detail: data });
+          window.dispatchEvent(workflowEvent);
+          
           // Show a brief status notification for workflows
           if (data.workflowName && data.notificationType) {
             const workflowStatusMessages = {
@@ -475,7 +481,10 @@ export default function useChatHelpers(index = 0, paramId?: string) {
               test_started: '🧪 Workflow test started',
               execution_started: '⚡ Workflow execution started',
               execution_completed: '✅ Workflow execution completed',
-              execution_failed: '❌ Workflow execution failed'
+              execution_failed: '❌ Workflow execution failed',
+              step_started: '🔄 Step started',
+              step_completed: '✅ Step completed',
+              step_failed: '❌ Step failed'
             };
             
             const message = workflowStatusMessages[data.notificationType] || '🔄 Workflow updated';

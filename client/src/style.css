@@ -2495,3 +2495,17 @@ html {
     0 0 0 0 rgba(16, 185, 129, 0.3),
     0 0 6px rgba(52, 211, 153, 0.2);
 }
+
+/* Workflow Testing Scanner Animation */
+@keyframes scanner-move {
+  0% {
+    top: -4px;
+  }
+  100% {
+    top: 100%;
+  }
+}
+
+.scanner-line {
+  animation: scanner-move 2s linear infinite;
+}

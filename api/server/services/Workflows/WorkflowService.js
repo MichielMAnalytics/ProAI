@@ -476,7 +476,13 @@ class WorkflowService {
             workflowName: workflow.name,
             workflowId: workflow.id,
             notificationType: result.success ? 'execution_completed' : 'execution_failed',
-            details: `Workflow "${workflow.name}" ${isTest ? 'test' : 'execution'} ${result.success ? 'completed successfully' : 'failed'}`
+            details: `Workflow "${workflow.name}" ${isTest ? 'test' : 'execution'} ${result.success ? 'completed successfully' : 'failed'}`,
+            executionResult: {
+              success: result.success,
+              result: result.result,
+              error: result.error,
+              isTest: isTest
+            }
           });
         } catch (notificationError) {
           logger.warn(`[WorkflowService] Failed to send workflow execution completion notification: ${notificationError.message}`);
@@ -500,7 +506,13 @@ class WorkflowService {
             workflowName: workflow.name,
             workflowId: workflow.id,
             notificationType: 'execution_failed',
-            details: `Workflow "${workflow.name}" ${isTest ? 'test' : 'execution'} failed: ${error.message}`
+            details: `Workflow "${workflow.name}" ${isTest ? 'test' : 'execution'} failed: ${error.message}`,
+            executionResult: {
+              success: false,
+              result: null,
+              error: error.message,
+              isTest: isTest
+            }
           });
         } catch (notificationError) {
           logger.warn(`[WorkflowService] Failed to send workflow execution failure notification: ${notificationError.message}`);

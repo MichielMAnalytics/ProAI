@@ -367,10 +367,11 @@ class WorkflowExecutor {
    */
   async executeStepChain(workflow, execution, currentStepId, context) {
     let currentStep = currentStepId;
-    let executionResult = { success: true, result: null };
+    const executionResult = { success: true, error: null };
+    const accumulatedStepResults = [];
 
     while (currentStep) {
-      const step = workflow.steps.find(s => s.id === currentStep);
+      const step = workflow.steps.find((s) => s.id === currentStep);
       if (!step) {
         throw new Error(`Step not found: ${currentStep}`);
       }
@@ -383,15 +384,29 @@ class WorkflowExecutor {
       // Update the parent message ID for the next step to maintain conversation threading
       if (stepResult && stepResult.responseMessageId) {
         context.workflow.parentMessageId = stepResult.responseMessageId;
-        logger.debug(`[WorkflowExecutor] Updated parentMessageId for next step: ${stepResult.responseMessageId}`);
+        logger.debug(
+          `[WorkflowExecutor] Updated parentMessageId for next step: ${stepResult.responseMessageId}`,
+        );
       }
+
+      // Accumulate the result for the final summary
+      accumulatedStepResults.push({
+        stepId: step.id,
+        stepName: step.name,
+        stepType: step.type,
+        status: stepResult.success ? 'completed' : 'failed',
+        result: stepResult.result,
+        error: stepResult.error,
+      });
 
       // Update execution context with step result
       context.steps[step.id] = stepResult;
-      
+
       // Create a clean, serializable version of context for database storage
       const serializableContext = this.createSerializableContext(context);
-      await updateSchedulerExecution(execution.id, execution.user, { context: serializableContext });
+      await updateSchedulerExecution(execution.id, execution.user, {
+        context: serializableContext,
+      });
 
       // Update current step in execution
       await updateSchedulerExecution(execution.id, execution.user, {
@@ -401,21 +416,19 @@ class WorkflowExecutor {
       // Determine next step based on result
       if (stepResult.success) {
         currentStep = step.onSuccess;
-        executionResult.result = stepResult.result;
       } else {
+        executionResult.success = false;
+        executionResult.error =
+          stepResult.error || `Step "${step.name}" failed without a specific error.`;
         currentStep = step.onFailure;
         if (!currentStep) {
-          // No failure path defined, workflow fails
-          executionResult = {
-            success: false,
-            error: stepResult.error || 'Step failed without failure path',
-            result: stepResult.result,
-          };
+          // No failure path defined, workflow fails and stops
           break;
         }
       }
     }
 
+    executionResult.result = accumulatedStepResults;
     return executionResult;
   }
 
@@ -428,6 +441,26 @@ class WorkflowExecutor {
    * @returns {Promise<Object>} Step execution result
    */
   async executeStep(workflow, execution, step, context) {
+    // Send notification that step is starting
+    try {
+      const SchedulerService = require('~/server/services/Scheduler/SchedulerService');
+      await SchedulerService.sendWorkflowStatusUpdate({
+        userId: execution.user,
+        workflowName: workflow.name,
+        workflowId: workflow.id,
+        notificationType: 'step_started',
+        details: `Executing step: ${step.name}`,
+        stepData: {
+          stepId: step.id,
+          stepName: step.name,
+          stepType: step.type,
+          status: 'running'
+        }
+      });
+    } catch (notificationError) {
+      logger.warn(`[WorkflowExecutor] Failed to send step start notification: ${notificationError.message}`);
+    }
+
     const stepExecutionData = {
       stepId: step.id,
       stepName: step.name,
@@ -462,6 +495,27 @@ class WorkflowExecutor {
         currentStepId: step.id,
       });
 
+      // Send notification that step completed successfully
+      try {
+        const SchedulerService = require('~/server/services/Scheduler/SchedulerService');
+        await SchedulerService.sendWorkflowStatusUpdate({
+          userId: execution.user,
+          workflowName: workflow.name,
+          workflowId: workflow.id,
+          notificationType: 'step_completed',
+          details: `Step completed: ${step.name}`,
+          stepData: {
+            stepId: step.id,
+            stepName: step.name,
+            stepType: step.type,
+            status: 'completed',
+            result: this.summarizeStepResult(result)
+          }
+        });
+      } catch (notificationError) {
+        logger.warn(`[WorkflowExecutor] Failed to send step completion notification: ${notificationError.message}`);
+      }
+
       logger.info(`[WorkflowExecutor] Step completed: ${step.name}`);
       return {
         success: true,
@@ -476,6 +530,27 @@ class WorkflowExecutor {
         currentStepId: step.id,
         error: error.message,
       });
+
+      // Send notification that step failed
+      try {
+        const SchedulerService = require('~/server/services/Scheduler/SchedulerService');
+        await SchedulerService.sendWorkflowStatusUpdate({
+          userId: execution.user,
+          workflowName: workflow.name,
+          workflowId: workflow.id,
+          notificationType: 'step_failed',
+          details: `Step failed: ${step.name} - ${error.message}`,
+          stepData: {
+            stepId: step.id,
+            stepName: step.name,
+            stepType: step.type,
+            status: 'failed',
+            error: error.message
+          }
+        });
+      } catch (notificationError) {
+        logger.warn(`[WorkflowExecutor] Failed to send step failure notification: ${notificationError.message}`);
+      }
 
       return {
         success: false,

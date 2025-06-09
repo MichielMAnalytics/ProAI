@@ -600,7 +600,7 @@ export const getWorkflowFiles = (content: string) => {
                   defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
                 >
                   <Background color="#f3f4f6" />
-                  <Controls />
+                  <Controls position="top-left" style={{ top: '50%', transform: 'translateY(-50%)' }} />
                 </ReactFlow>
               </div>
             </div>
