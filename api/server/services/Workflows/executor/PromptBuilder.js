@@ -342,151 +342,89 @@ function generateContextUsageInstructions(step, context) {
 }
 
 /**
- * Format previous step results for clear data flow
- * @param {Object} context - Execution context
- * @returns {string} Formatted previous step results
+ * Formats the results of previous steps to be included in the prompt for the current step.
+ * This provides the necessary data context for the agent to execute its task.
+ * @param {Object} context - The execution context containing results from previous steps.
+ * @returns {string} A formatted string of previous step results.
  */
 function formatPreviousStepResults(context) {
   if (!context.steps || Object.keys(context.steps).length === 0) {
-    return '';
+    return 'No data from previous steps is available.';
   }
-  
-  let resultsSection = `\n\nPREVIOUS STEP DATA (USE THIS DATA IN YOUR CURRENT STEP):`;
-  
-  const stepEntries = Object.entries(context.steps);
-  
-  // Show all previous steps, not just last 2, but in a structured way
-  for (const [stepId, stepResult] of stepEntries) {
+
+  let resultsSection = '-- AVAILABLE DATA FROM PREVIOUS STEPS --\n\n';
+  resultsSection +=
+    'Use the following data from completed steps to perform your task. Reference specific values (like IDs, names, or content) from this data in your tool call.\n\n';
+
+  for (const [stepId, stepResult] of Object.entries(context.steps)) {
+    resultsSection += `[Step: "${stepId}"]\n`;
     if (stepResult.success && stepResult.result) {
       const fullResult = getFullStepResult(stepResult.result);
-      
-      resultsSection += `\n\n=== ${stepId.toUpperCase()} RESULT ===`;
-      
-      // Try to extract key information if it's structured data
-      if (typeof fullResult === 'object' && fullResult !== null) {
-        // Check if it's an agent response with tool calls
-        if (fullResult.agentResponse) {
-          resultsSection += `\nAgent Response: ${JSON.stringify(fullResult.agentResponse, null, 2)}`;
-        }
-        
-        // Check for common data patterns
-        if (fullResult.toolResults || fullResult.toolCalls) {
-          resultsSection += `\nTool Results: ${JSON.stringify(fullResult.toolResults || fullResult.toolCalls, null, 2)}`;
-        }
-        
-        // Include the full result if it's not too complex
-        try {
-          const resultStr = JSON.stringify(fullResult, null, 2);
-          if (resultStr.length < 2000) { // Limit size to avoid overwhelming
-            resultsSection += `\nFull Data: ${resultStr}`;
-          } else {
-            resultsSection += `\nFull Data: [Large result - ${resultStr.length} chars] ${resultStr.substring(0, 500)}...`;
-          }
-        } catch (e) {
-          resultsSection += `\nFull Data: ${String(fullResult).substring(0, 500)}`;
-        }
-      } else {
-        // It's a simple string or primitive
-        resultsSection += `\nData: ${String(fullResult)}`;
-      }
-      
-      resultsSection += `\n--- End of ${stepId} ---`;
-    } else if (!stepResult.success) {
-      resultsSection += `\n\n=== ${stepId.toUpperCase()} FAILED ===`;
-      resultsSection += `\nError: ${stepResult.error || 'Unknown error'}`;
+      resultsSection += `Status: SUCCESS\n`;
+      resultsSection += `Data: ${fullResult}\n\n`;
+    } else {
+      resultsSection += `Status: FAILED\n`;
+      resultsSection += `Error: ${stepResult.error || 'Unknown error'}\n\n`;
     }
   }
-  
-  resultsSection += `\n\nDATA USAGE REMINDER:`;
-  resultsSection += `\n- Extract specific values (IDs, names, numbers) from the above data`;
-  resultsSection += `\n- Use this data to inform your current step execution`;
-  resultsSection += `\n- For communication tools: Include actual details, not generic placeholders`;
-  resultsSection += `\n- For processing tools: Transform or analyze this specific data`;
-  resultsSection += `\n- For search/filter tools: Use data as search criteria or filter parameters`;
-  
   return resultsSection;
 }
 
 /**
- * Create a task prompt for a workflow step
- * @param {Object} step - Workflow step
- * @param {Object} context - Execution context
- * @returns {string} Task prompt for the agent
+ * Creates a clear, direct, and unambiguous task prompt for a single workflow step execution.
+ * This prompt is designed to prevent the agent from deviating from its execution role and
+ * ensures it performs its designated task without creating new workflows or calling unspecified tools.
+ *
+ * @param {Object} step - The workflow step to be executed.
+ * @param {Object} context - The current execution context of the workflow.
+ * @returns {string} An explicit prompt for the agent to execute the step.
  */
 function createTaskPromptForStep(step, context) {
   const { replaceSpecialVars } = require('librechat-data-provider');
-  
-  // Get user info for timezone context
-  const user = context.user;
-  const datetimeContext = generateTimezoneAwareDateTimeContext(user);
-  
-  let prompt = `WORKFLOW STEP EXECUTION:
 
-Step Name: "${step.name}"
-Step Type: ${step.type}
+  let prompt = `
+-- WORKFLOW EXECUTION CONTEXT --
 
-CRITICAL: This is a NEW step execution. Ignore any previous tool calls or responses.${datetimeContext}
+You are in WORKFLOW EXECUTION MODE. Your ONLY job is to execute a single step within a larger automated workflow. You are not in a conversational or creative mode.
 
-MANDATORY STEP CONFIGURATION:
-${step.config?.toolName ? `
-🔧 REQUIRED TOOL: "${step.config.toolName}"
-⚠️  YOU MUST use this EXACT tool name - do not substitute or use similar tools
+- Workflow Name: "${context.workflow?.name || 'Unknown Workflow'}"
+- Current Step ID: "${step.id}"
+- Current Step Name: "${step.name}"
 
-` : ''}${step.config?.parameters ? `📋 REQUIRED PARAMETERS:
-${Object.entries(step.config.parameters).map(([key, value]) => {
-  if (typeof value === 'string' && value.length > 100) {
-    return `   ${key}: "${value.substring(0, 100)}..."`;
-  }
-  return `   ${key}: ${typeof value === 'string' ? `"${value}"` : JSON.stringify(value)}`;
-}).join('\n')}
+-- CURRENT STEP DETAILS --
 
-⚠️  YOU MUST use these EXACT parameters - do not modify, substitute, or ignore them
-⚠️  If a parameter contains an "instruction", use that EXACT text in your tool call
+You are to execute the following step:
 
-` : ''}${step.config?.toolParameters ? `📋 TOOL PARAMETERS:
-${JSON.stringify(step.config.toolParameters, null, 2)}
+- Step Name: "${step.name}"
+- Step Type: "${step.type}"
+${step.config?.instruction ? `- Instruction: "${step.config.instruction}"` : ''}
 
-⚠️  Use these parameters exactly as specified
+- Tool to Use: "${step.config?.toolName || 'Not specified'}"
+- Parameters to Use:
+${
+  step.config?.parameters
+    ? JSON.stringify(step.config.parameters, null, 2)
+    : 'No parameters specified.'
+}
 
-` : ''}${step.config?.instruction ? `📝 STEP INSTRUCTION: "${step.config.instruction}"
-
-` : ''}CRITICAL EXECUTION RULES:
-1. ✅ Use the EXACT tool name: "${step.config?.toolName || 'NOT_SPECIFIED'}"
-2. ✅ Use the EXACT parameters listed above - do not modify them
-3. ✅ Do not make up your own parameters based on workflow context
-4. ✅ If parameters contain an "instruction" field, pass that exact text to the tool
-5. ✅ Execute this step exactly once
-6. ✅ Return results immediately after tool execution
-7. ❌ Do not ask for clarification or additional input
-8. ❌ Do not call tools from previous workflow steps
-9. ❌ Do not substitute tools or parameters based on your interpretation
-
-${generateContextUsageInstructions(step, context)}
-
-INSTRUCTIONS:
 ${formatPreviousStepResults(context)}
-WORKFLOW CONTEXT:
-- Workflow: ${context.workflow?.name || 'Unknown Workflow'}
-- Current Step: ${step.id}
-- Step ${context.currentStepIndex || '?'} of ${context.totalSteps || 'unknown'}
-${context.stepHistory ? `- Previous steps completed: ${context.stepHistory.length}` : ''}
-- This step builds upon the work of previous steps
+-- YOUR TASK --
 
-EXECUTION RULES:
-1. Execute this step exactly once
-2. ONLY call the tool "${step.config?.toolName || 'NOT_SPECIFIED'}" - do not call any other tools
-3. If the specified tool is not available, report an error immediately
-4. Use the previous step data provided above - don't ignore it
-5. Return results immediately after tool execution
-6. Do not ask for clarification or additional input
-7. Do not call tools from previous workflow steps
-8. This is a fresh execution - ignore any previous conversation history
-9. Build upon and reference the data from completed steps above`;
+Your task is to execute the step described above using the provided data and tool configurations. You MUST call the specified tool with the specified parameters.
 
-  // Apply variable replacements
-  prompt = replaceSpecialVars({ text: prompt });
-  
-  return prompt;
+-- CRITICAL EXECUTION RULES --
+
+1.  **EXECUTE, DO NOT CREATE**: You are EXECUTING a step. You MUST NOT create a new workflow.
+2.  **USE SPECIFIED TOOL**: You MUST call the tool named "${
+  step.config?.toolName || 'Not specified'
+}". Do NOT use any other tool.
+3.  **USE SPECIFIED PARAMETERS**: You MUST use the parameters exactly as listed above. Do not invent or modify them. If previous step data is needed to fill a parameter, extract the exact values.
+4.  **NO CONVERSATION**: This is a direct command. Do not ask for clarification, confirmation, or engage in conversation.
+5.  **IMMEDIATE ACTION**: Execute the tool call immediately.
+6.  **ONE ACTION ONLY**: Perform this single action and then stop.
+`;
+
+  return replaceSpecialVars({ text: prompt });
 }
 
 module.exports = {
