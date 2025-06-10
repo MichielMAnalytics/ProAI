@@ -164,75 +164,8 @@ CRITICAL: This is a NEW step execution. Ignore any previous tool calls or respon
 
 INSTRUCTIONS:`;
 
-  // Handle different step types
-  if (step.type === 'mcp_agent_action') {
-    // MCP Agent Action - Use tools
-    if (step.config.toolName) {
-      // If a specific tool is configured, instruct the agent to use it directly
-      prompt += `\n1. Call the MCP tool "${step.config.toolName}" directly`;
-      prompt += `\n   - Do NOT call any other tools, especially "${
-        step.config.toolName === 'STRAVA-GET-ACTIVITY-BY-ID'
-          ? 'STRAVA-GET-ACTIVITY-LIST'
-          : 'any other tools'
-      }"`;
-      prompt += `\n   - This step requires EXACTLY "${step.config.toolName}" and no other tool`;
-
-      // Handle parameters from the standard parameters object
-      let parametersToUse = {};
-
-      // Primary source: parameters object
-      if (step.config.parameters) {
-        parametersToUse = resolveParameters(step.config.parameters, context);
-      }
-
-      // Secondary source: toolParameters (for backward compatibility)
-      if (step.config.toolParameters) {
-        parametersToUse = { ...parametersToUse, ...step.config.toolParameters };
-      }
-
-      if (Object.keys(parametersToUse).length > 0) {
-        prompt += `\n2. Use these parameters:`;
-        for (const [key, value] of Object.entries(parametersToUse)) {
-          prompt += `\n   - ${key}: ${JSON.stringify(value)}`;
-        }
-      } else {
-        prompt += `\n2. Check the step configuration for parameter requirements`;
-      }
-
-      // Add special handling for email steps
-      if (step.config.toolName.includes('EMAIL')) {
-        prompt += generateEmailStepGuidance(step, context);
-      }
-
-      if (step.config.instruction) {
-        prompt += `\n3. Additional instruction: ${step.config.instruction}`;
-      }
-
-      prompt += `\n4. Return the raw tool result without additional commentary`;
-      prompt += `\n\nIMPORTANT: Call the specified tool exactly once and return its result immediately. Do not make multiple tool calls or attempt to interpret the data.`;
-    } else {
-      // If no specific tool is configured, give guidance based on step name
-      prompt += `\n1. ${generateActionInstructions(step.name, step.config)}`;
-      prompt += `\n2. Use the most appropriate MCP tool from the available tools`;
-      prompt += `\n3. Make only ONE tool call to complete this task`;
-      prompt += `\n4. Return the result in a structured format`;
-    }
-  } else if (step.type === 'agent_action_no_tool') {
-    // Agent Action without tools - Pure reasoning
-    prompt += `\n1. Use your reasoning capabilities to complete this task`;
-    prompt += `\n2. DO NOT call any tools - this is a reasoning-only task`;
-    prompt += `\n3. Process the information from previous steps if available`;
-    
-    if (step.config.instruction) {
-      prompt += `\n4. Task instruction: ${step.config.instruction}`;
-    } else {
-      prompt += `\n4. ${generateActionInstructions(step.name, step.config)}`;
-    }
-    
-    prompt += `\n5. Provide a clear, structured response based on your analysis`;
-    prompt += `\n\nIMPORTANT: This is a reasoning task only. Do not attempt to call any tools. Use the data from previous steps and your understanding to complete the task.`;
-  } else if (step.type === 'action') {
-    // Legacy action type - keep for backward compatibility
+  // For action steps, be very specific about what tool to use and how
+  if (step.type === 'action') {
     if (step.config.toolName) {
       // If a specific tool is configured, instruct the agent to use it directly
       prompt += `\n1. Call the MCP tool "${step.config.toolName}" directly`;
@@ -319,19 +252,14 @@ INSTRUCTIONS:`;
   // Final instructions to prevent recursion and enforce tool selection
   prompt += `\n\nEXECUTION RULES:`;
   prompt += `\n1. Execute this step exactly once`;
-  
-  if (step.type === 'agent_action_no_tool') {
-    prompt += `\n2. DO NOT call any tools - this is a reasoning-only task`;
-    prompt += `\n3. Use only your analytical and reasoning capabilities`;
-  } else if (step.config.toolName) {
+  if (step.config.toolName) {
     prompt += `\n2. ONLY call the tool "${step.config.toolName}" - do not call any other tools`;
     prompt += `\n3. If the specified tool is not available, report an error immediately`;
   } else {
     prompt += `\n2. Do not call multiple tools unless explicitly required`;
   }
-  
   prompt += `\n4. Do not attempt to validate or modify the results`;
-  prompt += `\n5. Return results immediately after ${step.type === 'agent_action_no_tool' ? 'reasoning' : 'tool execution'}`;
+  prompt += `\n5. Return results immediately after tool execution`;
   prompt += `\n6. Do not ask for clarification or additional input`;
   prompt += `\n7. Do not call tools from previous workflow steps`;
   prompt += `\n8. This is a fresh execution - ignore any previous conversation history`;

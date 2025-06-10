@@ -151,13 +151,7 @@ export const getWorkflowFiles = (content: string) => {
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 border: '2px solid #5a67d8',
                 color: 'white',
-                icon: '��'
-              },
-              agent_action_no_tool: {
-                background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                border: '2px solid #ed64a6',
-                color: 'white',
-                icon: '🧠'
+                icon: '🤖'
               },
             };
 
@@ -227,11 +221,6 @@ export const getWorkflowFiles = (content: string) => {
                     {data.config?.toolName && (
                         <div className="text-sm opacity-90 mb-1 font-medium">
                           {data.config.toolName}
-                        </div>
-                    )}
-                    {data.type === 'agent_action_no_tool' && (
-                        <div className="text-sm opacity-90 mb-1 font-medium">
-                          Reasoning Task
                         </div>
                     )}
                     {data.config?.instruction && (

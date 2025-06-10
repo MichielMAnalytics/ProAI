@@ -1,7 +1,7 @@
 const { logger } = require('~/config');
 const { updateSchedulerExecution } = require('~/models/SchedulerExecution');
 const { createTaskPromptForStep } = require('./PromptBuilder');
-const { executeStepWithAgent, executeStepWithAgentNoTool } = require('./AgentExecutor');
+const { executeStepWithAgent } = require('./AgentExecutor');
 const { getFullStepResult } = require('./utils');
 
 /**
@@ -38,30 +38,6 @@ async function executeMCPAgentActionStep(step, context, userId) {
 }
 
 /**
- * Execute an agent action step without tools (for reasoning tasks)
- * @param {Object} step - The action step
- * @param {Object} context - Execution context
- * @param {string} userId - User ID for the execution
- * @returns {Promise<Object>} Step result
- */
-async function executeAgentActionNoToolStep(step, context, userId) {
-  logger.info(`[WorkflowStepExecutor] Executing agent action (no tool) step: "${step.name}"`);
-
-  // Create a task prompt based on the step
-  const taskPrompt = createTaskPromptForStep(step, context);
-
-  // Execute using fresh agent without any tools
-  const result = await executeStepWithAgentNoTool(step, taskPrompt, context, userId);
-
-  return {
-    type: 'agent_action_no_tool',
-    stepName: step.name,
-    prompt: taskPrompt,
-    ...result,
-  };
-}
-
-/**
  * Execute a single workflow step
  * @param {Object} workflow - The workflow
  * @param {Object} execution - The execution record
@@ -73,10 +49,9 @@ async function executeStep(workflow, execution, step, context) {
   // Dynamically import SchedulerService to avoid circular dependencies
   const SchedulerService = require('~/server/services/Scheduler/SchedulerService');
 
-  // Validate step type - support both mcp_agent_action and agent_action_no_tool
-  const validStepTypes = ['mcp_agent_action', 'agent_action_no_tool'];
-  if (!validStepTypes.includes(step.type)) {
-    throw new Error(`Unsupported step type: ${step.type}. Supported types: ${validStepTypes.join(', ')}`);
+  // Validate step type - only mcp_agent_action is supported
+  if (step.type !== 'mcp_agent_action') {
+    throw new Error(`Unsupported step type: ${step.type}. Only 'mcp_agent_action' is supported.`);
   }
 
   // Send notification that step is starting
@@ -113,16 +88,8 @@ async function executeStep(workflow, execution, step, context) {
   await updateSchedulerExecution(execution.id, execution.user, stepExecutionData);
 
   try {
-    let result;
-
-    // Execute step based on type
-    if (step.type === 'mcp_agent_action') {
-      // Execute MCP agent action step with tools
-      result = await executeMCPAgentActionStep(step, context, execution.user);
-    } else if (step.type === 'agent_action_no_tool') {
-      // Execute agent action step without tools (reasoning only)
-      result = await executeAgentActionNoToolStep(step, context, execution.user);
-    }
+    // Execute the MCP agent action step
+    const result = await executeMCPAgentActionStep(step, context, execution.user);
 
     // Update step execution with success
     await updateSchedulerExecution(execution.id, execution.user, {

@@ -309,15 +309,15 @@ function createMockRequestForWorkflow(context, user, prompt, model, endpoint) {
     body: {
       endpoint: endpoint,
       model: model,
-      text: prompt, // Use 'text' instead of 'promptPrefix' for the actual message content
       userMessageId: userMessageId,
       parentMessageId: context.workflow?.parentMessageId,
       conversationId: context.workflow?.conversationId,
-      ephemeralAgent: null, // Will be set later if needed
+      promptPrefix: prompt,
+      ephemeralAgent: null, // Will be set later
     },
     app: {
       locals: {
-        availableTools: context.mcp?.availableTools || {},
+        availableTools: context.mcp.availableTools || {},
       },
     },
   };

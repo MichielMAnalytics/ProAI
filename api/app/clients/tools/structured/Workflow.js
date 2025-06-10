@@ -220,19 +220,10 @@ class WorkflowTool extends Tool {
       }
        }
 
-    WORKFLOW STEP TYPES: TWO AGENT-BASED TYPES
+    WORKFLOW STEP TYPE: MCP_AGENT_ACTION ONLY
     
-    ALL workflow steps MUST be one of these two agent-based types:
-    
-    1. "mcp_agent_action": Uses a fresh agent with MCP tools for tool-based tasks
-       - For data fetching, API calls, sending emails, etc.
-       - Agent has access to all configured MCP tools
-       - Examples: Fetch Strava data, send emails, create posts
-    
-    2. "agent_action_no_tool": Uses a fresh agent without tools for reasoning tasks
-       - For summarization, analysis, data processing, content generation
-       - Agent uses only its reasoning capabilities, no tool calls
-       - Examples: Summarize data, analyze content, format text, create summaries
+    ALL workflow steps MUST be of type "mcp_agent_action". This is the only supported step type.
+    Each step will be executed using a fresh agent instance with MCP tools.
     
     STEP CONFIGURATION PATTERNS WITH REAL USER DATA:
     
@@ -240,38 +231,9 @@ class WorkflowTool extends Tool {
     Every step (except the last one) MUST have onSuccess pointing to the next step.
     Use onFailure for error handling steps if needed.
     
-    1. MCP AGENT ACTION STEPS - For tool-based tasks:
-       {
-         "id": "step_1",
-         "name": "Fetch Recent Activity",
-         "type": "mcp_agent_action",
-         "config": {
-           "toolName": "STRAVA-GET-ACTIVITY-LIST",
-           "parameters": {
-             "limit": 1,
-             "includeDetails": true
-           },
-           "instruction": "Retrieve the most recent Strava activity with full details"
-         },
-         "onSuccess": "step_2",  // REQUIRED: Connect to next step
-         "position": {"x": 100, "y": 100}
-       }
-    
-    2. AGENT ACTION (NO TOOL) STEPS - For reasoning tasks:
+    1. EMAIL STEPS - Extract ALL email details from user request:
        {
          "id": "step_2",
-         "name": "Summarize Activity Data",
-         "type": "agent_action_no_tool",
-         "config": {
-           "instruction": "Create a concise summary of the activity data from the previous step, focusing on duration, distance, and key performance metrics"
-         },
-         "onSuccess": "step_3",  // REQUIRED: Connect to next step
-         "position": {"x": 300, "y": 100}
-       }
-    
-    3. EMAIL STEPS - Extract ALL email details from user request:
-       {
-         "id": "step_3",
          "name": "Send Email to Coach",
          "type": "mcp_agent_action",
          "config": {
@@ -279,28 +241,59 @@ class WorkflowTool extends Tool {
            "parameters": {
              "recipient": "[name]@[domain]",
              "subject": "Activity Update - [Date]",
-             "contentTemplate": "Activity summary with performance data",
+             "contentTemplate": "Detailed activity information including duration, distance, and performance metrics",
              "recipientName": "[name]"
            },
            "instruction": "Send detailed activity update email to coach with specified recipient and content"
          },
-         // ← NO onSuccess needed for final step
-         "position": {"x": 500, "y": 100}
+         "onSuccess": "step_3",  // REQUIRED: Connect to next step
+         "position": {"x": 300, "y": 100}
+       }
+    
+    2. DATA RETRIEVAL STEPS - Include specific filters and parameters:
+       {
+         "id": "step_1", 
+         "name": "Get Recent Activity Data",
+         "type": "mcp_agent_action",
+         "config": {
+           "toolName": "DATA-GET-ACTIVITY-LIST",
+           "parameters": {
+             "limit": 1,
+             "activityType": "all",
+             "includeDetails": true
+           },
+           "instruction": "Retrieve the most recent activity with full details"
+         },
+         "onSuccess": "step_2",  // REQUIRED: Connect to next step
+         "position": {"x": 100, "y": 100}
+       }
+    
+    3. CONTENT PROCESSING STEPS - Define specific output formats:
+       {
+         "id": "step_3",
+         "name": "Format Activity Summary", 
+         "type": "mcp_agent_action",
+         "config": {
+           "outputFormat": "summary",
+           "includeFields": ["duration", "distance", "activity_type"],
+           "instruction": "Create concise summary with duration and distance only"
+         },
+         "position": {"x": 200, "y": 100}
        }
 
-    EXAMPLE: Complete Connected Workflow with Mixed Step Types
+    EXAMPLE: Complete Connected Email Workflow
     
-    User request: "Create workflow to fetch activity, summarize it, and email to coach@training.com"
+    User request: "Send activity update to coach@training.com with detailed analysis"
     
-    Correct workflow configuration with proper step types and connections:
+    Correct workflow configuration with proper connections:
     {
       "steps": [
         {
           "id": "step_1",
-          "name": "Fetch Recent Activity",
-          "type": "mcp_agent_action",
+          "name": "Get Recent Activity",
+          "type": "mcp_agent_action", 
           "config": {
-            "toolName": "STRAVA-GET-ACTIVITY-LIST",
+            "toolName": "ACTIVITY-GET-RECENT",
             "parameters": {"limit": 1, "includeMetrics": true},
             "instruction": "Fetch most recent activity with full metrics"
           },
@@ -309,10 +302,12 @@ class WorkflowTool extends Tool {
         },
         {
           "id": "step_2",
-          "name": "Summarize Activity Data",
-          "type": "agent_action_no_tool",
+          "name": "Format Activity Data",
+          "type": "mcp_agent_action",
           "config": {
-            "instruction": "Create a concise summary of the activity data, highlighting key metrics like duration, distance, and performance"
+            "toolName": "FORMAT-DATA",
+            "parameters": {"template": "Duration: {{duration}}, Distance: {{distance}}"},
+            "instruction": "Format the activity data"
           },
           "onSuccess": "step_3",  // ← CONNECT TO NEXT STEP
           "position": {"x": 300, "y": 100}
@@ -324,11 +319,11 @@ class WorkflowTool extends Tool {
           "config": {
             "toolName": "MICROSOFT_OUTLOOK-SEND-EMAIL",
             "parameters": {
-              "recipient": "coach@training.com",
-              "subject": "Activity Summary - {{activity.date}}",
-              "contentTemplate": "Here's the activity summary: {{summary}}"
+              "recipient": "[name]@[domain]",
+              "subject": "Activity Analysis - {{activity.date}}",
+              "contentTemplate": "Here's the activity analysis: {{formatted_data}}"
             },
-            "instruction": "Send activity summary email to coach"
+            "instruction": "Send comprehensive activity analysis to coach"
           },
           // ← NO onSuccess needed for final step
           "position": {"x": 500, "y": 100}
@@ -341,7 +336,7 @@ class WorkflowTool extends Tool {
     1. ALL STEPS MUST HAVE:
        - id: unique identifier (required)
        - name: descriptive name (required)
-       - type: "mcp_agent_action" OR "agent_action_no_tool" (required)
+       - type: "mcp_agent_action" (required, only supported type)
        - config: configuration object (required, can be empty {})
        - position: {x: number, y: number} (required)
        - onSuccess: next step ID (required for all steps except the last one)
@@ -351,18 +346,15 @@ class WorkflowTool extends Tool {
        - Final step should NOT have onSuccess (workflow ends there)
        - Use onFailure for error handling paths (optional)
     
-    3. CHOOSE THE RIGHT STEP TYPE:
-       - Use "mcp_agent_action" when you need to call tools (APIs, email, data fetching)
-       - Use "agent_action_no_tool" when you need reasoning only (summarization, analysis, formatting)
-    
-    4. ERROR/SUCCESS HANDLING STEPS:
+    3. ERROR/SUCCESS HANDLING STEPS:
        Even handler steps need proper config and connections:
        {
          "id": "error_step",
          "name": "Error Handler", 
-         "type": "agent_action_no_tool",
+         "type": "mcp_agent_action",
          "config": {
-           "instruction": "Log error and create user-friendly error message"
+           "instruction": "Log error and optionally notify user",
+           "notificationEnabled": false
          },
          "onSuccess": "cleanup_step",  // Connect to next step or omit if final
          "position": {x: 350, y: 300}
@@ -381,8 +373,7 @@ class WorkflowTool extends Tool {
     Did you preserve all specific names and identifiers?
     Did you capture the intended content and formatting requirements?
     Did you include all filters, limits, and data requirements?
-    Are the step configurations complete and executable?
-    Did you choose the right step type for each task?`;
+    Are the step configurations complete and executable?`;
 
     
     this.schema = z.object({
@@ -411,7 +402,7 @@ class WorkflowTool extends Tool {
       steps: z.array(z.object({
         id: z.string(),
         name: z.string(),
-        type: z.enum(['mcp_agent_action', 'agent_action_no_tool']),
+        type: z.enum(['mcp_agent_action']),
         config: z.record(z.unknown()),
         onSuccess: z.string().optional(),
         onFailure: z.string().optional(),
@@ -420,7 +411,7 @@ class WorkflowTool extends Tool {
           y: z.number(),
         }),
       })).optional()
-        .describe('Array of workflow steps. All steps must be type "mcp_agent_action" or "agent_action_no_tool". For updates: provide only the steps you want to add/modify to preserve existing steps, or provide all steps to replace completely'),
+        .describe('Array of workflow steps. All steps must be type "mcp_agent_action". For updates: provide only the steps you want to add/modify to preserve existing steps, or provide all steps to replace completely'),
       
       // Workflow management fields
       workflow_id: z.string().optional()
@@ -555,7 +546,7 @@ class WorkflowTool extends Tool {
         logger.warn(`[WorkflowTool] Added missing type field to step: ${step.id}, defaulting to 'mcp_agent_action'`);
       }
 
-      const validTypes = ['mcp_agent_action', 'agent_action_no_tool'];
+      const validTypes = ['mcp_agent_action'];
       if (!validTypes.includes(fixedStep.type)) {
         fixedStep.type = 'mcp_agent_action';
         logger.warn(`[WorkflowTool] Fixed invalid step type for step: ${step.id}, changed to 'mcp_agent_action'`);

@@ -675,22 +675,17 @@ class WorkflowService {
       throw new Error(`Step ${index} missing name`);
     }
 
-    const validStepTypes = ['mcp_agent_action', 'agent_action_no_tool'];
+    const validStepTypes = ['mcp_agent_action'];
     if (!validStepTypes.includes(step.type)) {
-      throw new Error(`Step ${index} has invalid type: ${step.type}. Supported types: ${validStepTypes.join(', ')}`);
+      throw new Error(`Step ${index} has invalid type: ${step.type}. Only 'mcp_agent_action' is supported.`);
     }
 
     if (!step.config) {
       throw new Error(`Step ${index} missing config`);
     }
 
-    if (step.type === 'mcp_agent_action') {
-      // MCP agent action steps use MCP tools dynamically via agent
-      logger.debug(`[WorkflowService] MCP agent action step ${index} configured for agent-driven execution with MCP tools`);
-    } else if (step.type === 'agent_action_no_tool') {
-      // Agent action without tools - just agent reasoning (e.g., summarization, analysis)
-      logger.debug(`[WorkflowService] Agent action (no tool) step ${index} configured for agent-only execution`);
-    }
+    // All steps are mcp_agent_action type - they use MCP tools dynamically via agent
+    logger.debug(`[WorkflowService] MCP agent action step ${index} configured for agent-driven execution with MCP tools`);
 
     // Validate position
     if (!step.position || typeof step.position.x !== 'number' || typeof step.position.y !== 'number') {
