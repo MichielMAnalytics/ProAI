@@ -132,7 +132,7 @@ UserIntegrationSchema.index({ userId: 1, isActive: 1 });
  * - deleteMany (clears all caches as safety measure)
  */
 
-// Helper function to safely clear MCP cache
+// Helper function to safely clear MCP cache and cleanup orphaned tools
 async function clearMCPCacheForUser(userId: string, operation: string) {
   if (!userId) {
     return;
@@ -146,6 +146,27 @@ async function clearMCPCacheForUser(userId: string, operation: string) {
       // MCPInitializer will internally handle all necessary cache clearing
       const MCPInitializer = require('~/server/services/MCPInitializer');
       MCPInitializer.clearUserCache(userId);
+      
+      // If this is a delete operation, also cleanup orphaned MCP tools from agents
+      if (operation === 'delete') {
+        try {
+          const UserMCPService = require('~/server/services/UserMCPService');
+          const userMCPService = new UserMCPService();
+          const cleanupResult = await userMCPService.cleanupOrphanedMCPTools(userId);
+          
+          const logger = require('~/config')?.logger || console;
+          logger.info(`[UserIntegration] ✅ CLEANED UP orphaned MCP tools for user ${userId}:`, {
+            agentsProcessed: cleanupResult.agentsProcessed,
+            agentsUpdated: cleanupResult.agentsUpdated,
+            toolsRemoved: cleanupResult.toolsRemoved
+          });
+        } catch (cleanupError: unknown) {
+          const logger = require('~/config')?.logger || console;
+          const errorMessage = cleanupError instanceof Error ? cleanupError.message : 'Unknown error';
+          logger.warn(`[UserIntegration] Failed to cleanup orphaned MCP tools for user ${userId}: ${errorMessage}`);
+          // Don't fail the entire operation if cleanup fails
+        }
+      }
       
       // Log the cache clear for debugging
       const logger = require('~/config')?.logger || console;

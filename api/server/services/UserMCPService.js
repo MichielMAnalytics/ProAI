@@ -264,6 +264,160 @@ class UserMCPService {
   }
 
   /**
+   * Clean up orphaned MCP tools from user's agents when integrations are disconnected
+   * 
+   * This function removes MCP tools from agents that belong to integrations that are
+   * no longer connected. It should be called when an integration is deleted to ensure
+   * agents don't have dangling references to unavailable tools.
+   * 
+   * @param {string} userId - The user ID
+   * @returns {Promise<Object>} Cleanup result with statistics
+   */
+  async cleanupOrphanedMCPTools(userId) {
+    if (!userId) {
+      throw new Error('User ID is required for MCP tool cleanup');
+    }
+
+    logger.info(`UserMCPService: Starting cleanup of orphaned MCP tools for user ${userId}`);
+
+    try {
+      // Get the Agent model
+      const { Agent } = require('~/models/Agent');
+      const { Constants } = require('librechat-data-provider');
+
+      // Get current user integrations to determine which MCP tools should remain
+      const currentUserMCPServers = await this.getUserMCPServers(userId);
+      const validMCPServerNames = Object.keys(currentUserMCPServers);
+      
+      logger.info(`UserMCPService: Found ${validMCPServerNames.length} valid MCP servers for user ${userId}: ${validMCPServerNames.join(', ')}`);
+
+      // Find all agents owned by this user that have MCP tools
+      const userAgents = await Agent.find({
+        author: userId,
+        tools: { $regex: Constants.mcp_delimiter }
+      }).select('id tools').lean();
+
+      if (userAgents.length === 0) {
+        logger.info(`UserMCPService: No agents with MCP tools found for user ${userId}`);
+        return {
+          success: true,
+          agentsProcessed: 0,
+          agentsUpdated: 0,
+          toolsRemoved: 0,
+          validMCPServers: validMCPServerNames
+        };
+      }
+
+      logger.info(`UserMCPService: Found ${userAgents.length} agents with MCP tools for user ${userId}`);
+
+      let agentsUpdated = 0;
+      let totalToolsRemoved = 0;
+      const removedToolsDetails = [];
+
+      // Process each agent to remove orphaned MCP tools
+      for (const agent of userAgents) {
+        const currentTools = agent.tools || [];
+        const mcpTools = currentTools.filter(tool => tool.includes(Constants.mcp_delimiter));
+        
+        if (mcpTools.length === 0) {
+          continue;
+        }
+
+        logger.info(`UserMCPService: Agent ${agent.id} has ${mcpTools.length} MCP tools: ${mcpTools.join(', ')}`);
+        logger.info(`UserMCPService: Valid server names: ${validMCPServerNames.join(', ')}`);
+
+        // Filter out orphaned MCP tools
+        const validTools = currentTools.filter(tool => {
+          if (!tool.includes(Constants.mcp_delimiter)) {
+            // Keep non-MCP tools
+            return true;
+          }
+
+          // Check if this MCP tool belongs to a valid integration
+          const mcpServerName = tool.split(Constants.mcp_delimiter)[1];
+          const isValid = validMCPServerNames.includes(mcpServerName);
+          
+          logger.debug(`UserMCPService: Tool "${tool}" -> Server "${mcpServerName}" -> Valid: ${isValid}`);
+          
+          if (!isValid) {
+            logger.info(`UserMCPService: Removing orphaned MCP tool "${tool}" from agent ${agent.id} (server: ${mcpServerName})`);
+            totalToolsRemoved++;
+            removedToolsDetails.push({ agentId: agent.id, tool, server: mcpServerName });
+          }
+
+          return isValid;
+        });
+
+        // Update the agent if tools were removed
+        if (validTools.length !== currentTools.length) {
+          await Agent.updateOne(
+            { id: agent.id },
+            { 
+              $set: { 
+                tools: validTools,
+                mcp_servers: this.extractMCPServerSlugs(validTools)
+              }
+            }
+          );
+          agentsUpdated++;
+          
+          const removedCount = currentTools.length - validTools.length;
+          logger.info(`UserMCPService: Updated agent ${agent.id}: removed ${removedCount} orphaned MCP tools`);
+        }
+      }
+
+      const result = {
+        success: true,
+        agentsProcessed: userAgents.length,
+        agentsUpdated,
+        toolsRemoved: totalToolsRemoved,
+        validMCPServers: validMCPServerNames,
+        removedToolsDetails // Add details for debugging
+      };
+
+      logger.info(`UserMCPService: Cleanup completed for user ${userId}:`, result);
+      return result;
+
+    } catch (error) {
+      logger.error(`UserMCPService: Error during MCP tool cleanup for user ${userId}:`, error);
+      throw new Error(`Failed to cleanup orphaned MCP tools: ${error.message}`);
+    }
+  }
+
+  /**
+   * Extract MCP server app slugs from an array of tools
+   * @param {string[]} tools - Array of tool names  
+   * @returns {string[]} Array of unique MCP server app slugs
+   */
+  extractMCPServerSlugs(tools) {
+    if (!Array.isArray(tools)) {
+      return [];
+    }
+
+    const { Constants } = require('librechat-data-provider');
+    const mcpSlugs = new Set();
+    
+    for (const tool of tools) {
+      if (typeof tool === 'string' && tool.includes(Constants.mcp_delimiter)) {
+        // Extract app slug from tool name pattern: TOOL_NAME_mcp_pipedream-APP_SLUG
+        const parts = tool.split(Constants.mcp_delimiter);
+        if (parts.length >= 2) {
+          const afterMcp = parts[1];
+          // Handle patterns like 'pipedream-microsoft_outlook' -> 'microsoft_outlook'
+          if (afterMcp.includes('-')) {
+            const appSlug = afterMcp.split('-').slice(1).join('-'); // Take everything after the first dash
+            if (appSlug) {
+              mcpSlugs.add(appSlug);
+            }
+          }
+        }
+      }
+    }
+    
+    return Array.from(mcpSlugs);
+  }
+
+  /**
    * Check if user has any MCP servers configured
    * 
    * @param {string} userId - The user ID

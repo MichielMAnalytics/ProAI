@@ -300,6 +300,7 @@ export const mcpConfig = () => `${integrations()}/mcp-config`;
 export const userMCPStatus = () => '/api/agents/tools/user-mcp-status';
 export const userMCPTools = () => '/api/agents/tools/user-mcp';
 export const refreshUserMCP = () => '/api/agents/tools/refresh-user-mcp';
+export const cleanupOrphanedMCPTools = () => '/api/agents/tools/cleanup-orphaned-mcp-tools';
 
 /* Scheduler Tasks */
 export const schedulerTasks = () => '/api/scheduler/tasks';

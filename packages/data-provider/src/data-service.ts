@@ -852,6 +852,18 @@ export function refreshUserMCP(): Promise<{ success: boolean; message: string; m
   return request.post(endpoints.refreshUserMCP());
 }
 
+export function cleanupOrphanedMCPTools(): Promise<{ 
+  success: boolean; 
+  message: string; 
+  agentsProcessed: number;
+  agentsUpdated: number;
+  toolsRemoved: number;
+  validMCPServers: string[];
+  removedToolsDetails?: Array<{ agentId: string; tool: string; server: string; }>;
+}> {
+  return request.post(endpoints.cleanupOrphanedMCPTools());
+}
+
 export function getUserMCPTools(): Promise<s.TPlugin[]> {
   return request.get(endpoints.userMCPTools());
 }

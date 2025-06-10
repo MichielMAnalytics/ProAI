@@ -8,6 +8,8 @@ import {
   useAppDetailsQuery,
   useAppComponentsQuery,
 } from '~/data-provider';
+import { dataService } from 'librechat-data-provider';
+import { useMutation } from '@tanstack/react-query';
 import type { TAppComponent, TUserIntegration, TAvailableIntegration } from 'librechat-data-provider';
 
 interface AppDetailsModalProps {

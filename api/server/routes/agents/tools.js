@@ -5,7 +5,8 @@ const {
   getUserMCPTools, 
   initializeUserMCP, 
   refreshUserMCP, 
-  getUserMCPStatus 
+  getUserMCPStatus,
+  cleanupOrphanedMCPTools
 } = require('~/server/controllers/UserMCPController');
 const { toolCallLimiter } = require('~/server/middleware/limiters');
 const { requireJwtAuth } = require('~/server/middleware');
@@ -61,6 +62,13 @@ router.post('/initialize-user-mcp', requireJwtAuth, initializeUserMCP);
  * @returns {Object} 200 - application/json
  */
 router.post('/refresh-user-mcp', requireJwtAuth, refreshUserMCP);
+
+/**
+ * Clean up orphaned MCP tools from user's agents
+ * @route POST /agents/tools/cleanup-orphaned-mcp-tools
+ * @returns {Object} 200 - application/json
+ */
+router.post('/cleanup-orphaned-mcp-tools', requireJwtAuth, cleanupOrphanedMCPTools);
 
 /**
  * Verify authentication for a specific tool

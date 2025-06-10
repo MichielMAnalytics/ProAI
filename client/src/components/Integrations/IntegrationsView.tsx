@@ -244,6 +244,26 @@ export default function IntegrationsView() {
     },
   });
 
+  // Clean up orphaned MCP tools mutation
+  const cleanupOrphanedMCPToolsMutation = useMutation({
+    mutationFn: () => dataService.cleanupOrphanedMCPTools(),
+    onSuccess: (data) => {
+      console.log('=== Orphaned MCP tools cleanup completed ===');
+      console.log('Result:', data);
+      console.log('Agents processed:', data.agentsProcessed);
+      console.log('Agents updated:', data.agentsUpdated);
+      console.log('Tools removed:', data.toolsRemoved);
+      console.log('Valid MCP servers:', data.validMCPServers);
+      if (data.removedToolsDetails) {
+        console.log('Removed tools details:', data.removedToolsDetails);
+      }
+    },
+    onError: (error) => {
+      console.error('=== Failed to cleanup orphaned MCP tools ===');
+      console.error('Error:', error);
+    },
+  });
+
   // Get unique categories
   const categories = useMemo(() => {
     const allCategories = new Set<string>();
@@ -392,6 +412,12 @@ export default function IntegrationsView() {
         onSuccess: () => {
           // Refresh MCP servers to immediately remove the disconnected integration
           refreshUserMCPMutation.mutate();
+          
+          // Also manually trigger cleanup of orphaned MCP tools from agents
+          // This is in addition to the automatic cleanup that should happen via middleware
+          setTimeout(() => {
+            cleanupOrphanedMCPToolsMutation.mutate();
+          }, 1000); // Small delay to ensure integration deletion is processed
         },
       });
     }
@@ -474,6 +500,16 @@ export default function IntegrationsView() {
         <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>
+      </button>
+
+      {/* Manual cleanup button for debugging - Fixed to top-right corner */}
+      <button
+        onClick={() => cleanupOrphanedMCPToolsMutation.mutate()}
+        className="fixed top-6 right-20 z-50 flex h-10 w-32 items-center justify-center rounded-lg bg-yellow-500 text-white text-sm font-medium hover:bg-yellow-600 transition-all duration-200"
+        aria-label="Cleanup MCP tools"
+        disabled={cleanupOrphanedMCPToolsMutation.isLoading}
+      >
+        {cleanupOrphanedMCPToolsMutation.isLoading ? 'Cleaning...' : 'Cleanup Tools'}
       </button>
 
       {/* Header */}
