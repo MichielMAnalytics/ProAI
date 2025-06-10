@@ -503,14 +503,14 @@ export default function IntegrationsView() {
       </button>
 
       {/* Manual cleanup button for debugging - Fixed to top-right corner */}
-      <button
+      {/* <button
         onClick={() => cleanupOrphanedMCPToolsMutation.mutate()}
         className="fixed top-6 right-20 z-50 flex h-10 w-32 items-center justify-center rounded-lg bg-yellow-500 text-white text-sm font-medium hover:bg-yellow-600 transition-all duration-200"
         aria-label="Cleanup MCP tools"
         disabled={cleanupOrphanedMCPToolsMutation.isLoading}
       >
         {cleanupOrphanedMCPToolsMutation.isLoading ? 'Cleaning...' : 'Cleanup Tools'}
-      </button>
+      </button> */}
 
       {/* Header */}
       <div className="integrations-header relative overflow-hidden">
