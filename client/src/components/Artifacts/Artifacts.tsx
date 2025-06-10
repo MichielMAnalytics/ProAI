@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRecoilState, useSetRecoilState } from 'recoil';
 import * as Tabs from '@radix-ui/react-tabs';
-import { ArrowLeft, ChevronLeft, ChevronRight, RefreshCw, X, Play, Pause, TestTube, Trash2, Plus, Search, RotateCcw, Eye, Copy, Check } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, RefreshCw, X, Play, Pause, TestTube, Trash2, Plus, Search, RotateCcw, Eye, Copy, Check } from 'lucide-react';
 import type { SandpackPreviewRef, CodeEditorRef } from '@codesandbox/sandpack-react';
 import useArtifacts from '~/hooks/Artifacts/useArtifacts';
 import DownloadArtifact from './DownloadArtifact';
@@ -31,6 +31,7 @@ export default function Artifacts() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [copiedStepId, setCopiedStepId] = useState<string | null>(null);
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
   const setArtifactsVisible = useSetRecoilState(store.artifactsVisibility);
   const setArtifactRefreshFunction = useSetRecoilState(store.artifactRefreshFunction);
 
@@ -233,6 +234,43 @@ export default function Artifacts() {
     }
   };
 
+  // Toggle step expansion
+  const toggleStepExpansion = (stepId: string) => {
+    setExpandedSteps(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(stepId)) {
+        newSet.delete(stepId);
+      } else {
+        newSet.add(stepId);
+      }
+      return newSet;
+    });
+  };
+
+  // Extract summary from step result
+  const getStepSummary = (step: any) => {
+    const stepId = step.stepId || `step_${step.stepName}`;
+    
+    // For successful steps, try to extract meaningful info
+    if (step.status === 'completed' && step.result) {
+      const result = step.result;
+      
+      // Check if it's an MCP agent action
+      if (result.type === 'mcp_agent_action') {
+        return `Tool: ${result.stepName}, Status: ${result.status || 'success'}`;
+      }
+      
+      // For other types, show a generic success message
+      return `${step.stepType} completed successfully`;
+    }
+    
+    if (step.status === 'failed') {
+      return `Failed: ${step.error || 'Unknown error'}`;
+    }
+    
+    return `${step.stepType} - ${step.status}`;
+  };
+
   return (
     <Tabs.Root value={effectiveActiveTab} onValueChange={setActiveTab} asChild>
       {/* Main Parent */}
@@ -346,64 +384,109 @@ export default function Artifacts() {
                         <div className="space-y-3">
                           {resultData.result && Array.isArray(resultData.result) && (
                             <div className="space-y-4 max-h-96 overflow-y-auto">
-                              {resultData.result.map((step: any, index: number) => (
-                                <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800">
-                                  <div className="flex items-start justify-between mb-3">
-                                    <div className="flex items-center space-x-2">
-                                      <span className={`w-2 h-2 rounded-full ${
-                                        step.status === 'completed' ? 'bg-green-500' : 
-                                        step.status === 'failed' ? 'bg-red-500' : 'bg-gray-400'
-                                      }`}></span>
-                                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                        {step.stepName || step.name || `Step ${index + 1}`}
-                                      </span>
+                              {resultData.result.map((step: any, index: number) => {
+                                const stepId = step.stepId || `step_${index}`;
+                                const isExpanded = expandedSteps.has(stepId);
+                                
+                                return (
+                                  <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800">
+                                    {/* Step Header - Always Visible */}
+                                    <div className="flex items-center justify-between p-4">
+                                      <div className="flex items-center space-x-3 flex-1">
+                                        <span className={`w-2 h-2 rounded-full ${
+                                          step.status === 'completed' ? 'bg-green-500' : 
+                                          step.status === 'failed' ? 'bg-red-500' : 'bg-gray-400'
+                                        }`}></span>
+                                        <div className="flex-1">
+                                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                            {step.stepName || step.name || `Step ${index + 1}`}
+                                          </div>
+                                          {!isExpanded && (
+                                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                              {getStepSummary(step)}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="flex items-center space-x-2">
+                                        {/* Copy button */}
+                                        {(step.result || step.output) && (
+                                          <button
+                                            onClick={() => handleCopyStepOutput(
+                                              stepId, 
+                                              typeof (step.result || step.output) === 'string' 
+                                                ? (step.result || step.output)
+                                                : JSON.stringify(step.result || step.output, null, 2)
+                                            )}
+                                            className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                                            title="Copy output"
+                                          >
+                                            {copiedStepId === stepId ? (
+                                              <Check className="w-4 h-4 text-green-500" />
+                                            ) : (
+                                              <Copy className="w-4 h-4" />
+                                            )}
+                                          </button>
+                                        )}
+                                        
+                                        {/* Expand/Collapse button */}
+                                        <button
+                                          onClick={() => toggleStepExpansion(stepId)}
+                                          className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                                          title={isExpanded ? "Collapse details" : "Expand details"}
+                                        >
+                                          {isExpanded ? (
+                                            <ChevronUp className="w-4 h-4" />
+                                          ) : (
+                                            <ChevronDown className="w-4 h-4" />
+                                          )}
+                                        </button>
+                                      </div>
                                     </div>
-                                    {/* Copy button */}
-                                    {(step.result || step.output) && (
-                                      <button
-                                        onClick={() => handleCopyStepOutput(
-                                          step.stepId || `step_${index}`, 
-                                          typeof (step.result || step.output) === 'string' 
-                                            ? (step.result || step.output)
-                                            : JSON.stringify(step.result || step.output, null, 2)
-                                        )}
-                                        className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-                                        title="Copy output"
-                                      >
-                                        {copiedStepId === (step.stepId || `step_${index}`) ? (
-                                          <Check className="w-4 h-4 text-green-500" />
-                                        ) : (
-                                          <Copy className="w-4 h-4" />
-                                        )}
-                                      </button>
+                                    
+                                    {/* Step Details - Collapsible */}
+                                    {isExpanded && (
+                                      <div className="px-4 pb-4 border-t border-gray-200 dark:border-gray-600">
+                                        <div className="pt-3 space-y-3">
+                                          {step.result && (
+                                            <div>
+                                              <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Result:</div>
+                                              <div className="bg-white dark:bg-gray-900 rounded p-3 border border-gray-200 dark:border-gray-600">
+                                                <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                                                  {typeof step.result === 'string' ? step.result : JSON.stringify(step.result, null, 2)}
+                                                </pre>
+                                              </div>
+                                            </div>
+                                          )}
+                                          
+                                          {step.output && step.output !== step.result && (
+                                            <div>
+                                              <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Output:</div>
+                                              <div className="bg-white dark:bg-gray-900 rounded p-3 border border-gray-200 dark:border-gray-600">
+                                                <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                                                  {typeof step.output === 'string' ? step.output : JSON.stringify(step.output, null, 2)}
+                                                </pre>
+                                              </div>
+                                            </div>
+                                          )}
+                                          
+                                          {step.error && (
+                                            <div>
+                                              <div className="text-xs font-medium text-red-600 dark:text-red-400 mb-2">Error:</div>
+                                              <div className="bg-red-50 dark:bg-red-900/20 rounded p-3 border border-red-200 dark:border-red-700">
+                                                <pre className="text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap">
+                                                  {step.error}
+                                                </pre>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
                                     )}
                                   </div>
-                                  
-                                  {step.result && (
-                                    <div className="bg-white dark:bg-gray-900 rounded p-3 border border-gray-200 dark:border-gray-600">
-                                      <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-32 overflow-y-auto">
-                                        {typeof step.result === 'string' ? step.result : JSON.stringify(step.result, null, 2)}
-                                      </pre>
-                                    </div>
-                                  )}
-                                  
-                                  {step.output && step.output !== step.result && (
-                                    <div className="bg-white dark:bg-gray-900 rounded p-3 border border-gray-200 dark:border-gray-600 mt-2">
-                                      <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-32 overflow-y-auto">
-                                        {typeof step.output === 'string' ? step.output : JSON.stringify(step.output, null, 2)}
-                                      </pre>
-                                    </div>
-                                  )}
-                                  
-                                  {step.error && (
-                                    <div className="bg-red-50 dark:bg-red-900/20 rounded p-3 border border-red-200 dark:border-red-700 mt-2">
-                                      <pre className="text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap">
-                                        {step.error}
-                                      </pre>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -471,9 +554,6 @@ export default function Artifacts() {
                       </div>
                     ) : (
                       <div className="flex flex-col items-center space-y-4">
-                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg shadow-blue-500/25 animate-pulse">
-                          <TestTube className="h-8 w-8 text-white" />
-                        </div>
                         <div className="text-center">
                           <span className="text-xl font-semibold text-gray-900 dark:text-gray-100 block">
                             {workflowId && isWorkflowTesting(workflowId) && !isTesting 
