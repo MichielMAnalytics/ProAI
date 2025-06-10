@@ -21,20 +21,24 @@ const SchedulerClientFactory = require('~/server/services/Scheduler/SchedulerCli
  * WorkflowExecutor - Handles the execution of workflows
  *
  * This service manages:
- * - Step-by-step workflow execution
+ * - Step-by-step workflow execution with isolated agents
  * - Integration with MCP tools and Pipedream actions
  * - Error handling and retry logic
  * - Context management between steps
  * - Execution flow control (success/failure paths)
- * - Dynamic MCP server initialization
  * - Dedicated workflow execution conversation management
- * - Workflow-level agent initialization and reuse across steps
+ * - Fresh agent creation for each step (no reuse)
  *
  * CONVERSATION MANAGEMENT:
  * - Creates a dedicated conversation for each workflow execution
  * - Names conversations: "Workflow execution [name] [timestamp]"
  * - Maintains proper message threading between steps
  * - Prevents creation of multiple conversations per execution
+ *
+ * AGENT ISOLATION:
+ * - Each step gets a fresh agent instance
+ * - No agent reuse across steps to prevent context bleeding
+ * - All steps are 'mcp_agent_action' type
  */
 class WorkflowExecutor {
   constructor() {
@@ -158,7 +162,7 @@ class WorkflowExecutor {
 
         // Extract clean workflow name (remove "Workflow: " prefix if present)
         const cleanWorkflowName = workflow.name.replace(/^Workflow:\s*/, '');
-        const workflowExecutionTitle = `Workflow executions: ${cleanWorkflowName}`;
+        const workflowExecutionTitle = `[LOG] Workflow executions: ${cleanWorkflowName}`;
 
         // Create the workflow execution conversation
         const { saveConvo } = require('~/models/Conversation');
@@ -203,123 +207,7 @@ class WorkflowExecutor {
         );
       }
 
-      // Initialize workflow-level agent for reuse across all steps
-      let workflowAgent = null;
-      let workflowClient = null;
-
-      if (mcpResult.success && mcpResult.toolCount > 0) {
-        try {
-          logger.info(
-            `[WorkflowExecutor] Initializing workflow-level agent with ${mcpResult.toolCount} MCP tools`,
-          );
-
-          // Get the configured model and endpoint
-          const config = await getConfiguredModelAndEndpoint(workflow);
-          const { model: configuredModel, endpoint: configuredEndpoint, endpointName } = config;
-
-          // Determine which agent to load
-          const agentIdToLoad =
-            workflow.endpoint === 'agents' && workflow.agent_id
-              ? workflow.agent_id
-              : Constants.EPHEMERAL_AGENT_ID;
-
-          logger.info(`[WorkflowExecutor] Determined agent for workflow execution: ${agentIdToLoad}`);
-
-          // Create mock request for agent initialization with proper MCP context
-          const mockReq = createMockRequestForWorkflow(
-            {
-              workflow: { conversationId: workflowExecutionConversationId },
-              mcp: { availableTools: mcpResult.availableTools },
-            },
-            user,
-            'Workflow execution agent',
-            configuredModel,
-            configuredEndpoint,
-          );
-
-          // If we are using an ephemeral agent, we need to set up its config
-          if (agentIdToLoad === Constants.EPHEMERAL_AGENT_ID) {
-            // Extract MCP server names from available tools
-            const mcpServerNames = extractMCPServerNames(mcpResult.availableTools);
-
-            // Create ephemeral agent configuration
-            const ephemeralAgent = {
-              workflow: true,
-              execute_code: false,
-              web_search: false,
-              mcp: mcpServerNames,
-            };
-
-            // Update request for ephemeral agent
-            const underlyingEndpoint = configuredEndpoint;
-            const underlyingModel = configuredModel;
-
-            updateRequestForEphemeralAgent(
-              mockReq,
-              {
-                prompt: 'Workflow execution agent',
-                user: userId,
-                conversation_id: workflowExecutionConversationId,
-                parent_message_id: null,
-              },
-              ephemeralAgent,
-              underlyingEndpoint,
-              underlyingModel,
-            );
-          }
-
-          // Load agent
-          const agent = await loadAgent({
-            req: mockReq,
-            agent_id: agentIdToLoad,
-            endpoint: configuredEndpoint,
-            model_parameters: { model: configuredModel },
-          });
-
-          if (agent) {
-            logger.info(
-              `[WorkflowExecutor] Loaded workflow-level agent with ${
-                agent.tools?.length || 0
-              } tools using ${endpointName}/${configuredModel}`,
-            );
-
-            // Initialize client factory and create agents endpoint option
-            const clientFactory = new SchedulerClientFactory();
-            const endpointOption = clientFactory.createAgentsEndpointOption(
-              agent,
-              configuredModel,
-            );
-
-            // Disable automatic title generation to preserve our custom workflow execution title
-            endpointOption.titleConvo = false;
-
-            // Create minimal mock response for client initialization
-            const mockRes = createMinimalMockResponse();
-
-            // Initialize the agents client
-            const { client } = await clientFactory.initializeClient({
-              req: mockReq,
-              res: mockRes,
-              endpointOption,
-            });
-
-            if (client) {
-              workflowAgent = agent;
-              workflowClient = client;
-              logger.info(`[WorkflowExecutor] Workflow-level agent and client initialized successfully`);
-            } else {
-              logger.warn(`[WorkflowExecutor] Failed to initialize workflow-level client`);
-            }
-          } else {
-            logger.warn(`[WorkflowExecutor] Failed to load workflow-level agent`);
-          }
-        } catch (error) {
-          logger.error(`[WorkflowExecutor] Failed to initialize workflow-level agent:`, error);
-          // Continue without workflow-level agent - steps will fall back to individual initialization
-        }
-      }
-
-      // Initialize execution context with MCP tools, dedicated conversation, and workflow-level agent
+      // Initialize execution context without workflow-level agent
       executionContext = {
         ...context,
         user, // Add full user object to context
@@ -329,9 +217,7 @@ class WorkflowExecutor {
           // Override/add execution-specific properties
           conversationId: workflowExecutionConversationId,
           parentMessageId: null, // Start fresh in the execution conversation
-          // Store workflow-level agent and client for reuse
-          agent: workflowAgent,
-          client: workflowClient,
+          // No workflow-level agent - each step will create its own
         },
         execution: {
           id: executionId,
@@ -364,37 +250,12 @@ class WorkflowExecutor {
       // Execute steps starting from the first step
       const result = await this.executeStepChain(workflow, execution, firstStep.id, executionContext);
 
-      // Clean up workflow-level agent resources
-      if (executionContext.workflow?.client) {
-        try {
-          // Note: AgentClient typically doesn't require explicit cleanup
-          // but we can add any necessary cleanup here in the future
-          logger.debug(`[WorkflowExecutor] Workflow-level agent cleanup completed for ${workflowId}`);
-        } catch (cleanupError) {
-          logger.warn(`[WorkflowExecutor] Error during workflow-level agent cleanup:`, cleanupError);
-        }
-      }
-
       // Clean up tracking
       this.runningExecutions.delete(executionId);
 
       logger.info(`[WorkflowExecutor] Workflow execution completed: ${workflowId}`);
       return result;
     } catch (error) {
-      // Clean up workflow-level agent resources in error case
-      try {
-        if (executionContext && executionContext.workflow?.client) {
-          logger.debug(
-            `[WorkflowExecutor] Workflow-level agent cleanup in error case for ${workflowId}`,
-          );
-        }
-      } catch (cleanupError) {
-        logger.warn(
-          `[WorkflowExecutor] Error during workflow-level agent cleanup in error case:`,
-          cleanupError,
-        );
-      }
-
       // Clean up tracking
       this.runningExecutions.delete(executionId);
 
@@ -436,7 +297,7 @@ class WorkflowExecutor {
 
       logger.info(`[WorkflowExecutor] Executing step: ${step.name} (${step.type})`);
 
-      // Execute the current step
+      // Execute the current step (each step gets a fresh agent)
       const stepResult = await executeStep(workflow, execution, step, context);
 
       // Update the parent message ID for the next step to maintain conversation threading

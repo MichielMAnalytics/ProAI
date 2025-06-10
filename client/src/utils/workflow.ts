@@ -147,29 +147,17 @@ export const getWorkflowFiles = (content: string) => {
         const WorkflowStepNode = ({ data, selected }: { data: any; selected: boolean }) => {
           const getNodeStyle = (type: string, status: string) => {
             const baseStyles = {
-              action: {
+              mcp_agent_action: {
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 border: '2px solid #5a67d8',
                 color: 'white',
-                icon: '⚙️'
+                icon: '��'
               },
-              condition: {
+              agent_action_no_tool: {
                 background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
                 border: '2px solid #ed64a6',
                 color: 'white',
-                icon: '❓'
-              },
-              delay: {
-                background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-                border: '2px solid #38b2ac',
-                color: '#2d3748',
-                icon: '⏱️'
-              },
-              mcp_tool: {
-                background: 'linear-gradient(135deg, #d299c2 0%, #fef9d7 100%)',
-                border: '2px solid #9f7aea',
-                color: '#2d3748',
-                icon: '🔧'
+                icon: '🧠'
               },
             };
 
@@ -190,7 +178,7 @@ export const getWorkflowFiles = (content: string) => {
               },
             };
 
-            const baseStyle = baseStyles[type] || baseStyles.action;
+            const baseStyle = baseStyles[type] || baseStyles.mcp_agent_action;
             const statusStyle = statusOverrides[status] || {};
 
             return {
@@ -199,7 +187,7 @@ export const getWorkflowFiles = (content: string) => {
             };
           };
 
-          const style = getNodeStyle(data.type || 'action', data.status || 'pending');
+          const style = getNodeStyle(data.type || 'mcp_agent_action', data.status || 'pending');
 
           return (
             <>
@@ -241,16 +229,16 @@ export const getWorkflowFiles = (content: string) => {
                           {data.config.toolName}
                         </div>
                     )}
-                    {data.config?.condition && (
-                        <div className="text-sm opacity-80 leading-snug">
-                          <span className="font-medium">If:</span> {data.config.condition}
+                    {data.type === 'agent_action_no_tool' && (
+                        <div className="text-sm opacity-90 mb-1 font-medium">
+                          Reasoning Task
                         </div>
                     )}
-                    {data.config?.delayMs && (
+                    {data.config?.instruction && (
                         <div className="text-sm opacity-80 leading-snug">
-                          <span className="font-medium">Wait:</span> {data.config.delayMs}ms
+                          <span className="font-medium">Task:</span> {data.config.instruction.length > 60 ? data.config.instruction.substring(0, 60) + '...' : data.config.instruction}
                         </div>
-                      )}
+                    )}
                     </div>
                   </div>
                 </div>
@@ -471,7 +459,7 @@ export const getWorkflowFiles = (content: string) => {
                 position: { x, y },
                 data: {
                   ...node.data,
-                  type: node.type || 'action',
+                  type: node.type || 'mcp_agent_action',
                 },
                 draggable: false,
               });

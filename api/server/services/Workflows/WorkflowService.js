@@ -558,8 +558,6 @@ class WorkflowService {
       throw new Error('Scheduler task is not a workflow');
     }
 
-
-
     // Helper function to convert MongoDB date objects to JavaScript Date objects
     const convertDate = (dateValue) => {
       if (!dateValue) return undefined;
@@ -677,32 +675,21 @@ class WorkflowService {
       throw new Error(`Step ${index} missing name`);
     }
 
-    const validStepTypes = ['action', 'condition', 'delay'];
+    const validStepTypes = ['mcp_agent_action', 'agent_action_no_tool'];
     if (!validStepTypes.includes(step.type)) {
-      throw new Error(`Step ${index} has invalid type: ${step.type}`);
+      throw new Error(`Step ${index} has invalid type: ${step.type}. Supported types: ${validStepTypes.join(', ')}`);
     }
 
     if (!step.config) {
       throw new Error(`Step ${index} missing config`);
     }
 
-    // Validate step-specific configuration
-    switch (step.type) {
-      case 'delay':
-        if (typeof step.config.delayMs !== 'number' || step.config.delayMs < 0) {
-          throw new Error(`Step ${index} delay must be a positive number`);
-        }
-        break;
-      case 'condition':
-        if (!step.config.condition) {
-          throw new Error(`Step ${index} condition missing condition expression`);
-        }
-        break;
-      case 'action':
-        // Action steps can use MCP tools dynamically via agent selection
-        // or be configured with specific toolName for direct tool calls
-        logger.debug(`[WorkflowService] Action step ${index} configured for ${step.config.toolName ? 'direct tool call' : 'agent-driven execution'}`);
-        break;
+    if (step.type === 'mcp_agent_action') {
+      // MCP agent action steps use MCP tools dynamically via agent
+      logger.debug(`[WorkflowService] MCP agent action step ${index} configured for agent-driven execution with MCP tools`);
+    } else if (step.type === 'agent_action_no_tool') {
+      // Agent action without tools - just agent reasoning (e.g., summarization, analysis)
+      logger.debug(`[WorkflowService] Agent action (no tool) step ${index} configured for agent-only execution`);
     }
 
     // Validate position
