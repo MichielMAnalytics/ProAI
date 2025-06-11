@@ -46,11 +46,11 @@ const WorkflowsTable: React.FC<WorkflowsTableProps> = ({ workflows }) => {
         <Table className="w-full">
           <TableHeader>
             <TableRow className="border-b border-border-light">
+              <TableHead className="bg-surface-secondary py-2 text-left text-xs font-medium text-text-secondary w-20 sm:w-24">
+                <div className="px-1 sm:px-2">Actions</div>
+              </TableHead>
               <TableHead className="bg-surface-secondary py-2 text-left text-xs font-medium text-text-secondary">
                 <div className="px-2">Workflow Name</div>
-              </TableHead>
-              <TableHead className="bg-surface-secondary py-2 text-right text-xs font-medium text-text-secondary w-16 sm:w-20">
-                <div className="px-1 sm:px-2">Actions</div>
               </TableHead>
             </TableRow>
           </TableHeader>

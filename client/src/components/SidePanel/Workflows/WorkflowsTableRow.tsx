@@ -315,6 +315,54 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
 
   return (
     <TableRow className="border-b border-border-light hover:bg-surface-hover">
+      <TableCell className="py-2 w-20 sm:w-24">
+        <div className="flex flex-row gap-1 px-1 sm:px-2 items-center justify-start">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleView}
+            className="h-6 w-6 p-0 flex-shrink-0 flex items-center justify-center"
+            title="View workflow"
+            disabled={false}
+          >
+            <Eye className="h-3 w-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleTest}
+            className="h-6 w-6 p-0 flex-shrink-0 flex items-center justify-center"
+            title="Test workflow"
+            disabled={false}
+          >
+            <TestTube className="h-3 w-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleToggle}
+            className="h-6 w-6 p-0 flex-shrink-0 flex items-center justify-center"
+            title={workflow.isActive ? 'Deactivate workflow' : 'Activate workflow'}
+            disabled={false}
+          >
+            {workflow.isActive ? (
+              <Pause className="h-3 w-3" />
+            ) : (
+              <Play className="h-3 w-3" />
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDelete}
+            className="h-6 w-6 p-0 text-red-600 hover:text-red-700 flex-shrink-0 flex items-center justify-center"
+            title="Delete workflow"
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+      </TableCell>
+      
       <TableCell className="py-2">
         <div className="px-2 min-w-0">
           <div className="mb-1 flex items-center gap-2">
@@ -391,54 +439,6 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
               </div>
             )}
           </div>
-        </div>
-      </TableCell>
-      
-      <TableCell className="py-2 w-20 sm:w-24">
-        <div className="flex flex-row gap-1 px-1 sm:px-2 items-center justify-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleView}
-            className="h-6 w-6 p-0 flex-shrink-0 flex items-center justify-center"
-            title="View workflow"
-            disabled={false}
-          >
-            <Eye className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleTest}
-            className="h-6 w-6 p-0 flex-shrink-0 flex items-center justify-center"
-            title="Test workflow"
-            disabled={false}
-          >
-            <TestTube className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleToggle}
-            className="h-6 w-6 p-0 flex-shrink-0 flex items-center justify-center"
-            title={workflow.isActive ? 'Deactivate workflow' : 'Activate workflow'}
-            disabled={false}
-          >
-            {workflow.isActive ? (
-              <Pause className="h-3 w-3" />
-            ) : (
-              <Play className="h-3 w-3" />
-            )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleDelete}
-            className="h-6 w-6 p-0 text-red-600 hover:text-red-700 flex-shrink-0 flex items-center justify-center"
-            title="Delete workflow"
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
         </div>
       </TableCell>
     </TableRow>

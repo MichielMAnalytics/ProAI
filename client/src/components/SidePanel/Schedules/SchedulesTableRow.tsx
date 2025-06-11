@@ -113,6 +113,33 @@ const SchedulesTableRow: React.FC<SchedulesTableRowProps> = ({ task }) => {
 
   return (
     <TableRow className="border-b border-border-light hover:bg-surface-hover">
+      <TableCell className="py-2 w-16 sm:w-20">
+        <div className="flex flex-row gap-1 px-1 sm:px-2 items-center justify-start">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleToggle}
+            className="h-6 w-6 p-0 flex-shrink-0 flex items-center justify-center"
+            title={task.enabled ? 'Disable task' : 'Enable task'}
+          >
+            {task.enabled ? (
+              <Pause className="h-3 w-3" />
+            ) : (
+              <Play className="h-3 w-3" />
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDelete}
+            className="h-6 w-6 p-0 text-red-600 hover:text-red-700 flex-shrink-0 flex items-center justify-center"
+            title="Delete task"
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+      </TableCell>
+      
       <TableCell className="py-2">
         <div className="px-2 min-w-0">
           <div className="mb-1 flex items-center gap-2">
@@ -179,33 +206,6 @@ const SchedulesTableRow: React.FC<SchedulesTableRowProps> = ({ task }) => {
               </div>
             )}
           </div>
-        </div>
-      </TableCell>
-      
-      <TableCell className="py-2 w-16 sm:w-20">
-        <div className="flex flex-row gap-1 px-1 sm:px-2 items-center justify-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleToggle}
-            className="h-6 w-6 p-0 flex-shrink-0 flex items-center justify-center"
-            title={task.enabled ? 'Disable task' : 'Enable task'}
-          >
-            {task.enabled ? (
-              <Pause className="h-3 w-3" />
-            ) : (
-              <Play className="h-3 w-3" />
-            )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleDelete}
-            className="h-6 w-6 p-0 text-red-600 hover:text-red-700 flex-shrink-0 flex items-center justify-center"
-            title="Delete task"
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
         </div>
       </TableCell>
     </TableRow>

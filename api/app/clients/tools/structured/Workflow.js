@@ -5,7 +5,7 @@ const { logger } = require('~/config');
 const WorkflowService = require('~/server/services/Workflows/WorkflowService');
 const UserMCPService = require('~/server/services/UserMCPService');
 const PipedreamUserIntegrations = require('~/server/services/Pipedream/PipedreamUserIntegrations');
-const { EModelEndpoint } = require('librechat-data-provider');
+const { EModelEndpoint, Constants } = require('librechat-data-provider');
 
 class WorkflowTool extends Tool {
   static lc_name() {
@@ -481,20 +481,48 @@ class WorkflowTool extends Tool {
       );
       
       // Extract MCP tools from availableTools registry
-      const mcpTools = [];
+      let mcpTools = [];
       if (mcpResult.success && availableTools) {
         const toolKeys = Object.keys(availableTools);
         for (const toolKey of toolKeys) {
           const tool = availableTools[toolKey];
-          if (tool && typeof tool === 'object' && tool.function) {
+          if (tool && typeof tool === 'object' && tool.function && toolKey.includes(Constants.mcp_delimiter)) {
+            const parts = toolKey.split(Constants.mcp_delimiter);
+            const serverName = parts.length > 1 ? parts[1] : 'unknown';
+            
             mcpTools.push({
               name: tool.function.name,
               description: tool.function.description || 'No description available',
               parameters: tool.function.parameters || {},
               type: 'mcp_tool',
-              serverName: toolKey.includes('__') ? toolKey.split('__')[1] : 'unknown',
+              serverName: serverName,
+              toolKey: toolKey, // Store the full toolKey for filtering
             });
           }
+        }
+      }
+
+      // Filter MCP tools based on agent context if we're in an agent workflow
+      if (this.endpoint === 'agents' && this.model && mcpTools.length > 0) {
+        try {
+          // In agent context, this.model is the agent_id
+          const { getAgent } = require('~/models/Agent');
+          const agent = await getAgent({ id: this.model });
+          
+          if (agent && agent.tools && Array.isArray(agent.tools)) {
+            // Filter MCP tools to only include those selected for this agent
+            const agentToolSet = new Set(agent.tools);
+            mcpTools = mcpTools.filter(tool => {
+              // Check if the full toolKey is in the agent's tools
+              return agentToolSet.has(tool.toolKey);
+            });
+            
+            logger.info(`[WorkflowTool] Filtered MCP tools for agent ${this.model}: ${mcpTools.length} tools (from ${agent.tools.filter(t => t.includes('_mcp_')).length} agent MCP tools)`);
+          } else {
+            logger.warn(`[WorkflowTool] Agent ${this.model} not found or has no tools, returning all MCP tools`);
+          }
+        } catch (error) {
+          logger.warn(`[WorkflowTool] Failed to get agent tools for filtering: ${error.message}, returning all MCP tools`);
         }
       }
       
