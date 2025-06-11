@@ -118,8 +118,8 @@ function identifyAvailableData(context) {
               if (responseStr.includes('activity') || responseStr.includes('workout')) {
                 availableData.push({ description: `activity/workout data from ${stepId}`, usage: 'Use for email content' });
               }
-              if (responseStr.includes('meeting') || responseStr.includes('calendar')) {
-                availableData.push({ description: `meeting/calendar data from ${stepId}`, usage: 'Use for email content' });
+              if (responseStr.includes('data') || responseStr.includes('items')) {
+                availableData.push({ description: `data/items from ${stepId}`, usage: 'Use for email content' });
               }
               if (responseStr.includes('distance') || responseStr.includes('duration') || responseStr.includes('time')) {
                 availableData.push({ description: `metrics and measurements from ${stepId}`, usage: 'Use for email content' });
@@ -265,7 +265,7 @@ CURRENT DATE & TIME CONTEXT:
 - Full DateTime: ${userDateTime}
 - ISO UTC: ${now.toISOString()}
 
-IMPORTANT: Use this timezone-aware date/time information when fetching data that depends on the current date (e.g., "today's meetings", "recent activities", etc.).`;
+IMPORTANT: Use this timezone-aware date/time information when fetching data that depends on the current date (e.g., "today's data", "recent activities", etc.).`;
   } catch (error) {
     console.warn(`Failed to generate timezone-aware datetime for timezone ${userTimezone}:`, error);
     // Fallback to basic ISO datetime
@@ -274,6 +274,229 @@ CURRENT DATE & TIME CONTEXT:
 - Current DateTime (UTC): ${now.toISOString()}
 - Note: User timezone (${userTimezone}) could not be processed, using UTC`;
   }
+}
+
+/**
+ * Generate tool discovery and selection guidance
+ * @param {Object} step - Current workflow step
+ * @param {Object} context - Execution context
+ * @returns {string} Tool discovery guidance
+ */
+function generateToolDiscoveryGuidance(step, context) {
+  const stepName = step.name.toLowerCase();
+  const stepObjective = generateActionInstructions(step.name, step.config);
+  const suggestedTool = step.config?.toolName;
+  
+  let guidance = `**YOUR OBJECTIVE:** ${stepObjective}\n\n`;
+  
+  if (suggestedTool) {
+    guidance += `**SUGGESTED TOOL:** The workflow suggests using "${suggestedTool}". However, your primary responsibility is to achieve the objective above. If this tool doesn't exist or isn't appropriate, find the correct tool that accomplishes the goal.\n\n`;
+  }
+  
+  guidance += `**TOOL DISCOVERY APPROACH:**\n`;
+  guidance += `1. **ANALYZE YOUR OBJECTIVE:** Understand exactly what you need to accomplish\n`;
+  guidance += `2. **IDENTIFY REQUIRED CAPABILITY:** Determine what type of tool/API you need\n`;
+  guidance += `3. **DISCOVER AVAILABLE TOOLS:** Look through your available tools to find the right one\n`;
+  guidance += `4. **SELECT THE BEST MATCH:** Choose the tool that best accomplishes your objective\n\n`;
+  
+  // Generate capability-based guidance
+  guidance += generateCapabilityGuidance(stepName, stepObjective, context);
+  
+  return guidance;
+}
+
+/**
+ * Generate capability-based guidance for tool selection
+ * @param {string} stepName - Step name
+ * @param {string} stepObjective - Step objective
+ * @param {Object} context - Execution context
+ * @returns {string} Capability guidance
+ */
+function generateCapabilityGuidance(stepName, stepObjective, context) {
+  let guidance = `**CAPABILITY REQUIREMENTS:**\n`;
+  
+  // Data retrieval capabilities
+  if (stepName.includes('fetch') || stepName.includes('get') || stepName.includes('retrieve')) {
+    guidance += `**Data Retrieval Operations Needed:**\n`;
+    guidance += `- Look for tools that can access and retrieve data\n`;
+    guidance += `- Common patterns: *GET*, *FETCH*, *RETRIEVE*, *LIST* in tool names\n`;
+    guidance += `- Capabilities needed: data access, filtering, result limiting\n`;
+    guidance += `- Focus on tools that match your data source requirements\n\n`;
+    
+    guidance += `**Expected Parameters:**\n`;
+    guidance += `- Filtering parameters (date ranges, specific criteria)\n`;
+    guidance += `- Field selection (choose specific data fields)\n`;
+    guidance += `- Sorting and ordering options\n`;
+    guidance += `- Result limiting (top N results)\n\n`;
+  }
+  
+  // Email capabilities
+  else if (stepName.includes('email') || stepName.includes('message') || stepName.includes('send')) {
+    guidance += `**Email Operations Needed:**\n`;
+    guidance += `- Look for tools that can send emails or manage messages\n`;
+    guidance += `- Common patterns: *EMAIL*, *MESSAGE*, *SEND*, *MAIL* in tool names\n`;
+    guidance += `- Capabilities needed: send email, create drafts, manage recipients\n\n`;
+  }
+  
+  // Trello capabilities
+  else if (stepName.includes('trello') || stepName.includes('card') || stepName.includes('board')) {
+    guidance += `**Trello Operations Needed:**\n`;
+    guidance += `- Look for tools that can manage Trello boards, lists, and cards\n`;
+    guidance += `- Common patterns: *TRELLO*, *CARD*, *BOARD*, *LIST* in tool names\n`;
+    guidance += `- Capabilities needed: find boards, search lists, create cards\n\n`;
+  }
+  
+  // Search/Find capabilities
+  else if (stepName.includes('find') || stepName.includes('search') || stepName.includes('get')) {
+    guidance += `**Search/Retrieval Operations Needed:**\n`;
+    guidance += `- Look for tools that can search or retrieve data\n`;
+    guidance += `- Common patterns: *SEARCH*, *FIND*, *GET*, *LIST*, *FETCH* in tool names\n`;
+    guidance += `- Consider what platform/service you're searching\n\n`;
+  }
+  
+  // Generic guidance
+  else {
+    guidance += `**General Operation Requirements:**\n`;
+    guidance += `- Analyze your step objective to understand required capabilities\n`;
+    guidance += `- Look for tools with relevant keywords in their names\n`;
+    guidance += `- Consider the platform or service you need to interact with\n\n`;
+  }
+  
+  guidance += `**TOOL SELECTION PRIORITY:**\n`;
+  guidance += `1. **EXACT MATCH:** Tools that exactly match your required capability\n`;
+  guidance += `2. **PLATFORM MATCH:** Tools for the right platform or service\n`;
+  guidance += `3. **CAPABILITY MATCH:** Tools that can perform the required action\n`;
+  guidance += `4. **AVOID WRONG TOOLS:** Don't force incompatible tools to work\n\n`;
+  
+  return guidance;
+}
+
+/**
+ * Generate intelligent parameter guidance for the agent
+ * @param {Object} step - Current workflow step
+ * @param {Object} context - Execution context
+ * @returns {string} Parameter guidance
+ */
+function generateParameterGuidance(step, context) {
+  const toolName = step.config?.toolName;
+  const stepName = step.name.toLowerCase();
+  const stepObjective = generateActionInstructions(step.name, step.config);
+  
+  let guidance = '';
+  
+  // Check if there are any configured parameters that make sense
+  const hasValidParameters = step.config?.parameters && 
+    Object.keys(step.config.parameters).length > 0 &&
+    !hasNonsensicalParameters(step.config.parameters);
+  
+  if (hasValidParameters) {
+    guidance += `Use these pre-configured parameters as your starting point:\n\`\`\`json\n${JSON.stringify(step.config.parameters, null, 2)}\n\`\`\`\n\n`;
+  }
+  
+  // Provide tool-specific guidance
+  if (toolName) {
+    if (toolName.includes('TRELLO')) {
+      guidance += generateTrelloGuidance(toolName, stepName, stepObjective, context);
+    } else if (toolName.includes('STRAVA')) {
+      guidance += generateStravaGuidance(toolName, stepName, stepObjective, context);
+    } else {
+      guidance += generateGenericToolGuidance(toolName, stepName, stepObjective, context);
+    }
+  } else {
+    guidance += 'No specific tool specified. Determine the appropriate tool and parameters based on your step objective.';
+  }
+  
+  return guidance;
+}
+
+/**
+ * Check if parameters contain nonsensical values
+ * @param {Object} parameters - Parameters to check
+ * @returns {boolean} True if parameters are nonsensical
+ */
+function hasNonsensicalParameters(parameters) {
+  for (const [key, value] of Object.entries(parameters)) {
+    if (typeof value === 'string') {
+      // Check for clearly nonsensical patterns
+      if (value.includes('$ $') || value === '$' || value.trim() === '' || 
+          value.includes('$,') || value.match(/^[,$\s]+$/)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+
+
+/**
+ * Generate Trello guidance
+ * @param {string} toolName - Tool name
+ * @param {string} stepName - Step name
+ * @param {string} stepObjective - Step objective
+ * @param {Object} context - Execution context
+ * @returns {string} Guidance
+ */
+function generateTrelloGuidance(toolName, stepName, stepObjective, context) {
+  let guidance = `**Trello API Tool Guidance:**\n`;
+  
+  if (toolName.includes('SEARCH') || toolName.includes('FIND')) {
+    guidance += `- Use "query" parameter to search for boards, lists, or cards\n`;
+    guidance += `- Be specific with search terms\n\n`;
+  } else if (toolName.includes('CREATE') && toolName.includes('CARD')) {
+    guidance += `- Provide "name" for card title\n`;
+    guidance += `- Provide "listId" for the target list\n`;
+    guidance += `- Use "desc" for card description\n`;
+    guidance += `- If adding checklist items, use appropriate checklist parameters\n\n`;
+  }
+  
+  guidance += `**Data Flow Considerations:**\n`;
+  if (context.steps && Object.keys(context.steps).length > 0) {
+    guidance += `- You may need board/list IDs from previous steps\n`;
+    guidance += `- Extract data from previous step results\n`;
+    guidance += `- Transform data into appropriate card format\n\n`;
+  }
+  
+  return guidance;
+}
+
+/**
+ * Generate Strava guidance
+ * @param {string} toolName - Tool name
+ * @param {string} stepName - Step name
+ * @param {string} stepObjective - Step objective
+ * @param {Object} context - Execution context
+ * @returns {string} Guidance
+ */
+function generateStravaGuidance(toolName, stepName, stepObjective, context) {
+  let guidance = `**Strava API Tool Guidance:**\n`;
+  
+  if (toolName.includes('ACTIVITIES')) {
+    guidance += `- Use "limit" to control number of activities returned\n`;
+    guidance += `- Use date parameters if filtering by time range\n`;
+    guidance += `- Include detailed activity information if needed\n\n`;
+  }
+  
+  return guidance;
+}
+
+/**
+ * Generate tool-specific guidance
+ * @param {string} toolName - Tool name
+ * @param {string} stepName - Step name
+ * @param {string} stepObjective - Step objective
+ * @param {Object} context - Execution context
+ * @returns {string} Guidance
+ */
+function generateGenericToolGuidance(toolName, stepName, stepObjective, context) {
+  let guidance = `**Tool: ${toolName}**\n`;
+  guidance += `- Analyze your step objective: "${stepObjective}"\n`;
+  guidance += `- Determine the appropriate parameters to achieve this goal\n`;
+  guidance += `- Use data from previous steps if available\n`;
+  guidance += `- Follow the tool's expected parameter format\n`;
+  guidance += `- Construct parameters based on the tool's documentation and requirements\n\n`;
+  
+  return guidance;
 }
 
 /**
@@ -372,8 +595,8 @@ function formatPreviousStepResults(context) {
 
 /**
  * Creates a clear, direct, and unambiguous task prompt for a single workflow step execution.
- * This prompt is designed to prevent the agent from deviating from its execution role and
- * ensures it performs its designated task without creating new workflows or calling unspecified tools.
+ * This prompt is designed to empower the agent to reason about its task, use context from previous
+ * steps, and execute its designated task intelligently to contribute to the overall workflow goal.
  *
  * @param {Object} step - The workflow step to be executed.
  * @param {Object} context - The current execution context of the workflow.
@@ -381,47 +604,92 @@ function formatPreviousStepResults(context) {
  */
 function createTaskPromptForStep(step, context) {
   const { replaceSpecialVars } = require('librechat-data-provider');
+  const stepName = step.name.toLowerCase();
+  const hasPreviousSteps = context.steps && Object.keys(context.steps).length > 0;
+
+  let dynamicInstructions = '';
+
+  // Generate dynamic, context-aware instructions for the agent to follow.
+  if (hasPreviousSteps) {
+    let specificGuidance = '';
+    // This is where we add special-cased logic for known complex patterns.
+    if (
+      stepName.includes('create draft') ||
+      stepName.includes('create reply') ||
+      stepName.includes('draft reply')
+    ) {
+      const hasStyleAnalysisStep = Object.values(context.steps).some((s) =>
+        s.result?.stepName?.toLowerCase().includes('writing style'),
+      );
+      const hasUnreadFetchStep = Object.values(context.steps).some((s) =>
+        s.result?.stepName?.toLowerCase().includes('fetch unread'),
+      );
+
+      if (hasStyleAnalysisStep && hasUnreadFetchStep) {
+        specificGuidance = `
+**Critical Guidance for this Email Drafting Step:**
+1.  **Analyze Writing Style:** Review the data from the '...Writing Style Analysis' step. Understand the user's tone, common phrases, and signature.
+2.  **Process Unread Emails:** The data from the 'Fetch Unread Emails' step contains a list of emails. You are to process **each** of these emails.
+3.  **Synthesize and Draft:** For each unread email, you MUST formulate a contextually appropriate response based on its content. The response MUST match the user's writing style you analyzed.
+4.  **Execute Tool:** Call the \`${
+  step.config?.toolName
+}\` tool to create a draft for EACH email. Do not send, only draft. The parameters you provide to the tool (like 'recipient', 'subject', 'body') must be derived from the unread email and your synthesized response.
+`;
+      }
+    } else if (stepName.includes('fetch unread')) {
+      specificGuidance = `
+**Critical Guidance for this Fetch Step:**
+- Your goal is to get emails that require a response. Use appropriate filtering to retrieve only unread emails.
+- Be efficient. Limit the results to a reasonable number.
+`;
+    } else if (stepName.includes('writing style')) {
+      specificGuidance = `
+**Critical Guidance for this Analysis Step:**
+- Your goal is to get examples of the user's writing. Fetch a small number of their most RECENT sent emails.
+- Ensure you query the appropriate folder for sent items.
+`;
+    }
+
+    dynamicInstructions = `
+-- 3. INTELLIGENT TASK INSTRUCTIONS --
+This step builds upon the results of previous steps. You must intelligently use the data provided below to achieve this step's goal.
+${specificGuidance}
+- Your primary responsibility is to produce a USEFUL result that contributes to the overall workflow.
+`;
+  } else {
+    dynamicInstructions = `
+-- 3. INTELLIGENT TASK INSTRUCTIONS --
+This is the first step in the workflow. Execute it as defined to begin the process.
+`;
+  }
 
   let prompt = `
--- WORKFLOW EXECUTION CONTEXT --
+-- MISSION BRIEFING --
 
-You are in WORKFLOW EXECUTION MODE. Your ONLY job is to execute a single step within a larger automated workflow. You are not in a conversational or creative mode.
+You are an intelligent agent executing one step within a larger automated workflow. Your job is to think, reason, and use the provided tools and data to accomplish your assigned task, contributing to the overall goal of the workflow.
 
-- Workflow Name: "${context.workflow?.name || 'Unknown Workflow'}"
-- Current Step ID: "${step.id}"
-- Current Step Name: "${step.name}"
+-- 1. OVERALL WORKFLOW GOAL --
+Your step is part of a workflow created to achieve the following user request:
+"${context.workflow?.description || context.workflow?.name || 'No overall goal provided.'}"
 
--- CURRENT STEP DETAILS --
-
-You are to execute the following step:
-
+-- 2. YOUR CURRENT STEP & OBJECTIVE --
 - Step Name: "${step.name}"
-- Step Type: "${step.type}"
-${step.config?.instruction ? `- Instruction: "${step.config.instruction}"` : ''}
-
-- Tool to Use: "${step.config?.toolName || 'Not specified'}"
-- Parameters to Use:
-${
-  step.config?.parameters
-    ? JSON.stringify(step.config.parameters, null, 2)
-    : 'No parameters specified.'
-}
-
+- Step Objective: ${generateActionInstructions(step.name, step.config)}
+${dynamicInstructions}
+-- 4. AVAILABLE DATA & TOOLS --
 ${formatPreviousStepResults(context)}
--- YOUR TASK --
+**Tool Discovery & Selection:**
+${generateToolDiscoveryGuidance(step, context)}
 
-Your task is to execute the step described above using the provided data and tool configurations. You MUST call the specified tool with the specified parameters.
+-- 5. YOUR TASK & CRITICAL EXECUTION RULES --
 
--- CRITICAL EXECUTION RULES --
-
-1.  **EXECUTE, DO NOT CREATE**: You are EXECUTING a step. You MUST NOT create a new workflow.
-2.  **USE SPECIFIED TOOL**: You MUST call the tool named "${
-  step.config?.toolName || 'Not specified'
-}". Do NOT use any other tool.
-3.  **USE SPECIFIED PARAMETERS**: You MUST use the parameters exactly as listed above. Do not invent or modify them. If previous step data is needed to fill a parameter, extract the exact values.
-4.  **NO CONVERSATION**: This is a direct command. Do not ask for clarification, confirmation, or engage in conversation.
-5.  **IMMEDIATE ACTION**: Execute the tool call immediately.
-6.  **ONE ACTION ONLY**: Perform this single action and then stop.
+1.  **OBJECTIVE FIRST**: Your primary task is to achieve your step objective. Focus on the GOAL, not on using specific tools.
+2.  **TOOL DISCOVERY**: Find the right tool for the job. Don't force incompatible tools. If the suggested tool doesn't exist or work, discover and use the correct one.
+3.  **INTELLIGENT TOOL SELECTION**: Look through your available tools and select the one that best matches your required capability. Tool names often contain relevant keywords.
+4.  **SMART PARAMETERIZATION**: Once you've selected the right tool, construct appropriate parameters using standard API conventions and patterns.
+5.  **CONTEXT UTILIZATION**: Use data from previous steps and the current context to inform your tool selection and parameters.
+6.  **IMMEDIATE ACTION**: Once you've identified the right approach, execute it. Don't ask for confirmation.
+7.  **ONE FOCUSED ACTION**: Perform one well-reasoned action that achieves your objective, then stop.
 `;
 
   return replaceSpecialVars({ text: prompt });

@@ -35,8 +35,16 @@ class WorkflowTool extends Tool {
     this.name = 'workflows';
     this.description = `Create and manage automated workflows that can execute sequences of actions and tools.
     
+    ⚡ ENHANCED CREATION APPROACH ⚡
+    When creating workflows, follow the Enhanced Creation Process:
+    1. RESEARCH: Always start with get_available_tools to understand capabilities
+    2. TEST: Test each planned step individually before creating the workflow  
+    3. VALIDATE: Ensure data flow between steps works correctly
+    4. CREATE: Only create workflows after thorough testing and validation
+    
     Available actions:
-    - create_workflow: Create a new workflow with steps and triggers
+    - get_available_tools: Get available MCP tools and Pipedream actions for workflow creation (START HERE)
+    - create_workflow: Create a new workflow with steps and triggers (ONLY AFTER TESTING)
     - list_workflows: List all user's workflows
     - get_workflow: Get details of a specific workflow
     - update_workflow: Update an existing workflow (supports intelligent step merging)
@@ -44,7 +52,19 @@ class WorkflowTool extends Tool {
     - activate_workflow: Activate a workflow for execution
     - deactivate_workflow: Deactivate a workflow
     - test_workflow: Execute a workflow once for testing
-    - get_available_tools: Get available MCP tools and Pipedream actions for workflow creation
+    - validate_workflow_design: Validate a workflow design before creation (NEW)
+
+    ENHANCED CREATION WORKFLOW EXAMPLE:
+    
+    User: "Send my Strava data to my coach daily"
+    
+    Step 1: Call get_available_tools to see what's available
+    Step 2: Test STRAVA-GET-ACTIVITIES to understand the data format
+    Step 3: Test MICROSOFT_OUTLOOK-SEND-EMAIL with sample data
+    Step 4: Validate that Strava data can be used in email content
+    Step 5: Create workflow with tested and validated parameters
+    
+    This approach ensures high-quality, working workflows from day one.
 
     CRITICAL REQUIREMENT FOR ALL WORKFLOW UPDATES
     
@@ -386,7 +406,8 @@ class WorkflowTool extends Tool {
         'activate_workflow', 
         'deactivate_workflow', 
         'test_workflow',
-        'get_available_tools'
+        'get_available_tools',
+        'validate_workflow_design'
       ]).describe('The action to perform'),
       
       // Workflow creation/update fields
@@ -420,6 +441,29 @@ class WorkflowTool extends Tool {
       // Update-specific options
       update_mode: z.enum(['merge', 'replace']).optional()
         .describe('How to handle step updates: "merge" (default) preserves existing steps and updates provided ones, "replace" replaces all steps'),
+      
+      // Validation-specific fields
+      workflow_design: z.object({
+        name: z.string(),
+        description: z.string().optional(),
+        trigger: z.object({
+          type: z.enum(['manual', 'schedule', 'webhook', 'email', 'event']),
+          config: z.record(z.unknown()).optional(),
+        }),
+        steps: z.array(z.object({
+          id: z.string(),
+          name: z.string(),
+          type: z.enum(['mcp_agent_action']),
+          config: z.record(z.unknown()),
+          onSuccess: z.string().optional(),
+          onFailure: z.string().optional(),
+          position: z.object({
+            x: z.number(),
+            y: z.number(),
+          }),
+        })),
+      }).optional()
+        .describe('Workflow design to validate (required for validate_workflow_design action)'),
     });
   }
 
@@ -488,6 +532,263 @@ class WorkflowTool extends Tool {
         error: error.message,
       };
     }
+  }
+
+  /**
+   * Validate a workflow design before creation
+   * @param {Object} workflowDesign - The workflow design to validate
+   * @param {string} userId - User ID for context
+   * @returns {Promise<Object>} Validation result
+   */
+  async validateWorkflowDesign(workflowDesign, userId) {
+    try {
+      logger.info(`[WorkflowTool] Validating workflow design for user ${userId}`);
+      
+      const validation = {
+        isValid: true,
+        errors: [],
+        warnings: [],
+        suggestions: [],
+        toolValidation: {},
+      };
+
+      // Basic structure validation
+      if (!workflowDesign.name) {
+        validation.errors.push('Workflow name is required');
+        validation.isValid = false;
+      }
+
+      if (!workflowDesign.trigger) {
+        validation.errors.push('Workflow trigger is required');
+        validation.isValid = false;
+      }
+
+      if (!workflowDesign.steps || !Array.isArray(workflowDesign.steps) || workflowDesign.steps.length === 0) {
+        validation.errors.push('Workflow must have at least one step');
+        validation.isValid = false;
+      }
+
+      // Step validation
+      if (workflowDesign.steps) {
+        const stepIds = new Set();
+        
+        for (let i = 0; i < workflowDesign.steps.length; i++) {
+          const step = workflowDesign.steps[i];
+          const stepIndex = i + 1;
+
+          // Check for duplicate step IDs
+          if (stepIds.has(step.id)) {
+            validation.errors.push(`Step ${stepIndex}: Duplicate step ID '${step.id}'`);
+            validation.isValid = false;
+          } else {
+            stepIds.add(step.id);
+          }
+
+          // Required fields
+          if (!step.id) {
+            validation.errors.push(`Step ${stepIndex}: Missing step ID`);
+            validation.isValid = false;
+          }
+
+          if (!step.name) {
+            validation.errors.push(`Step ${stepIndex}: Missing step name`);
+            validation.isValid = false;
+          }
+
+          if (!step.type) {
+            validation.errors.push(`Step ${stepIndex}: Missing step type`);
+            validation.isValid = false;
+          } else if (step.type !== 'mcp_agent_action') {
+            validation.errors.push(`Step ${stepIndex}: Invalid step type '${step.type}'. Only 'mcp_agent_action' is supported.`);
+            validation.isValid = false;
+          }
+
+          // Tool validation
+          if (step.config?.toolName) {
+            validation.toolValidation[step.id] = await this.validateStepTool(step, userId);
+            
+            if (!validation.toolValidation[step.id].exists) {
+              validation.warnings.push(`Step ${stepIndex}: Tool '${step.config.toolName}' not found in available tools`);
+            }
+          }
+
+          // Connection validation
+          if (step.onSuccess && !stepIds.has(step.onSuccess)) {
+            // Check if this references a step that comes later
+            const referencedStep = workflowDesign.steps.find(s => s.id === step.onSuccess);
+            if (!referencedStep) {
+              validation.errors.push(`Step ${stepIndex}: onSuccess references non-existent step '${step.onSuccess}'`);
+              validation.isValid = false;
+            }
+          }
+
+          if (step.onFailure && !stepIds.has(step.onFailure)) {
+            const referencedStep = workflowDesign.steps.find(s => s.id === step.onFailure);
+            if (!referencedStep) {
+              validation.errors.push(`Step ${stepIndex}: onFailure references non-existent step '${step.onFailure}'`);
+              validation.isValid = false;
+            }
+          }
+        }
+
+        // Connection flow validation
+        const flowValidation = this.validateWorkflowFlow(workflowDesign.steps);
+        validation.warnings.push(...flowValidation.warnings);
+        validation.suggestions.push(...flowValidation.suggestions);
+      }
+
+      // Schedule validation for schedule triggers
+      if (workflowDesign.trigger?.type === 'schedule') {
+        try {
+          const { calculateNextRun } = require('~/server/services/Scheduler/utils/cronUtils');
+          const scheduleConfig = workflowDesign.trigger.config?.schedule;
+          
+          if (!scheduleConfig) {
+            validation.errors.push('Schedule trigger requires a schedule configuration');
+            validation.isValid = false;
+          } else {
+            const nextRun = calculateNextRun(scheduleConfig);
+            if (!nextRun) {
+              validation.errors.push(`Invalid schedule configuration: ${scheduleConfig}`);
+              validation.isValid = false;
+            } else {
+              validation.suggestions.push(`Schedule validated: Next run would be ${nextRun.toISOString()}`);
+            }
+          }
+        } catch (error) {
+          validation.warnings.push(`Could not validate schedule: ${error.message}`);
+        }
+      }
+
+      // General suggestions
+      if (validation.isValid) {
+        validation.suggestions.push('Workflow design structure is valid');
+        validation.suggestions.push('Consider testing each step individually before creating the workflow');
+        
+        if (workflowDesign.steps.some(step => step.config?.toolName?.includes('EMAIL'))) {
+          validation.suggestions.push('Email steps detected: Ensure recipient addresses are correct and test email delivery');
+        }
+      }
+
+      logger.info(`[WorkflowTool] Workflow validation completed: ${validation.isValid ? 'VALID' : 'INVALID'}, ${validation.errors.length} errors, ${validation.warnings.length} warnings`);
+
+      return {
+        success: true,
+        validation,
+        message: validation.isValid ? 
+          'Workflow design is valid and ready for creation' : 
+          `Workflow design has ${validation.errors.length} validation errors that must be fixed`
+      };
+    } catch (error) {
+      logger.error('[WorkflowTool] Error validating workflow design:', error);
+      return {
+        success: false,
+        error: error.message,
+        validation: {
+          isValid: false,
+          errors: [`Validation error: ${error.message}`],
+          warnings: [],
+          suggestions: [],
+        }
+      };
+    }
+  }
+
+  /**
+   * Validate if a tool used in a step exists and is available
+   * @param {Object} step - Workflow step
+   * @param {string} userId - User ID
+   * @returns {Promise<Object>} Tool validation result
+   */
+  async validateStepTool(step, userId) {
+    try {
+      const toolName = step.config?.toolName;
+      if (!toolName) {
+        return { exists: false, reason: 'No toolName specified' };
+      }
+
+      // Get available tools
+      const toolsResult = await this.getAvailableTools(userId);
+      if (!toolsResult.success) {
+        return { exists: false, reason: 'Could not retrieve available tools' };
+      }
+
+      // Check if tool exists in MCP tools
+      const mcpTool = toolsResult.tools.mcpTools.find(tool => tool.name === toolName);
+      if (mcpTool) {
+        return { 
+          exists: true, 
+          type: 'mcp_tool', 
+          tool: mcpTool,
+          reason: `Found MCP tool '${toolName}' in server '${mcpTool.serverName}'`
+        };
+      }
+
+      // Check if tool exists in Pipedream actions
+      const pipedreamAction = toolsResult.tools.pipedreamActions.find(action => 
+        action.name === toolName || action.slug === toolName
+      );
+      if (pipedreamAction) {
+        return { 
+          exists: true, 
+          type: 'pipedream_action', 
+          tool: pipedreamAction,
+          reason: `Found Pipedream action '${toolName}'`
+        };
+      }
+
+      return { 
+        exists: false, 
+        reason: `Tool '${toolName}' not found in available MCP tools or Pipedream actions` 
+      };
+    } catch (error) {
+      return { 
+        exists: false, 
+        reason: `Error validating tool: ${error.message}` 
+      };
+    }
+  }
+
+  /**
+   * Validate workflow execution flow
+   * @param {Array} steps - Workflow steps
+   * @returns {Object} Flow validation result
+   */
+  validateWorkflowFlow(steps) {
+    const warnings = [];
+    const suggestions = [];
+    
+    if (!steps || steps.length === 0) {
+      return { warnings, suggestions };
+    }
+
+    // Find steps that are not referenced by other steps (potential entry points)
+    const referencedSteps = new Set();
+    steps.forEach(step => {
+      if (step.onSuccess) referencedSteps.add(step.onSuccess);
+      if (step.onFailure) referencedSteps.add(step.onFailure);
+    });
+
+    const entryPoints = steps.filter(step => !referencedSteps.has(step.id));
+    const exitPoints = steps.filter(step => !step.onSuccess && !step.onFailure);
+
+    if (entryPoints.length === 0) {
+      warnings.push('No entry point found - all steps are referenced by other steps (circular flow?)');
+    } else if (entryPoints.length > 1) {
+      warnings.push(`Multiple entry points found: ${entryPoints.map(s => s.id).join(', ')} - workflow may have disconnected branches`);
+    } else {
+      suggestions.push(`Entry point: ${entryPoints[0].id} (${entryPoints[0].name})`);
+    }
+
+    if (exitPoints.length === 0) {
+      warnings.push('No exit point found - workflow may run indefinitely');
+    } else if (exitPoints.length > 1) {
+      suggestions.push(`Multiple exit points: ${exitPoints.map(s => s.id).join(', ')}`);
+    } else {
+      suggestions.push(`Exit point: ${exitPoints[0].id} (${exitPoints[0].name})`);
+    }
+
+    return { warnings, suggestions };
   }
 
   /**
@@ -1399,6 +1700,9 @@ class WorkflowTool extends Tool {
         case 'get_available_tools':
           return await this.getAvailableTools(userId);
         
+        case 'validate_workflow_design':
+          return await this.validateWorkflowDesign(data.workflow_design, userId);
+        
         default:
           throw new Error(`Unknown action: ${action}`);
       }
@@ -1469,4 +1773,4 @@ class WorkflowTool extends Tool {
   }
 }
 
-module.exports = WorkflowTool; 
+module.exports = WorkflowTool;
