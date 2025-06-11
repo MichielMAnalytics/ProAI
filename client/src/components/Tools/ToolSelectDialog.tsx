@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Search, X } from 'lucide-react';
 import { Dialog, DialogPanel, DialogTitle, Description } from '@headlessui/react';
 import { useFormContext } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 import { isAgentsEndpoint } from 'librechat-data-provider';
 import { useUpdateUserPluginsMutation } from 'librechat-data-provider/react-query';
 import type {
@@ -26,6 +27,7 @@ function ToolSelectDialog({
   toolsFormKey: string;
   endpoint: AssistantsEndpoint | EModelEndpoint.agents;
 }) {
+  const navigate = useNavigate();
   const localize = useLocalize();
   const { getValues, setValue } = useFormContext();
   const { data: tools } = useAvailableToolsQuery(endpoint);
@@ -337,20 +339,32 @@ function ToolSelectDialog({
               </div>
             </div>
 
-            {/* Tools Grid */}
-            <div className="min-h-[400px]">
-              {filteredTools && filteredTools.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 px-4">
-                  <div className="w-16 h-16 bg-surface-tertiary rounded-full flex items-center justify-center mb-4">
-                    <Search className="w-8 h-8 text-text-tertiary" />
-                  </div>
-                  <h3 className="text-lg font-medium text-text-primary mb-2">No tools found</h3>
-                  <p className="text-text-secondary text-center max-w-md">
-                    {searchValue 
-                      ? 'Try adjusting your search criteria or browse all available tools.'
-                      : 'No tools are currently available.'}
-                  </p>
-                </div>
+                         {/* Tools Grid */}
+             <div className="min-h-[400px]">
+               {filteredTools && filteredTools.length === 0 ? (
+                 <div className="flex flex-col items-center justify-center py-16 px-4">
+                   <div className="w-16 h-16 bg-surface-tertiary rounded-full flex items-center justify-center mb-4">
+                     <Search className="w-8 h-8 text-text-tertiary" />
+                   </div>
+                   <h3 className="text-lg font-medium text-text-primary mb-2">No tools found</h3>
+                   <p className="text-text-secondary text-center max-w-md mb-6">
+                     {searchValue 
+                       ? 'Try adjusting your search criteria or browse all available tools.'
+                       : 'No tools are currently available.'}
+                   </p>
+                   <button
+                     onClick={() => {
+                       setIsOpen(false);
+                       navigate('/d/integrations');
+                     }}
+                     className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 text-white border border-green-600 hover:from-green-600 hover:to-emerald-700 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 shadow-md"
+                   >
+                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                     </svg>
+                     Connect Tools
+                   </button>
+                 </div>
               ) : (
                 <div
                   ref={gridRef}
