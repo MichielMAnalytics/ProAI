@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Controller, useWatch, useFormContext } from 'react-hook-form';
-import { QueryKeys, EModelEndpoint, AgentCapabilities } from 'librechat-data-provider';
+import { EModelEndpoint, AgentCapabilities } from 'librechat-data-provider';
 import type { TPlugin } from 'librechat-data-provider';
 import type { AgentForm, AgentPanelProps, IconComponentTypes } from '~/common';
 import { cn, defaultTextProps, removeFocusOutlines, getEndpointField, getIconKey } from '~/utils';
@@ -20,7 +19,7 @@ import Artifacts from './Artifacts';
 import AgentTool from './AgentTool';
 import CodeForm from './Code/Form';
 import { Panel } from '~/common';
-import { useGetStartupConfig } from '~/data-provider';
+import { useGetStartupConfig, useAvailableAgentToolsQuery } from '~/data-provider';
 import EndpointIcon from '~/components/Endpoints/EndpointIcon';
 import Workflows from './Workflows';
 import Scheduler from './Scheduler';
@@ -41,10 +40,9 @@ export default function AgentConfig({
   endpointsConfig,
 }: AgentPanelProps) {
   const fileMap = useFileMapContext();
-  const queryClient = useQueryClient();
   const { data: startupConfig } = useGetStartupConfig();
 
-  const allTools = queryClient.getQueryData<TPlugin[]>([QueryKeys.tools]) ?? [];
+  const { data: allTools = [] } = useAvailableAgentToolsQuery();
   const { showToast } = useToastContext();
   const localize = useLocalize();
 
