@@ -88,10 +88,11 @@ class UserMCPService {
         // Generate the MCP server URL if not provided
         let serverUrl = mcpServerConfig.url;
         if (!serverUrl) {
-          // Default to Pipedream remote MCP URL pattern
+          // SECURITY FIX: Always construct user-specific URLs with current user's integration ID
+          // This prevents users from accessing admin's MCP integrations when using shared agents
           const baseUrl = process.env.PIPEDREAM_MCP_BASE_URL || 'https://remote.mcp.pipedream.net';
-          serverUrl = baseUrl;
-          logger.info(`UserMCPService: Using base URL for streamable-http: ${serverUrl}`);
+          serverUrl = `${baseUrl}/${integration._id.toString()}/${integration.appSlug}`;
+          logger.info(`UserMCPService: Generated user-specific MCP URL for user ${userId}: ${serverUrl}`);
         }
         
         mcpServers[serverName] = {

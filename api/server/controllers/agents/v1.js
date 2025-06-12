@@ -200,6 +200,114 @@ const updateAgentHandler = async (req, res) => {
     if (!existingAgent) {
       return res.status(404).json({ error: 'Agent not found' });
     }
+
+    // Check if this is a global agent that should be cloned instead of modified
+    const globalProject = await getProjectByName(Constants.GLOBAL_PROJECT_NAME, 'agentIds');
+    const isGlobalAgent = globalProject && (globalProject.agentIds?.includes(id) ?? false);
+    const shouldCloneInsteadOfUpdate = isGlobalAgent && existingAgent.isCollaborative && !isAuthor && !isAdmin;
+
+    if (shouldCloneInsteadOfUpdate) {
+      // Instead of updating the global agent, create a duplicate for the user
+      const { id: _id, _id: __id, author: _author, createdAt: _createdAt, updatedAt: _updatedAt, tool_resources: _tool_resources = {}, ...cloneData } = existingAgent;
+      
+      // Apply the updates to the clone data
+      Object.assign(cloneData, updateData);
+      
+      // Remove MCP tools from duplicated agents so users need to connect their own integrations
+      if (cloneData.tools && Array.isArray(cloneData.tools)) {
+        const originalToolCount = cloneData.tools.length;
+        const mcpTools = cloneData.tools.filter(tool => typeof tool === 'string' && tool.includes('_mcp_'));
+        
+        cloneData.tools = cloneData.tools.filter(tool => {
+          if (typeof tool === 'string') {
+            // MCP tools contain the delimiter '_mcp_'
+            return !tool.includes('_mcp_');
+          }
+          return true;
+        });
+        
+        if (mcpTools.length > 0) {
+          logger.info(`[/agents/:id] Removed ${mcpTools.length} MCP tools during auto-duplication for user ${req.user.id}. User can add their own integrations. Tools removed: ${mcpTools.join(', ')}`);
+        }
+        
+        logger.info(`[/agents/:id] Tool count: ${originalToolCount} -> ${cloneData.tools.length} (removed ${originalToolCount - cloneData.tools.length} MCP tools)`);
+      }
+
+      if (_tool_resources?.[EToolResources.ocr]) {
+        cloneData.tool_resources = {
+          [EToolResources.ocr]: _tool_resources[EToolResources.ocr],
+        };
+      }
+
+      const newAgentId = `agent_${nanoid()}`;
+      const newAgentData = Object.assign(cloneData, {
+        id: newAgentId,
+        author: req.user.id,
+        originalAgentId: id,
+        projectIds: [], // Clear project associations - duplicated agents should be private
+        isCollaborative: false, // Make the private copy non-collaborative
+        mcp_servers: extractMCPServerSlugs(cloneData.tools), // Extract MCP server slugs for user onboarding
+      });
+
+      // Handle actions duplication if the original agent has actions
+      const newActionsList = [];
+      const originalActions = (await getActions({ agent_id: id }, true)) ?? [];
+      const sensitiveFields = ['api_key', 'oauth_client_id', 'oauth_client_secret'];
+      const promises = [];
+
+      /**
+       * Duplicates an action and returns the new action ID.
+       * @param {Action} action
+       * @returns {Promise<string>}
+       */
+      const duplicateAction = async (action) => {
+        const newActionId = nanoid();
+        const [domain] = action.action_id.split(actionDelimiter);
+        const fullActionId = `${domain}${actionDelimiter}${newActionId}`;
+
+        const newAction = await updateAction(
+          { action_id: newActionId },
+          {
+            metadata: action.metadata,
+            agent_id: newAgentId,
+            user: req.user.id,
+          },
+        );
+
+        const filteredMetadata = { ...newAction.metadata };
+        for (const field of sensitiveFields) {
+          delete filteredMetadata[field];
+        }
+
+        newAction.metadata = filteredMetadata;
+        newActionsList.push(newAction);
+        return fullActionId;
+      };
+
+      for (const action of originalActions) {
+        promises.push(
+          duplicateAction(action).catch((error) => {
+            logger.error('[/agents/:id] Error duplicating Action during auto-duplication:', error);
+          }),
+        );
+      }
+
+      const agentActions = await Promise.all(promises);
+      newAgentData.actions = agentActions;
+
+      const newAgent = await createAgent(newAgentData);
+      
+      logger.info(`[/agents/:id] Auto-duplicated global agent ${id} to ${newAgentId} for user ${req.user.id} due to modification attempt`);
+      
+      return res.status(201).json({
+        ...newAgent,
+        actions: newActionsList,
+        message: 'Global agent duplicated as your private copy with modifications',
+        duplicated: true,
+        originalAgentId: id,
+      });
+    }
+
     const hasEditPermission = existingAgent.isCollaborative || isAdmin || isAuthor;
 
     if (!hasEditPermission) {

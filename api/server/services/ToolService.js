@@ -524,14 +524,25 @@ async function loadAgentTools({ req, res, agent, tool_resources, openAIApiKey })
   // Initialize user-specific MCP connections early for agent execution
   const MCPInitializer = require('~/server/services/MCPInitializer');
   const mcpInitializer = MCPInitializer.getInstance();
+  
+  // SECURITY FIX: For shared agents, ensure we force refresh MCP tools to prevent
+  // users from accessing admin's MCP integrations via cached tool definitions
+  const isSharedAgent = agent.author && agent.author.toString() !== req.user.id;
+  const forceRefresh = isSharedAgent;
+  
+  if (forceRefresh) {
+    logger.info(`[loadAgentTools] Shared agent detected (agent author: ${agent.author}, current user: ${req.user.id}), forcing MCP refresh to ensure user-specific tools`);
+  }
+  
   const mcpResult = await mcpInitializer.ensureUserMCPReady(
     req.user.id, 
     'loadAgentTools', 
-    req.app.locals.availableTools
+    req.app.locals.availableTools,
+    { forceRefresh }
   );
   
   if (mcpResult.success) {
-    logger.info(`[loadAgentTools] MCP initialization successful for agent ${agent.id}: ${mcpResult.serverCount} servers, ${mcpResult.toolCount} tools in ${mcpResult.duration}ms`);
+    logger.info(`[loadAgentTools] MCP initialization successful for agent ${agent.id}: ${mcpResult.serverCount} servers, ${mcpResult.toolCount} tools in ${mcpResult.duration}ms (forced: ${forceRefresh})`);
   } else {
     logger.warn(`[loadAgentTools] MCP initialization failed for agent ${agent.id}: ${mcpResult.error}`);
     // Continue without MCP tools - agent can still work with other tools

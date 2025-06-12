@@ -79,7 +79,25 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
         toolName
       });
       
+      // SECURITY FIX: Verify that the current user has access to this MCP server
+      // This prevents users from using admin's MCP tools via shared agents
       const mcpManager = getMCPManager(currentUserId);
+      
+      // Check if the current user has their own integration for this server
+      try {
+        const userConnection = await mcpManager.getUserConnection(currentUserId, serverName);
+        if (!userConnection || !(await userConnection.isConnected())) {
+          logger.warn(`[MCP][${serverName}][${toolName}] User ${currentUserId} does not have access to MCP server ${serverName}. This may be a shared agent tool that requires user's own integration.`);
+          throw new Error(`You need to connect your own ${serverName.replace('pipedream-', '')} integration to use this tool. Shared agent MCP tools require your personal account connections.`);
+        }
+      } catch (error) {
+        if (error.message.includes('You need to connect your own')) {
+          throw error; // Re-throw our custom error message
+        }
+        logger.error(`[MCP][${serverName}][${toolName}] Failed to verify user access for ${currentUserId}:`, error.message);
+        throw new Error(`Unable to access ${serverName.replace('pipedream-', '')} integration. Please ensure you have connected your account.`);
+      }
+      
       const provider = (config?.metadata?.provider || _provider)?.toLowerCase();
       
       // Add user and conversation context to tool arguments for MCP tools
