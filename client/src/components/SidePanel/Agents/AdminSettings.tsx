@@ -1,5 +1,5 @@
 import * as Ariakit from '@ariakit/react';
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useState, useRef } from 'react';
 import { ShieldEllipsis } from 'lucide-react';
 import { useForm, Controller } from 'react-hook-form';
 import { Permissions, SystemRoles, roleDefaults, PermissionTypes } from 'librechat-data-provider';
@@ -66,6 +66,7 @@ const AdminSettings = ({ agent }: AdminSettingsProps) => {
   const localize = useLocalize();
   const { user, roles } = useAuthContext();
   const { showToast } = useToastContext();
+  const currentAgentIdRef = useRef<string | undefined>(undefined);
   const { mutate, isLoading } = useUpdateAgentPermissionsMutation({
     onSuccess: () => {
       showToast({ status: 'success', message: localize('com_ui_saved') });
@@ -117,10 +118,14 @@ const AdminSettings = ({ agent }: AdminSettingsProps) => {
 
   // Update default prompts when agent changes
   useEffect(() => {
-    if (agent?.default_prompts) {
-      setDefaultPrompts([...agent.default_prompts, ...Array(6 - agent.default_prompts.length).fill('')]);
-    } else {
-      setDefaultPrompts(['', '', '', '', '', '']);
+    // Only reset prompts if we switch to a different agent
+    if (agent?.id !== currentAgentIdRef.current) {
+      currentAgentIdRef.current = agent?.id;
+      if (agent?.default_prompts) {
+        setDefaultPrompts([...agent.default_prompts, ...Array(6 - agent.default_prompts.length).fill('')]);
+      } else {
+        setDefaultPrompts(['', '', '', '', '', '']);
+      }
     }
   }, [agent]);
 

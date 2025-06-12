@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Search, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Search, X, ChevronDown } from 'lucide-react';
 import { Dialog, DialogPanel, DialogTitle, Description } from '@headlessui/react';
 import { useFormContext } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +10,7 @@ import type {
   EModelEndpoint,
   TPluginAction,
   TError,
+  TPlugin,
 } from 'librechat-data-provider';
 import type { TPluginStoreDialogProps } from '~/common/types';
 import { PluginAuthForm } from '~/components/Plugins/Store';
@@ -123,6 +124,9 @@ function ToolSelectDialog({
   const onSelectAll = () => {
     if (!filteredTools) return;
     
+    // Clear selected servers since we're selecting all tools
+    setSelectedServers(new Set());
+    
     const currentTools = getValues(toolsFormKey);
     const toolsToAdd = filteredTools.filter(tool => !currentTools.includes(tool.pluginKey));
     
@@ -144,15 +148,16 @@ function ToolSelectDialog({
     });
     
     // For now, just skip tools that require authentication
-    // In a more sophisticated implementation, you might want to prompt for each one
     if (toolsWithAuth.length > 0) {
-      // Could show a toast or message about tools requiring authentication
       console.log(`${toolsWithAuth.length} tools require authentication and were skipped`);
     }
   };
 
   const onDeselectAll = () => {
     if (!filteredTools) return;
+    
+    // Clear selected servers since we're deselecting all tools
+    setSelectedServers(new Set());
     
     const currentTools = getValues(toolsFormKey);
     const toolsToRemove = filteredTools
@@ -178,9 +183,76 @@ function ToolSelectDialog({
     }
   };
 
-  const filteredTools = tools?.filter((tool) =>
-    tool.name.toLowerCase().includes(searchValue.toLowerCase()),
-  );
+  // Group tools by MCP server and get server metadata
+  const mcpServers = useMemo(() => {
+    if (!tools) return [];
+    
+    const serverMap = new Map<string, { name: string; icon?: string }>();
+    tools.forEach((tool) => {
+      if (tool.pluginKey?.includes('_mcp_')) {
+        const serverName = tool.pluginKey.split('_mcp_')[1];
+        if (!serverMap.has(serverName)) {
+          serverMap.set(serverName, { 
+            name: serverName,
+            icon: tool.icon // Store the icon from the first tool of this server
+          });
+        }
+      }
+    });
+    
+    return Array.from(serverMap.values());
+  }, [tools]);
+
+  // State for selected servers (multiple)
+  const [selectedServers, setSelectedServers] = useState<Set<string>>(new Set());
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // Filter tools by selected servers and search value
+  const filteredTools = useMemo(() => {
+    if (!tools) return [];
+    
+    return tools.filter((tool) => {
+      const matchesSearch = tool.name.toLowerCase().includes(searchValue.toLowerCase());
+      
+      if (selectedServers.size > 0) {
+        if (!tool.pluginKey?.includes('_mcp_')) return false;
+        const serverName = tool.pluginKey.split('_mcp_')[1];
+        return matchesSearch && selectedServers.has(serverName);
+      }
+      
+      return matchesSearch;
+    });
+  }, [tools, searchValue, selectedServers]);
+
+  // Handle server selection and automatically select all tools from that server
+  const handleServerSelection = (serverName: string) => {
+    const newSelectedServers = new Set(selectedServers);
+    
+    if (newSelectedServers.has(serverName)) {
+      newSelectedServers.delete(serverName);
+    } else {
+      newSelectedServers.add(serverName);
+    }
+    
+    setSelectedServers(newSelectedServers);
+
+    // Get all tools from the selected servers
+    const serverTools = tools?.filter(tool => {
+      if (!tool.pluginKey?.includes('_mcp_')) return false;
+      const toolServer = tool.pluginKey.split('_mcp_')[1];
+      return newSelectedServers.has(toolServer);
+    }) || [];
+
+    // Update selected tools
+    const currentTools = new Set(getValues(toolsFormKey));
+    serverTools.forEach(tool => {
+      if (!tool.authConfig || tool.authenticated) {
+        currentTools.add(tool.pluginKey);
+      }
+    });
+    
+    setValue(toolsFormKey, Array.from(currentTools));
+  };
 
   const selectedToolsCount = filteredTools?.filter(tool => 
     getValues(toolsFormKey).includes(tool.pluginKey)
@@ -214,6 +286,7 @@ function ToolSelectDialog({
         setIsOpen(false);
         setCurrentPage(1);
         setSearchValue('');
+        setSelectedServers(new Set());
       }}
       className="relative z-[102]"
     >
@@ -321,6 +394,7 @@ function ToolSelectDialog({
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <div className="text-sm text-text-secondary font-medium">
                   {selectedToolsCount} of {totalFilteredTools} tools selected
+                  {selectedServers.size > 0 && ` from ${Array.from(selectedServers).join(', ')}`}
                 </div>
                 <div className="flex items-center gap-3">
                   <button
@@ -345,6 +419,50 @@ function ToolSelectDialog({
                     </svg>
                     Deselect All
                   </button>
+
+                  {/* MCP Server Dropdown */}
+                  {mcpServers.length > 0 && (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-border-medium text-text-primary hover:bg-surface-hover transition-all duration-200"
+                      >
+                        Select Apps
+                        <ChevronDown className={`h-4 w-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      
+                      {isDropdownOpen && (
+                        <div className="absolute right-0 mt-2 w-64 rounded-lg border border-border-medium bg-surface-primary shadow-lg z-50">
+                          <div className="p-2 space-y-1">
+                            {mcpServers.map((server) => (
+                              <button
+                                key={server.name}
+                                onClick={() => handleServerSelection(server.name)}
+                                className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors
+                                  ${selectedServers.has(server.name)
+                                    ? 'bg-green-50 text-green-600 dark:bg-green-900/10 dark:text-green-400'
+                                    : 'hover:bg-surface-hover text-text-primary'
+                                  }`}
+                              >
+                                {server.icon ? (
+                                  <img src={server.icon} alt="" className="w-5 h-5 rounded" />
+                                ) : (
+                                  <div className="w-5 h-5 rounded bg-surface-secondary" />
+                                )}
+                                {server.name}
+                                {selectedServers.has(server.name) && (
+                                  <svg className="h-4 w-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
