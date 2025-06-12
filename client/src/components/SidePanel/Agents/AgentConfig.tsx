@@ -42,7 +42,7 @@ export default function AgentConfig({
   const fileMap = useFileMapContext();
   const { data: startupConfig } = useGetStartupConfig();
 
-  const { data: allTools = [] } = useAvailableAgentToolsQuery();
+  const { data: allTools = [], isLoading: isLoadingTools } = useAvailableAgentToolsQuery();
   const { showToast } = useToastContext();
   const localize = useLocalize();
 
@@ -362,16 +362,23 @@ export default function AgentConfig({
                 if (!hasItems) {
                   return (
                     <div className="rounded-lg border border-dashed border-border-medium bg-surface-primary p-4 text-center">
-                      <p className="text-sm text-text-secondary">
-                        {toolsEnabled && agentPanelConfig.tools !== false && actionsEnabled && agentPanelConfig.actions !== false
-                          ? 'No tools or actions added yet' 
-                          : toolsEnabled && agentPanelConfig.tools !== false
-                          ? 'No tools added yet'
-                          : actionsEnabled && agentPanelConfig.actions !== false
-                          ? 'No actions added yet'
-                          : 'Tools and actions not available'
-                        }
-                      </p>
+                      {isLoadingTools ? (
+                        <div className="flex items-center justify-center space-x-2">
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-green-500 border-t-transparent"></div>
+                          <p className="text-sm text-text-secondary">Loading tools...</p>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-text-secondary">
+                          {toolsEnabled && agentPanelConfig.tools !== false && actionsEnabled && agentPanelConfig.actions !== false
+                            ? 'No tools or actions added yet' 
+                            : toolsEnabled && agentPanelConfig.tools !== false
+                            ? 'No tools added yet'
+                            : actionsEnabled && agentPanelConfig.actions !== false
+                            ? 'No actions added yet'
+                            : 'Tools and actions not available'
+                          }
+                        </p>
+                      )}
                     </div>
                   );
                 }
