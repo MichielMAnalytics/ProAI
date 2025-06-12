@@ -1,5 +1,5 @@
 import { TPlugin } from 'librechat-data-provider';
-import { XCircle, PlusCircleIcon, Wrench } from 'lucide-react';
+import { XCircle, PlusCircleIcon, Wrench, ExternalLink } from 'lucide-react';
 import { useLocalize } from '~/hooks';
 
 type ToolItemProps = {
@@ -19,32 +19,107 @@ function ToolItem({ tool, onAddTool, onRemoveTool, isInstalled = false }: ToolIt
     }
   };
 
+  // Extract documentation URL from description
+  const getDocUrl = () => {
+    if (!tool.description) return null;
+    const urlMatch = tool.description.match(/https:\/\/[^\s)]+/);
+    return urlMatch ? urlMatch[0] : null;
+  };
+
+  const docUrl = getDocUrl();
+
   return (
-    <div className="flex flex-col gap-4 rounded border border-border-medium bg-transparent p-6">
-      <div className="flex gap-4">
-        <div className="h-[70px] w-[70px] shrink-0">
-          <div className="relative h-full w-full">
+    <div className="group relative overflow-hidden rounded-xl border border-gray-200 bg-surface-primary shadow-sm transition-all duration-300 hover:-translate-y-1 dark:bg-surface-secondary dark:border-gray-700/50 dark:hover:shadow-gray-900/20 flex flex-col h-full">
+      {/* Documentation link icon in top right corner */}
+      {docUrl && (
+        <a
+          href={docUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute top-4 right-4 z-10 p-2 rounded-lg bg-surface-secondary hover:bg-surface-hover text-text-tertiary hover:text-green-600 dark:hover:text-green-400 transition-all duration-200 opacity-0 group-hover:opacity-100"
+          onClick={(e) => e.stopPropagation()}
+          title="View documentation"
+        >
+          <ExternalLink className="h-4 w-4" />
+        </a>
+      )}
+      
+      <div className="p-6 flex flex-col h-full">
+        {/* Icon in top left corner */}
+        <div className="flex justify-start mb-4">
+          <div className="flex-shrink-0 relative">
             {tool.icon != null && tool.icon ? (
               <img
                 src={tool.icon}
                 alt={localize('com_ui_logo', { 0: tool.name })}
-                className="h-full w-full rounded-[5px] bg-white"
+                className="h-12 w-12 rounded-lg object-cover bg-white"
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center rounded-[5px] border border-border-medium bg-transparent">
-                <Wrench className="h-8 w-8 text-text-secondary" />
+              <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white">
+                <Wrench className="h-6 w-6" />
               </div>
             )}
-            <div className="absolute inset-0 rounded-[5px] ring-1 ring-inset ring-black/10"></div>
           </div>
         </div>
-        <div className="flex min-w-0 flex-col items-start justify-between">
-          <div className="mb-2 line-clamp-1 max-w-full text-lg leading-5 text-text-primary">
+        
+        {/* Title with full width */}
+        <div className="mb-4">
+          <h3 className="font-bold text-text-primary text-lg leading-tight group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors line-clamp-2">
             {tool.name}
-          </div>
+          </h3>
+        </div>
+
+        {/* Description - Full width and flexible height */}
+        <div className="flex-1 mb-4">
+          <p 
+            className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-3"
+            title={tool.description 
+              ? tool.description
+                  .replace(/\[See the docs?\]/gi, '')
+                  .replace(/\[See the docs here\]/gi, '')
+                  .replace(/\[See the documentation\]/gi, '')
+                  .replace(/See the docs?/gi, '')
+                  .replace(/See the documentation/gi, '')
+                  .replace(/IMPORTANT:[\s\S]*?format:\s*string/gi, '')
+                  .replace(/\s*for more information/gi, '')
+                  .replace(/\s*-\s*cc:[\s\S]*?format:\s*string/gi, '')
+                  .replace(/\s*-\s*bcc:[\s\S]*?format:\s*string/gi, '')
+                  .replace(/\s*-\s*attachment[\s\S]*?format:\s*string/gi, '')
+                  .replace(/https:\/\/[^\s)]+/g, '')
+                  .replace(/\(\s*\)/g, '')
+                  .replace(/\[\s*\]/g, '')
+                  .replace(/\s+/g, ' ')
+                  .trim()
+              : ''
+            }
+          >
+            {tool.description 
+              ? tool.description
+                  .replace(/\[See the docs?\]/gi, '')
+                  .replace(/\[See the docs here\]/gi, '')
+                  .replace(/\[See the documentation\]/gi, '')
+                  .replace(/See the docs?/gi, '')
+                  .replace(/See the documentation/gi, '')
+                  .replace(/IMPORTANT:[\s\S]*?format:\s*string/gi, '')
+                  .replace(/\s*for more information/gi, '')
+                  .replace(/\s*-\s*cc:[\s\S]*?format:\s*string/gi, '')
+                  .replace(/\s*-\s*bcc:[\s\S]*?format:\s*string/gi, '')
+                  .replace(/\s*-\s*attachment[\s\S]*?format:\s*string/gi, '')
+                  .replace(/https:\/\/[^\s)]+/g, '')
+                  .replace(/\(\s*\)/g, '')
+                  .replace(/\[\s*\]/g, '')
+                  .replace(/\s+/g, ' ')
+                  .trim()
+              : ''
+            }
+          </p>
+        </div>
+
+        {/* Footer Section - Fixed at bottom */}
+        <div className="mt-auto">
           {!isInstalled ? (
             <button
-              className="btn btn-primary relative"
+              className="btn btn-primary w-full h-9 text-sm"
               aria-label={`${localize('com_ui_add')} ${tool.name}`}
               onClick={handleClick}
             >
@@ -55,19 +130,15 @@ function ToolItem({ tool, onAddTool, onRemoveTool, isInstalled = false }: ToolIt
             </button>
           ) : (
             <button
-              className="btn relative bg-gray-300 hover:bg-gray-400 dark:bg-gray-50 dark:hover:bg-gray-200"
+              className="btn btn-neutral w-full h-9 text-sm"
               onClick={handleClick}
               aria-label={`${localize('com_nav_tool_remove')} ${tool.name}`}
             >
-              <div className="flex w-full items-center justify-center gap-2">
-                {localize('com_nav_tool_remove')}
-                <XCircle className="flex h-4 w-4 items-center stroke-2" />
-              </div>
+              {localize('com_nav_tool_remove')}
             </button>
           )}
         </div>
       </div>
-      <div className="line-clamp-3 h-[60px] text-sm text-text-secondary">{tool.description}</div>
     </div>
   );
 }

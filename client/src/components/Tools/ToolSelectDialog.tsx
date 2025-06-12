@@ -228,34 +228,44 @@ function ToolSelectDialog({
           {/* Header */}
           <div className="border-b border-border-light bg-surface-primary px-6 py-6">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg">
-                  <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <div>
-                  <DialogTitle className="text-xl font-bold text-text-primary">
-                    {isAgentTools
-                      ? localize('com_nav_tool_dialog_agents')
-                      : localize('com_nav_tool_dialog')}
-                  </DialogTitle>
-                  <Description className="text-sm text-text-secondary mt-1">
-                    {localize('com_nav_tool_dialog_description')}
-                  </Description>
-                </div>
+                          <div>
+              <DialogTitle className="text-xl font-bold text-text-primary">
+                {isAgentTools
+                  ? localize('com_nav_tool_dialog_agents')
+                  : localize('com_nav_tool_dialog')}
+              </DialogTitle>
+              <Description className="text-sm text-text-secondary mt-1">
+                {localize('com_nav_tool_dialog_description')}
+              </Description>
+            </div>
+              <div className="flex items-center gap-3">
+                {filteredTools && filteredTools.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setIsOpen(false);
+                      navigate('/d/integrations');
+                    }}
+                    className="btn btn-primary btn-sm"
+                    type="button"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Add Tools
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setIsOpen(false);
+                    setCurrentPage(1);
+                  }}
+                  className="rounded-lg p-2 text-text-tertiary hover:bg-surface-hover hover:text-text-primary transition-all duration-200"
+                  aria-label="Close dialog"
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  setIsOpen(false);
-                  setCurrentPage(1);
-                }}
-                className="rounded-lg p-2 text-text-tertiary hover:bg-surface-hover hover:text-text-primary transition-all duration-200"
-                aria-label="Close dialog"
-                type="button"
-              >
-                <X className="h-5 w-5" />
-              </button>
             </div>
           </div>
 
