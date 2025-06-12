@@ -90,29 +90,32 @@ class UserMCPService {
         if (!serverUrl) {
           // Default to Pipedream remote MCP URL pattern
           const baseUrl = process.env.PIPEDREAM_MCP_BASE_URL || 'https://remote.mcp.pipedream.net';
-          serverUrl = `${baseUrl}/${userId}/${integration.appSlug}`;
-          logger.info(`UserMCPService: Generated MCP URL for ${serverName}: ${serverUrl}`);
+          serverUrl = baseUrl;
+          logger.info(`UserMCPService: Using base URL for streamable-http: ${serverUrl}`);
         }
         
         mcpServers[serverName] = {
-          type: mcpServerConfig.type || 'sse',
+          type: 'streamable-http',
           url: serverUrl,
           timeout: mcpServerConfig.timeout || 60000,
           iconPath: mcpServerConfig.iconPath || integration.appIcon,
           chatMenu: true, // Enable in chat menu by default
-          // Add headers for user identification and Pipedream authentication
+          // Re-instating headers as streamable-http transport relies on them.
           headers: {
             'X-User-ID': userId,
             'X-Integration-ID': integration._id.toString(),
-            // Add required Pipedream authentication headers
             'x-pd-project-id': process.env.PIPEDREAM_PROJECT_ID,
-            'x-pd-environment': process.env.PIPEDREAM_ENVIRONMENT || (process.env.NODE_ENV === 'production' ? 'production' : 'development'),
-            ...(mcpServerConfig.headers || {})
+            'x-pd-environment':
+              process.env.PIPEDREAM_ENVIRONMENT ||
+              (process.env.NODE_ENV === 'production' ? 'production' : 'development'),
+            'x-pd-external-user-id': userId,
+            'x-pd-app-slug': integration.appSlug,
+            'x-pd-tool-mode': 'tools-only',
+            ...(mcpServerConfig.headers || {}),
           },
           // Mark as user-specific for identification
           _userSpecific: true,
           _integrationId: integration._id,
-          _appSlug: integration.appSlug,
           _appName: integration.appName,
         };
 

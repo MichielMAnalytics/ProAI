@@ -208,6 +208,8 @@ const getAvailableTools = async (req, res) => {
     // Count MCP tools in final result
     const mcpTools = tools.filter(tool => tool.pluginKey && tool.pluginKey.includes('_mcp_'));
     logger.info(`Final tools count: ${tools.length}, MCP tools count: ${mcpTools.length}`);
+    // Filter out the CONFIGURE_COMPONENT tool from the final list sent to the client
+    const finalTools = tools.filter((tool) => tool.name !== 'CONFIGURE_COMPONENT');
     logger.info(`MCP tools:`, mcpTools.map(t => ({ pluginKey: t.pluginKey, name: t.name })));
 
     // Only cache if not user-specific
@@ -218,8 +220,8 @@ const getAvailableTools = async (req, res) => {
     }
     
     logger.info('=== getAvailableTools: Sending response ===');
-    logger.info(`Response size: ${tools.length} tools`);
-    res.status(200).json(tools);
+    logger.info(`Response size: ${finalTools.length} tools`);
+    res.status(200).json(finalTools);
   } catch (error) {
     logger.error('=== getAvailableTools: Error occurred ===');
     logger.error('Error details:', {

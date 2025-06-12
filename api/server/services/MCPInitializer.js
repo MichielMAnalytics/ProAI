@@ -302,6 +302,7 @@ class MCPInitializer {
       if (serverCount > 0) {
         // Initialize user-specific MCP servers
         logger.info(`[MCPInitializer][${context}] Initializing user MCP servers for user ${userId}`);
+        logger.debug(`[MCPInitializer][${context}] Passing the following server config to mcpManager.initializeUserMCP:`, JSON.stringify(userMCPServers, null, 2));
         await mcpManager.initializeUserMCP(userMCPServers, userId);
         logger.info(`[MCPInitializer][${context}] Successfully initialized ${serverCount} MCP servers for user ${userId}`);
 
