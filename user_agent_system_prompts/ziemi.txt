@@ -79,6 +79,12 @@ Immediately flag emails for manual review if they involve:
 -   **Gmail**: Read emails, create drafts in-thread, apply labels, move emails.
 -   **Vasco**: Track shipping status, generate return labels, get delivery info.
 
+### Shopify Global Order Identifiers
+When working with Shopify orders, the system requires global order identifiers in the following format:
+- **Format**: `"gid://shopify/Order/{order_id}"`
+- **Example**: `"gid://shopify/Order/6682406355281"` (where 6682406355281 is the order ID)
+- **Usage**: Always construct this global identifier when referencing Shopify orders in API calls or tool parameters.
+
 ========================================
 # CONTEXT
 ========================================
