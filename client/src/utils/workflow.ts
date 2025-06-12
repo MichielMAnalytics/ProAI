@@ -1,6 +1,6 @@
 import dedent from 'dedent';
 
-export const getWorkflowFiles = (content: string) => {
+export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
   try {
     // Parse the workflow data to validate it
     const workflowData = JSON.parse(content);
@@ -23,6 +23,23 @@ export const getWorkflowFiles = (content: string) => {
       return value;
     }, 2);
     
+    // Safely serialize tools data with the same escaping logic
+    const safeToolsData = JSON.stringify(toolsData, (key, value) => {
+      // If the value is a string that contains problematic characters, escape them
+      if (typeof value === 'string' && (value.includes('`') || value.includes('${') || value.includes('\n') || value.includes('"'))) {
+        // Replace problematic characters to make it safe for JSON embedding
+        return value
+          .replace(/\\/g, '\\\\')  // Escape backslashes first
+          .replace(/`/g, '\\`')    // Escape backticks
+          .replace(/\${/g, '\\${') // Escape template literal expressions
+          .replace(/"/g, '\\"')    // Escape double quotes
+          .replace(/\n/g, '\\n')   // Escape newlines
+          .replace(/\r/g, '\\r')   // Escape carriage returns
+          .replace(/\t/g, '\\t');  // Escape tabs
+      }
+      return value;
+    }, 2);
+    
     return {
       'App.tsx': dedent`
         import React from 'react';
@@ -30,11 +47,14 @@ export const getWorkflowFiles = (content: string) => {
 
         // Workflow data safely embedded
         const workflowData = ${safeWorkflowData};
+        
+        // Tools data safely embedded
+        const toolsData = ${safeToolsData};
 
         export default function App() {
           return (
             <div className="p-4">
-              <WorkflowVisualization data={JSON.stringify(workflowData)} />
+              <WorkflowVisualization data={JSON.stringify(workflowData)} toolsData={toolsData} />
             </div>
           );
         }
@@ -98,6 +118,7 @@ export const getWorkflowFiles = (content: string) => {
 
         interface WorkflowVisualizationProps {
           data: string;
+          toolsData: any[];
         }
 
         // Convert cron expression to human readable format
@@ -144,14 +165,17 @@ export const getWorkflowFiles = (content: string) => {
         };
 
         // Custom node component for workflow steps
-        const WorkflowStepNode = ({ data, selected }: { data: any; selected: boolean }) => {
-          const getNodeStyle = (type: string, status: string) => {
+        const WorkflowStepNode = ({ data, selected, getToolIcon }: { data: any; selected: boolean; getToolIcon: (toolName: string) => { type: 'emoji' | 'image'; value: string; name?: string } }) => {
+          const getNodeStyle = (type: string, status: string, toolName?: string) => {
+            // Get dynamic icon based on tool name
+            const toolIcon = toolName ? getToolIcon(toolName) : { type: 'emoji', value: '🤖' };
+            
             const baseStyles = {
               mcp_agent_action: {
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 border: '2px solid #5a67d8',
                 color: 'white',
-                icon: '🤖'
+                icon: toolIcon
               },
             };
 
@@ -181,7 +205,7 @@ export const getWorkflowFiles = (content: string) => {
             };
           };
 
-          const style = getNodeStyle(data.type || 'mcp_agent_action', data.status || 'pending');
+          const style = getNodeStyle(data.type || 'mcp_agent_action', data.status || 'pending', data.config?.toolName);
 
           return (
             <>
@@ -210,9 +234,29 @@ export const getWorkflowFiles = (content: string) => {
                 }}
               >
                 <div className="px-6 py-4">
-                  <div className="flex items-start gap-3">
-                    <div className="text-2xl mt-0.5" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>
-                      {style.icon}
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-8 h-8" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>
+                      {style.icon.type === 'image' ? (
+                        <img
+                          src={style.icon.value}
+                          alt={style.icon.name || 'Tool icon'}
+                          className="w-8 h-8 rounded-md bg-white/90 object-contain"
+                          onError={(e) => {
+                            // Fallback to emoji if image fails to load
+                            e.currentTarget.style.display = 'none';
+                            const fallbackDiv = e.currentTarget.nextElementSibling;
+                            if (fallbackDiv) {
+                              fallbackDiv.style.display = 'block';
+                            }
+                          }}
+                        />
+                      ) : null}
+                      <div 
+                        className="text-2xl flex items-center justify-center" 
+                        style={{ display: style.icon.type === 'emoji' ? 'flex' : 'none' }}
+                      >
+                        {style.icon.value}
+                      </div>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-base mb-1 leading-tight" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
@@ -352,12 +396,7 @@ export const getWorkflowFiles = (content: string) => {
           );
         };
 
-        const nodeTypes: NodeTypes = {
-          workflowStep: WorkflowStepNode,
-          trigger: TriggerNode,
-        };
-
-        const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data }) => {
+        const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data, toolsData }) => {
           const workflowData: WorkflowData = useMemo(() => {
             try {
               return JSON.parse(data);
@@ -371,6 +410,27 @@ export const getWorkflowFiles = (content: string) => {
               };
             }
           }, [data]);
+
+          // Create tool lookup function using embedded tools data
+          const getToolIcon = useCallback((toolName: string) => {
+            if (!toolsData || !toolName) {
+              return { type: 'emoji', value: '🤖' };
+            }
+            
+            const tool = toolsData.find(t => t.name === toolName || t.pluginKey === toolName);
+            if (tool?.icon) {
+              return { type: 'image', value: tool.icon, name: tool.name };
+            }
+            
+            // Fallback to default robot emoji
+            return { type: 'emoji', value: '🤖' };
+          }, [toolsData]);
+
+          // Define node types with access to getToolIcon
+          const nodeTypes: NodeTypes = useMemo(() => ({
+            workflowStep: (props) => <WorkflowStepNode {...props} getToolIcon={getToolIcon} />,
+            trigger: TriggerNode,
+          }), [getToolIcon]);
 
           // Create ReactFlow nodes with organic, flowing layout
           const initialNodes: Node[] = useMemo(() => {

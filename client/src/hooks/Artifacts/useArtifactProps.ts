@@ -1,11 +1,18 @@
 import { useMemo } from 'react';
-import { removeNullishValues } from 'librechat-data-provider';
+import { removeNullishValues, EModelEndpoint } from 'librechat-data-provider';
 import type { Artifact } from '~/common';
 import { getKey, getProps, getTemplate, getArtifactFilename } from '~/utils/artifacts';
 import { getMermaidFiles } from '~/utils/mermaid';
 import { getWorkflowFiles } from '~/utils/workflow';
+import { useAvailableToolsQuery } from '~/data-provider';
 
 export default function useArtifactProps({ artifact }: { artifact: Artifact }) {
+  // Fetch tools data for workflow artifacts
+  const { data: availableTools } = useAvailableToolsQuery(EModelEndpoint.agents, {
+    enabled: artifact.type?.includes('workflow') ?? false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
   const [fileKey, files] = useMemo(() => {
     const key = getKey(artifact.type ?? '', artifact.language);
     
@@ -14,7 +21,7 @@ export default function useArtifactProps({ artifact }: { artifact: Artifact }) {
     }
     
     if (key.includes('workflow')) {
-      return ['App.tsx', getWorkflowFiles(artifact.content ?? '')];
+      return ['App.tsx', getWorkflowFiles(artifact.content ?? '', availableTools || [])];
     }
 
     const fileKey = getArtifactFilename(artifact.type ?? '', artifact.language);
@@ -22,7 +29,7 @@ export default function useArtifactProps({ artifact }: { artifact: Artifact }) {
       [fileKey]: artifact.content,
     });
     return [fileKey, files];
-  }, [artifact.type, artifact.content, artifact.language]);
+  }, [artifact.type, artifact.content, artifact.language, availableTools]);
 
   const template = useMemo(
     () => getTemplate(artifact.type ?? '', artifact.language),
