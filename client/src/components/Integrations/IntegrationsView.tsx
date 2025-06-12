@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useLocalize } from '~/hooks';
+import { useLocalize, useMCPConnection } from '~/hooks';
 import { useAuthContext } from '~/hooks/AuthContext';
 import { Button, Input, Pagination } from '~/components/ui';
 import { Spinner } from '~/components/svg';
@@ -113,6 +113,23 @@ export default function IntegrationsView() {
     isLoading: isLoadingUser,
     refetch: refetchUserIntegrations,
   } = useUserIntegrationsQuery();
+
+  // Use our MCP connection hook for connection management
+  const {
+    handleConnect: mcpHandleConnect,
+    handleDisconnect: mcpHandleDisconnect,
+    isIntegrationConnected: mcpIsIntegrationConnected,
+    getUserIntegration: mcpGetUserIntegration,
+    isConnecting: mcpIsConnecting,
+    isDisconnecting: mcpIsDisconnecting,
+  } = useMCPConnection({
+    onConnectionSuccess: () => {
+      refetchUserIntegrations();
+    },
+    onDisconnectionSuccess: () => {
+      refetchUserIntegrations();
+    },
+  });
 
   // Reset to first page when search or category changes
   useEffect(() => {
@@ -376,51 +393,24 @@ export default function IntegrationsView() {
     return filteredIntegrations.slice(startIndex, endIndex);
   }, [filteredIntegrations, currentPage, itemsPerPage]);
 
-  // Check if integration is connected
+  // Check if integration is connected - use our reusable hook
   const isIntegrationConnected = (appSlug: string) => {
-    // Ensure userIntegrations is an array
-    const integrations = Array.isArray(userIntegrations) ? userIntegrations : [];
-    
-    return integrations.some(
-      (userIntegration) => userIntegration.appSlug === appSlug && userIntegration.isActive
-    );
+    return mcpIsIntegrationConnected(appSlug);
   };
 
-  // Get user integration for an app
+  // Get user integration for an app - use our reusable hook
   const getUserIntegration = (appSlug: string) => {
-    // Ensure userIntegrations is an array
-    const integrations = Array.isArray(userIntegrations) ? userIntegrations : [];
-    
-    return integrations.find(
-      (userIntegration) => userIntegration.appSlug === appSlug && userIntegration.isActive
-    );
+    return mcpGetUserIntegration(appSlug);
   };
 
-  // Handle connect integration
+  // Handle connect integration - use our reusable hook
   const handleConnect = (integration: TAvailableIntegration) => {
-    createConnectTokenMutation.mutate({
-      app: integration.appSlug,
-      // Use frontend URL for redirect, not backend API endpoint
-      redirect_url: `${window.location.origin}/d/integrations?connected=true`,
-    });
+    mcpHandleConnect(integration);
   };
 
-  // Handle disconnect integration
+  // Handle disconnect integration - use our reusable hook
   const handleDisconnect = (userIntegration: TUserIntegration) => {
-    if (userIntegration._id) {
-      deleteIntegrationMutation.mutate(userIntegration._id, {
-        onSuccess: () => {
-          // Refresh MCP servers to immediately remove the disconnected integration
-          refreshUserMCPMutation.mutate();
-          
-          // Also manually trigger cleanup of orphaned MCP tools from agents
-          // This is in addition to the automatic cleanup that should happen via middleware
-          setTimeout(() => {
-            cleanupOrphanedMCPToolsMutation.mutate();
-          }, 1000); // Small delay to ensure integration deletion is processed
-        },
-      });
-    }
+    mcpHandleDisconnect(userIntegration);
   };
 
   // Handle successful connection callback
@@ -721,7 +711,7 @@ export default function IntegrationsView() {
                           userIntegration={userIntegration}
                           onConnect={handleConnect}
                           onDisconnect={handleDisconnect}
-                          isLoading={deleteIntegrationMutation.isLoading}
+                          isLoading={mcpIsDisconnecting}
                         />
                       );
                     })}
@@ -756,7 +746,7 @@ export default function IntegrationsView() {
                           userIntegration={getUserIntegration(integration.appSlug)}
                           onConnect={handleConnect}
                           onDisconnect={handleDisconnect}
-                          isLoading={createConnectTokenMutation.isLoading}
+                          isLoading={mcpIsConnecting}
                         />
                       ))}
                     </div>

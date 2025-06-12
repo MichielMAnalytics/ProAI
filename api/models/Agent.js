@@ -443,6 +443,7 @@ const getListAgents = async (searchParameter) => {
       description: 1,
       isCollaborative: 1,
       originalAgentId: 1,
+      mcp_servers: 1,
     }).lean()
   )
   .filter((agent) => {

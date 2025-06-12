@@ -24,6 +24,7 @@ export interface IAgent extends Omit<Document, 'model'> {
   agent_ids?: string[];
   isCollaborative?: boolean;
   conversation_starters?: string[];
+  default_prompts?: string[];
   tool_resources?: unknown;
   projectIds?: Types.ObjectId[];
   originalAgentId?: string;
@@ -106,6 +107,10 @@ const agentSchema = new Schema<IAgent>(
       default: undefined,
     },
     conversation_starters: {
+      type: [String],
+      default: [],
+    },
+    default_prompts: {
       type: [String],
       default: [],
     },

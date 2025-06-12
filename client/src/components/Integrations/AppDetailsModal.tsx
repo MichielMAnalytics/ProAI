@@ -2,14 +2,12 @@ import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui';
 import { Spinner } from '~/components/svg';
-import { useLocalize } from '~/hooks';
+import { useLocalize, useMCPConnection } from '~/hooks';
 import ComponentCard from './ComponentCard';
 import {
   useAppDetailsQuery,
   useAppComponentsQuery,
 } from '~/data-provider';
-import { dataService } from 'librechat-data-provider';
-import { useMutation } from '@tanstack/react-query';
 import type { TAppComponent, TUserIntegration, TAvailableIntegration } from 'librechat-data-provider';
 
 interface AppDetailsModalProps {
@@ -48,15 +46,23 @@ export default function AppDetailsModal({
     error: componentsError 
   } = useAppComponentsQuery(integration.appSlug);
 
+  // Use our MCP connection hook
+  const {
+    handleConnect: mcpHandleConnect,
+    handleDisconnect: mcpHandleDisconnect,
+    isConnecting: mcpIsConnecting,
+    isDisconnecting: mcpIsDisconnecting,
+  } = useMCPConnection();
+
   const handleConnect = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onConnect(integration);
+    mcpHandleConnect(integration);
   };
 
   const handleDisconnect = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (userIntegration) {
-      onDisconnect(userIntegration);
+      mcpHandleDisconnect(userIntegration);
     }
   };
 
@@ -170,10 +176,10 @@ export default function AppDetailsModal({
                           <div className="mt-auto">
                             <button
                               onClick={handleDisconnect}
-                              disabled={isLoading}
+                              disabled={mcpIsDisconnecting}
                               className="btn btn-neutral w-full h-9 text-sm"
                             >
-                              {isLoading ? (
+                              {mcpIsDisconnecting ? (
                                 <Spinner className="h-4 w-4 mx-auto" />
                               ) : (
                                 'Disconnect'
@@ -193,10 +199,10 @@ export default function AppDetailsModal({
                           <div className="mt-auto">
                             <button
                               onClick={handleConnect}
-                              disabled={isLoading}
+                              disabled={mcpIsConnecting}
                               className="btn btn-primary w-full h-9 text-sm"
                             >
-                              {isLoading ? (
+                              {mcpIsConnecting ? (
                                 <Spinner className="h-4 w-4 mx-auto" />
                               ) : (
                                 'Connect'

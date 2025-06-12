@@ -5,8 +5,8 @@ import { useForm, Controller } from 'react-hook-form';
 import { Permissions, SystemRoles, roleDefaults, PermissionTypes } from 'librechat-data-provider';
 import type { Control, UseFormSetValue, UseFormGetValues } from 'react-hook-form';
 import { OGDialog, OGDialogTitle, OGDialogContent, OGDialogTrigger } from '~/components/ui';
-import { useUpdateAgentPermissionsMutation } from '~/data-provider';
-import { Button, Switch, DropdownPopup } from '~/components/ui';
+import { useUpdateAgentPermissionsMutation, useUpdateAgentMutation } from '~/data-provider';
+import { Button, Switch, DropdownPopup, Textarea } from '~/components/ui';
 import { useLocalize, useAuthContext } from '~/hooks';
 import { useToastContext } from '~/Providers';
 
@@ -55,7 +55,14 @@ const LabelController: React.FC<LabelControllerProps> = ({
   </div>
 );
 
-const AdminSettings = () => {
+interface AdminSettingsProps {
+  agent?: {
+    id?: string;
+    default_prompts?: string[];
+  };
+}
+
+const AdminSettings = ({ agent }: AdminSettingsProps) => {
   const localize = useLocalize();
   const { user, roles } = useAuthContext();
   const { showToast } = useToastContext();
@@ -68,8 +75,18 @@ const AdminSettings = () => {
     },
   });
 
+  const updateAgentMutation = useUpdateAgentMutation({
+    onSuccess: () => {
+      showToast({ status: 'success', message: localize('com_ui_saved') });
+    },
+    onError: () => {
+      showToast({ status: 'error', message: localize('com_ui_error_save_admin_settings') });
+    },
+  });
+
   const [isRoleMenuOpen, setIsRoleMenuOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<SystemRoles>(SystemRoles.USER);
+  const [defaultPrompts, setDefaultPrompts] = useState<string[]>(['', '', '', '', '', '']);
 
   const defaultValues = useMemo(() => {
     if (roles?.[selectedRole]?.permissions) {
@@ -98,6 +115,15 @@ const AdminSettings = () => {
     }
   }, [roles, selectedRole, reset]);
 
+  // Update default prompts when agent changes
+  useEffect(() => {
+    if (agent?.default_prompts) {
+      setDefaultPrompts([...agent.default_prompts, ...Array(6 - agent.default_prompts.length).fill('')]);
+    } else {
+      setDefaultPrompts(['', '', '', '', '', '']);
+    }
+  }, [agent]);
+
   if (user?.role !== SystemRoles.ADMIN) {
     return null;
   }
@@ -119,6 +145,27 @@ const AdminSettings = () => {
 
   const onSubmit = (data: FormValues) => {
     mutate({ roleName: selectedRole, updates: data });
+  };
+
+  const handleDefaultPromptsUpdate = () => {
+    if (!agent?.id) {
+      showToast({ status: 'error', message: 'No agent selected' });
+      return;
+    }
+
+    const filteredPrompts = defaultPrompts.filter(prompt => prompt.trim() !== '');
+    updateAgentMutation.mutate({
+      agent_id: agent.id,
+      data: {
+        default_prompts: filteredPrompts,
+      },
+    });
+  };
+
+  const handlePromptChange = (index: number, value: string) => {
+    const newPrompts = [...defaultPrompts];
+    newPrompts[index] = value;
+    setDefaultPrompts(newPrompts);
   };
 
   const roleDropdownItems = [
@@ -148,7 +195,7 @@ const AdminSettings = () => {
           {localize('com_ui_admin_settings')}
         </Button>
       </OGDialogTrigger>
-      <OGDialogContent className="w-1/4 border-border-light bg-surface-primary text-text-primary">
+      <OGDialogContent className="max-h-[80vh] w-96 overflow-y-auto border-border-light bg-surface-primary text-text-primary">
         <OGDialogTitle>{`${localize('com_ui_admin_settings')} - ${localize(
           'com_ui_agents',
         )}`}</OGDialogTitle>
@@ -212,6 +259,47 @@ const AdminSettings = () => {
               </button>
             </div>
           </form>
+
+          {/* Default Prompts Section */}
+          {agent?.id && (
+            <>
+              <hr className="my-6 border-border-light" />
+              <div className="py-2">
+                <h3 className="mb-4 text-lg font-semibold text-text-primary">
+                  Agent Default Prompts
+                </h3>
+                <p className="mb-4 text-sm text-text-secondary">
+                  Configure default prompts that will appear as suggestion cards under the chat input when users start new conversations with this agent and have connected the required integrations.
+                </p>
+                <div className="space-y-3">
+                  {defaultPrompts.map((prompt, index) => (
+                    <div key={index}>
+                      <label className="mb-1 block text-sm font-medium text-text-primary">
+                        Default Prompt {index + 1}
+                      </label>
+                      <Textarea
+                        value={prompt}
+                        onChange={(e) => handlePromptChange(index, e.target.value)}
+                        placeholder={`e.g., Create a workflow that runs every morning and fetches my latest Strava activity to email my coach...`}
+                        className="w-full resize-none border-border-light bg-surface-primary text-text-primary"
+                        rows={2}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleDefaultPromptsUpdate}
+                    disabled={updateAgentMutation.isLoading}
+                    className="btn rounded bg-blue-500 font-bold text-white transition-all hover:bg-blue-600 disabled:opacity-50"
+                  >
+                    {updateAgentMutation.isLoading ? 'Saving...' : 'Save Default Prompts'}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </OGDialogContent>
     </OGDialog>

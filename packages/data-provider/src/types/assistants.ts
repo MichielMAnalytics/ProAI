@@ -218,6 +218,7 @@ export type Agent = {
   model: string | null;
   model_parameters: AgentModelParameters;
   conversation_starters?: string[];
+  default_prompts?: string[];
   isCollaborative?: boolean;
   tool_resources?: AgentToolResources;
   agent_ids?: string[];
@@ -264,6 +265,7 @@ export type AgentUpdateParams = {
   isCollaborative?: boolean;
   originalAgentId?: string;
   mcp_servers?: string[];
+  default_prompts?: string[];
 } & Pick<
   Agent,
   'agent_ids' | 'end_after_tools' | 'hide_sequential_outputs' | 'artifacts' | 'recursion_limit'

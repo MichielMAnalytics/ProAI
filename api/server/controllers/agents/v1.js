@@ -165,6 +165,8 @@ const getAgentHandler = async (req, res) => {
         projectIds: agent.projectIds,
         isCollaborative: agent.isCollaborative,
         version: agent.version,
+        mcp_servers: agent.mcp_servers,
+        default_prompts: agent.default_prompts,
       });
     }
     return res.status(200).json(agent);
