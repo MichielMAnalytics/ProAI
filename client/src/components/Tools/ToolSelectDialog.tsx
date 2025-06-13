@@ -187,13 +187,19 @@ function ToolSelectDialog({
   const mcpServers = useMemo(() => {
     if (!tools) return [];
     
-    const serverMap = new Map<string, { name: string; icon?: string }>();
+    const serverMap = new Map<string, { name: string; displayName: string; icon?: string }>();
     tools.forEach((tool) => {
       if (tool.pluginKey?.includes('_mcp_')) {
         const serverName = tool.pluginKey.split('_mcp_')[1];
         if (!serverMap.has(serverName)) {
+          // Remove 'pipedream-' prefix and capitalize
+          const displayName = serverName.startsWith('pipedream-') 
+            ? serverName.replace('pipedream-', '').charAt(0).toUpperCase() + serverName.replace('pipedream-', '').slice(1)
+            : serverName;
+          
           serverMap.set(serverName, { 
             name: serverName,
+            displayName,
             icon: tool.icon // Store the icon from the first tool of this server
           });
         }
@@ -394,7 +400,10 @@ function ToolSelectDialog({
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <div className="text-sm text-text-secondary font-medium">
                   {selectedToolsCount} of {totalFilteredTools} tools selected
-                  {selectedServers.size > 0 && ` from ${Array.from(selectedServers).join(', ')}`}
+                  {selectedServers.size > 0 && ` from ${Array.from(selectedServers).map(serverName => {
+                    const server = mcpServers.find(s => s.name === serverName);
+                    return server?.displayName || serverName;
+                  }).join(', ')}`}
                 </div>
                 <div className="flex items-center gap-3">
                   <button
@@ -450,7 +459,7 @@ function ToolSelectDialog({
                                 ) : (
                                   <div className="w-5 h-5 rounded bg-surface-secondary" />
                                 )}
-                                {server.name}
+                                {server.displayName}
                                 {selectedServers.has(server.name) && (
                                   <svg className="h-4 w-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />

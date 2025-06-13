@@ -1,7 +1,7 @@
 import { memo, useRef, useMemo, useEffect, useState, useCallback } from 'react';
 import { useWatch } from 'react-hook-form';
 import { useRecoilState, useRecoilValue } from 'recoil';
-import { Constants, isAssistantsEndpoint, isAgentsEndpoint } from 'librechat-data-provider';
+import { Constants, isAssistantsEndpoint, isAgentsEndpoint, EModelEndpoint } from 'librechat-data-provider';
 import {
   useChatContext,
   useChatFormContext,
@@ -17,6 +17,7 @@ import {
   useSubmitMessage,
   useFocusChatEffect,
 } from '~/hooks';
+import { useAvailableIntegrationsQuery, useAvailableToolsQuery, useUserIntegrationsQuery } from '~/data-provider';
 import { mainTextareaId, BadgeItem } from '~/common';
 import AttachFileChat from './Files/AttachFileChat';
 import FileFormChat from './Files/FileFormChat';
@@ -32,17 +33,120 @@ import SendButton from './SendButton';
 import EditBadges from './EditBadges';
 import BadgeRow from './BadgeRow';
 import Mention from './Mention';
+import AppDetailsModal from '../../Integrations/AppDetailsModal';
 import store from '~/store';
+import type { TAvailableIntegration } from 'librechat-data-provider';
+
+const MCPServerIcons = ({ mcpServers }: { mcpServers: string[] }) => {
+  const { data: availableIntegrations } = useAvailableIntegrationsQuery();
+  const { data: tools } = useAvailableToolsQuery(EModelEndpoint.agents);
+  const { data: userIntegrations } = useUserIntegrationsQuery();
+  const [selectedIntegration, setSelectedIntegration] = useState<TAvailableIntegration | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  if (!mcpServers || mcpServers.length === 0) {
+    return null;
+  }
+
+  const getMCPServerData = (serverName: string): { icon?: string; integration?: TAvailableIntegration } => {
+    const integration = availableIntegrations?.find(int => int.appSlug === serverName);
+    if (integration?.appIcon) {
+      return { icon: integration.appIcon, integration };
+    }
+    
+    const serverTool = tools?.find(tool => 
+      tool.pluginKey?.includes('_mcp_') && 
+      (tool.pluginKey.split('_mcp_')[1] === serverName || 
+       tool.pluginKey.split('_mcp_')[1] === `pipedream-${serverName}`)
+    );
+    
+    return { icon: serverTool?.icon, integration };
+  };
+
+  const serverData = mcpServers.map(serverName => {
+    const { icon, integration } = getMCPServerData(serverName);
+    return { serverName, icon, integration };
+  }).filter(server => server.icon);
+
+  if (serverData.length === 0) {
+    return null;
+  }
+
+  const getConnectionStatus = (integration: TAvailableIntegration) => {
+    const userIntegration = userIntegrations?.find(ui => ui.appSlug === integration.appSlug);
+    return {
+      isConnected: !!userIntegration,
+      userIntegration
+    };
+  };
+
+  const handleIconClick = (integration: TAvailableIntegration | undefined, serverName: string) => {
+    if (integration) {
+      setSelectedIntegration(integration);
+      setIsModalOpen(true);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedIntegration(null);
+  };
+
+  const handleConnect = (integration: TAvailableIntegration) => {
+    // This will be handled by the modal's internal logic
+  };
+
+  const handleDisconnect = (userIntegration: any) => {
+    // This will be handled by the modal's internal logic
+  };
+
+  return (
+    <>
+      <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex items-center gap-2">
+        {serverData.map(({ serverName, icon, integration }) => (
+          <button
+            key={serverName}
+            onClick={() => handleIconClick(integration, serverName)}
+            className="group relative p-1 rounded-md hover:bg-surface-hover transition-colors duration-200"
+            title={`${serverName.charAt(0).toUpperCase() + serverName.slice(1)} - Click for details`}
+          >
+            <img
+              src={icon}
+              alt={`${serverName} integration`}
+              className="h-5 w-5 rounded-sm object-cover transition-transform duration-200 group-hover:scale-110"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          </button>
+        ))}
+      </div>
+      {selectedIntegration && (
+        <AppDetailsModal
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+          integration={selectedIntegration}
+          isConnected={getConnectionStatus(selectedIntegration).isConnected}
+          userIntegration={getConnectionStatus(selectedIntegration).userIntegration}
+          onConnect={handleConnect}
+          onDisconnect={handleDisconnect}
+        />
+      )}
+    </>
+  );
+};
 
 const ChatForm = memo(
   ({
     index = 0,
     disabled = false,
     isMcpChecking = false,
+    mcpServers = [],
   }: {
     index?: number;
     disabled?: boolean;
     isMcpChecking?: boolean;
+    mcpServers?: string[];
   }) => {
     const submitButtonRef = useRef<HTMLButtonElement>(null);
     const textAreaRef = useRef<HTMLTextAreaElement>(null);
@@ -347,6 +451,7 @@ const ChatForm = memo(
                 </div>
               </div>
               {TextToSpeech && automaticPlayback && <StreamAudio index={index} />}
+              <MCPServerIcons mcpServers={mcpServers} />
             </div>
           </div>
         </div>
