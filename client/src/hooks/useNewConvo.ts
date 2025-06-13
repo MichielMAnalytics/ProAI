@@ -31,6 +31,7 @@ import { useDeleteFilesMutation, useGetEndpointsQuery, useGetStartupConfig } fro
 import useAssistantListMap from './Assistants/useAssistantListMap';
 import { useResetChatBadges } from './useChatBadges';
 import { usePauseGlobalAudio } from './Audio';
+
 import { logger } from '~/utils';
 import store from '~/store';
 
@@ -52,6 +53,7 @@ const useNewConvo = (index = 0) => {
   const { pauseGlobalAudio } = usePauseGlobalAudio(index);
   const saveDrafts = useRecoilValue<boolean>(store.saveDrafts);
   const resetBadges = useResetChatBadges();
+
 
   const { mutateAsync } = useDeleteFilesMutation({
     onSuccess: () => {
@@ -151,11 +153,7 @@ const useNewConvo = (index = 0) => {
           const isAgentEndpoint = isAgentsEndpoint(defaultEndpoint);
           const currentAgentId = conversation.agent_id ?? '';
 
-          if (!currentAgentId && isAgentEndpoint) {
-            conversation.agent_id =
-              localStorage.getItem(`${LocalStorageKeys.AGENT_ID_PREFIX}${index}`) ?? undefined;
-          }
-
+          // Store last used agent in localStorage if switching away from agents endpoint
           if (currentAgentId && !isAgentEndpoint) {
             conversation.agent_id = undefined;
           }

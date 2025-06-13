@@ -1,5 +1,5 @@
-import React, { useMemo, useCallback } from 'react';
-import { EModelEndpoint } from 'librechat-data-provider';
+import React, { useMemo, useCallback, useEffect } from 'react';
+import { EModelEndpoint, LocalStorageKeys } from 'librechat-data-provider';
 import { useListAgentsQuery, useGetStartupConfig, useGetEndpointsQuery } from '~/data-provider';
 import { useSelectAgent, useLocalize } from '~/hooks';
 import { useChatContext } from '~/Providers';
@@ -9,7 +9,7 @@ import ControlCombobox from '~/components/ui/ControlCombobox';
 
 export default function HeaderAgentSelect() {
   const localize = useLocalize();
-  const { conversation } = useChatContext();
+  const { conversation, index } = useChatContext();
   const { onSelect } = useSelectAgent();
   const { data: startupConfig } = useGetStartupConfig();
   const { data: endpointsConfig } = useGetEndpointsQuery();
@@ -39,6 +39,18 @@ export default function HeaderAgentSelect() {
     },
     [agents, onSelect],
   );
+
+  // Auto-select first agent when no agent is selected and agents are available
+  useEffect(() => {
+    if (conversation?.endpoint === 'agents' && !currentAgentId && agents.length > 0) {
+      const lastAgentId = localStorage.getItem(`${LocalStorageKeys.AGENT_ID_PREFIX}${index}`);
+      if (lastAgentId && agents.find((a) => a.id === lastAgentId)) {
+        handleSelectAgent(lastAgentId);
+      } else {
+        handleSelectAgent(agents[0].id);
+      }
+    }
+  }, [currentAgentId, agents, conversation?.endpoint, handleSelectAgent, index]);
 
   const agentItems = useMemo(
     () =>
@@ -86,7 +98,8 @@ export default function HeaderAgentSelect() {
     />
   );
 
-  const displayValue = currentAgent?.name || localize('com_ui_select') + ' ' + localize('com_ui_agent');
+  const displayValue =
+    currentAgent?.name || localize('com_ui_select') + ' ' + localize('com_ui_agent');
 
   return (
     <div className="relative flex w-full max-w-md flex-col items-center gap-2">
