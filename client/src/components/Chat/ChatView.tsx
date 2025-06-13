@@ -184,7 +184,7 @@ function ChatView({ index = 0 }: { index?: number }) {
                     )}
                     {/* Show DefaultPrompts for new conversations with agents that have default prompts and connected integrations */}
                     {!isMcpChecking && mcpConnectionsComplete && chatHelpers.conversation && 
-                      (!chatHelpers.conversation.messages || chatHelpers.conversation.messages.length === 0) && (
+                      isLandingPage && (
                       <DefaultPrompts
                         conversation={chatHelpers.conversation}
                         onPromptSelect={handlePromptSelect}

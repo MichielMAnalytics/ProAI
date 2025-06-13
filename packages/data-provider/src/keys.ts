@@ -95,4 +95,6 @@ export enum MutationKeys {
   configureComponent = 'configureComponent',
   runAction = 'runAction',
   deployTrigger = 'deployTrigger',
+  connectMCPServer = 'connectMCPServer',
+  disconnectMCPServer = 'disconnectMCPServer',
 }

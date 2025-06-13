@@ -11,6 +11,8 @@ import {
   useCreateConnectTokenMutation,
   useDeleteIntegrationMutation,
   useIntegrationCallbackMutation,
+  useConnectMCPServerMutation,
+  useDisconnectMCPServerMutation,
 } from '~/data-provider';
 import type { TAvailableIntegration, TUserIntegration } from 'librechat-data-provider';
 import { useMutation } from '@tanstack/react-query';
@@ -141,20 +143,57 @@ export default function IntegrationsView() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [currentPage]);
 
-  // Mutations
+  // Incremental MCP server connect mutation (for manual connect operations)
+  const connectMCPServerMutation = useConnectMCPServerMutation({
+    onSuccess: (data) => {
+      console.log('MCP server connected successfully:', data);
+      refetchUserIntegrations();
+    },
+    onError: (error) => {
+      console.error('Failed to connect MCP server:', error);
+    },
+  });
+
+  // Incremental MCP server disconnect mutation (for manual disconnect operations)
+  const disconnectMCPServerMutation = useDisconnectMCPServerMutation({
+    onSuccess: (data) => {
+      console.log('MCP server disconnected successfully:', data);
+      refetchUserIntegrations();
+    },
+    onError: (error) => {
+      console.error('Failed to disconnect MCP server:', error);
+    },
+  });
+
+  // Legacy: Clean up orphaned MCP tools mutation (still needed for cleanup operations)
+  const cleanupOrphanedMCPToolsMutation = useMutation({
+    mutationFn: () => dataService.cleanupOrphanedMCPTools(),
+    onSuccess: (data) => {
+      console.log('=== Orphaned MCP tools cleanup completed ===');
+      console.log('Result:', data);
+      console.log('Agents processed:', data.agentsProcessed);
+      console.log('Agents updated:', data.agentsUpdated);
+      console.log('Tools removed:', data.toolsRemoved);
+      console.log('Valid MCP servers:', data.validMCPServers);
+      if (data.removedToolsDetails) {
+        console.log('Removed tools details:', data.removedToolsDetails);
+      }
+    },
+    onError: (error) => {
+      console.error('=== Failed to cleanup orphaned MCP tools ===');
+      console.error('Error:', error);
+    },
+  });
+
+  // Mutations for integration management
   const integrationCallbackMutation = useIntegrationCallbackMutation({
     onSuccess: (response) => {
       console.log('Integration created successfully:', response);
       // User integrations will be automatically refreshed due to mutation's onSuccess
-      
-      // Refresh MCP servers to immediately make the new integration available
-      refreshUserMCPMutation.mutate();
-      
-      // TODO: Show success toast
+      // The incremental MCP connection is handled by the useMCPConnection hook
     },
     onError: (error) => {
       console.error('Failed to create integration record:', error);
-      // TODO: Show error toast
     },
   });
 
@@ -241,43 +280,12 @@ export default function IntegrationsView() {
   const deleteIntegrationMutation = useDeleteIntegrationMutation({
     onSuccess: () => {
       refetchUserIntegrations();
+      // Incremental MCP disconnection is handled by the useMCPConnection hook
       // TODO: Show success toast
     },
     onError: (error) => {
       console.error('Failed to delete integration:', error);
       // TODO: Show error toast
-    },
-  });
-
-  // Refresh user MCP servers mutation
-  const refreshUserMCPMutation = useMutation({
-    mutationFn: () => dataService.refreshUserMCP(),
-    onSuccess: () => {
-      console.log('MCP servers refreshed successfully');
-    },
-    onError: (error) => {
-      console.warn('Failed to refresh MCP servers:', error);
-      // Don't show error to user as this is not critical
-    },
-  });
-
-  // Clean up orphaned MCP tools mutation
-  const cleanupOrphanedMCPToolsMutation = useMutation({
-    mutationFn: () => dataService.cleanupOrphanedMCPTools(),
-    onSuccess: (data) => {
-      console.log('=== Orphaned MCP tools cleanup completed ===');
-      console.log('Result:', data);
-      console.log('Agents processed:', data.agentsProcessed);
-      console.log('Agents updated:', data.agentsUpdated);
-      console.log('Tools removed:', data.toolsRemoved);
-      console.log('Valid MCP servers:', data.validMCPServers);
-      if (data.removedToolsDetails) {
-        console.log('Removed tools details:', data.removedToolsDetails);
-      }
-    },
-    onError: (error) => {
-      console.error('=== Failed to cleanup orphaned MCP tools ===');
-      console.error('Error:', error);
     },
   });
 

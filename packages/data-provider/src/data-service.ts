@@ -852,16 +852,16 @@ export function refreshUserMCP(): Promise<{ success: boolean; message: string; m
   return request.post(endpoints.refreshUserMCP());
 }
 
-export function cleanupOrphanedMCPTools(): Promise<{ 
-  success: boolean; 
-  message: string; 
-  agentsProcessed: number;
-  agentsUpdated: number;
-  toolsRemoved: number;
-  validMCPServers: string[];
-  removedToolsDetails?: Array<{ agentId: string; tool: string; server: string; }>;
-}> {
+export function cleanupOrphanedMCPTools() {
   return request.post(endpoints.cleanupOrphanedMCPTools());
+}
+
+export function connectMCPServer(payload: { serverName: string }) {
+  return request.post(endpoints.connectMCPServer(), payload);
+}
+
+export function disconnectMCPServer(payload: { serverName: string }) {
+  return request.post(endpoints.disconnectMCPServer(), payload);
 }
 
 export function getUserMCPTools(): Promise<s.TPlugin[]> {

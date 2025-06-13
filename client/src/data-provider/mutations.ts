@@ -1123,3 +1123,43 @@ export const useDeployTriggerMutation = (
     onMutate: options?.onMutate,
   });
 };
+
+/**
+ * Hook for connecting a specific MCP server
+ */
+export const useConnectMCPServerMutation = (
+  options?: t.MutationOptions<any, { serverName: string }>,
+): UseMutationResult<any, unknown, { serverName: string }, unknown> => {
+  const queryClient = useQueryClient();
+  return useMutation([MutationKeys.connectMCPServer], {
+    mutationFn: (variables: { serverName: string }) => dataService.connectMCPServer(variables),
+    onSuccess: (data, variables, context) => {
+      // Invalidate user integrations to refresh the list
+      queryClient.invalidateQueries([QueryKeys.userIntegrations]);
+      queryClient.invalidateQueries([QueryKeys.mcpConfig]);
+      options?.onSuccess?.(data, variables, context);
+    },
+    onError: options?.onError,
+    onMutate: options?.onMutate,
+  });
+};
+
+/**
+ * Hook for disconnecting a specific MCP server
+ */
+export const useDisconnectMCPServerMutation = (
+  options?: t.MutationOptions<any, { serverName: string }>,
+): UseMutationResult<any, unknown, { serverName: string }, unknown> => {
+  const queryClient = useQueryClient();
+  return useMutation([MutationKeys.disconnectMCPServer], {
+    mutationFn: (variables: { serverName: string }) => dataService.disconnectMCPServer(variables),
+    onSuccess: (data, variables, context) => {
+      // Invalidate user integrations to refresh the list
+      queryClient.invalidateQueries([QueryKeys.userIntegrations]);
+      queryClient.invalidateQueries([QueryKeys.mcpConfig]);
+      options?.onSuccess?.(data, variables, context);
+    },
+    onError: options?.onError,
+    onMutate: options?.onMutate,
+  });
+};

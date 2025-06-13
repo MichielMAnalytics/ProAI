@@ -391,6 +391,315 @@ class MCPInitializer {
       cacheTTL: instance.USER_INIT_CACHE_TTL,
     };
   }
+
+  /**
+   * Connect a single MCP server for a user
+   * 
+   * @param {string} userId - The user ID
+   * @param {string} serverName - The MCP server name to connect
+   * @param {string} context - Context identifier for logging
+   * @param {Object} availableTools - Tools registry to enhance with MCP tools
+   * @returns {Promise<Object>} Connection result
+   */
+  async connectSingleMCPServer(userId, serverName, context, availableTools = {}) {
+    const startTime = Date.now();
+
+    if (!userId) {
+      return {
+        success: false,
+        error: 'User ID is required',
+        serverName,
+        toolCount: 0,
+        duration: Date.now() - startTime,
+      };
+    }
+
+    if (!serverName) {
+      return {
+        success: false,
+        error: 'Server name is required',
+        serverName,
+        toolCount: 0,
+        duration: Date.now() - startTime,
+      };
+    }
+
+    logger.info(`[MCPInitializer][${context}] Connecting single MCP server '${serverName}' for user ${userId}`);
+
+    try {
+      const mcpManager = getMCPManager(userId);
+      if (!mcpManager) {
+        return {
+          success: false,
+          error: 'MCP Manager not available for user',
+          serverName,
+          toolCount: 0,
+          duration: Date.now() - startTime,
+        };
+      }
+
+      // OPTIMIZATION: Try to get just the specific server configuration efficiently
+      const UserMCPService = require('~/server/services/UserMCPService');
+      let singleServerConfig = null;
+
+      // First, try to get from cache if available
+      try {
+        const allUserMCPServers = await UserMCPService.getUserMCPServers(userId);
+        if (allUserMCPServers[serverName]) {
+          singleServerConfig = { [serverName]: allUserMCPServers[serverName] };
+          logger.debug(`[MCPInitializer][${context}] Found server '${serverName}' in cached configurations`);
+        }
+      } catch (cacheError) {
+        logger.debug(`[MCPInitializer][${context}] Cache miss for server configurations, will fetch fresh`);
+      }
+
+      // If not found in cache, fetch fresh and look for the specific server
+      if (!singleServerConfig) {
+        // Force refresh to get latest integrations
+        const freshUserMCPServers = await UserMCPService.refreshUserMCPServers(userId);
+        
+        if (!freshUserMCPServers[serverName]) {
+          return {
+            success: false,
+            error: `Server '${serverName}' not found in user configuration. Available servers: ${Object.keys(freshUserMCPServers).join(', ')}`,
+            serverName,
+            toolCount: 0,
+            duration: Date.now() - startTime,
+          };
+        }
+
+        singleServerConfig = { [serverName]: freshUserMCPServers[serverName] };
+        logger.debug(`[MCPInitializer][${context}] Found server '${serverName}' in fresh configurations`);
+      }
+
+      // Initialize just this single server
+      logger.debug(`[MCPInitializer][${context}] Initializing single server '${serverName}' for user ${userId}`);
+      await mcpManager.initializeUserMCP(singleServerConfig, userId);
+
+      // Verify the connection
+      const connection = await mcpManager.getUserConnection(userId, serverName);
+      if (!(await connection.isConnected())) {
+        return {
+          success: false,
+          error: `Failed to establish connection to server '${serverName}'`,
+          serverName,
+          toolCount: 0,
+          duration: Date.now() - startTime,
+        };
+      }
+
+      // Map tools from this specific server
+      const toolCountBefore = Object.keys(availableTools).length;
+      
+      // Get tools from this specific server
+      try {
+        const tools = await connection.fetchTools();
+        let mappedToolsCount = 0;
+        
+        for (const tool of tools) {
+          const toolKey = `${tool.name}${Constants.mcp_delimiter}${serverName}`;
+          availableTools[toolKey] = {
+            type: 'function',
+            ['function']: {
+              name: toolKey,
+              description: tool.description,
+              parameters: tool.inputSchema,
+            },
+          };
+          mappedToolsCount++;
+        }
+
+        logger.info(`[MCPInitializer][${context}] Successfully connected server '${serverName}' for user ${userId} and mapped ${mappedToolsCount} tools`);
+
+        // Update the cache incrementally
+        this.updateCacheForSingleServer(userId, serverName, mappedToolsCount, availableTools);
+
+        return {
+          success: true,
+          serverName,
+          toolCount: mappedToolsCount,
+          duration: Date.now() - startTime,
+        };
+      } catch (toolError) {
+        logger.warn(`[MCPInitializer][${context}] Connected to server '${serverName}' but failed to fetch tools:`, toolError.message);
+        return {
+          success: true,
+          serverName,
+          toolCount: 0,
+          duration: Date.now() - startTime,
+          warning: `Connected but no tools available: ${toolError.message}`,
+        };
+      }
+
+    } catch (error) {
+      logger.error(`[MCPInitializer][${context}] Failed to connect single MCP server '${serverName}' for user ${userId}:`, error);
+      
+      return {
+        success: false,
+        error: error.message,
+        serverName,
+        toolCount: 0,
+        duration: Date.now() - startTime,
+      };
+    }
+  }
+
+  /**
+   * Disconnect a single MCP server for a user
+   * 
+   * @param {string} userId - The user ID
+   * @param {string} serverName - The MCP server name to disconnect
+   * @param {string} context - Context identifier for logging
+   * @param {Object} availableTools - Tools registry to remove MCP tools from
+   * @returns {Promise<Object>} Disconnection result
+   */
+  async disconnectSingleMCPServer(userId, serverName, context, availableTools = {}) {
+    const startTime = Date.now();
+
+    if (!userId) {
+      return {
+        success: false,
+        error: 'User ID is required',
+        serverName,
+        toolsRemoved: 0,
+        duration: Date.now() - startTime,
+      };
+    }
+
+    if (!serverName) {
+      return {
+        success: false,
+        error: 'Server name is required',
+        serverName,
+        toolsRemoved: 0,
+        duration: Date.now() - startTime,
+      };
+    }
+
+    logger.info(`[MCPInitializer][${context}] Disconnecting single MCP server '${serverName}' for user ${userId}`);
+
+    try {
+      const mcpManager = getMCPManager(userId);
+      if (!mcpManager) {
+        return {
+          success: false,
+          error: 'MCP Manager not available for user',
+          serverName,
+          toolsRemoved: 0,
+          duration: Date.now() - startTime,
+        };
+      }
+
+      // Remove tools for this specific server from availableTools
+      const toolsToRemove = [];
+      const serverSuffix = `${Constants.mcp_delimiter}${serverName}`;
+      
+      for (const toolKey of Object.keys(availableTools)) {
+        if (toolKey.endsWith(serverSuffix)) {
+          toolsToRemove.push(toolKey);
+        }
+      }
+
+      // Remove the tools
+      for (const toolKey of toolsToRemove) {
+        delete availableTools[toolKey];
+      }
+
+      // Disconnect the specific server
+      await mcpManager.disconnectUserConnection(userId, serverName);
+
+      logger.info(`[MCPInitializer][${context}] Successfully disconnected server '${serverName}' for user ${userId} and removed ${toolsToRemove.length} tools`);
+
+      // Update the cache incrementally
+      this.updateCacheForServerRemoval(userId, serverName, toolsToRemove, availableTools);
+
+      return {
+        success: true,
+        serverName,
+        toolsRemoved: toolsToRemove.length,
+        duration: Date.now() - startTime,
+      };
+
+    } catch (error) {
+      logger.error(`[MCPInitializer][${context}] Failed to disconnect single MCP server '${serverName}' for user ${userId}:`, error);
+      
+      return {
+        success: false,
+        error: error.message,
+        serverName,
+        toolsRemoved: 0,
+        duration: Date.now() - startTime,
+      };
+    }
+  }
+
+  /**
+   * Update cache incrementally when a server is added
+   * 
+   * @private
+   * @param {string} userId - The user ID
+   * @param {string} serverName - The server name that was added
+   * @param {number} toolCount - Number of tools added
+   * @param {Object} availableTools - Current available tools registry
+   */
+  updateCacheForSingleServer(userId, serverName, toolCount, availableTools) {
+    const cached = this.getUserInitializationCache(userId);
+    if (cached) {
+      // Update the cached data
+      cached.serverCount = cached.serverCount + 1;
+      cached.toolCount = cached.toolCount + toolCount;
+      
+      // Update the cached tools
+      if (!cached.mcpTools) {
+        cached.mcpTools = {};
+      }
+
+      // Add new tools from this server to the cache
+      const serverSuffix = `${Constants.mcp_delimiter}${serverName}`;
+      for (const [toolKey, tool] of Object.entries(availableTools)) {
+        if (toolKey.endsWith(serverSuffix)) {
+          cached.mcpTools[toolKey] = tool;
+        }
+      }
+
+      // Update timestamp and save
+      cached.timestamp = Date.now();
+      this.setUserInitializationCache(userId, cached);
+      
+      logger.debug(`[MCPInitializer] Updated cache for user ${userId}: added server '${serverName}' with ${toolCount} tools`);
+    }
+  }
+
+  /**
+   * Update cache incrementally when a server is removed
+   * 
+   * @private
+   * @param {string} userId - The user ID
+   * @param {string} serverName - The server name that was removed
+   * @param {Array} removedToolKeys - Array of tool keys that were removed
+   * @param {Object} availableTools - Current available tools registry
+   */
+  updateCacheForServerRemoval(userId, serverName, removedToolKeys, availableTools) {
+    const cached = this.getUserInitializationCache(userId);
+    if (cached) {
+      // Update the cached data
+      cached.serverCount = Math.max(0, cached.serverCount - 1);
+      cached.toolCount = Math.max(0, cached.toolCount - removedToolKeys.length);
+      
+      // Remove tools from the cache
+      if (cached.mcpTools) {
+        for (const toolKey of removedToolKeys) {
+          delete cached.mcpTools[toolKey];
+        }
+      }
+
+      // Update timestamp and save
+      cached.timestamp = Date.now();
+      this.setUserInitializationCache(userId, cached);
+      
+      logger.debug(`[MCPInitializer] Updated cache for user ${userId}: removed server '${serverName}' and ${removedToolKeys.length} tools`);
+    }
+  }
 }
 
 // Export both the class and singleton instance

@@ -5,6 +5,8 @@ import {
   useDeleteIntegrationMutation,
   useIntegrationCallbackMutation,
   useUserIntegrationsQuery,
+  useConnectMCPServerMutation,
+  useDisconnectMCPServerMutation,
 } from '~/data-provider';
 import { dataService } from 'librechat-data-provider';
 import type { TAvailableIntegration, TUserIntegration } from 'librechat-data-provider';
@@ -29,7 +31,33 @@ export function useMCPConnection({
     refetch: refetchUserIntegrations,
   } = useUserIntegrationsQuery();
 
-  // Refresh user MCP servers mutation
+  // Incremental MCP server connect mutation
+  const connectMCPServerMutation = useConnectMCPServerMutation({
+    onSuccess: (data) => {
+      console.log('MCP server connected incrementally:', data);
+      refetchUserIntegrations(); // Refresh to get updated integration list
+      onConnectionSuccess?.();
+    },
+    onError: (error) => {
+      console.error('Failed to connect MCP server incrementally:', error);
+      onConnectionError?.(error);
+    },
+  });
+
+  // Incremental MCP server disconnect mutation
+  const disconnectMCPServerMutation = useDisconnectMCPServerMutation({
+    onSuccess: (data) => {
+      console.log('MCP server disconnected incrementally:', data);
+      refetchUserIntegrations(); // Refresh to get updated integration list
+      onDisconnectionSuccess?.();
+    },
+    onError: (error) => {
+      console.error('Failed to disconnect MCP server incrementally:', error);
+      onDisconnectionError?.(error);
+    },
+  });
+
+  // Legacy: Refresh user MCP servers mutation (for backwards compatibility)
   const refreshUserMCPMutation = useMutation({
     mutationFn: () => dataService.refreshUserMCP(),
     onSuccess: () => {
@@ -55,10 +83,20 @@ export function useMCPConnection({
     onSuccess: (response) => {
       console.log('Integration created successfully:', response);
       
-      // Refresh MCP servers to immediately make the new integration available
-      refreshUserMCPMutation.mutate();
-      
-      onConnectionSuccess?.();
+      // Use incremental connection instead of full refresh
+      // We can get the appSlug from the createConnectTokenMutation variables
+      const appSlug = createConnectTokenMutation.variables?.app;
+      if (appSlug) {
+        // Convert appSlug to server name (following the pattern: pipedream-{appSlug})
+        const serverName = `pipedream-${appSlug}`;
+        console.log(`Connecting MCP server incrementally: ${serverName}`);
+        connectMCPServerMutation.mutate({ serverName });
+      } else {
+        // Fallback to full refresh if we can't determine the server name
+        console.log('Fallback to full MCP refresh - no appSlug available');
+        refreshUserMCPMutation.mutate();
+        onConnectionSuccess?.();
+      }
     },
     onError: (error) => {
       console.error('Failed to create integration record:', error);
@@ -140,18 +178,28 @@ export function useMCPConnection({
   });
 
   const deleteIntegrationMutation = useDeleteIntegrationMutation({
-    onSuccess: () => {
+    onSuccess: (data, integrationId) => {
       refetchUserIntegrations();
       
-      // Refresh MCP servers to immediately remove the disconnected integration
-      refreshUserMCPMutation.mutate();
-      
-      // Cleanup orphaned MCP tools from agents
-      setTimeout(() => {
-        cleanupOrphanedMCPToolsMutation.mutate();
-      }, 1000);
-      
-      onDisconnectionSuccess?.();
+      // Find the integration to get the server name for incremental disconnect
+      const integration = userIntegrations.find(i => i._id === integrationId);
+      if (integration?.appSlug) {
+        // Convert appSlug to server name (following the pattern: pipedream-{appSlug})
+        const serverName = `pipedream-${integration.appSlug}`;
+        console.log(`Disconnecting MCP server incrementally: ${serverName}`);
+        disconnectMCPServerMutation.mutate({ serverName });
+      } else {
+        // Fallback to full refresh and cleanup if we can't determine the server name
+        console.log('Fallback to full MCP refresh and cleanup - no appSlug available');
+        refreshUserMCPMutation.mutate();
+        
+        // Cleanup orphaned MCP tools from agents
+        setTimeout(() => {
+          cleanupOrphanedMCPToolsMutation.mutate();
+        }, 1000);
+        
+        onDisconnectionSuccess?.();
+      }
     },
     onError: (error) => {
       console.error('Failed to delete integration:', error);
@@ -217,9 +265,9 @@ export function useMCPConnection({
     areAllMCPServersConnected,
     getMissingMCPServers,
     
-    // Loading states
-    isConnecting: createConnectTokenMutation.isLoading || integrationCallbackMutation.isLoading,
-    isDisconnecting: deleteIntegrationMutation.isLoading,
+    // Loading states (include incremental operations)
+    isConnecting: createConnectTokenMutation.isLoading || integrationCallbackMutation.isLoading || connectMCPServerMutation.isLoading,
+    isDisconnecting: deleteIntegrationMutation.isLoading || disconnectMCPServerMutation.isLoading,
     
     // Data
     userIntegrations,

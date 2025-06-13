@@ -207,10 +207,10 @@ const getAvailableTools = async (req, res) => {
 
     // Count MCP tools in final result
     const mcpTools = tools.filter(tool => tool.pluginKey && tool.pluginKey.includes('_mcp_'));
-    logger.info(`Final tools count: ${tools.length}, MCP tools count: ${mcpTools.length}`);
+    //logger.info(`Final tools count: ${tools.length}, MCP tools count: ${mcpTools.length}`);
     // Filter out the CONFIGURE_COMPONENT tool from the final list sent to the client
     const finalTools = tools.filter((tool) => tool.name !== 'CONFIGURE_COMPONENT');
-    logger.info(`MCP tools:`, mcpTools.map(t => ({ pluginKey: t.pluginKey, name: t.name })));
+    //logger.info(`MCP tools:`, mcpTools.map(t => ({ pluginKey: t.pluginKey, name: t.name })));
 
     // Only cache if not user-specific
     if (shouldUseCache) {

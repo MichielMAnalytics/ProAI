@@ -435,9 +435,9 @@ export class MCPManager {
             initializedServers.add(i);
             
             const serverCapabilities = connection.client.getServerCapabilities();
-            this.logger.info(
-              `[MCP][User: ${userId}][${serverName}] Capabilities: ${JSON.stringify(serverCapabilities)}`,
-            );
+            //this.logger.info(
+            //  `[MCP][User: ${userId}][${serverName}] Capabilities: ${JSON.stringify(serverCapabilities)}`,
+            //);
 
             if (serverCapabilities?.tools) {
               const tools = await connection.client.listTools();

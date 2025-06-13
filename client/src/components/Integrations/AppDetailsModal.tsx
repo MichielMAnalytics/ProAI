@@ -7,6 +7,8 @@ import ComponentCard from './ComponentCard';
 import {
   useAppDetailsQuery,
   useAppComponentsQuery,
+  useConnectMCPServerMutation,
+  useDisconnectMCPServerMutation,
 } from '~/data-provider';
 import type { TAppComponent, TUserIntegration, TAvailableIntegration } from 'librechat-data-provider';
 
@@ -46,13 +48,28 @@ export default function AppDetailsModal({
     error: componentsError 
   } = useAppComponentsQuery(integration.appSlug);
 
-  // Use our MCP connection hook
+  // Use our reusable MCP connection hook
   const {
     handleConnect: mcpHandleConnect,
     handleDisconnect: mcpHandleDisconnect,
     isConnecting: mcpIsConnecting,
     isDisconnecting: mcpIsDisconnecting,
-  } = useMCPConnection();
+  } = useMCPConnection({
+    onConnectionSuccess: () => {
+      // Modal will automatically reflect the connection state change through props
+      console.log(`Successfully connected to ${integration.appName}`);
+    },
+    onConnectionError: (error) => {
+      console.error(`Failed to connect to ${integration.appName}:`, error);
+    },
+    onDisconnectionSuccess: () => {
+      // Modal will automatically reflect the disconnection state change through props
+      console.log(`Successfully disconnected from ${integration.appName}`);
+    },
+    onDisconnectionError: (error) => {
+      console.error(`Failed to disconnect from ${integration.appName}:`, error);
+    },
+  });
 
   const handleConnect = (e: React.MouseEvent) => {
     e.stopPropagation();

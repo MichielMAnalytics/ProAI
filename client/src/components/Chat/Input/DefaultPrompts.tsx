@@ -1,7 +1,9 @@
 import React from 'react';
+import { useRecoilValue } from 'recoil';
 import { useMCPConnection } from '~/hooks/useMCPConnection';
 import { useGetAgentByIdQuery } from '~/data-provider';
 import { Constants, isAgentsEndpoint } from 'librechat-data-provider';
+import store from '~/store';
 
 interface DefaultPromptsProps {
   conversation: any;
@@ -10,6 +12,9 @@ interface DefaultPromptsProps {
 
 export default function DefaultPrompts({ conversation, onPromptSelect }: DefaultPromptsProps) {
   const { areAllMCPServersConnected } = useMCPConnection();
+  
+  // Check if there's any submission happening
+  const isSubmitting = useRecoilValue(store.isSubmitting);
 
   // Get agent data if we have an agent_id
   const agentId = conversation?.agent_id;
@@ -19,8 +24,8 @@ export default function DefaultPrompts({ conversation, onPromptSelect }: Default
 
   // Check if we should show default prompts
   const shouldShow = (() => {
-    // Must be a new conversation
-    if (conversation?.messages?.length > 0) {
+    // Hide if there's an active submission
+    if (isSubmitting) {
       return false;
     }
 

@@ -29,7 +29,8 @@ const getUserMCPTools = async (req, res) => {
     }
 
     // Get user-specific MCP tools
-    const userMCPTools = await UserMCPService.getUserMCPTools(userId);
+    const userMCPService = new UserMCPService();
+    const userMCPTools = await userMCPService.getUserMCPTools(userId);
 
     // Transform to LibreChat tool format
     const formattedTools = userMCPTools.map(tool => ({
@@ -255,10 +256,163 @@ const getUserMCPStatus = async (req, res) => {
   }
 };
 
+/**
+ * Connect a specific MCP server for the user
+ * @route POST /api/agents/connect-mcp-server
+ * @access Private
+ */
+const connectMCPServer = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        error: 'User authentication required',
+      });
+    }
+
+    const { serverName } = req.body;
+    if (!serverName) {
+      return res.status(400).json({
+        error: 'Server name is required',
+        message: 'Please provide a server name to connect',
+      });
+    }
+
+    logger.info(`UserMCPController: Connecting MCP server '${serverName}' for user ${userId}`);
+
+    // Check if user-specific MCP is enabled
+    const config = req.app.locals;
+    const addUserSpecificMcp = config.addUserSpecificMcpFromDb;
+    
+    if (!addUserSpecificMcp) {
+      return res.status(400).json({
+        error: 'User-specific MCP is disabled',
+        message: 'MCP integration is not enabled on this instance',
+      });
+    }
+
+    // Use MCPInitializer for incremental connection
+    const MCPInitializer = require('~/server/services/MCPInitializer');
+    const mcpInitializer = MCPInitializer.getInstance();
+
+    const result = await mcpInitializer.connectSingleMCPServer(
+      userId,
+      serverName,
+      'UserMCPController.connectMCPServer',
+      req.app.locals.availableTools || {}
+    );
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: `Successfully connected to MCP server '${serverName}'`,
+        serverName: result.serverName,
+        toolCount: result.toolCount,
+        duration: result.duration,
+        warning: result.warning,
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error,
+        serverName: result.serverName,
+        message: `Failed to connect to MCP server '${serverName}': ${result.error}`,
+      });
+    }
+  } catch (error) {
+    logger.error(`UserMCPController: Error connecting MCP server for user ${req.user?.id}:`, error.message);
+    res.status(500).json({
+      error: 'Failed to connect MCP server',
+      message: error.message,
+    });
+  }
+};
+
+/**
+ * Disconnect a specific MCP server for the user
+ * @route POST /api/agents/disconnect-mcp-server
+ * @access Private
+ */
+const disconnectMCPServer = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        error: 'User authentication required',
+      });
+    }
+
+    const { serverName } = req.body;
+    if (!serverName) {
+      return res.status(400).json({
+        error: 'Server name is required',
+        message: 'Please provide a server name to disconnect',
+      });
+    }
+
+    logger.info(`UserMCPController: Disconnecting MCP server '${serverName}' for user ${userId}`);
+
+    // Check if user-specific MCP is enabled
+    const config = req.app.locals;
+    const addUserSpecificMcp = config.addUserSpecificMcpFromDb;
+    
+    if (!addUserSpecificMcp) {
+      return res.status(400).json({
+        error: 'User-specific MCP is disabled',
+        message: 'MCP integration is not enabled on this instance',
+      });
+    }
+
+    // Use MCPInitializer for incremental disconnection
+    const MCPInitializer = require('~/server/services/MCPInitializer');
+    const mcpInitializer = MCPInitializer.getInstance();
+
+    const result = await mcpInitializer.disconnectSingleMCPServer(
+      userId,
+      serverName,
+      'UserMCPController.disconnectMCPServer',
+      req.app.locals.availableTools || {}
+    );
+
+    if (result.success) {
+      // Also trigger cleanup of orphaned tools
+      try {
+        await UserMCPService.cleanupOrphanedMCPTools(userId);
+      } catch (cleanupError) {
+        logger.warn(`UserMCPController: Cleanup after disconnect failed:`, cleanupError.message);
+        // Don't fail the response for cleanup errors
+      }
+
+      res.json({
+        success: true,
+        message: `Successfully disconnected from MCP server '${serverName}'`,
+        serverName: result.serverName,
+        toolsRemoved: result.toolsRemoved,
+        duration: result.duration,
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error,
+        serverName: result.serverName,
+        message: `Failed to disconnect from MCP server '${serverName}': ${result.error}`,
+      });
+    }
+  } catch (error) {
+    logger.error(`UserMCPController: Error disconnecting MCP server for user ${req.user?.id}:`, error.message);
+    res.status(500).json({
+      error: 'Failed to disconnect MCP server',
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   getUserMCPTools,
   initializeUserMCP,
   refreshUserMCP,
   getUserMCPStatus,
   cleanupOrphanedMCPTools,
+  connectMCPServer,
+  disconnectMCPServer,
 }; 
