@@ -8,6 +8,7 @@ import {
   isParamEndpoint,
   LocalStorageKeys,
   isAssistantsEndpoint,
+  isAgentsEndpoint,
 } from 'librechat-data-provider';
 import { useRecoilState, useRecoilValue, useSetRecoilState, useRecoilCallback } from 'recoil';
 import type {
@@ -144,6 +145,19 @@ const useNewConvo = (index = 0) => {
 
           if (currentAssistantId && !isAssistantEndpoint) {
             conversation.assistant_id = undefined;
+          }
+
+          // Agent handling - similar to assistant logic above
+          const isAgentEndpoint = isAgentsEndpoint(defaultEndpoint);
+          const currentAgentId = conversation.agent_id ?? '';
+
+          if (!currentAgentId && isAgentEndpoint) {
+            conversation.agent_id =
+              localStorage.getItem(`${LocalStorageKeys.AGENT_ID_PREFIX}${index}`) ?? undefined;
+          }
+
+          if (currentAgentId && !isAgentEndpoint) {
+            conversation.agent_id = undefined;
           }
 
           const models = modelsConfig?.[defaultEndpoint] ?? [];
