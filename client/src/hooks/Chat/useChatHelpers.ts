@@ -27,6 +27,11 @@ export default function useChatHelpers(index = 0, paramId?: string) {
   // Track SSE connection for scheduler notifications
   const sseConnectionRef = useRef<EventSource | null>(null);
 
+  // Artifact state management for workflow visualization
+  const setArtifacts = useSetRecoilState(store.artifactsState);
+  const setCurrentArtifactId = useSetRecoilState(store.currentArtifactId);
+  const setArtifactsVisible = useSetRecoilState(store.artifactsVisibility);
+
   const { newConversation } = useNewConvo(index);
   const { useCreateConversationAtom } = store;
   const { conversation, setConversation } = useCreateConversationAtom(index);
@@ -239,6 +244,112 @@ export default function useChatHelpers(index = 0, paramId?: string) {
       console.warn('[SchedulerSSE] Failed to recreate workflow artifacts:', error);
     }
   }, []);
+
+  // Function to automatically create and open workflow artifacts
+  const autoOpenWorkflowArtifact = useCallback((workflowData: any) => {
+    try {
+      console.log('[WorkflowSSE] Auto-opening workflow visualization for:', workflowData);
+      
+      // Create workflow artifact with proper positioning
+      const artifactId = `workflow-${workflowData.id}`;
+      
+      // Generate positions for steps that don't have them
+      const nodesWithPositions = workflowData.steps.map((step: any, index: number) => {
+        // If step doesn't have position, create a default layout
+        const defaultPosition = step.position || {
+          x: 100 + (index % 3) * 200, // Arrange in columns
+          y: 150 + Math.floor(index / 3) * 100 // Arrange in rows
+        };
+        
+        return {
+          id: step.id,
+          type: step.type,
+          position: defaultPosition,
+          data: {
+            label: step.name,
+            config: step.config,
+            status: 'pending' // Default status for viewing
+          }
+        };
+      });
+
+      // Generate edges more carefully
+      const edges: Array<{
+        id: string;
+        source: string;
+        target: string;
+        type: 'success' | 'failure';
+      }> = [];
+      workflowData.steps.forEach((step: any) => {
+        if (step.onSuccess) {
+          // Check if target step exists
+          const targetExists = workflowData.steps.some((s: any) => s.id === step.onSuccess);
+          if (targetExists) {
+            edges.push({
+              id: `${step.id}-success-${step.onSuccess}`,
+              source: step.id,
+              target: step.onSuccess,
+              type: 'success'
+            });
+          }
+        }
+        if (step.onFailure) {
+          // Check if target step exists
+          const targetExists = workflowData.steps.some((s: any) => s.id === step.onFailure);
+          if (targetExists) {
+            edges.push({
+              id: `${step.id}-failure-${step.onFailure}`,
+              source: step.id,
+              target: step.onFailure,
+              type: 'failure'
+            });
+          }
+        }
+      });
+
+      const workflowVisualizationData = {
+        workflow: {
+          id: workflowData.id,
+          name: workflowData.name,
+          description: workflowData.description,
+          trigger: workflowData.trigger,
+          steps: workflowData.steps
+        },
+        nodes: nodesWithPositions,
+        edges: edges,
+        trigger: workflowData.trigger
+      };
+
+      console.log('[WorkflowSSE] Generated workflow data:', workflowVisualizationData);
+
+      const workflowArtifact = {
+        id: artifactId,
+        identifier: artifactId,
+        title: `Workflow: ${workflowData.name}`,
+        type: 'application/vnd.workflow',
+        content: JSON.stringify(workflowVisualizationData, null, 2),
+        messageId: `workflow-auto-${Date.now()}`,
+        index: 0,
+        lastUpdateTime: Date.now(),
+      };
+
+      console.log('[WorkflowSSE] Creating artifact:', workflowArtifact);
+
+      // Set the artifact in state
+      setArtifacts(prev => ({
+        ...prev,
+        [artifactId]: workflowArtifact
+      }));
+
+      // Set as current artifact and show artifacts panel
+      setCurrentArtifactId(artifactId);
+      setArtifactsVisible(true);
+
+      console.log('[WorkflowSSE] ✅ Workflow artifact automatically opened');
+    } catch (error) {
+      console.error('[WorkflowSSE] Failed to auto-open workflow visualization:', error);
+    }
+  }, [setArtifacts, setCurrentArtifactId, setArtifactsVisible]);
 
   const continueGeneration = () => {
     if (!latestMessage) {
@@ -466,6 +577,12 @@ export default function useChatHelpers(index = 0, paramId?: string) {
             updateWorkflowArtifacts(data.workflowId, data.workflowData);
           }
           
+          // Auto-open workflow artifact when a workflow is created
+          if (data.notificationType === 'created' && data.workflowData) {
+            console.log('[SchedulerSSE] 🎯 Auto-opening workflow artifact for created workflow:', data.workflowData);
+            autoOpenWorkflowArtifact(data.workflowData);
+          }
+          
           // Dispatch custom event for workflow notifications that other components can listen to
           const workflowEvent = new CustomEvent('workflowNotification', { detail: data });
           window.dispatchEvent(workflowEvent);
@@ -564,7 +681,7 @@ export default function useChatHelpers(index = 0, paramId?: string) {
       eventSource.close();
       sseConnectionRef.current = null;
     };
-  }, [isAuthenticated, token, conversationId, queryClient, showToast, startupConfig, updateWorkflowArtifacts]);
+  }, [isAuthenticated, token, conversationId, queryClient, showToast, startupConfig, updateWorkflowArtifacts, autoOpenWorkflowArtifact]);
 
   const [showPopover, setShowPopover] = useRecoilState(store.showPopoverFamily(index));
   const [abortScroll, setAbortScroll] = useRecoilState(store.abortScrollFamily(index));
