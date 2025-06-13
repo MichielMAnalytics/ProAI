@@ -31,7 +31,7 @@ function ToolSelectDialog({
   const navigate = useNavigate();
   const localize = useLocalize();
   const { getValues, setValue } = useFormContext();
-  const { data: tools } = useAvailableToolsQuery(endpoint);
+  const { data: tools, isLoading: isLoadingTools } = useAvailableToolsQuery(endpoint);
   const isAgentTools = isAgentsEndpoint(endpoint);
 
   const {
@@ -318,7 +318,7 @@ function ToolSelectDialog({
               </Description>
             </div>
               <div className="flex items-center gap-3">
-                {filteredTools && filteredTools.length > 0 && (
+                {!isLoadingTools && filteredTools && filteredTools.length > 0 && (
                   <button
                     onClick={() => {
                       setIsOpen(false);
@@ -397,88 +397,97 @@ function ToolSelectDialog({
               </div>
 
               {/* Selection Controls */}
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <div className="text-sm text-text-secondary font-medium">
-                  {selectedToolsCount} of {totalFilteredTools} tools selected
-                  {selectedServers.size > 0 && ` from ${Array.from(selectedServers).map(serverName => {
-                    const server = mcpServers.find(s => s.name === serverName);
-                    return server?.displayName || serverName;
-                  }).join(', ')}`}
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={onSelectAll}
-                    disabled={selectedToolsCount === totalFilteredTools || totalFilteredTools === 0}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-green-500 text-green-600 hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200 dark:text-green-400 dark:border-green-400 dark:hover:bg-green-900/10"
-                  >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    Select All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onDeselectAll}
-                    disabled={selectedToolsCount === 0}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-border-medium text-text-primary hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200"
-                  >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    Deselect All
-                  </button>
+              {!isLoadingTools && (
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                  <div className="text-sm text-text-secondary font-medium">
+                    {selectedToolsCount} of {totalFilteredTools} tools selected
+                    {selectedServers.size > 0 && ` from ${Array.from(selectedServers).map(serverName => {
+                      const server = mcpServers.find(s => s.name === serverName);
+                      return server?.displayName || serverName;
+                    }).join(', ')}`}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={onSelectAll}
+                      disabled={selectedToolsCount === totalFilteredTools || totalFilteredTools === 0}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-green-500 text-green-600 hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200 dark:text-green-400 dark:border-green-400 dark:hover:bg-green-900/10"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onDeselectAll}
+                      disabled={selectedToolsCount === 0}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-border-medium text-text-primary hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Deselect All
+                    </button>
 
-                  {/* MCP Server Dropdown */}
-                  {mcpServers.length > 0 && (
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-border-medium text-text-primary hover:bg-surface-hover transition-all duration-200"
-                      >
-                        Select Apps
-                        <ChevronDown className={`h-4 w-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-                      </button>
-                      
-                      {isDropdownOpen && (
-                        <div className="absolute right-0 mt-2 w-64 rounded-lg border border-border-medium bg-surface-primary shadow-lg z-50">
-                          <div className="p-2 space-y-1">
-                            {mcpServers.map((server) => (
-                              <button
-                                key={server.name}
-                                onClick={() => handleServerSelection(server.name)}
-                                className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors
-                                  ${selectedServers.has(server.name)
-                                    ? 'bg-green-50 text-green-600 dark:bg-green-900/10 dark:text-green-400'
-                                    : 'hover:bg-surface-hover text-text-primary'
-                                  }`}
-                              >
-                                {server.icon ? (
-                                  <img src={server.icon} alt="" className="w-5 h-5 rounded" />
-                                ) : (
-                                  <div className="w-5 h-5 rounded bg-surface-secondary" />
-                                )}
-                                {server.displayName}
-                                {selectedServers.has(server.name) && (
-                                  <svg className="h-4 w-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                )}
-                              </button>
-                            ))}
+                    {/* MCP Server Dropdown */}
+                    {mcpServers.length > 0 && (
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-border-medium text-text-primary hover:bg-surface-hover transition-all duration-200"
+                        >
+                          Select Apps
+                          <ChevronDown className={`h-4 w-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        
+                        {isDropdownOpen && (
+                          <div className="absolute right-0 mt-2 w-64 rounded-lg border border-border-medium bg-surface-primary shadow-lg z-50">
+                            <div className="p-2 space-y-1">
+                              {mcpServers.map((server) => (
+                                <button
+                                  key={server.name}
+                                  onClick={() => handleServerSelection(server.name)}
+                                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors
+                                    ${selectedServers.has(server.name)
+                                      ? 'bg-green-50 text-green-600 dark:bg-green-900/10 dark:text-green-400'
+                                      : 'hover:bg-surface-hover text-text-primary'
+                                    }`}
+                                >
+                                  {server.icon ? (
+                                    <img src={server.icon} alt="" className="w-5 h-5 rounded" />
+                                  ) : (
+                                    <div className="w-5 h-5 rounded bg-surface-secondary" />
+                                  )}
+                                  {server.displayName}
+                                  {selectedServers.has(server.name) && (
+                                    <svg className="h-4 w-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
                          {/* Tools Grid */}
              <div className="min-h-[400px]">
-               {filteredTools && filteredTools.length === 0 ? (
+               {isLoadingTools ? (
+                 <div className="flex flex-col items-center justify-center py-16 px-4">
+                   <div className="flex items-center justify-center space-x-2">
+                     <div className="h-8 w-8 animate-spin rounded-full border-4 border-green-500 border-t-transparent"></div>
+                     <p className="text-lg text-text-secondary">Loading tools...</p>
+                   </div>
+                 </div>
+               ) : filteredTools && filteredTools.length === 0 ? (
                  <div className="flex flex-col items-center justify-center py-16 px-4">
                    <div className="w-16 h-16 bg-surface-tertiary rounded-full flex items-center justify-center mb-4">
                      <Search className="w-8 h-8 text-text-tertiary" />
