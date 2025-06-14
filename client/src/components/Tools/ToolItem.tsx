@@ -36,7 +36,7 @@ function ToolItem({ tool, onAddTool, onRemoveTool, isInstalled = false }: ToolIt
           href={docUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="absolute top-4 right-4 z-10 p-2 rounded-lg bg-surface-secondary hover:bg-surface-hover text-text-tertiary hover:text-green-600 dark:hover:text-green-400 transition-all duration-200 opacity-0 group-hover:opacity-100"
+          className="absolute top-3 right-3 z-10 p-1.5 rounded-lg bg-surface-secondary hover:bg-surface-hover text-text-tertiary hover:text-green-600 dark:hover:text-green-400 transition-all duration-200"
           onClick={(e) => e.stopPropagation()}
           title="View documentation"
         >

@@ -98,6 +98,7 @@ export default function IntegrationsView() {
   const { user } = useAuthContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -457,6 +458,11 @@ export default function IntegrationsView() {
     };
   }, []);
 
+  // Close mobile sidebar when category changes
+  useEffect(() => {
+    setIsMobileSidebarOpen(false);
+  }, [selectedCategory]);
+
   const isLoading = isLoadingAvailable || isLoadingUser;
 
   if (isLoading) {
@@ -489,28 +495,18 @@ export default function IntegrationsView() {
 
   return (
     <div className="min-h-screen bg-surface-primary dark:bg-surface-primary">
-      {/* Close button - Fixed to top-right corner */}
+      {/* Close button - Mobile-friendly positioning */}
       <button
         onClick={handleClose}
-        className="fixed top-6 right-6 z-50 flex h-10 w-10 items-center justify-center rounded-full text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-800"
+        className="fixed top-4 right-4 z-50 flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-800"
         aria-label="Close integrations"
       >
-        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
 
-      {/* Manual cleanup button for debugging - Fixed to top-right corner */}
-      {/* <button
-        onClick={() => cleanupOrphanedMCPToolsMutation.mutate()}
-        className="fixed top-6 right-20 z-50 flex h-10 w-32 items-center justify-center rounded-lg bg-yellow-500 text-white text-sm font-medium hover:bg-yellow-600 transition-all duration-200"
-        aria-label="Cleanup MCP tools"
-        disabled={cleanupOrphanedMCPToolsMutation.isLoading}
-      >
-        {cleanupOrphanedMCPToolsMutation.isLoading ? 'Cleaning...' : 'Cleanup Tools'}
-      </button> */}
-
-      {/* Header */}
+      {/* Header - Mobile responsive */}
       <div className="integrations-header relative overflow-hidden">
         {/* Subtle grid pattern overlay */}
         <div className="absolute inset-0 opacity-60 dark:opacity-45">
@@ -530,21 +526,56 @@ export default function IntegrationsView() {
           </svg>
         </div>
 
-        <div className="relative mx-auto max-w-7xl px-6 py-12">
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-12">
           <div className="text-center max-w-4xl mx-auto">
-            {/* Badge */}
-            <div className="inline-flex items-center rounded-full bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 px-4 py-2 text-base font-medium text-text-primary ring-1 ring-green-200 dark:ring-green-800/50 mb-6 shadow-sm">
-              <svg className="h-5 w-5 mr-3 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <span className="text-green-700 dark:text-green-300 font-bold">2,700+</span>
-              <span className="mx-1">Apps &</span>
-              <span className="text-green-700 dark:text-green-300 font-bold">10,000+</span>
-              <span className="ml-1">Tools Available</span>
+            {/* Badge - Premium design with improved mobile layout */}
+            <div className="relative inline-flex items-center rounded-2xl bg-gradient-to-r from-white/90 via-green-50/80 to-emerald-50/90 dark:from-gray-900/80 dark:via-green-900/30 dark:to-emerald-900/40 px-3 py-2 sm:px-6 sm:py-4 text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-100 mb-4 sm:mb-8 backdrop-blur-xl border border-green-200/60 dark:border-green-400/30 shadow-lg shadow-green-500/10 dark:shadow-green-400/20 hover:shadow-xl hover:shadow-green-500/20 dark:hover:shadow-green-400/30 transition-all duration-300 group max-w-sm sm:max-w-none mx-auto">
+              {/* Premium glassmorphism overlay */}
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-500/5 via-emerald-500/10 to-green-500/5 dark:from-green-400/10 dark:via-emerald-400/15 dark:to-green-400/10"></div>
+              
+              {/* Animated border glow effect */}
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-400/20 via-emerald-400/30 to-green-400/20 dark:from-green-300/25 dark:via-emerald-300/35 dark:to-green-300/25 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm"></div>
+              
+              {/* Content container */}
+              <div className="relative z-10 flex items-center gap-2 sm:gap-3">
+                {/* Premium icon with subtle animation */}
+                <div className="flex items-center justify-center w-7 h-7 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 dark:from-green-400 dark:to-emerald-500 shadow-lg shadow-green-500/25 dark:shadow-green-400/30 group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                  <svg className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-white drop-shadow-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                
+                {/* Text content with premium typography - Mobile optimized */}
+                <div className="flex flex-col min-w-0">
+                  {/* Top line with numbers */}
+                  <div className="flex items-center gap-1 whitespace-nowrap">
+                    <span className="bg-gradient-to-r from-green-700 via-emerald-600 to-green-700 dark:from-green-300 dark:via-emerald-200 dark:to-green-300 bg-clip-text text-transparent font-bold tracking-tight text-sm sm:text-base">
+                      2,700+
+                    </span>
+                    <span className="text-gray-700 dark:text-gray-200 font-medium text-sm sm:text-base">Apps &</span>
+                    <span className="bg-gradient-to-r from-green-700 via-emerald-600 to-green-700 dark:from-green-300 dark:via-emerald-200 dark:to-green-300 bg-clip-text text-transparent font-bold tracking-tight text-sm sm:text-base">
+                      10,000+
+                    </span>
+                  </div>
+                  {/* Bottom line */}
+                  <div className="text-gray-700 dark:text-gray-200 font-medium text-xs sm:text-base leading-tight">
+                    Tools Available
+                  </div>
+                </div>
+              </div>
+              
+              {/* Subtle inner glow */}
+              <div className="absolute inset-px rounded-2xl bg-gradient-to-r from-white/20 via-transparent to-white/20 dark:from-white/10 dark:via-transparent dark:to-white/10 pointer-events-none"></div>
+              
+              {/* Premium shine effect */}
+              <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+                <div className="absolute -top-2 -left-2 w-6 h-6 sm:w-8 sm:h-8 bg-white/40 dark:bg-white/20 rounded-full blur-xl opacity-60 group-hover:opacity-80 transition-opacity duration-500"></div>
+                <div className="absolute top-1 left-1 w-12 h-px sm:w-16 bg-gradient-to-r from-transparent via-white/60 dark:via-white/30 to-transparent opacity-50"></div>
+              </div>
             </div>
 
-            {/* Main Title */}
-            <h1 className="text-4xl md:text-5xl font-bold text-text-primary mb-4 leading-tight">
+            {/* Main Title - Mobile responsive */}
+            <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-text-primary mb-3 sm:mb-4 leading-tight">
               The Automation
               <br />
               <span className="text-text-secondary">
@@ -552,13 +583,13 @@ export default function IntegrationsView() {
               </span>
             </h1>
             
-            {/* Subtitle */}
-            <p className="text-lg text-text-secondary mb-8 leading-relaxed max-w-3xl mx-auto">
+            {/* Subtitle - Mobile responsive */}
+            <p className="text base sm:text-lg text-text-secondary mb-6 sm:mb-8 leading-relaxed max-w-3xl mx-auto px-4">
               Connect your favorite apps, in a single click, and unlock unlimited possibilities with enterprise-grade security.
             </p>
 
-            {/* Feature highlights */}
-            <div className="flex flex-wrap justify-center gap-8 mb-8 text-sm">
+            {/* Feature highlights - Mobile responsive */}
+            <div className="flex flex-wrap justify-center gap-4 sm:gap-8 mb-6 sm:mb-8 text-xs sm:text-sm px-4">
               <div className="flex items-center gap-2 text-text-tertiary">
                 <div className="w-1.5 h-1.5 bg-text-tertiary rounded-full"></div>
                 <span>One-click Setup</span>
@@ -569,19 +600,15 @@ export default function IntegrationsView() {
               </div>
               <div className="flex items-center gap-2 text-text-tertiary">
                 <div className="w-1.5 h-1.5 bg-text-tertiary rounded-full"></div>
-                <span>Real-time</span>
-              </div>
-              <div className="flex items-center gap-2 text-text-tertiary">
-                <div className="w-1.5 h-1.5 bg-text-tertiary rounded-full"></div>
-                <span>No coding required</span>
+                <span>Revoke access any time</span>
               </div>
             </div>
             
-            {/* Navigation Toggle with sliding animation */}
+            {/* Navigation Toggle - Mobile responsive */}
             <div className="relative inline-flex items-center p-1 rounded-lg shadow-sm border border-border-light">
               <button
                 onClick={() => setSelectedCategory('all')}
-                className={`relative z-10 px-6 py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                className={`relative z-10 px-4 sm:px-6 py-2 sm:py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
                   selectedCategory === 'all' || selectedCategory !== 'my'
                     ? 'text-green-600 dark:text-green-400 border border-green-500 bg-transparent'
                     : 'text-text-secondary hover:text-text-primary bg-transparent border-none'
@@ -593,7 +620,7 @@ export default function IntegrationsView() {
               </button>
               <button
                 onClick={() => setSelectedCategory('my')}
-                className={`relative z-10 px-6 py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                className={`relative z-10 px-4 sm:px-6 py-2 sm:py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
                   selectedCategory === 'my'
                     ? 'text-green-600 dark:text-green-400 border border-green-500 bg-transparent'
                     : 'text-text-secondary hover:text-text-primary bg-transparent border-none'
@@ -617,12 +644,30 @@ export default function IntegrationsView() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-6 py-8">
-        <div className="flex gap-8">
-          {/* Left Sidebar - Categories */}
-          <div className="w-64 flex-shrink-0">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8">
+        {/* Mobile Category Filter Button */}
+        <div className="block lg:hidden mb-4">
+          <button
+            onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-text-primary bg-surface-secondary border border-border-light rounded-lg hover:bg-surface-hover transition-all duration-200"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+            </svg>
+            Categories
+            <svg className={`h-4 w-4 transition-transform duration-200 ${isMobileSidebarOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+          {/* Left Sidebar - Mobile responsive */}
+          <div className={`w-full lg:w-64 lg:flex-shrink-0 ${
+            isMobileSidebarOpen ? 'block' : 'hidden lg:block'
+          }`}>
             <h3 className="text-sm font-semibold text-text-primary mb-4">Categories</h3>
-            <div className="space-y-1">
+            <div className="space-y-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-1 gap-2 lg:gap-0 lg:space-y-1">
               <button
                 onClick={() => setSelectedCategory('all')}
                 className={`w-full text-left px-3 py-2 text-sm rounded-md transition-all duration-200 ${
@@ -650,61 +695,57 @@ export default function IntegrationsView() {
           </div>
 
           {/* Main Content */}
-          <div className="flex-1">
-            {/* Search Bar */}
+          <div className="flex-1 min-w-0">
+            {/* Search Bar - Mobile responsive */}
             <div className="mb-6">
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                <div></div>
-                <div></div>
-                <div className="relative">
-                  <Input
-                    type="text"
-                    placeholder="Search"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full h-12 pl-4 pr-12 text-base bg-surface-primary border-border-light rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500/20 text-text-primary placeholder:text-text-tertiary"
-                  />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-green-600 dark:text-green-400">
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  </div>
-                  {searchTerm && (
-                    <button
-                      onClick={() => setSearchTerm('')}
-                      className="absolute right-12 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary transition-colors"
-                      aria-label="Clear search"
-                    >
-                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
+              <div className="relative max-w-md ml-auto">
+                <Input
+                  type="text"
+                  placeholder="Search"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full h-10 sm:h-12 pl-4 pr-12 text-sm sm:text-base bg-surface-primary border-border-light rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500/20 text-text-primary placeholder:text-text-tertiary"
+                />
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-green-600 dark:text-green-400">
+                  <svg className="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
                 </div>
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-12 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary transition-colors"
+                    aria-label="Clear search"
+                  >
+                    <svg className="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
 
             {/* Show My Apps or All Apps */}
             {selectedCategory === 'my' ? (
               <div>
-                <h2 className="text-xl font-semibold text-text-primary mb-6">
+                <h2 className="text-lg sm:text-xl font-semibold text-text-primary mb-4 sm:mb-6">
                   My Apps ({formatCount(userIntegrations.length)})
                 </h2>
                 
                 {userIntegrations.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 px-4">
-                    <div className="w-16 h-16 bg-surface-secondary rounded-full flex items-center justify-center mb-4">
-                      <svg className="w-8 h-8 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex flex-col items-center justify-center py-12 sm:py-16 px-4">
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-surface-secondary rounded-full flex items-center justify-center mb-4">
+                      <svg className="w-6 h-6 sm:w-8 sm:h-8 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
                     </div>
-                    <h3 className="text-lg font-medium text-text-primary mb-2">No connected apps</h3>
-                    <p className="text-text-secondary text-center max-w-md">
+                    <h3 className="text-base sm:text-lg font-medium text-text-primary mb-2">No connected apps</h3>
+                    <p className="text-sm sm:text-base text-text-secondary text-center max-w-md">
                       Connect your first app to get started with AI-powered automation.
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                     {userIntegrations.map((userIntegration) => {
                       const integration = Array.isArray(availableIntegrations) 
                         ? availableIntegrations.find((ai) => ai.appSlug === userIntegration.appSlug)
@@ -728,16 +769,16 @@ export default function IntegrationsView() {
               </div>
             ) : (
               <div>
-                {/* Integrations Grid */}
+                {/* Integrations Grid - Mobile responsive */}
                 {filteredIntegrations.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 px-4">
-                    <div className="w-16 h-16 bg-surface-secondary rounded-full flex items-center justify-center mb-4">
-                      <svg className="w-8 h-8 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex flex-col items-center justify-center py-12 sm:py-16 px-4">
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-surface-secondary rounded-full flex items-center justify-center mb-4">
+                      <svg className="w-6 h-6 sm:w-8 sm:h-8 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                     </div>
-                    <h3 className="text-lg font-medium text-text-primary mb-2">No integrations found</h3>
-                    <p className="text-text-secondary text-center max-w-md">
+                    <h3 className="text-base sm:text-lg font-medium text-text-primary mb-2">No integrations found</h3>
+                    <p className="text-sm sm:text-base text-text-secondary text-center max-w-md">
                       {searchTerm || selectedCategory !== 'all'
                         ? 'Try adjusting your search criteria or browse all available integrations.'
                         : 'No integrations are currently available.'}
@@ -745,7 +786,7 @@ export default function IntegrationsView() {
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                       {paginatedIntegrations.map((integration) => (
                         <IntegrationCard
                           key={integration._id || integration.appSlug}
@@ -759,9 +800,9 @@ export default function IntegrationsView() {
                       ))}
                     </div>
 
-                    {/* Pagination Controls - Bottom */}
+                    {/* Pagination Controls - Mobile responsive */}
                     {totalPages > 1 && (
-                      <div className="mt-8">
+                      <div className="mt-6 sm:mt-8">
                         <Pagination
                           currentPage={currentPage}
                           itemsPerPage={itemsPerPage}
