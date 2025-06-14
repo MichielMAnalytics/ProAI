@@ -56,7 +56,7 @@ export default function MCPConnectionsRequired({
   };
 
   return (
-    <div className="mt-4 flex w-full flex-wrap justify-center gap-2">
+    <div className="flex w-full flex-wrap justify-center gap-2">
       {missingIntegrations.map(({ appSlug, appName, appIcon }) => (
         <Button
           key={appSlug}

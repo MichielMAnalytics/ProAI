@@ -166,23 +166,23 @@ function ChatView({ index = 0 }: { index?: number }) {
                       isLandingPage && 'max-w-3xl transition-all duration-200 xl:max-w-4xl',
                     )}
                   >
-                    <ChatForm
-                      index={index}
-                      isMcpChecking={isMcpChecking}
-                      disabled={isMcpChecking || !mcpConnectionsComplete}
-                      mcpServers={agentData?.mcp_servers || []}
-                    />
-                    {/* Show MCP connections required component right under the chat form */}
-                    {!isMcpChecking && !mcpConnectionsComplete && chatHelpers.conversation && agentData && (
-                      <div className="mx-auto flex w-full flex-row gap-3 px-3 sm:px-2">
-                        <div className="relative flex h-full flex-1 items-stretch md:flex-col">
+                    <div className="relative">
+                      <ChatForm
+                        index={index}
+                        isMcpChecking={isMcpChecking}
+                        disabled={isMcpChecking || !mcpConnectionsComplete}
+                        mcpServers={agentData?.mcp_servers || []}
+                      />
+                      {/* Show MCP connections required component integrated with the chat form */}
+                      {!isMcpChecking && !mcpConnectionsComplete && chatHelpers.conversation && agentData && (
+                        <div className="mx-auto flex w-full max-w-3xl xl:max-w-4xl justify-center px-3 sm:px-2 -mt-6 mb-8">
                           <MCPConnectionsRequired
                             mcpServers={agentData?.mcp_servers || []}
                             onAllConnected={() => setMCPConnectionsComplete(true)}
                           />
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                     {/* Show DefaultPrompts for new conversations with agents that have default prompts and connected integrations */}
                     {!isMcpChecking && mcpConnectionsComplete && chatHelpers.conversation && 
                       isLandingPage && (
