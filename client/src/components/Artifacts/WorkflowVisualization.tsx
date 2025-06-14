@@ -460,13 +460,14 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data }) =
   }
 
   return (
-    <div className="w-screen h-screen bg-gradient-to-br from-slate-50 to-gray-100 relative overflow-hidden">
-      <div className="absolute top-0 left-0 right-0 z-10 p-6 border-b bg-white/90 backdrop-blur-sm">
-        <h2 className="text-xl font-bold text-gray-800 mb-2">{workflowData.workflow.name}</h2>
+    <div className="w-full h-full bg-gradient-to-br from-slate-50 to-gray-100 relative overflow-hidden flex flex-col">
+      {/* Header - Fixed height, responsive padding */}
+      <div className="flex-shrink-0 p-3 sm:p-6 border-b bg-white/90 backdrop-blur-sm">
+        <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-2 leading-tight">{workflowData.workflow.name}</h2>
         {workflowData.workflow.description && (
-          <p className="text-sm text-gray-600 mb-3 leading-relaxed">{workflowData.workflow.description}</p>
+          <p className="text-xs sm:text-sm text-gray-600 mb-3 leading-relaxed max-h-12 sm:max-h-none overflow-hidden">{workflowData.workflow.description}</p>
         )}
-        <div className="flex gap-6 text-sm text-gray-500">
+        <div className="flex flex-wrap gap-3 sm:gap-6 text-xs sm:text-sm text-gray-500">
           <span className="flex items-center gap-1">
             <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
             <strong>{workflowData.workflow.steps.length}</strong> Steps
@@ -475,10 +476,19 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data }) =
             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
             <strong className="capitalize">{workflowData.trigger.type}</strong> Trigger
           </span>
+          {/* Show schedule info on mobile if available */}
+          {workflowData.trigger.type === 'schedule' && workflowData.trigger.config && (
+            <span className="flex items-center gap-1 text-xs text-gray-500">
+              <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+              <span className="hidden sm:inline">Schedule:</span>
+              <span className="font-mono text-xs">{workflowData.trigger.config.cron || 'Custom'}</span>
+            </span>
+          )}
         </div>
       </div>
       
-      <div className="absolute inset-0 pt-32">
+      {/* ReactFlow Container - Takes remaining space */}
+      <div className="flex-1 min-h-0">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -486,9 +496,11 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data }) =
           onNodeClick={onNodeClick}
           connectionMode={ConnectionMode.Strict}
           fitView
-          fitViewOptions={{ padding: 0.15, maxZoom: 1.2 }}
+          fitViewOptions={{ padding: 0.1, maxZoom: 1.0, minZoom: 0.3 }}
           attributionPosition="bottom-left"
-          defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.6 }}
+          minZoom={0.2}
+          maxZoom={1.5}
         >
           <Background 
             color="#e2e8f0" 
@@ -503,6 +515,7 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data }) =
               borderRadius: '8px',
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
             }}
+            showInteractive={false}
           />
         </ReactFlow>
       </div>

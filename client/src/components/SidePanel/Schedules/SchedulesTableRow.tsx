@@ -9,6 +9,7 @@ import {
 import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
 import { useTimezone } from '~/hooks/useTimezone';
+import { TooltipAnchor } from '~/components/ui/Tooltip';
 
 interface SchedulesTableRowProps {
   task: TSchedulerTask;
@@ -115,28 +116,31 @@ const SchedulesTableRow: React.FC<SchedulesTableRowProps> = ({ task }) => {
     <TableRow className="border-b border-border-light hover:bg-surface-hover">
       <TableCell className="py-2 w-16 sm:w-20">
         <div className="flex flex-row gap-1 px-1 sm:px-2 items-center justify-start">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleToggle}
-            className="h-6 w-6 p-0 flex-shrink-0 flex items-center justify-center"
-            title={task.enabled ? 'Disable task' : 'Enable task'}
-          >
-            {task.enabled ? (
-              <Pause className="h-3 w-3" />
-            ) : (
-              <Play className="h-3 w-3" />
-            )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleDelete}
-            className="h-6 w-6 p-0 text-red-600 hover:text-red-700 flex-shrink-0 flex items-center justify-center"
-            title="Delete task"
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
+          <TooltipAnchor description={task.enabled ? 'Disable task' : 'Enable task'} side="top">
+            <button
+              onClick={handleToggle}
+              className={`flex h-6 w-6 items-center justify-center rounded-md shadow-sm transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
+                task.enabled 
+                  ? 'bg-orange-600 text-white hover:bg-orange-700' 
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              }`}
+              disabled={false}
+            >
+              {task.enabled ? (
+                <Pause className="h-3 w-3" />
+              ) : (
+                <Play className="h-3 w-3" />
+              )}
+            </button>
+          </TooltipAnchor>
+          <TooltipAnchor description="Delete task" side="top">
+            <button
+              onClick={handleDelete}
+              className="flex h-6 w-6 items-center justify-center rounded-md bg-red-600 text-white shadow-sm transition-all hover:bg-red-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </TooltipAnchor>
         </div>
       </TableCell>
       

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, Trash2, TestTube, Eye } from 'lucide-react';
+import { Play, Pause, TestTube, Trash2, Eye } from 'lucide-react';
 import { useSetRecoilState } from 'recoil';
 import type { TUserWorkflow } from 'librechat-data-provider';
 import { EModelEndpoint } from 'librechat-data-provider';
@@ -14,6 +14,7 @@ import { useToastContext } from '~/Providers';
 import { useNavigateToConvo } from '~/hooks';
 import store from '~/store';
 import { useTimezone } from '~/hooks/useTimezone';
+import { TooltipAnchor } from '~/components/ui/Tooltip';
 
 interface WorkflowsTableRowProps {
   workflow: TUserWorkflow;
@@ -317,49 +318,49 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
     <TableRow className="border-b border-border-light hover:bg-surface-hover">
       <TableCell className="py-2 w-20 sm:w-24">
         <div className="flex flex-row gap-1 px-1 sm:px-2 items-center justify-start">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleView}
-            className="h-6 w-6 p-0 flex-shrink-0 flex items-center justify-center"
-            title="View workflow"
-            disabled={false}
-          >
-            <Eye className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleTest}
-            className="h-6 w-6 p-0 flex-shrink-0 flex items-center justify-center"
-            title="Test workflow"
-            disabled={false}
-          >
-            <TestTube className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleToggle}
-            className="h-6 w-6 p-0 flex-shrink-0 flex items-center justify-center"
-            title={workflow.isActive ? 'Deactivate workflow' : 'Activate workflow'}
-            disabled={false}
-          >
-            {workflow.isActive ? (
-              <Pause className="h-3 w-3" />
-            ) : (
-              <Play className="h-3 w-3" />
-            )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleDelete}
-            className="h-6 w-6 p-0 text-red-600 hover:text-red-700 flex-shrink-0 flex items-center justify-center"
-            title="Delete workflow"
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
+          <TooltipAnchor description="View workflow" side="top">
+            <button
+              onClick={handleView}
+              className="flex h-6 w-6 items-center justify-center rounded-md bg-gray-600 text-white shadow-sm transition-all hover:bg-gray-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={false}
+            >
+              <Eye className="h-3 w-3" />
+            </button>
+          </TooltipAnchor>
+          <TooltipAnchor description="Test workflow" side="top">
+            <button
+              onClick={handleTest}
+              className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-600 text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={false}
+            >
+              <TestTube className="h-3 w-3" />
+            </button>
+          </TooltipAnchor>
+          <TooltipAnchor description={workflow.isActive ? 'Deactivate workflow' : 'Activate workflow'} side="top">
+            <button
+              onClick={handleToggle}
+              className={`flex h-6 w-6 items-center justify-center rounded-md shadow-sm transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
+                workflow.isActive 
+                  ? 'bg-orange-600 text-white hover:bg-orange-700' 
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              }`}
+              disabled={false}
+            >
+              {workflow.isActive ? (
+                <Pause className="h-3 w-3" />
+              ) : (
+                <Play className="h-3 w-3" />
+              )}
+            </button>
+          </TooltipAnchor>
+          <TooltipAnchor description="Delete workflow" side="top">
+            <button
+              onClick={handleDelete}
+              className="flex h-6 w-6 items-center justify-center rounded-md bg-red-600 text-white shadow-sm transition-all hover:bg-red-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </TooltipAnchor>
         </div>
       </TableCell>
       

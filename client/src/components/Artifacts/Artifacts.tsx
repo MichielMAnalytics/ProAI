@@ -20,6 +20,7 @@ import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
 import { useWorkflowNotifications } from '~/hooks/useWorkflowNotifications';
 import { Button } from '~/components/ui';
+import { TooltipAnchor } from '~/components/ui/Tooltip';
 
 export default function Artifacts() {
   const localize = useLocalize();
@@ -273,65 +274,83 @@ export default function Artifacts() {
 
   return (
     <Tabs.Root value={effectiveActiveTab} onValueChange={setActiveTab} asChild>
-      {/* Main Parent */}
-      <div className="flex h-full w-full items-center justify-center">
-        {/* Main Container */}
+      {/* Main Parent - Full screen overlay on mobile only, normal container on desktop */}
+      <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm sm:relative sm:inset-auto sm:z-auto sm:bg-transparent sm:backdrop-blur-none flex h-full w-full items-center justify-center sm:h-full sm:w-full">
+        {/* Main Container - Full width on mobile, full height on desktop */}
         <div
-          className={`flex h-full w-full flex-col overflow-hidden border border-border-medium bg-surface-primary text-xl text-text-primary shadow-xl transition-all duration-500 ease-in-out ${
+          className={`flex h-full w-full flex-col overflow-hidden border-0 sm:border border-border-medium bg-surface-primary text-xl text-text-primary shadow-xl transition-all duration-500 ease-in-out ${
             isVisible ? 'scale-100 opacity-100 blur-0' : 'scale-105 opacity-0 blur-sm'
           }`}
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-border-medium bg-surface-primary-alt p-3">
+          <div className="flex items-center justify-between border-b border-border-medium bg-surface-primary-alt p-2 sm:p-3">
             {/* Left: Back button */}
-            <button className="text-text-secondary hover:text-text-primary" onClick={closeArtifacts}>
-              <ArrowLeft className="h-5 w-5" />
-            </button>
+            <TooltipAnchor description="Close artifacts" side="bottom">
+              <button 
+                className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary" 
+                onClick={closeArtifacts}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+            </TooltipAnchor>
             
             {/* Center: Main workflow actions */}
             {isWorkflowArtifact && workflowId && (
-              <div className="flex items-center gap-4">
-                <button
-                  className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 shadow-sm transition-all hover:bg-blue-100 hover:shadow-md disabled:opacity-50"
-                  onClick={handleTestWorkflow}
-                  disabled={testMutation.isLoading}
-                  title="Test workflow"
-                >
-                  <TestTube className="h-5 w-5" />
-                </button>
-                <button
-                  className={`flex h-10 w-10 items-center justify-center rounded-lg shadow-sm transition-all hover:shadow-md disabled:opacity-50 ${
-                    isWorkflowActive 
-                      ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' 
-                      : 'bg-green-50 text-green-600 hover:bg-green-100'
-                  }`}
-                  onClick={handleToggleWorkflow}
-                  disabled={toggleMutation.isLoading}
-                  title={isWorkflowActive ? 'Deactivate workflow' : 'Activate workflow'}
-                >
-                  {toggleMutation.isLoading ? (
-                    <RefreshCw className="h-5 w-5 animate-spin" />
-                  ) : isWorkflowActive ? (
-                    <Pause className="h-5 w-5" />
-                  ) : (
-                    <Play className="h-5 w-5" />
-                  )}
-                </button>
-                <button
-                  className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-50 text-red-600 shadow-sm transition-all hover:bg-red-100 hover:shadow-md disabled:opacity-50"
-                  onClick={handleDeleteWorkflow}
-                  disabled={deleteMutation.isLoading}
-                  title="Delete workflow"
-                >
-                  <Trash2 className="h-5 w-5" />
-                </button>
+              <div className="flex items-center gap-1 sm:gap-2">
+                {/* Test Button */}
+                <TooltipAnchor description="Test workflow" side="bottom">
+                  <button
+                    className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md bg-blue-600 text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleTestWorkflow}
+                    disabled={testMutation.isLoading}
+                  >
+                    <TestTube className="h-3 w-3 sm:h-4 sm:w-4" />
+                  </button>
+                </TooltipAnchor>
+                
+                {/* Toggle Button */}
+                <TooltipAnchor description={isWorkflowActive ? 'Deactivate workflow' : 'Activate workflow'} side="bottom">
+                  <button
+                    className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md shadow-sm transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isWorkflowActive 
+                        ? 'bg-orange-600 text-white hover:bg-orange-700' 
+                        : 'bg-green-600 text-white hover:bg-green-700'
+                    }`}
+                    onClick={handleToggleWorkflow}
+                    disabled={toggleMutation.isLoading}
+                  >
+                    {toggleMutation.isLoading ? (
+                      <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                    ) : isWorkflowActive ? (
+                      <Pause className="h-3 w-3 sm:h-4 sm:w-4" />
+                    ) : (
+                      <Play className="h-3 w-3 sm:h-4 sm:w-4" />
+                    )}
+                  </button>
+                </TooltipAnchor>
+                
+                {/* Delete Button */}
+                <TooltipAnchor description="Delete workflow" side="bottom">
+                  <button
+                    className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md bg-red-600 text-white shadow-sm transition-all hover:bg-red-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleDeleteWorkflow}
+                    disabled={deleteMutation.isLoading}
+                  >
+                    <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                  </button>
+                </TooltipAnchor>
               </div>
             )}
             
             {/* Right: Close button */}
-            <button className="text-text-secondary hover:text-text-primary" onClick={closeArtifacts}>
-              <X className="h-5 w-5" />
-            </button>
+            <TooltipAnchor description="Close artifacts" side="bottom">
+              <button 
+                className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary" 
+                onClick={closeArtifacts}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </TooltipAnchor>
           </div>
           {/* Content */}
           <div className="flex-1 overflow-hidden relative">
@@ -358,32 +377,32 @@ export default function Artifacts() {
                 {/* Testing Status or Results */}
                 {showingResult && resultData ? (
                   // Show execution results
-                  <div className="relative z-10 flex flex-col items-center space-y-4 rounded-lg bg-white/95 px-8 py-6 backdrop-blur-sm dark:bg-gray-800/95 max-w-md mx-4">
-                    <div className="flex items-center space-x-3">
+                  <div className="relative z-10 flex flex-col items-center space-y-4 rounded-lg bg-white/95 px-4 sm:px-8 py-4 sm:py-6 backdrop-blur-sm dark:bg-gray-800/95 max-w-[90vw] sm:max-w-md mx-2 sm:mx-4 max-h-[80vh] overflow-auto">
+                    <div className="flex items-center space-x-3 w-full">
                       {resultData.success ? (
-                        <div className="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center">
-                          <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                          <svg className="h-4 w-4 sm:h-5 sm:w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
                         </div>
                       ) : (
-                        <div className="h-8 w-8 rounded-full bg-red-500 flex items-center justify-center">
-                          <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
+                          <svg className="h-4 w-4 sm:h-5 sm:w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </div>
                       )}
-                      <span className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                      <span className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100">
                         Test {resultData.success ? 'Completed' : 'Failed'}
                       </span>
                     </div>
                     
                     {/* Result Details */}
-                    <div className="w-full space-y-4 max-h-96 overflow-y-auto">
+                    <div className="w-full space-y-4 max-h-[60vh] sm:max-h-96 overflow-y-auto">
                       {resultData.success ? (
                         <div className="space-y-3">
                           {resultData.result && Array.isArray(resultData.result) && (
-                            <div className="space-y-4 max-h-96 overflow-y-auto">
+                            <div className="space-y-2 sm:space-y-4">
                               {resultData.result.map((step: any, index: number) => {
                                 const stepId = step.stepId || `step_${index}`;
                                 const isExpanded = expandedSteps.has(stepId);
@@ -391,25 +410,25 @@ export default function Artifacts() {
                                 return (
                                   <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800">
                                     {/* Step Header - Always Visible */}
-                                    <div className="flex items-center justify-between p-4">
-                                      <div className="flex items-center space-x-3 flex-1">
-                                        <span className={`w-2 h-2 rounded-full ${
+                                    <div className="flex items-center justify-between p-3 sm:p-4">
+                                      <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
+                                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
                                           step.status === 'completed' ? 'bg-green-500' : 
                                           step.status === 'failed' ? 'bg-red-500' : 'bg-gray-400'
                                         }`}></span>
-                                        <div className="flex-1">
-                                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                        <div className="flex-1 min-w-0">
+                                          <div className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                                             {step.stepName || step.name || `Step ${index + 1}`}
                                           </div>
                                           {!isExpanded && (
-                                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 truncate">
                                               {getStepSummary(step)}
                                             </div>
                                           )}
                                         </div>
                                       </div>
                                       
-                                      <div className="flex items-center space-x-2">
+                                      <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
                                         {/* Copy button */}
                                         {(step.result || step.output) && (
                                           <button
@@ -423,9 +442,9 @@ export default function Artifacts() {
                                             title="Copy output"
                                           >
                                             {copiedStepId === stepId ? (
-                                              <Check className="w-4 h-4 text-green-500" />
+                                              <Check className="w-3 h-3 sm:w-4 sm:h-4 text-green-500" />
                                             ) : (
-                                              <Copy className="w-4 h-4" />
+                                              <Copy className="w-3 h-3 sm:w-4 sm:h-4" />
                                             )}
                                           </button>
                                         )}
@@ -437,9 +456,9 @@ export default function Artifacts() {
                                           title={isExpanded ? "Collapse details" : "Expand details"}
                                         >
                                           {isExpanded ? (
-                                            <ChevronUp className="w-4 h-4" />
+                                            <ChevronUp className="w-3 h-3 sm:w-4 sm:h-4" />
                                           ) : (
-                                            <ChevronDown className="w-4 h-4" />
+                                            <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4" />
                                           )}
                                         </button>
                                       </div>
@@ -447,13 +466,13 @@ export default function Artifacts() {
                                     
                                     {/* Step Details - Collapsible */}
                                     {isExpanded && (
-                                      <div className="px-4 pb-4 border-t border-gray-200 dark:border-gray-600">
+                                      <div className="px-3 sm:px-4 pb-3 sm:pb-4 border-t border-gray-200 dark:border-gray-600">
                                         <div className="pt-3 space-y-3">
                                           {step.result && (
                                             <div>
                                               <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Result:</div>
-                                              <div className="bg-white dark:bg-gray-900 rounded p-3 border border-gray-200 dark:border-gray-600">
-                                                <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                                              <div className="bg-white dark:bg-gray-900 rounded p-2 sm:p-3 border border-gray-200 dark:border-gray-600">
+                                                <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-32 sm:max-h-64 overflow-y-auto">
                                                   {typeof step.result === 'string' ? step.result : JSON.stringify(step.result, null, 2)}
                                                 </pre>
                                               </div>
@@ -463,8 +482,8 @@ export default function Artifacts() {
                                           {step.output && step.output !== step.result && (
                                             <div>
                                               <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Output:</div>
-                                              <div className="bg-white dark:bg-gray-900 rounded p-3 border border-gray-200 dark:border-gray-600">
-                                                <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                                              <div className="bg-white dark:bg-gray-900 rounded p-2 sm:p-3 border border-gray-200 dark:border-gray-600">
+                                                <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-32 sm:max-h-64 overflow-y-auto">
                                                   {typeof step.output === 'string' ? step.output : JSON.stringify(step.output, null, 2)}
                                                 </pre>
                                               </div>
@@ -474,7 +493,7 @@ export default function Artifacts() {
                                           {step.error && (
                                             <div>
                                               <div className="text-xs font-medium text-red-600 dark:text-red-400 mb-2">Error:</div>
-                                              <div className="bg-red-50 dark:bg-red-900/20 rounded p-3 border border-red-200 dark:border-red-700">
+                                              <div className="bg-red-50 dark:bg-red-900/20 rounded p-2 sm:p-3 border border-red-200 dark:border-red-700">
                                                 <pre className="text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap">
                                                   {step.error}
                                                 </pre>
@@ -496,11 +515,11 @@ export default function Artifacts() {
                             ❌ Workflow execution failed
                           </div>
                           {resultData.error && (
-                            <div className="text-left bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-200 dark:border-red-700">
+                            <div className="text-left bg-red-50 dark:bg-red-900/20 p-3 sm:p-4 rounded-lg border border-red-200 dark:border-red-700">
                               <div className="text-xs font-semibold text-red-600 dark:text-red-400 mb-2 uppercase tracking-wide">
                                 Error Details
                               </div>
-                              <div className="text-sm text-red-700 dark:text-red-300 leading-relaxed">
+                              <div className="text-xs sm:text-sm text-red-700 dark:text-red-300 leading-relaxed">
                                 {resultData.error}
                               </div>
                             </div>
@@ -512,18 +531,18 @@ export default function Artifacts() {
                       onClick={handleCloseResult}
                       className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
                     >
-                      <X className="h-5 w-5" />
+                      <X className="h-4 w-4 sm:h-5 sm:w-5" />
                     </button>
                   </div>
                 ) : (
                   // Show testing status with live step updates
-                  <div className="relative z-10 flex flex-col items-center space-y-6 rounded-xl bg-white/95 px-8 py-6 backdrop-blur-sm dark:bg-gray-800/95 max-w-lg mx-4 shadow-2xl border border-white/20">
+                  <div className="relative z-10 flex flex-col items-center space-y-4 sm:space-y-6 rounded-xl bg-white/95 px-4 sm:px-8 py-4 sm:py-6 backdrop-blur-sm dark:bg-gray-800/95 max-w-[90vw] sm:max-w-lg mx-2 sm:mx-4 shadow-2xl border border-white/20">
                     {/* Live step progress */}
                     {currentStep ? (
-                      <div className="w-full space-y-4">
+                      <div className="w-full space-y-3 sm:space-y-4">
                         {/* Step header */}
                         <div className="text-center pb-3 border-b border-gray-200/50 dark:border-gray-600/50">
-                          <div className={`text-sm font-medium uppercase tracking-wider ${
+                          <div className={`text-xs sm:text-sm font-medium uppercase tracking-wider ${
                             currentStep.status === 'running' 
                               ? 'text-blue-600 dark:text-blue-400' 
                               : currentStep.status === 'completed'
@@ -534,12 +553,10 @@ export default function Artifacts() {
                             {currentStep.status === 'completed' && 'COMPLETED'}
                             {currentStep.status === 'failed' && 'FAILED'}
                           </div>
-                          <div className="text-lg font-semibold text-gray-900 dark:text-gray-100 mt-1">
+                          <div className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mt-1 break-words">
                             {currentStep.stepName}
                           </div>
                         </div>
-                        
-
                         
                         {/* Loading indicator for running steps */}
                         {currentStep.status === 'running' && (
@@ -555,7 +572,7 @@ export default function Artifacts() {
                     ) : (
                       <div className="flex flex-col items-center space-y-4">
                         <div className="text-center">
-                          <span className="text-xl font-semibold text-gray-900 dark:text-gray-100 block">
+                          <span className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100 block break-words">
                             {workflowId && isWorkflowTesting(workflowId) && !isTesting 
                               ? 'Agent initiated test...'
                               : 'Initializing workflow test...'
@@ -575,7 +592,7 @@ export default function Artifacts() {
             )}
           </div>
           {/* Footer */}
-          <div className="flex items-center justify-between border-t border-border-medium bg-surface-primary-alt p-2 text-sm text-text-secondary">
+          <div className="flex items-center justify-between border-t border-border-medium bg-surface-primary-alt p-2 sm:p-3 text-sm text-text-secondary">
             <div className="flex items-center">
               <button onClick={() => cycleArtifact('prev')} className="mr-2 text-text-secondary">
                 <ChevronLeft className="h-4 w-4" />
@@ -588,20 +605,21 @@ export default function Artifacts() {
               </button>
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
               {/* Refresh button - Moved from Header */}
-              <button
-                className={`flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary ${
-                  isRefreshing ? 'animate-pulse' : ''
-                }`}
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                title="Refresh"
-              >
-                <RefreshCw
-                  className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
-                />
-              </button>
+              <TooltipAnchor description="Refresh" side="top">
+                <button
+                  className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary ${
+                    isRefreshing ? 'animate-pulse' : ''
+                  }`}
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                >
+                  <RefreshCw
+                    className={`h-3 w-3 sm:h-4 sm:w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+                  />
+                </button>
+              </TooltipAnchor>
               <CopyCodeButton content={currentArtifact.content ?? ''} />
               <DownloadArtifact artifact={currentArtifact} />
             </div>
