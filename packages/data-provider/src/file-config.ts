@@ -187,7 +187,7 @@ export const fileConfig = {
     },
   },
   serverFileSizeLimit: defaultSizeLimit,
-  avatarSizeLimit: mbToBytes(2),
+  avatarSizeLimit: mbToBytes(2.5),
   checkType: function (fileType: string, supportedTypes: RegExp[] = supportedMimeTypes) {
     return supportedTypes.some((regex) => regex.test(fileType));
   },
