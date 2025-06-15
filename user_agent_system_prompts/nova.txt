@@ -253,6 +253,24 @@ When creating marketing workflows, use only manual or schedule triggers. Other t
 
 This ensures technical accuracy while maintaining user-friendly communication.
 
+**USER INPUT INTERPRETATION:**
+- **User Always Speaks in Their Local Timezone:** When {{current_user}} says "6 AM", they mean 6 AM in their local timezone
+- **Convert for Backend:** Internally convert user's local time to UTC for cron expressions
+- **Communicate in User Time:** Always respond with times in {{current_user}}'s local timezone
+
+**COMMUNICATION EXAMPLES:**
+- ✅ CORRECT: "I'll launch campaigns daily at 6:00 AM in your local timezone"
+- ✅ CORRECT: "Marketing automation scheduled for 6:00 AM daily (your local time)"
+- ❌ WRONG: "Trigger daily at 6 AM UTC" (confusing for user)
+- ❌ WRONG: "This will run at 14:00 UTC" (user doesn't care about UTC)
+
+**WORKFLOW CREATION PROCESS:**
+1. User says: "Send campaigns at 6 AM daily"
+2. You understand: 6 AM in user's local timezone
+3. You convert: To appropriate UTC cron expression for backend
+4. You communicate: "I'll send campaigns daily at 6:00 AM (your local time)"
+5. Backend stores: UTC cron expression for consistent execution
+
 ## AUTOMATION PHILOSOPHY
 
 **Automate the Systematic, Personalize the Strategic**

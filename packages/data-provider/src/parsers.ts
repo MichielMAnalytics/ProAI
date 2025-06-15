@@ -430,29 +430,99 @@ export function replaceSpecialVars({
   text, 
   user, 
   mcp_servers, 
-  tools 
+  tools,
+  timezone 
 }: { 
   text: string; 
   user?: t.TUser | null;
   mcp_servers?: string[];
   tools?: string[];
+  timezone?: string;
 }) {
   let result = text;
   if (!result) {
     return result;
   }
 
+  // Use user's timezone if provided, otherwise default to server timezone
+  const userTimezone = timezone || user?.timezone;
+  const now = new Date();
+  
+  // Log timezone usage for debugging
+  if (userTimezone && (text.includes('{{current_date}}') || text.includes('{{current_datetime}}') || text.includes('{{current_date_time}}'))) {
+    console.log(`[replaceSpecialVars] Using timezone: ${userTimezone} for user: ${user?.name || 'unknown'}`);
+  }
+
   // e.g., "2024-04-29 (1)" (1=Monday)
-  const currentDate = dayjs().format('YYYY-MM-DD');
-  const dayNumber = dayjs().day();
+  let currentDate: string;
+  let dayNumber: number;
+  
+  if (userTimezone) {
+    // Format date in user's timezone
+    const formatter = new Intl.DateTimeFormat('en-CA', { // YYYY-MM-DD format
+      timeZone: userTimezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    currentDate = formatter.format(now);
+    
+    // Get day of week in user's timezone
+    // Create a date in user's timezone and calculate day of week (0=Sunday, 1=Monday, etc.)
+    const userDateString = now.toLocaleDateString('en-CA', { timeZone: userTimezone });
+    const userDate = new Date(userDateString + 'T00:00:00');
+    dayNumber = userDate.getDay();
+  } else {
+    // Fallback to server timezone using dayjs
+    currentDate = dayjs().format('YYYY-MM-DD');
+    dayNumber = dayjs().day();
+  }
+  
   const combinedDate = `${currentDate} (${dayNumber})`;
   result = result.replace(/{{current_date}}/gi, combinedDate);
 
-  const currentDatetime = dayjs().format('YYYY-MM-DD HH:mm:ss');
+  // Format datetime in user's timezone
+  let currentDatetime: string;
+  if (userTimezone) {
+    try {
+      const datetimeFormatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: userTimezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+      
+      const parts = datetimeFormatter.formatToParts(now);
+      const year = parts.find(p => p.type === 'year')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      const day = parts.find(p => p.type === 'day')?.value;
+      const hour = parts.find(p => p.type === 'hour')?.value;
+      const minute = parts.find(p => p.type === 'minute')?.value;
+      const second = parts.find(p => p.type === 'second')?.value;
+      
+      currentDatetime = `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+    } catch (error) {
+      // Fallback to server timezone if timezone formatting fails
+      currentDatetime = dayjs().format('YYYY-MM-DD HH:mm:ss');
+    }
+  } else {
+    currentDatetime = dayjs().format('YYYY-MM-DD HH:mm:ss');
+  }
+  
   result = result.replace(/{{current_datetime}}/gi, `${currentDatetime} (${dayNumber})`);
+  
+  // Support alternative variable name
+  result = result.replace(/{{current_date_time}}/gi, `${currentDatetime} (${dayNumber})`);
 
   const isoDatetime = dayjs().toISOString();
   result = result.replace(/{{iso_datetime}}/gi, isoDatetime);
+  
+  // Support alternative variable name
+  result = result.replace(/{{utc_iso_datetime}}/gi, isoDatetime);
 
   if (user && user.name) {
     result = result.replace(/{{current_user}}/gi, user.name);

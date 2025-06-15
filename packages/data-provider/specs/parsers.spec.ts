@@ -25,6 +25,33 @@ jest.mock('dayjs', () => {
   return mockDayjs;
 });
 
+// Mock Date constructor to return consistent values for timezone tests
+const MOCK_DATE = new Date('2024-04-29T16:34:56.000Z'); // Fixed UTC time
+
+// Store original Date methods
+const OriginalDate = Date;
+
+beforeAll(() => {
+  // Mock Date constructor
+  global.Date = jest.fn(() => MOCK_DATE) as any;
+  global.Date.UTC = OriginalDate.UTC;
+  global.Date.parse = OriginalDate.parse;
+  global.Date.now = jest.fn(() => MOCK_DATE.getTime());
+  
+  // Mock Date prototype methods
+  Object.setPrototypeOf(global.Date, OriginalDate);
+  Object.getOwnPropertyNames(OriginalDate.prototype).forEach(name => {
+    if (name !== 'constructor') {
+      global.Date.prototype[name] = OriginalDate.prototype[name];
+    }
+  });
+});
+
+afterAll(() => {
+  // Restore original Date
+  global.Date = OriginalDate;
+});
+
 describe('replaceSpecialVars', () => {
   // Create a partial user object for testing
   const mockUser = {
@@ -187,5 +214,180 @@ describe('replaceSpecialVars', () => {
     expect(result).toContain('Test User'); // current_user
     expect(result).toContain('notion, trello'); // mcp_servers
     expect(result).toContain('notion-create-page_mcp_pipedream-notion'); // tools
+  });
+
+  describe('timezone support', () => {
+    // Mock Intl.DateTimeFormat for timezone tests
+    const mockDateTimeFormat = jest.fn();
+    const originalDateTimeFormat = Intl.DateTimeFormat;
+
+    beforeAll(() => {
+      // Mock Intl.DateTimeFormat
+      (Intl as any).DateTimeFormat = mockDateTimeFormat;
+    });
+
+    afterAll(() => {
+      // Restore original Intl.DateTimeFormat
+      (Intl as any).DateTimeFormat = originalDateTimeFormat;
+    });
+
+    beforeEach(() => {
+      mockDateTimeFormat.mockClear();
+    });
+
+    test('should use timezone-aware formatting when timezone is provided', () => {
+      // Mock formatter for date formatting
+      mockDateTimeFormat.mockImplementation((locale, options) => {
+        if (options?.timeZone === 'America/New_York') {
+          return {
+            format: () => '2024-04-29',
+            formatToParts: () => [
+              { type: 'year', value: '2024' },
+              { type: 'month', value: '04' },
+              { type: 'day', value: '29' },
+              { type: 'hour', value: '12' },
+              { type: 'minute', value: '34' },
+              { type: 'second', value: '56' }
+            ]
+          };
+        }
+        return originalDateTimeFormat(locale, options);
+      });
+
+      // Mock toLocaleDateString for day calculation
+      const mockToLocaleDateString = jest.fn(() => '2024-04-29');
+      Object.defineProperty(Date.prototype, 'toLocaleDateString', {
+        value: mockToLocaleDateString,
+        writable: true
+      });
+
+      const result = replaceSpecialVars({
+        text: 'Current date: {{current_date}}, Current datetime: {{current_datetime}}',
+        timezone: 'America/New_York'
+      });
+
+      expect(result).toContain('2024-04-29');
+      expect(mockDateTimeFormat).toHaveBeenCalledWith('en-CA', {
+        timeZone: 'America/New_York',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    });
+
+    test('should fallback to server timezone when timezone formatting fails', () => {
+      // Mock formatter that throws an error on formatToParts
+      mockDateTimeFormat.mockImplementation(() => ({
+        format: () => '2024-04-29',
+        formatToParts: () => {
+          throw new Error('Invalid timezone');
+        }
+      }));
+
+      const result = replaceSpecialVars({
+        text: 'Current datetime: {{current_datetime}}',
+        timezone: 'Invalid/Timezone'
+      });
+
+      // Should fallback to dayjs formatting
+      expect(result).toBe('Current datetime: 2024-04-29 12:34:56 (1)');
+    });
+
+    test('should use user timezone from user object when timezone param not provided', () => {
+      const userWithTimezone = {
+        ...mockUser,
+        timezone: 'Europe/London'
+      } as TUser;
+
+      mockDateTimeFormat.mockImplementation((locale, options) => {
+        if (options?.timeZone === 'Europe/London') {
+          return {
+            format: () => '2024-04-29',
+            formatToParts: () => [
+              { type: 'year', value: '2024' },
+              { type: 'month', value: '04' },
+              { type: 'day', value: '29' },
+              { type: 'hour', value: '17' },
+              { type: 'minute', value: '34' },
+              { type: 'second', value: '56' }
+            ]
+          };
+        }
+        return originalDateTimeFormat(locale, options);
+      });
+
+      // Mock toLocaleDateString for day calculation
+      const mockToLocaleDateString = jest.fn(() => '2024-04-29');
+      Object.defineProperty(Date.prototype, 'toLocaleDateString', {
+        value: mockToLocaleDateString,
+        writable: true
+      });
+
+      const result = replaceSpecialVars({
+        text: 'Current datetime: {{current_datetime}}',
+        user: userWithTimezone
+      });
+
+      expect(mockDateTimeFormat).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          timeZone: 'Europe/London'
+        })
+      );
+      expect(result).toContain('2024-04-29');
+    });
+
+    test('should prioritize timezone parameter over user timezone', () => {
+      const userWithTimezone = {
+        ...mockUser,
+        timezone: 'Europe/London'
+      } as TUser;
+
+      mockDateTimeFormat.mockImplementation((locale, options) => {
+        if (options?.timeZone === 'Asia/Tokyo') {
+          return {
+            format: () => '2024-04-30',
+            formatToParts: () => [
+              { type: 'year', value: '2024' },
+              { type: 'month', value: '04' },
+              { type: 'day', value: '30' },
+              { type: 'hour', value: '01' },
+              { type: 'minute', value: '34' },
+              { type: 'second', value: '56' }
+            ]
+          };
+        }
+        return originalDateTimeFormat(locale, options);
+      });
+
+      // Mock toLocaleDateString for day calculation
+      const mockToLocaleDateString = jest.fn(() => '2024-04-30');
+      Object.defineProperty(Date.prototype, 'toLocaleDateString', {
+        value: mockToLocaleDateString,
+        writable: true
+      });
+
+      const result = replaceSpecialVars({
+        text: 'Current date: {{current_date}}',
+        user: userWithTimezone,
+        timezone: 'Asia/Tokyo'
+      });
+
+      expect(mockDateTimeFormat).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          timeZone: 'Asia/Tokyo'
+        })
+      );
+      expect(result).toContain('2024-04-30');
+    });
+
+    test('should fall back to dayjs when no timezone is provided', () => {
+      const result = replaceSpecialVars({
+        text: 'Current date: {{current_date}}, Current datetime: {{current_datetime}}'
+      });
+
+      expect(result).toBe('Current date: 2024-04-29 (1), Current datetime: 2024-04-29 12:34:56 (1)');
+    });
   });
 });

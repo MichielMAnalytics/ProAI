@@ -255,12 +255,22 @@ const initializeAgentOptions = async ({
   }
 
   if (agent.instructions && agent.instructions !== '') {
+    const originalInstructions = agent.instructions;
     agent.instructions = replaceSpecialVars({
       text: agent.instructions,
       user: req.user,
       mcp_servers: agent.mcp_servers,
       tools: agent.tools,
+      timezone: req.user?.timezone,
     });
+    
+    // Temporary logging to verify timezone functionality
+    console.log('\n=== AGENT SYSTEM PROMPT ===');
+    console.log(`Agent: ${agent.name || agent.id}`);
+    console.log(`User: ${req.user?.name || 'unknown'} (timezone: ${req.user?.timezone || 'none'})`);
+    console.log('Original instructions:', originalInstructions);
+    console.log('Processed instructions:', agent.instructions);
+    console.log('=== END SYSTEM PROMPT ===\n');
   }
 
   if (typeof agent.artifacts === 'string' && agent.artifacts !== '') {
