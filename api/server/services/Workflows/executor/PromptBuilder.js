@@ -277,12 +277,12 @@ CURRENT DATE & TIME CONTEXT:
 }
 
 /**
- * Generate tool discovery and selection guidance
+ * Generate tool selection and parameter guidance
  * @param {Object} step - Current workflow step
  * @param {Object} context - Execution context
- * @returns {string} Tool discovery guidance
+ * @returns {string} Tool selection guidance
  */
-function generateToolDiscoveryGuidance(step, context) {
+function generateToolSelectionGuidance(step, context) {
   const stepName = step.name.toLowerCase();
   const stepObjective = generateActionInstructions(step.name, step.config);
   const suggestedTool = step.config?.toolName;
@@ -290,14 +290,19 @@ function generateToolDiscoveryGuidance(step, context) {
   let guidance = `**YOUR OBJECTIVE:** ${stepObjective}\n\n`;
   
   if (suggestedTool) {
-    guidance += `**SUGGESTED TOOL:** The workflow suggests using "${suggestedTool}". However, your primary responsibility is to achieve the objective above. If this tool doesn't exist or isn't appropriate, find the correct tool that accomplishes the goal.\n\n`;
+    guidance += `**CONFIGURED TOOL:** "${suggestedTool}"\n`;
+    guidance += `- This tool has been pre-configured for this step\n`;
+    guidance += `- Verify it exists in your available tools and use it if appropriate\n`;
+    guidance += `- If it doesn't exist or isn't suitable, select the correct tool from your available tools\n\n`;
+  } else {
+    guidance += `**NO TOOL SPECIFIED:** Select the appropriate tool from your available tools\n\n`;
   }
   
-  guidance += `**TOOL DISCOVERY APPROACH:**\n`;
-  guidance += `1. **ANALYZE YOUR OBJECTIVE:** Understand exactly what you need to accomplish\n`;
-  guidance += `2. **IDENTIFY REQUIRED CAPABILITY:** Determine what type of tool/API you need\n`;
-  guidance += `3. **DISCOVER AVAILABLE TOOLS:** Look through your available tools to find the right one\n`;
-  guidance += `4. **SELECT THE BEST MATCH:** Choose the tool that best accomplishes your objective\n\n`;
+  guidance += `**TOOL SELECTION APPROACH:**\n`;
+  guidance += `1. **UNDERSTAND OBJECTIVE:** Know exactly what you need to accomplish\n`;
+  guidance += `2. **CHECK CONFIGURED TOOL:** Use pre-configured tool if it exists and is appropriate\n`;
+  guidance += `3. **VERIFY PARAMETERS:** Ensure you have all required parameters\n`;
+  guidance += `4. **EXECUTE WITH CONFIDENCE:** Call the tool with proper parameters\n\n`;
   
   // Generate capability-based guidance
   guidance += generateCapabilityGuidance(stepName, stepObjective, context);
@@ -318,7 +323,7 @@ function generateCapabilityGuidance(stepName, stepObjective, context) {
   // Data retrieval capabilities
   if (stepName.includes('fetch') || stepName.includes('get') || stepName.includes('retrieve')) {
     guidance += `**Data Retrieval Operations Needed:**\n`;
-    guidance += `- Look for tools that can access and retrieve data\n`;
+    guidance += `- Find tools that can access and retrieve data\n`;
     guidance += `- Common patterns: *GET*, *FETCH*, *RETRIEVE*, *LIST* in tool names\n`;
     guidance += `- Capabilities needed: data access, filtering, result limiting\n`;
     guidance += `- Focus on tools that match your data source requirements\n\n`;
@@ -333,7 +338,7 @@ function generateCapabilityGuidance(stepName, stepObjective, context) {
   // Email capabilities
   else if (stepName.includes('email') || stepName.includes('message') || stepName.includes('send')) {
     guidance += `**Email Operations Needed:**\n`;
-    guidance += `- Look for tools that can send emails or manage messages\n`;
+    guidance += `- Find tools that can send emails or manage messages\n`;
     guidance += `- Common patterns: *EMAIL*, *MESSAGE*, *SEND*, *MAIL* in tool names\n`;
     guidance += `- Capabilities needed: send email, create drafts, manage recipients\n\n`;
   }
@@ -341,7 +346,7 @@ function generateCapabilityGuidance(stepName, stepObjective, context) {
   // Trello capabilities
   else if (stepName.includes('trello') || stepName.includes('card') || stepName.includes('board')) {
     guidance += `**Trello Operations Needed:**\n`;
-    guidance += `- Look for tools that can manage Trello boards, lists, and cards\n`;
+    guidance += `- Find tools that can manage Trello boards, lists, and cards\n`;
     guidance += `- Common patterns: *TRELLO*, *CARD*, *BOARD*, *LIST* in tool names\n`;
     guidance += `- Capabilities needed: find boards, search lists, create cards\n\n`;
   }
@@ -349,7 +354,7 @@ function generateCapabilityGuidance(stepName, stepObjective, context) {
   // Search/Find capabilities
   else if (stepName.includes('find') || stepName.includes('search') || stepName.includes('get')) {
     guidance += `**Search/Retrieval Operations Needed:**\n`;
-    guidance += `- Look for tools that can search or retrieve data\n`;
+    guidance += `- Find tools that can search or retrieve data\n`;
     guidance += `- Common patterns: *SEARCH*, *FIND*, *GET*, *LIST*, *FETCH* in tool names\n`;
     guidance += `- Consider what platform/service you're searching\n\n`;
   }
@@ -358,7 +363,7 @@ function generateCapabilityGuidance(stepName, stepObjective, context) {
   else {
     guidance += `**General Operation Requirements:**\n`;
     guidance += `- Analyze your step objective to understand required capabilities\n`;
-    guidance += `- Look for tools with relevant keywords in their names\n`;
+    guidance += `- Find tools with relevant keywords in their names\n`;
     guidance += `- Consider the platform or service you need to interact with\n\n`;
   }
   
@@ -678,15 +683,15 @@ Your step is part of a workflow created to achieve the following user request:
 ${dynamicInstructions}
 -- 4. AVAILABLE DATA & TOOLS --
 ${formatPreviousStepResults(context)}
-**Tool Discovery & Selection:**
-${generateToolDiscoveryGuidance(step, context)}
+**Tool Selection & Configuration:**
+${generateToolSelectionGuidance(step, context)}
 
 -- 5. YOUR TASK & CRITICAL EXECUTION RULES --
 
 1.  **OBJECTIVE FIRST**: Your primary task is to achieve your step objective. Focus on the GOAL, not on using specific tools.
-2.  **TOOL DISCOVERY**: Find the right tool for the job. Don't force incompatible tools. If the suggested tool doesn't exist or work, discover and use the correct one.
-3.  **INTELLIGENT TOOL SELECTION**: Look through your available tools and select the one that best matches your required capability. Tool names often contain relevant keywords.
-4.  **SMART PARAMETERIZATION**: Once you've selected the right tool, construct appropriate parameters using standard API conventions and patterns.
+2.  **USE CONFIGURED TOOL**: If a tool is pre-configured for this step, use it unless it doesn't exist or isn't appropriate.
+3.  **INTELLIGENT TOOL SELECTION**: Select from your available tools the one that best matches your required capability. Tool names often contain relevant keywords.
+4.  **SMART PARAMETERIZATION**: Construct appropriate parameters using standard API conventions. Use configured parameters when available, ask for missing critical info when needed.
 5.  **CONTEXT UTILIZATION**: Use data from previous steps and the current context to inform your tool selection and parameters.
 6.  **IMMEDIATE ACTION**: Once you've identified the right approach, execute it. Don't ask for confirmation.
 7.  **ONE FOCUSED ACTION**: Perform one well-reasoned action that achieves your objective, then stop.

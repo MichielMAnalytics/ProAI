@@ -99,15 +99,79 @@ describe('replaceSpecialVars', () => {
     expect(result).toBe('Date: 2024-04-29 (1), User: Test User');
   });
 
+  test('should replace {{mcp_servers}} with the MCP servers list if provided', () => {
+    const mockMcpServers = ['notion', 'trello', 'google_sheets'];
+    const result = replaceSpecialVars({
+      text: 'Available MCP servers: {{mcp_servers}}',
+      mcp_servers: mockMcpServers,
+    });
+    expect(result).toBe('Available MCP servers: notion, trello, google_sheets');
+  });
+
+  test('should not replace {{mcp_servers}} if mcp_servers is not provided', () => {
+    const result = replaceSpecialVars({
+      text: 'Available MCP servers: {{mcp_servers}}',
+    });
+    expect(result).toBe('Available MCP servers: {{mcp_servers}}');
+  });
+
+  test('should not replace {{mcp_servers}} if mcp_servers is empty', () => {
+    const result = replaceSpecialVars({
+      text: 'Available MCP servers: {{mcp_servers}}',
+      mcp_servers: [],
+    });
+    expect(result).toBe('Available MCP servers: {{mcp_servers}}');
+  });
+
+  test('should replace {{tools}} with the tools list if provided', () => {
+    const mockTools = ['notion-update-page_mcp_pipedream-notion', 'trello-create-card_mcp_pipedream-trello'];
+    const result = replaceSpecialVars({
+      text: 'Available tools: {{tools}}',
+      tools: mockTools,
+    });
+    expect(result).toBe('Available tools: notion-update-page_mcp_pipedream-notion, trello-create-card_mcp_pipedream-trello');
+  });
+
+  test('should not replace {{tools}} if tools is not provided', () => {
+    const result = replaceSpecialVars({
+      text: 'Available tools: {{tools}}',
+    });
+    expect(result).toBe('Available tools: {{tools}}');
+  });
+
+  test('should not replace {{tools}} if tools is empty', () => {
+    const result = replaceSpecialVars({
+      text: 'Available tools: {{tools}}',
+      tools: [],
+    });
+    expect(result).toBe('Available tools: {{tools}}');
+  });
+
+  test('should handle mcp_servers and tools together', () => {
+    const mockMcpServers = ['notion', 'trello'];
+    const mockTools = ['notion-update-page_mcp_pipedream-notion', 'trello-create-card_mcp_pipedream-trello'];
+    const result = replaceSpecialVars({
+      text: 'MCP servers: {{mcp_servers}}, Tools: {{tools}}',
+      mcp_servers: mockMcpServers,
+      tools: mockTools,
+    });
+    expect(result).toBe('MCP servers: notion, trello, Tools: notion-update-page_mcp_pipedream-notion, trello-create-card_mcp_pipedream-trello');
+  });
+
   test('should confirm all specialVariables from config.ts get parsed', () => {
     // Create a text that includes all special variables
     const specialVarsText = Object.keys(specialVariables)
       .map((key) => `{{${key}}}`)
       .join(' ');
 
+    const mockMcpServers = ['notion', 'trello'];
+    const mockTools = ['notion-create-page_mcp_pipedream-notion'];
+
     const result = replaceSpecialVars({
       text: specialVarsText,
       user: mockUser,
+      mcp_servers: mockMcpServers,
+      tools: mockTools,
     });
 
     // Verify none of the original variable placeholders remain in the result
@@ -121,5 +185,7 @@ describe('replaceSpecialVars', () => {
     expect(result).toContain('2024-04-29 12:34:56 (1)'); // current_datetime
     expect(result).toContain('2024-04-29T16:34:56.000Z'); // iso_datetime
     expect(result).toContain('Test User'); // current_user
+    expect(result).toContain('notion, trello'); // mcp_servers
+    expect(result).toContain('notion-create-page_mcp_pipedream-notion'); // tools
   });
 });

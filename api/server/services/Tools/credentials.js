@@ -24,7 +24,9 @@ const loadAuthValues = async ({ userId, authFields, optional, throwError = true 
         return { authField: field, authValue: value };
       }
       try {
-        value = await getUserPluginAuthValue(userId, field, throwError);
+        // For optional fields, don't throw errors to avoid unnecessary logging
+        const shouldThrowError = throwError && !(optional && optional.has(field));
+        value = await getUserPluginAuthValue(userId, field, shouldThrowError);
       } catch (err) {
         if (optional && optional.has(field)) {
           return { authField: field, authValue: undefined };

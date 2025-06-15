@@ -426,7 +426,17 @@ export function findLastSeparatorIndex(text: string, separators = SEPARATORS): n
   return lastIndex;
 }
 
-export function replaceSpecialVars({ text, user }: { text: string; user?: t.TUser | null }) {
+export function replaceSpecialVars({ 
+  text, 
+  user, 
+  mcp_servers, 
+  tools 
+}: { 
+  text: string; 
+  user?: t.TUser | null;
+  mcp_servers?: string[];
+  tools?: string[];
+}) {
   let result = text;
   if (!result) {
     return result;
@@ -446,6 +456,16 @@ export function replaceSpecialVars({ text, user }: { text: string; user?: t.TUse
 
   if (user && user.name) {
     result = result.replace(/{{current_user}}/gi, user.name);
+  }
+
+  if (mcp_servers && mcp_servers.length > 0) {
+    const mcpServersText = mcp_servers.join(', ');
+    result = result.replace(/{{mcp_servers}}/gi, mcpServersText);
+  }
+
+  if (tools && tools.length > 0) {
+    const toolsText = tools.join(', ');
+    result = result.replace(/{{tools}}/gi, toolsText);
   }
 
   return result;

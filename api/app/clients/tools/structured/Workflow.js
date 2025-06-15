@@ -406,7 +406,7 @@ class WorkflowTool extends Tool {
         'activate_workflow', 
         'deactivate_workflow', 
         'test_workflow',
-        'get_available_tools',
+        // 'get_available_tools', // COMMENTED OUT: Not needed with current architecture (tools available via system prompt variables)
         'validate_workflow_design'
       ]).describe('The action to perform'),
       
@@ -1725,8 +1725,8 @@ class WorkflowTool extends Tool {
         case 'test_workflow':
           return await this.testWorkflow(data.workflow_id, userId);
         
-        case 'get_available_tools':
-          return await this.getAvailableTools(userId);
+        // case 'get_available_tools': // COMMENTED OUT: Not needed with current architecture
+        //   return await this.getAvailableTools(userId);
         
         case 'validate_workflow_design':
           return await this.validateWorkflowDesign(data.workflow_design, userId);

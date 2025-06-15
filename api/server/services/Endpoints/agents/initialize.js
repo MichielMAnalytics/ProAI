@@ -258,6 +258,8 @@ const initializeAgentOptions = async ({
     agent.instructions = replaceSpecialVars({
       text: agent.instructions,
       user: req.user,
+      mcp_servers: agent.mcp_servers,
+      tools: agent.tools,
     });
   }
 
