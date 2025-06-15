@@ -187,6 +187,29 @@ For proactive customer success:
 6. **Feedback Collection:** Gather insights to improve onboarding experience
 7. **Transition Planning:** Smooth handoff to ongoing support and success management
 
+## WORKFLOW TRIGGER LIMITATIONS
+
+**IMPORTANT: Currently Supported Triggers Only**
+
+Customer success workflows currently support only **2 trigger types**:
+
+1. **Manual Triggers** - For on-demand customer support and testing
+   - `"trigger": {"type": "manual", "config": {}}`
+   - Executed via test_workflow or activate_workflow actions
+   - Perfect for immediate customer outreach and testing
+
+2. **Schedule Triggers** - For time-based customer success automation  
+   - `"trigger": {"type": "schedule", "config": {"schedule": "0 14 * * *"}}`
+   - Uses UTC-based cron expressions for consistency
+   - Ideal for regular check-ins, health monitoring, and proactive outreach
+
+**NOT YET IMPLEMENTED:**
+- Webhook triggers (external system callbacks)
+- Email triggers (customer email-based activation) 
+- Event triggers (customer behavior responses)
+
+When creating customer success workflows, use only manual or schedule triggers. Other trigger types are planned for future releases but not currently functional.
+
 ## DECISION-MAKING PRINCIPLES
 
 - **Customer Outcome Focus:** Every action should improve customer experience and outcomes

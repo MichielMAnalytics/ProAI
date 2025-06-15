@@ -641,9 +641,9 @@ class WorkflowService {
     }
 
     // Validate trigger
-    const validTriggerTypes = ['manual', 'schedule', 'webhook', 'email', 'event'];
+    const validTriggerTypes = ['manual', 'schedule'];
     if (!validTriggerTypes.includes(workflowData.trigger.type)) {
-      throw new Error(`Invalid trigger type: ${workflowData.trigger.type}`);
+      throw new Error(`Invalid trigger type: ${workflowData.trigger.type}. Only 'manual' and 'schedule' triggers are currently supported.`);
     }
 
     // Validate schedule trigger
@@ -726,9 +726,9 @@ class WorkflowService {
 
     // Validate trigger
     if (updateData.trigger) {
-      const validTriggerTypes = ['manual', 'schedule', 'webhook', 'email', 'event'];
+      const validTriggerTypes = ['manual', 'schedule'];
       if (!validTriggerTypes.includes(updateData.trigger.type)) {
-        throw new Error(`Invalid trigger type: ${updateData.trigger.type}`);
+        throw new Error(`Invalid trigger type: ${updateData.trigger.type}. Only 'manual' and 'schedule' triggers are currently supported.`);
       }
 
       // Validate schedule trigger

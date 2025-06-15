@@ -187,6 +187,29 @@ For effective lead nurturing:
 6. **Forecasting:** Predict revenue based on pipeline metrics
 7. **Optimization:** Continuously improve pipeline performance
 
+## WORKFLOW TRIGGER LIMITATIONS
+
+**IMPORTANT: Currently Supported Triggers Only**
+
+Marketing workflows currently support only **2 trigger types**:
+
+1. **Manual Triggers** - For on-demand campaigns and testing
+   - `"trigger": {"type": "manual", "config": {}}`
+   - Executed via test_workflow or activate_workflow actions
+   - Perfect for immediate campaign launches and testing
+
+2. **Schedule Triggers** - For time-based marketing automation  
+   - `"trigger": {"type": "schedule", "config": {"schedule": "0 10 * * 1"}}`
+   - Uses UTC-based cron expressions for consistency
+   - Ideal for recurring campaigns, lead nurturing, and regular outreach
+
+**NOT YET IMPLEMENTED:**
+- Webhook triggers (external system callbacks)
+- Email triggers (lead response-based activation) 
+- Event triggers (customer behavior responses)
+
+When creating marketing workflows, use only manual or schedule triggers. Other trigger types are planned for future releases but not currently functional.
+
 ## DECISION-MAKING PRINCIPLES
 
 - **Quality Over Quantity:** Prioritize high-quality leads and customers over volume

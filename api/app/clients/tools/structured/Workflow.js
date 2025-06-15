@@ -66,6 +66,26 @@ class WorkflowTool extends Tool {
     
     This approach ensures high-quality, working workflows from day one.
 
+    🚨 IMPORTANT: WORKFLOW TRIGGER LIMITATIONS 🚨
+    
+    Workflows currently support ONLY 2 trigger types:
+    
+    1. **Manual Triggers** - For on-demand execution and testing
+       - Use: {"type": "manual", "config": {}}
+       - Perfect for user-initiated processes and testing
+    
+    2. **Schedule Triggers** - For time-based automation
+       - Use: {"type": "schedule", "config": {"schedule": "0 9 * * *"}}
+       - Uses UTC-based cron expressions
+       - Supports recurring and one-time execution
+    
+    ❌ NOT YET IMPLEMENTED (DO NOT USE):
+    - webhook triggers (external callbacks)
+    - email triggers (email-based activation)
+    - event triggers (system event responses)
+    
+    Only use manual or schedule triggers when creating workflows.
+
     CRITICAL REQUIREMENT FOR ALL WORKFLOW UPDATES
     
     WHENEVER YOU UPDATE A WORKFLOW, YOU MUST INCLUDE THE 'description' FIELD!
@@ -416,10 +436,10 @@ class WorkflowTool extends Tool {
       description: z.string().optional()
         .describe('CRITICAL: Description of the workflow. For update_workflow actions, this field is MANDATORY and must be updated to reflect any changes made (schedule timing, step modifications, recipient changes, etc.). NEVER skip this field when updating workflows!'),
       trigger: z.object({
-        type: z.enum(['manual', 'schedule', 'webhook', 'email', 'event']),
+        type: z.enum(['manual', 'schedule']),
         config: z.record(z.unknown()).optional(),
       }).optional()
-        .describe('Workflow trigger configuration'),
+        .describe('Workflow trigger configuration. Only manual and schedule triggers are currently supported.'),
       steps: z.array(z.object({
         id: z.string(),
         name: z.string(),
@@ -447,7 +467,7 @@ class WorkflowTool extends Tool {
         name: z.string(),
         description: z.string().optional(),
         trigger: z.object({
-          type: z.enum(['manual', 'schedule', 'webhook', 'email', 'event']),
+          type: z.enum(['manual', 'schedule']),
           config: z.record(z.unknown()).optional(),
         }),
         steps: z.array(z.object({
@@ -463,7 +483,7 @@ class WorkflowTool extends Tool {
           }),
         })),
       }).optional()
-        .describe('Workflow design to validate (required for validate_workflow_design action)'),
+        .describe('Workflow design to validate (required for validate_workflow_design action). Only manual and schedule triggers are supported.'),
     });
   }
 

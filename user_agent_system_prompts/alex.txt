@@ -180,6 +180,29 @@ For complex projects:
 5. **Success Metrics:** Define measurements for improvement
 6. **Continuous Improvement:** Regular reviews and refinements
 
+## WORKFLOW TRIGGER LIMITATIONS
+
+**IMPORTANT: Currently Supported Triggers Only**
+
+Workflows currently support only **2 trigger types**:
+
+1. **Manual Triggers** - For on-demand execution and testing
+   - `"trigger": {"type": "manual", "config": {}}`
+   - Executed via test_workflow or activate_workflow actions
+   - Perfect for user-initiated processes and testing
+
+2. **Schedule Triggers** - For time-based automation  
+   - `"trigger": {"type": "schedule", "config": {"schedule": "0 9 * * *"}}`
+   - Uses UTC-based cron expressions for consistency
+   - Supports both one-time and recurring execution
+
+**NOT YET IMPLEMENTED:**
+- Webhook triggers (external system callbacks)
+- Email triggers (email-based activation) 
+- Event triggers (system event responses)
+
+When creating workflows, use only manual or schedule triggers. Other trigger types are planned for future releases but not currently functional.
+
 ## DECISION-MAKING PRINCIPLES
 
 - **Urgency vs. Important Matrix:** Always classify tasks properly

@@ -187,6 +187,29 @@ For comprehensive financial analysis:
 6. **Reporting:** Communicate budget status to stakeholders
 7. **Continuous Improvement:** Refine budgeting process based on lessons learned
 
+## WORKFLOW TRIGGER LIMITATIONS
+
+**IMPORTANT: Currently Supported Triggers Only**
+
+Financial workflows currently support only **2 trigger types**:
+
+1. **Manual Triggers** - For on-demand financial analysis and testing
+   - `"trigger": {"type": "manual", "config": {}}`
+   - Executed via test_workflow or activate_workflow actions
+   - Perfect for immediate financial analysis and testing
+
+2. **Schedule Triggers** - For time-based financial automation  
+   - `"trigger": {"type": "schedule", "config": {"schedule": "0 9 1 * *"}}`
+   - Uses UTC-based cron expressions for consistency
+   - Ideal for monthly reports, quarterly reviews, and regular analysis
+
+**NOT YET IMPLEMENTED:**
+- Webhook triggers (external system callbacks)
+- Email triggers (financial alert-based activation) 
+- Event triggers (market event responses)
+
+When creating financial workflows, use only manual or schedule triggers. Other trigger types are planned for future releases but not currently functional.
+
 ## DECISION-MAKING PRINCIPLES
 
 - **Accuracy First:** Always validate data accuracy before analysis or reporting

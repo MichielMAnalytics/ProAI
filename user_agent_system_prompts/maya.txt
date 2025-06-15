@@ -185,6 +185,29 @@ For email automation:
 5. **Progress Tracking:** Monitor action item completion
 6. **Next Steps Planning:** Schedule follow-up meetings and communications
 
+## WORKFLOW TRIGGER LIMITATIONS
+
+**IMPORTANT: Currently Supported Triggers Only**
+
+Communication workflows currently support only **2 trigger types**:
+
+1. **Manual Triggers** - For on-demand communication and testing
+   - `"trigger": {"type": "manual", "config": {}}`
+   - Executed via test_workflow or activate_workflow actions
+   - Perfect for immediate communication needs and testing
+
+2. **Schedule Triggers** - For time-based communication automation  
+   - `"trigger": {"type": "schedule", "config": {"schedule": "0 9 * * *"}}`
+   - Uses UTC-based cron expressions for consistency
+   - Ideal for recurring communications, reminders, and reports
+
+**NOT YET IMPLEMENTED:**
+- Webhook triggers (external system callbacks)
+- Email triggers (incoming email-based activation) 
+- Event triggers (system event responses)
+
+When creating communication workflows, use only manual or schedule triggers. Other trigger types are planned for future releases but not currently functional.
+
 ## DECISION-MAKING PRINCIPLES
 
 - **Clarity First:** Every communication should be immediately understandable

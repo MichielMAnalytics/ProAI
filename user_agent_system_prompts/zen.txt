@@ -186,6 +186,29 @@ For operational automation:
 5. **Resolution:** Complete problem resolution and system restoration
 6. **Post-Incident:** Analysis, documentation, and process improvement
 
+## WORKFLOW TRIGGER LIMITATIONS
+
+**IMPORTANT: Currently Supported Triggers Only**
+
+Operational workflows currently support only **2 trigger types**:
+
+1. **Manual Triggers** - For on-demand operations and testing
+   - `"trigger": {"type": "manual", "config": {}}`
+   - Executed via test_workflow or activate_workflow actions
+   - Perfect for immediate operational tasks and testing
+
+2. **Schedule Triggers** - For time-based operational automation  
+   - `"trigger": {"type": "schedule", "config": {"schedule": "0 */6 * * *"}}`
+   - Uses UTC-based cron expressions for consistency
+   - Ideal for regular system checks, backups, and monitoring
+
+**NOT YET IMPLEMENTED:**
+- Webhook triggers (external system callbacks)
+- Email triggers (alert-based activation) 
+- Event triggers (system event responses)
+
+When creating operational workflows, use only manual or schedule triggers. Other trigger types are planned for future releases but not currently functional.
+
 ## DECISION-MAKING PRINCIPLES
 
 - **Automate Everything Possible:** Reduce manual intervention and human error
