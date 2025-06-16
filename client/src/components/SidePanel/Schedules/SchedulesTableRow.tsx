@@ -119,26 +119,26 @@ const SchedulesTableRow: React.FC<SchedulesTableRowProps> = ({ task }) => {
           <TooltipAnchor description={task.enabled ? 'Disable task' : 'Enable task'} side="top">
             <button
               onClick={handleToggle}
-              className={`flex h-6 w-6 items-center justify-center rounded-md shadow-sm transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
+              className={`flex h-6 w-6 items-center justify-center rounded-lg shadow-sm transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
                 task.enabled 
-                  ? 'bg-orange-600 text-white hover:bg-orange-700' 
-                  : 'bg-green-600 text-white hover:bg-green-700'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-600 border border-amber-500/60 text-white hover:from-amber-600 hover:to-orange-700 hover:border-amber-500' 
+                  : 'bg-gradient-to-r from-green-500 to-emerald-600 border border-green-500/60 text-white hover:from-green-600 hover:to-emerald-700 hover:border-green-500'
               }`}
               disabled={false}
             >
               {task.enabled ? (
-                <Pause className="h-3 w-3" />
+                <Pause className="h-3 w-3 text-white" />
               ) : (
-                <Play className="h-3 w-3" />
+                <Play className="h-3 w-3 text-white" />
               )}
             </button>
           </TooltipAnchor>
           <TooltipAnchor description="Delete task" side="top">
             <button
               onClick={handleDelete}
-              className="flex h-6 w-6 items-center justify-center rounded-md bg-red-600 text-white shadow-sm transition-all hover:bg-red-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-r from-red-500 to-red-600 border border-red-500/60 text-white shadow-sm transition-all hover:from-red-600 hover:to-red-700 hover:shadow-md hover:border-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Trash2 className="h-3 w-3" />
+              <Trash2 className="h-3 w-3 text-white" />
             </button>
           </TooltipAnchor>
         </div>

@@ -530,31 +530,33 @@ export default function IntegrationsView() {
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-12">
           <div className="text-center max-w-4xl mx-auto">
             {/* Badge - Premium design with improved mobile layout */}
-            <div className="relative inline-flex items-center rounded-2xl bg-gradient-to-r from-white/90 via-green-50/80 to-emerald-50/90 dark:from-gray-900/80 dark:via-green-900/30 dark:to-emerald-900/40 px-3 py-2 sm:px-6 sm:py-4 text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-100 mb-4 sm:mb-8 backdrop-blur-xl border border-green-200/60 dark:border-green-400/30 shadow-lg shadow-green-500/10 dark:shadow-green-400/20 hover:shadow-xl hover:shadow-green-500/20 dark:hover:shadow-green-400/30 transition-all duration-300 group max-w-sm sm:max-w-none mx-auto">
+            <div className="relative inline-flex items-center rounded-2xl bg-gradient-to-r from-blue-50/95 via-indigo-50/90 to-blue-50/95 dark:from-gray-900/80 dark:via-indigo-900/30 dark:to-blue-900/40 px-3 py-2 sm:px-6 sm:py-4 text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-100 mb-4 sm:mb-8 backdrop-blur-xl border border-blue-300/80 dark:border-indigo-400/30 shadow-lg shadow-brand-blue/15 dark:shadow-indigo-400/20 hover:shadow-xl hover:shadow-brand-blue/25 dark:hover:shadow-indigo-400/30 transition-all duration-300 group max-w-sm sm:max-w-none mx-auto">
               {/* Premium glassmorphism overlay */}
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-500/5 via-emerald-500/10 to-green-500/5 dark:from-green-400/10 dark:via-emerald-400/15 dark:to-green-400/10"></div>
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-brand-blue/8 via-indigo-500/12 to-brand-blue/8 dark:from-indigo-400/10 dark:via-blue-400/15 dark:to-indigo-400/10"></div>
               
               {/* Animated border glow effect */}
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-400/20 via-emerald-400/30 to-green-400/20 dark:from-green-300/25 dark:via-emerald-300/35 dark:to-green-300/25 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm"></div>
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-brand-blue/25 via-indigo-400/35 to-brand-blue/25 dark:from-indigo-300/25 dark:via-blue-300/35 dark:to-indigo-300/25 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm"></div>
               
               {/* Content container */}
               <div className="relative z-10 flex items-center gap-2 sm:gap-3">
-                {/* Premium icon with subtle animation */}
-                <div className="flex items-center justify-center w-7 h-7 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 dark:from-green-400 dark:to-emerald-500 shadow-lg shadow-green-500/25 dark:shadow-green-400/30 group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
-                  <svg className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-white drop-shadow-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {/* Premium icon with enhanced coloring and subtle animation */}
+                <div className="flex items-center justify-center w-7 h-7 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-brand-blue via-indigo-500 to-indigo-600 dark:from-indigo-400 dark:to-blue-500 shadow-lg shadow-brand-blue/30 dark:shadow-indigo-400/30 group-hover:scale-110 group-hover:shadow-brand-blue/40 dark:group-hover:shadow-indigo-400/40 transition-all duration-300 flex-shrink-0 ring-1 ring-white/20 dark:ring-white/10">
+                  <svg className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-white drop-shadow-md" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
+                  {/* Inner glow effect for the icon */}
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 to-transparent opacity-50 group-hover:opacity-70 transition-opacity duration-300"></div>
                 </div>
                 
                 {/* Text content with premium typography - Mobile optimized */}
                 <div className="flex flex-col min-w-0">
                   {/* Top line with numbers */}
                   <div className="flex items-center gap-1 whitespace-nowrap">
-                    <span className="bg-gradient-to-r from-green-700 via-emerald-600 to-green-700 dark:from-green-300 dark:via-emerald-200 dark:to-green-300 bg-clip-text text-transparent font-bold tracking-tight text-sm sm:text-base">
+                    <span className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-700 dark:from-indigo-300 dark:via-blue-200 dark:to-indigo-300 bg-clip-text text-transparent font-bold tracking-tight text-sm sm:text-base">
                       2,700+
                     </span>
                     <span className="text-gray-700 dark:text-gray-200 font-medium text-sm sm:text-base">Apps &</span>
-                    <span className="bg-gradient-to-r from-green-700 via-emerald-600 to-green-700 dark:from-green-300 dark:via-emerald-200 dark:to-green-300 bg-clip-text text-transparent font-bold tracking-tight text-sm sm:text-base">
+                    <span className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-700 dark:from-indigo-300 dark:via-blue-200 dark:to-indigo-300 bg-clip-text text-transparent font-bold tracking-tight text-sm sm:text-base">
                       10,000+
                     </span>
                   </div>
@@ -576,7 +578,7 @@ export default function IntegrationsView() {
             </div>
 
             {/* Main Title - Mobile responsive */}
-            <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-text-primary mb-3 sm:mb-4 leading-tight">
+            <h1 className="text-2xl sm:text-4xl md:text-5xl heading-primary mb-3 sm:mb-4">
               The Automation
               <br />
               <span className="text-text-secondary">
@@ -589,50 +591,63 @@ export default function IntegrationsView() {
               Connect your favorite apps, in a single click, and unlock unlimited possibilities with enterprise-grade security.
             </p>
 
-            {/* Feature highlights - Mobile responsive */}
+            {/* Feature highlights - Enhanced EVE branded dots */}
             <div className="flex flex-wrap justify-center gap-4 sm:gap-8 mb-6 sm:mb-8 text-xs sm:text-sm px-4">
-              <div className="flex items-center gap-2 text-text-tertiary">
-                <div className="w-1.5 h-1.5 bg-text-tertiary rounded-full"></div>
-                <span>One-click Setup</span>
+              <div className="flex items-center gap-2 text-gray-700 dark:text-text-secondary">
+                <div className="relative">
+                  <div className="w-2 h-2 bg-gradient-to-r from-brand-blue to-indigo-600 dark:bg-indigo-400 rounded-full shadow-md shadow-brand-blue/30 dark:shadow-indigo-400/20 border border-brand-blue/30 dark:border-indigo-400/40"></div>
+                  <div className="absolute inset-0 w-2 h-2 bg-gradient-to-r from-indigo-500 to-purple-500 dark:bg-indigo-400/30 rounded-full animate-pulse opacity-70"></div>
+                </div>
+                <span className="font-medium">One-click Setup</span>
               </div>
-              <div className="flex items-center gap-2 text-text-tertiary">
-                <div className="w-1.5 h-1.5 bg-text-tertiary rounded-full"></div>
-                <span>Enterprise-grade security</span>
+              <div className="flex items-center gap-2 text-gray-700 dark:text-text-secondary">
+                <div className="relative">
+                  <div className="w-2 h-2 bg-gradient-to-r from-brand-blue to-indigo-600 dark:bg-indigo-400 rounded-full shadow-md shadow-brand-blue/30 dark:shadow-indigo-400/20 border border-brand-blue/30 dark:border-indigo-400/40"></div>
+                  <div className="absolute inset-0 w-2 h-2 bg-gradient-to-r from-indigo-500 to-purple-500 dark:bg-indigo-400/30 rounded-full animate-pulse opacity-70"></div>
+                </div>
+                <span className="font-medium">Enterprise-grade security</span>
               </div>
-              <div className="flex items-center gap-2 text-text-tertiary">
-                <div className="w-1.5 h-1.5 bg-text-tertiary rounded-full"></div>
-                <span>Revoke access any time</span>
+              <div className="flex items-center gap-2 text-gray-700 dark:text-text-secondary">
+                <div className="relative">
+                  <div className="w-2 h-2 bg-gradient-to-r from-brand-blue to-indigo-600 dark:bg-indigo-400 rounded-full shadow-md shadow-brand-blue/30 dark:shadow-indigo-400/20 border border-brand-blue/30 dark:border-indigo-400/40"></div>
+                  <div className="absolute inset-0 w-2 h-2 bg-gradient-to-r from-indigo-500 to-purple-500 dark:bg-indigo-400/30 rounded-full animate-pulse opacity-70"></div>
+                </div>
+                <span className="font-medium">Revoke access any time</span>
               </div>
             </div>
             
-            {/* Navigation Toggle - Mobile responsive */}
-            <div className="relative inline-flex items-center p-1 rounded-lg shadow-sm border border-border-light">
+            {/* Navigation Toggle - Enhanced coloring for All Apps button */}
+            <div className="relative inline-flex items-center p-1 rounded-lg shadow-sm border border-border-light bg-surface-secondary/50 dark:bg-surface-secondary">
               <button
                 onClick={() => setSelectedCategory('all')}
                 className={`relative z-10 px-4 sm:px-6 py-2 sm:py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
                   selectedCategory === 'all' || selectedCategory !== 'my'
-                    ? 'text-green-600 dark:text-green-400 border border-green-500 bg-transparent'
-                    : 'text-text-secondary hover:text-text-primary bg-transparent border-none'
+                    ? 'border border-brand-blue/60 bg-white dark:bg-surface-primary shadow-sm font-semibold'
+                    : 'text-gray-600 dark:text-text-secondary hover:text-brand-blue dark:hover:text-text-primary bg-transparent border-none hover:bg-surface-hover/50'
                 }`}
               >
                 <span className="relative z-10 flex items-center gap-2">
-                  All Apps
+                  <span className={selectedCategory === 'all' || selectedCategory !== 'my' ? 'text-brand-blue dark:text-indigo-400 font-semibold' : ''}>
+                    All Apps
+                  </span>
                 </span>
               </button>
               <button
                 onClick={() => setSelectedCategory('my')}
                 className={`relative z-10 px-4 sm:px-6 py-2 sm:py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
                   selectedCategory === 'my'
-                    ? 'text-green-600 dark:text-green-400 border border-green-500 bg-transparent'
-                    : 'text-text-secondary hover:text-text-primary bg-transparent border-none'
+                    ? 'border border-brand-blue/60 bg-white dark:bg-surface-primary shadow-sm font-semibold'
+                    : 'text-gray-600 dark:text-text-secondary hover:text-brand-blue dark:hover:text-text-primary bg-transparent border-none hover:bg-surface-hover/50'
                 }`}
               >
                 <span className="relative z-10 flex items-center gap-2">
-                  My Apps
+                  <span className={selectedCategory === 'my' ? 'text-brand-blue dark:text-indigo-400 font-semibold' : ''}>
+                    My Apps
+                  </span>
                   {userIntegrations.length > 0 && (
                     <span className={`inline-flex items-center justify-center w-5 h-5 text-xs font-medium rounded-full border ml-2 ${
                       selectedCategory === 'my' 
-                        ? 'text-green-600 bg-green-50 border-green-200 dark:text-green-400 dark:bg-green-900/20 dark:border-green-400/50' 
+                        ? 'text-brand-blue bg-blue-50 border-blue-200 dark:text-indigo-400 dark:bg-indigo-900/20 dark:border-indigo-400/50' 
                         : 'text-text-primary bg-surface-tertiary border-border-light'
                     }`}>
                       {formatCount(userIntegrations.length)}
@@ -667,13 +682,13 @@ export default function IntegrationsView() {
           <div className={`w-full lg:w-64 lg:flex-shrink-0 ${
             isMobileSidebarOpen ? 'block' : 'hidden lg:block'
           }`}>
-            <h3 className="text-sm font-semibold text-text-primary mb-4">Categories</h3>
+            <h3 className="text-sm heading-secondary mb-4">Categories</h3>
             <div className="space-y-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-1 gap-2 lg:gap-0 lg:space-y-1">
               <button
                 onClick={() => setSelectedCategory('all')}
                 className={`w-full text-left px-3 py-2 text-sm rounded-md transition-all duration-200 ${
                   selectedCategory === 'all'
-                    ? 'bg-surface-primary border border-green-500 text-green-600 hover:bg-green-50 dark:bg-surface-primary dark:text-green-400 dark:border-green-400 dark:hover:bg-green-900/10'
+                    ? 'bg-surface-primary border border-brand-blue text-brand-blue hover:bg-blue-50 dark:bg-surface-primary dark:text-indigo-400 dark:border-indigo-400 dark:hover:bg-indigo-900/10'
                     : 'text-text-primary hover:bg-surface-hover'
                 }`}
               >
@@ -685,7 +700,7 @@ export default function IntegrationsView() {
                   onClick={() => setSelectedCategory(category)}
                   className={`w-full text-left px-3 py-2 text-sm rounded-md transition-all duration-200 ${
                     selectedCategory === category
-                      ? 'bg-surface-primary border border-green-500 text-green-600 hover:bg-green-50 dark:bg-surface-primary dark:text-green-400 dark:border-green-400 dark:hover:bg-green-900/10'
+                      ? 'bg-surface-primary border border-brand-blue text-brand-blue hover:bg-blue-50 dark:bg-surface-primary dark:text-indigo-400 dark:border-indigo-400 dark:hover:bg-indigo-900/10'
                       : 'text-text-primary hover:bg-surface-hover'
                   }`}
                 >
@@ -705,9 +720,9 @@ export default function IntegrationsView() {
                   placeholder="Search"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full h-10 sm:h-12 pl-4 pr-12 text-sm sm:text-base bg-surface-primary border-border-light rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500/20 text-text-primary placeholder:text-text-tertiary"
+                  className="w-full h-10 sm:h-12 pl-4 pr-12 text-sm sm:text-base bg-surface-primary border-border-light rounded-lg shadow-sm focus:border-brand-blue focus:ring-brand-blue/20 text-text-primary placeholder:text-text-tertiary"
                 />
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-green-600 dark:text-green-400">
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-blue dark:text-indigo-400">
                   <svg className="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
@@ -729,7 +744,7 @@ export default function IntegrationsView() {
             {/* Show My Apps or All Apps */}
             {selectedCategory === 'my' ? (
               <div>
-                <h2 className="text-lg sm:text-xl font-semibold text-text-primary mb-4 sm:mb-6">
+                <h2 className="text-lg sm:text-xl heading-secondary mb-4 sm:mb-6">
                   My Apps ({formatCount(userIntegrations.length)})
                 </h2>
                 
@@ -740,10 +755,10 @@ export default function IntegrationsView() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
                     </div>
-                    <h3 className="text-base sm:text-lg font-medium text-text-primary mb-2">No connected apps</h3>
-                    <p className="text-sm sm:text-base text-text-secondary text-center max-w-md">
-                      Connect your first app to get started with AI-powered automation.
-                    </p>
+                    <h3 className="text-base sm:text-lg heading-secondary mb-2">No connected apps</h3>
+                                          <p className="text-sm sm:text-base body-text text-center max-w-md">
+                        Connect your first app to get started with AI-powered automation.
+                      </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -778,12 +793,12 @@ export default function IntegrationsView() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                     </div>
-                    <h3 className="text-base sm:text-lg font-medium text-text-primary mb-2">No integrations found</h3>
-                    <p className="text-sm sm:text-base text-text-secondary text-center max-w-md">
-                      {searchTerm || selectedCategory !== 'all'
-                        ? 'Try adjusting your search criteria or browse all available integrations.'
-                        : 'No integrations are currently available.'}
-                    </p>
+                    <h3 className="text-base sm:text-lg heading-secondary mb-2">No integrations found</h3>
+                                          <p className="text-sm sm:text-base body-text text-center max-w-md">
+                        {searchTerm || selectedCategory !== 'all'
+                          ? 'Try adjusting your search criteria or browse all available integrations.'
+                          : 'No integrations are currently available.'}
+                      </p>
                   </div>
                 ) : (
                   <>

@@ -6,6 +6,20 @@
 :root {
   --white: #ffffff;
   --black: #000000;
+  
+  /* EVE Brand Colors - From Style Guide */
+  --brand-blue: #0E1593;        /* Primary brand color */
+  --brand-dark: #04062D;        /* Secondary dark brand */
+  --brand-black: #0E0E0E;       /* Deep black accents */
+  --brand-white: #FFFFFF;       /* Pure white text */
+  --background-black: #000000;  /* Main background */
+  
+  /* EVE Brand Opacity Variants */
+  --brand-blue-10: rgba(14, 21, 147, 0.1);
+  --brand-blue-20: rgba(14, 21, 147, 0.2);
+  --brand-blue-30: rgba(14, 21, 147, 0.3);
+  --brand-border: rgba(216, 217, 236, 0.2);    /* EVE consistent border */
+  --brand-border-emphasis: rgba(216, 217, 236, 0.3);   /* EVE hover/focus borders */
   --gray-20: #fafafa;
   --gray-50: #f9f9f9;
   --gray-100: #f4f4f4;
@@ -301,9 +315,15 @@ html {
   text-overflow: ellipsis;
 }
 
+/* Primary fonts from Google Fonts - EVE Style Guide */
+/* Comfortaa for headings and brand elements */
+/* Inter for body text and UI components */
+/* Fonts are loaded via Google Fonts in index.html */
+
+/* Fallback font-face declarations for local fonts if needed */
 @font-face {
   font-display: swap;
-  font-family: Inter;
+  font-family: 'Inter Fallback';
   font-style: normal;
   font-weight: 400;
   src: url('$fonts/Inter-Regular.woff2') format('woff2');
@@ -312,7 +332,7 @@ html {
 
 @font-face {
   font-display: swap;
-  font-family: Inter;
+  font-family: 'Inter Fallback';
   font-style: italic;
   font-weight: 400;
   src: url('$fonts/Inter-Italic.woff2') format('woff2');
@@ -321,7 +341,7 @@ html {
 
 @font-face {
   font-display: swap;
-  font-family: Inter;
+  font-family: 'Inter Fallback';
   font-style: normal;
   font-weight: 500;
   src: url('$fonts/Inter-SemiBold.woff2') format('woff2');
@@ -330,7 +350,7 @@ html {
 
 @font-face {
   font-display: swap;
-  font-family: Inter;
+  font-family: 'Inter Fallback';
   font-style: italic;
   font-weight: 500;
   src: url('$fonts/Inter-SemiBoldItalic.woff2') format('woff2');
@@ -339,7 +359,7 @@ html {
 
 @font-face {
   font-display: swap;
-  font-family: Inter;
+  font-family: 'Inter Fallback';
   font-style: normal;
   font-weight: 600;
   src: url('$fonts/Inter-Bold.woff2') format('woff2');
@@ -348,7 +368,7 @@ html {
 
 @font-face {
   font-display: swap;
-  font-family: Inter;
+  font-family: 'Inter Fallback';
   font-style: italic;
   font-weight: 600;
   src: url('$fonts/Inter-BoldItalic.woff2') format('woff2');
@@ -1365,61 +1385,61 @@ button {
   pointer-events: none;
 }
 
-/* PRIMARY BUTTON - Premium Green Design */
+/* PRIMARY BUTTON - EVE Brand Design */
 .btn-primary {
-  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
-  border-color: #10b981;
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--brand-blue) 0%, var(--brand-dark) 100%);
+  border-color: var(--brand-blue);
+  color: var(--brand-white);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
   box-shadow: 
-    0 1px 3px 0 rgba(52, 211, 153, 0.15),
-    0 1px 2px 0 rgba(52, 211, 153, 0.1);
+    0 1px 3px 0 rgba(14, 21, 147, 0.15),
+    0 1px 2px 0 rgba(14, 21, 147, 0.1);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  border-color: #059669;
+  background: linear-gradient(135deg, #1E3A8A 0%, var(--brand-blue) 100%);
+  border-color: #1E3A8A;
   box-shadow: 
-    0 4px 6px -1px rgba(52, 211, 153, 0.25),
-    0 2px 4px -1px rgba(52, 211, 153, 0.15);
+    0 4px 6px -1px rgba(14, 21, 147, 0.25),
+    0 2px 4px -1px rgba(14, 21, 147, 0.15);
 }
 
 .btn-primary:active:not(:disabled) {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  border-color: #047857;
+  background: linear-gradient(135deg, var(--brand-dark) 0%, var(--brand-black) 100%);
+  border-color: var(--brand-dark);
 }
 
 .btn-primary:focus-visible {
-  ring: 2px solid #10b981;
+  ring: 2px solid var(--brand-blue);
   ring-offset: 2px;
   ring-offset-color: var(--surface-primary);
 }
 
-/* SECONDARY BUTTON - Premium Outline Design */
+/* SECONDARY BUTTON - EVE Brand Outline Design */
 .btn-secondary {
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(8px);
-  border: 1.5px solid #10b981;
-  color: #059669;
+  border: 1.5px solid var(--brand-blue);
+  color: var(--brand-blue);
   font-weight: 600;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: rgba(16, 185, 129, 0.05);
-  border-color: #059669;
-  color: #047857;
+  background: rgba(14, 21, 147, 0.05);
+  border-color: #1E3A8A;
+  color: #1E3A8A;
   box-shadow: 
-    0 4px 6px -1px rgba(16, 185, 129, 0.15),
-    0 2px 4px -1px rgba(16, 185, 129, 0.1);
+    0 4px 6px -1px rgba(14, 21, 147, 0.15),
+    0 2px 4px -1px rgba(14, 21, 147, 0.1);
 }
 
 .btn-secondary:active:not(:disabled) {
-  background: rgba(16, 185, 129, 0.1);
-  color: #065f46;
+  background: rgba(14, 21, 147, 0.1);
+  color: var(--brand-dark);
 }
 
 .btn-secondary:focus-visible {
-  ring: 2px solid #10b981;
+  ring: 2px solid var(--brand-blue);
   ring-offset: 2px;
   ring-offset-color: var(--surface-primary);
 }
@@ -1427,18 +1447,18 @@ button {
 .dark .btn-secondary {
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(8px);
-  border-color: #10b981;
-  color: #34d399;
+  border-color: var(--brand-blue);
+  color: #6366F1;
 }
 
 .dark .btn-secondary:hover:not(:disabled) {
-  background: rgba(16, 185, 129, 0.1);
-  border-color: #34d399;
-  color: #6ee7b7;
+  background: rgba(14, 21, 147, 0.1);
+  border-color: #6366F1;
+  color: #818CF8;
 }
 
 .dark .btn-secondary:active:not(:disabled) {
-  background: rgba(16, 185, 129, 0.15);
+  background: rgba(14, 21, 147, 0.15);
 }
 
 /* NEUTRAL BUTTON - Premium Subtle Design */
@@ -1673,11 +1693,55 @@ body,
 html {
   height: 100%;
   background-color: var(--surface-primary);
+  font-family: 'Inter', 'Inter Fallback', system-ui, sans-serif;
 }
 
 .dark body,
 .dark html {
   background-color: var(--surface-primary);
+}
+
+/* EVE Style Guide Typography Classes */
+
+/* Font Family Utilities */
+.font-display {
+  font-family: 'Comfortaa', 'Inter Fallback', system-ui, sans-serif;
+}
+
+.font-body {
+  font-family: 'Inter', 'Inter Fallback', system-ui, sans-serif;
+}
+
+/* Typography Patterns */
+.heading-primary {
+  font-family: 'Comfortaa', 'Inter Fallback', system-ui, sans-serif;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.heading-secondary {
+  font-family: 'Comfortaa', 'Inter Fallback', system-ui, sans-serif;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.body-text {
+  font-family: 'Inter', 'Inter Fallback', system-ui, sans-serif;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.ui-text {
+  font-family: 'Inter', 'Inter Fallback', system-ui, sans-serif;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* Custom heading spacing */
+.custom-heading-spacing {
+  line-height: 1.2 !important;
 }
 
 #__next,
@@ -2234,61 +2298,61 @@ html {
   box-shadow: 0 0 0 50vh #000000 inset;
 }
 
-/* SUCCESS BUTTON - Premium Success Design */
+/* SUCCESS BUTTON - EVE Brand Success Design */
 .btn-success {
-  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
-  border-color: #10b981;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  border-color: #059669;
   color: #ffffff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
   box-shadow: 
-    0 1px 3px 0 rgba(52, 211, 153, 0.15),
-    0 1px 2px 0 rgba(52, 211, 153, 0.1);
+    0 1px 3px 0 rgba(5, 150, 105, 0.15),
+    0 1px 2px 0 rgba(5, 150, 105, 0.1);
 }
 
 .btn-success:hover:not(:disabled) {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  border-color: #059669;
+  background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+  border-color: #047857;
   box-shadow: 
-    0 4px 6px -1px rgba(52, 211, 153, 0.25),
-    0 2px 4px -1px rgba(52, 211, 153, 0.15);
+    0 4px 6px -1px rgba(5, 150, 105, 0.25),
+    0 2px 4px -1px rgba(5, 150, 105, 0.15);
 }
 
 .btn-success:active:not(:disabled) {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  border-color: #047857;
+  background: linear-gradient(135deg, #065f46 0%, #064e3b 100%);
+  border-color: #065f46;
 }
 
 .btn-success:focus-visible {
-  ring: 2px solid #34d399;
+  ring: 2px solid #059669;
   ring-offset: 2px;
   ring-offset-color: var(--surface-primary);
 }
 
-/* PREMIUM INTEGRATION WITH EXISTING BUTTON COMPONENT */
-/* Override the Button component's default styles with our premium design */
+/* EVE BRAND INTEGRATION WITH EXISTING BUTTON COMPONENT */
+/* Override the Button component's default styles with EVE brand design */
 .btn[class*="bg-primary"] {
-  background: linear-gradient(135deg, #34d399 0%, #10b981 100%) !important;
-  border-color: #10b981 !important;
-  color: #ffffff !important;
+  background: linear-gradient(135deg, var(--brand-blue) 0%, var(--brand-dark) 100%) !important;
+  border-color: var(--brand-blue) !important;
+  color: var(--brand-white) !important;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
   box-shadow: 
-    0 1px 3px 0 rgba(52, 211, 153, 0.15),
-    0 1px 2px 0 rgba(52, 211, 153, 0.1) !important;
+    0 1px 3px 0 rgba(14, 21, 147, 0.15),
+    0 1px 2px 0 rgba(14, 21, 147, 0.1) !important;
 }
 
 .btn[class*="bg-primary"]:hover:not(:disabled) {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-  border-color: #059669 !important;
+  background: linear-gradient(135deg, #1E3A8A 0%, var(--brand-blue) 100%) !important;
+  border-color: #1E3A8A !important;
   box-shadow: 
-    0 4px 6px -1px rgba(52, 211, 153, 0.25),
-    0 2px 4px -1px rgba(52, 211, 153, 0.15) !important;
+    0 4px 6px -1px rgba(14, 21, 147, 0.25),
+    0 2px 4px -1px rgba(14, 21, 147, 0.15) !important;
 }
 
 /* ENHANCED FOCUS STATES FOR ACCESSIBILITY */
 .btn:focus-visible,
 .btn[class*="focus-visible"] {
   outline: none !important;
-  ring: 2px solid var(--green-500) !important;
+  ring: 2px solid var(--brand-blue) !important;
   ring-offset: 2px !important;
   ring-offset-color: var(--surface-primary) !important;
 }
@@ -2328,25 +2392,25 @@ html {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='M 32 0 L 0 0 0 32' fill='none' stroke='%234a5568' stroke-width='0.75' opacity='0.4'/%3E%3C/svg%3E");
 }
 
-/* INTEGRATIONS BUTTON HEARTBEAT ANIMATION */
+/* EVE BRAND INTEGRATIONS BUTTON HEARTBEAT ANIMATION */
 @keyframes integrations-heartbeat {
   0% {
     transform: scale(1);
     opacity: 1;
-    border-color: #10b981;
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+    border-color: var(--brand-blue);
+    box-shadow: 0 0 0 0 var(--brand-blue-30);
   }
   50% {
     transform: scale(1.015);
     opacity: 0.7;
-    border-color: #34d399;
-    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.2);
+    border-color: #6366F1;
+    box-shadow: 0 0 0 1px var(--brand-blue-20);
   }
   100% {
     transform: scale(1);
     opacity: 1;
-    border-color: #10b981;
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+    border-color: var(--brand-blue);
+    box-shadow: 0 0 0 0 var(--brand-blue-30);
   }
 }
 
@@ -2373,7 +2437,7 @@ html {
 .integrations-heartbeat-ring {
   position: absolute;
   inset: -1px;
-  border: 1.5px solid #10b981;
+  border: 1.5px solid var(--brand-blue);
   border-radius: inherit;
   pointer-events: none;
   animation: integrations-heartbeat 3s ease-in-out infinite;
@@ -2383,7 +2447,7 @@ html {
   content: '';
   position: absolute;
   inset: -2px;
-  border: 1px solid #34d399;
+  border: 1px solid #6366F1;
   border-radius: inherit;
   animation: integrations-pulse-ring 3s ease-out infinite;
   animation-delay: 0.6s;
@@ -2393,7 +2457,7 @@ html {
   content: '';
   position: absolute;
   inset: -3px;
-  border: 0.5px solid #6ee7b7;
+  border: 0.5px solid #818CF8;
   border-radius: inherit;
   animation: integrations-pulse-ring 3s ease-out infinite;
   animation-delay: 1.2s;
@@ -2402,10 +2466,10 @@ html {
 /* Hover state - pause animation and enhance glow */
 .integrations-heartbeat-button:hover .integrations-heartbeat-ring {
   animation-play-state: paused;
-  border-color: #059669;
+  border-color: #1E3A8A;
   box-shadow: 
-    0 0 0 0 rgba(5, 150, 105, 0.3),
-    0 0 6px rgba(16, 185, 129, 0.2);
+    0 0 0 0 rgba(30, 58, 138, 0.3),
+    0 0 6px rgba(14, 21, 147, 0.2);
   transform: scale(1.01);
 }
 
@@ -2423,41 +2487,41 @@ html {
 
 /* Focus state for accessibility */
 .integrations-heartbeat-button:focus-visible {
-  outline: 2px solid #10b981;
+  outline: 2px solid var(--brand-blue);
   outline-offset: 2px;
 }
 
 /* Dark mode adjustments */
 .dark .integrations-heartbeat-ring {
-  border-color: #34d399;
+  border-color: #6366F1;
 }
 
 .dark .integrations-heartbeat-ring::before {
-  border-color: #6ee7b7;
+  border-color: #818CF8;
 }
 
 .dark .integrations-heartbeat-ring::after {
-  border-color: #a7f3d0;
+  border-color: #A5B4FC;
 }
 
 @keyframes integrations-heartbeat-dark {
   0% {
     transform: scale(1);
     opacity: 1;
-    border-color: #34d399;
-    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4);
+    border-color: #6366F1;
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
   }
   50% {
     transform: scale(1.015);
     opacity: 0.7;
-    border-color: #6ee7b7;
-    box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.2);
+    border-color: #818CF8;
+    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2);
   }
   100% {
     transform: scale(1);
     opacity: 1;
-    border-color: #34d399;
-    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4);
+    border-color: #6366F1;
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
   }
 }
 
@@ -2466,10 +2530,10 @@ html {
 }
 
 .dark .integrations-heartbeat-button:hover .integrations-heartbeat-ring {
-  border-color: #10b981;
+  border-color: var(--brand-blue);
   box-shadow: 
-    0 0 0 0 rgba(16, 185, 129, 0.3),
-    0 0 6px rgba(52, 211, 153, 0.2);
+    0 0 0 0 rgba(14, 21, 147, 0.3),
+    0 0 6px rgba(99, 102, 241, 0.2);
 }
 
 /* Workflow Testing Scanner Animation */

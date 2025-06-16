@@ -222,9 +222,9 @@ export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
             
             const baseStyles = {
               mcp_agent_action: {
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                border: '2px solid #5a67d8',
-                color: 'white',
+                background: 'white',
+                border: '2px solid #e2e8f0',
+                color: 'black',
                 icon: toolIcon
               },
             };
@@ -364,28 +364,28 @@ export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
           const getTriggerStyle = (type: string) => {
             const styles = {
               manual: {
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                border: '2px solid #5a67d8',
+                background: 'white',
+                border: '2px solid #e2e8f0',
                 icon: '👤'
               },
               schedule: {
-                background: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
-                border: '2px solid #ed8936',
+                background: 'white',
+                border: '2px solid #e2e8f0',
                 icon: '📅'
               },
               webhook: {
-                background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-                border: '2px solid #38b2ac',
+                background: 'white',
+                border: '2px solid #e2e8f0',
                 icon: '🔗'
               },
               email: {
-                background: 'linear-gradient(135deg, #d299c2 0%, #fef9d7 100%)',
-                border: '2px solid #9f7aea',
+                background: 'white',
+                border: '2px solid #e2e8f0',
                 icon: '📧'
               },
               event: {
-                background: 'linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%)',
-                border: '2px solid #4299e1',
+                background: 'white',
+                border: '2px solid #e2e8f0',
                 icon: '⚡'
               },
             };
@@ -402,7 +402,7 @@ export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
                 style={{
                   background: style.background,
                   border: style.border,
-                  color: 'white',
+                  color: 'black',
                   boxShadow: '0 8px 20px rgba(0, 0, 0, 0.12)',
                 }}
               >
@@ -653,12 +653,12 @@ export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
 
           return (
             <div className="w-screen h-screen relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 z-10 p-4 border-b bg-white/90 backdrop-blur-sm">
-                <h2 className="text-lg font-semibold">{workflowData.workflow.name}</h2>
+              <div className="absolute top-0 left-0 right-0 z-10 p-4 border-b border-white/10 bg-transparent backdrop-blur-sm">
+                <h2 className="text-lg font-semibold text-white">{workflowData.workflow.name}</h2>
                 {workflowData.workflow.description && (
-                  <p className="text-sm text-gray-600 mt-1">{workflowData.workflow.description}</p>
+                  <p className="text-sm text-white mt-1" style={{ opacity: 0.8 }}>{workflowData.workflow.description}</p>
                 )}
-                <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                <div className="flex gap-4 mt-2 text-xs text-white" style={{ opacity: 0.7 }}>
                   <span>Steps: {workflowData.workflow.steps.filter(step => {
                     const isErrorStep = step.name.toLowerCase().includes('error') || 
                                        step.name.toLowerCase().includes('handler') ||

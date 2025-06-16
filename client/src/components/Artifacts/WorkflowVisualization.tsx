@@ -65,8 +65,8 @@ const WorkflowStepNode = ({ data, selected }: { data: any; selected: boolean }) 
   const getNodeStyle = (type: string, status: string) => {
     const baseStyles = {
       action: {
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        border: '2px solid #5a67d8',
+        background: 'linear-gradient(135deg, #0E1593 0%, #04062D 100%)',
+        border: '2px solid #0E1593',
         color: 'white',
         icon: '⚙️'
       },
@@ -83,9 +83,9 @@ const WorkflowStepNode = ({ data, selected }: { data: any; selected: boolean }) 
         icon: '⏱️'
       },
       mcp_tool: {
-        background: 'linear-gradient(135deg, #d299c2 0%, #fef9d7 100%)',
-        border: '2px solid #9f7aea',
-        color: '#2d3748',
+        background: 'linear-gradient(135deg, #0E1593 0%, #04062D 100%)',
+        border: '2px solid #0E1593',
+        color: 'white',
         icon: '🔧'
       },
     };
@@ -212,8 +212,8 @@ const TriggerNode = ({ data }: { data: any }) => {
   const getTriggerStyle = (type: string) => {
     const styles = {
       manual: {
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        border: '2px solid #5a67d8',
+        background: 'linear-gradient(135deg, #0E1593 0%, #04062D 100%)',
+        border: '2px solid #0E1593',
         icon: '👤'
       },
       schedule: {
@@ -227,8 +227,8 @@ const TriggerNode = ({ data }: { data: any }) => {
         icon: '🔗'
       },
       email: {
-        background: 'linear-gradient(135deg, #d299c2 0%, #fef9d7 100%)',
-        border: '2px solid #9f7aea',
+        background: 'linear-gradient(135deg, #0E1593 0%, #04062D 100%)',
+        border: '2px solid #0E1593',
         icon: '📧'
       },
       event: {

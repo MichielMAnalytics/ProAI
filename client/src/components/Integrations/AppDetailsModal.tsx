@@ -129,7 +129,7 @@ export default function AppDetailsModal({
                 </div>
                 
                 <div className="flex-1 min-w-0 text-center sm:text-left">
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">{integration.appName || 'Unknown App'}</h2>
+                  <h2 className="text-xl sm:text-2xl heading-primary mb-2">{integration.appName || 'Unknown App'}</h2>
                   <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mb-3 px-2 sm:px-0">{integration.appDescription || 'No description available'}</p>
                   
                   {integration.appCategories && integration.appCategories.length > 0 && (
@@ -137,7 +137,7 @@ export default function AppDetailsModal({
                       {integration.appCategories.slice(0, 3).map((category) => (
                         <span
                           key={category}
-                          className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 border border-green-200/50 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700/50"
+                          className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-brand-blue border border-blue-200/50 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700/50"
                         >
                           {category}
                         </span>
@@ -171,16 +171,16 @@ export default function AppDetailsModal({
               <TabsContent value="overview">
                 <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
                   <div className="space-y-3 sm:space-y-4 flex flex-col">
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">Connection Status</h3>
+                    <h3 className="text-base sm:text-lg font-semibold font-comfortaa text-gray-900 dark:text-gray-100">Connection Status</h3>
                     <div className="rounded-xl border border-gray-200 bg-surface-primary p-4 sm:p-6 shadow-sm dark:border-gray-700 dark:bg-surface-secondary flex-1 flex flex-col">
                       {isConnected ? (
                         <div className="space-y-3 sm:space-y-4 flex flex-col h-full">
                           <div className="flex items-center space-x-2">
                             <div className="relative">
-                              <div className="h-3 w-3 bg-green-500 rounded-full"></div>
-                              <div className="absolute inset-0 h-3 w-3 bg-green-400 rounded-full opacity-40 animate-pulse"></div>
+                              <div className="h-3 w-3 bg-brand-blue rounded-full"></div>
+                              <div className="absolute inset-0 h-3 w-3 bg-indigo-400 rounded-full opacity-40 animate-pulse"></div>
                             </div>
-                            <span className="font-medium text-green-600 dark:text-green-400">Connected</span>
+                            <span className="font-medium text-brand-blue dark:text-indigo-400">Connected</span>
                           </div>
                           <p className="text-sm text-gray-600 dark:text-gray-400 flex-1">
                             This app is connected to your account. You can use its actions and triggers in your workflows.
@@ -232,7 +232,7 @@ export default function AppDetailsModal({
                   </div>
 
                   <div className="space-y-3 sm:space-y-4 flex flex-col">
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">App Information</h3>
+                    <h3 className="text-base sm:text-lg font-semibold font-comfortaa text-gray-900 dark:text-gray-100">App Information</h3>
                     <div className="rounded-xl border border-gray-200 bg-surface-primary p-4 sm:p-6 shadow-sm dark:border-gray-700 dark:bg-surface-secondary flex-1">
                       <dl className="space-y-3">
                         <div>
@@ -251,7 +251,7 @@ export default function AppDetailsModal({
                             ) : components?.actions && components.actions.length > 0 ? (
                               <button
                                 onClick={() => setActiveTab('actions')}
-                                className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 hover:text-green-800 dark:text-green-300 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:hover:text-green-200 rounded-md border border-green-200/50 dark:border-green-700/50 transition-all"
+                                className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 text-sm font-medium text-brand-blue bg-blue-50 hover:bg-blue-100 hover:text-blue-800 dark:text-indigo-300 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 dark:hover:text-indigo-200 rounded-md border border-blue-200/50 dark:border-indigo-700/50 transition-all"
                                 title="View tools"
                               >
                                 {components.actions.length}
@@ -271,7 +271,7 @@ export default function AppDetailsModal({
                                 href={integration.appUrl} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="text-sm text-green-600 hover:text-green-500 dark:text-green-400 dark:hover:text-green-300 break-all"
+                                className="text-sm text-brand-blue hover:text-blue-700 dark:text-indigo-400 dark:hover:text-indigo-300 break-all"
                               >
                                 {integration.appUrl}
                               </a>

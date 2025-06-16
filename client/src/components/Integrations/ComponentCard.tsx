@@ -66,7 +66,7 @@ export default function ComponentCard({ component, type, isConnected, appSlug }:
     <div className="group relative rounded-xl border border-gray-200 bg-surface-primary p-6 shadow-sm hover:shadow-md transition-shadow dark:border-gray-700 dark:bg-surface-secondary">
       <div className="mb-4">
         <div className="flex items-start justify-between mb-2">
-          <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-tight pr-4">
+          <h4 className="text-base heading-secondary pr-4">
             {component.name}
           </h4>
           <div className="flex items-center gap-1 flex-shrink-0">
@@ -76,7 +76,7 @@ export default function ComponentCard({ component, type, isConnected, appSlug }:
                 href={docUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-1.5 rounded-md text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-surface-hover transition-all duration-200"
+                className="p-1.5 rounded-md text-brand-blue hover:text-blue-700 dark:text-indigo-400 dark:hover:text-indigo-300 hover:bg-surface-hover transition-all duration-200"
                 onClick={(e) => e.stopPropagation()}
                 title="View documentation"
               >
@@ -106,7 +106,7 @@ export default function ComponentCard({ component, type, isConnected, appSlug }:
           </div>
         </div>
         <p 
-          className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed"
+          className="text-sm body-text"
           title={cleanDescription}
         >
           {cleanDescription}

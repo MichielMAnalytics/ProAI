@@ -321,7 +321,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
           <TooltipAnchor description="View workflow" side="top">
             <button
               onClick={handleView}
-              className="flex h-6 w-6 items-center justify-center rounded-md bg-gray-600 text-white shadow-sm transition-all hover:bg-gray-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex h-6 w-6 items-center justify-center rounded-lg bg-gray-100 border border-gray-300 text-gray-700 shadow-sm transition-all hover:bg-gray-200 hover:shadow-md hover:border-gray-400 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-600 dark:hover:border-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={false}
             >
               <Eye className="h-3 w-3" />
@@ -330,35 +330,35 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
           <TooltipAnchor description="Test workflow" side="top">
             <button
               onClick={handleTest}
-              className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-600 text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-r from-brand-blue to-indigo-600 border border-brand-blue/60 shadow-sm transition-all hover:from-indigo-600 hover:to-blue-700 hover:shadow-md hover:border-brand-blue disabled:opacity-50 disabled:cursor-not-allowed [&:hover>svg]:text-white"
               disabled={false}
             >
-              <TestTube className="h-3 w-3" />
+              <TestTube className="h-3 w-3 text-black dark:text-white transition-colors" />
             </button>
           </TooltipAnchor>
           <TooltipAnchor description={workflow.isActive ? 'Deactivate workflow' : 'Activate workflow'} side="top">
             <button
               onClick={handleToggle}
-              className={`flex h-6 w-6 items-center justify-center rounded-md shadow-sm transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
+              className={`flex h-6 w-6 items-center justify-center rounded-lg shadow-sm transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
                 workflow.isActive 
-                  ? 'bg-orange-600 text-white hover:bg-orange-700' 
-                  : 'bg-green-600 text-white hover:bg-green-700'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-600 border border-amber-500/60 text-white hover:from-amber-600 hover:to-orange-700 hover:border-amber-500' 
+                  : 'bg-gradient-to-r from-green-500 to-emerald-600 border border-green-500/60 text-white hover:from-green-600 hover:to-emerald-700 hover:border-green-500'
               }`}
               disabled={false}
             >
               {workflow.isActive ? (
-                <Pause className="h-3 w-3" />
+                <Pause className="h-3 w-3 text-white" />
               ) : (
-                <Play className="h-3 w-3" />
+                <Play className="h-3 w-3 text-white" />
               )}
             </button>
           </TooltipAnchor>
           <TooltipAnchor description="Delete workflow" side="top">
             <button
               onClick={handleDelete}
-              className="flex h-6 w-6 items-center justify-center rounded-md bg-red-600 text-white shadow-sm transition-all hover:bg-red-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-r from-red-500 to-red-600 border border-red-500/60 text-white shadow-sm transition-all hover:from-red-600 hover:to-red-700 hover:shadow-md hover:border-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Trash2 className="h-3 w-3" />
+              <Trash2 className="h-3 w-3 text-white" />
             </button>
           </TooltipAnchor>
         </div>

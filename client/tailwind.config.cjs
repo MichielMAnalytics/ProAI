@@ -7,13 +7,11 @@ module.exports = {
   darkMode: ['class'],
   theme: {
     fontFamily: {
-      sans: ['Inter', 'sans-serif'],
+      comfortaa: ['Comfortaa', 'Inter Fallback', 'system-ui', 'sans-serif'],
+      inter: ['Inter', 'Inter Fallback', 'system-ui', 'sans-serif'],
+      sans: ['Inter', 'Inter Fallback', 'system-ui', 'sans-serif'],
       mono: ['Roboto Mono', 'monospace'],
     },
-    // fontFamily: {
-    //   sans: ['Söhne', 'sans-serif'],
-    //   mono: ['Söhne Mono', 'monospace'],
-    // },
     extend: {
       width: {
         authPageWidth: '370px',

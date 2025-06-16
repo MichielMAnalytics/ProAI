@@ -57,7 +57,13 @@ export default function ArtifactTabs({
       </Tabs.Content>
       <Tabs.Content
         value="preview"
-        className={cn('h-full overflow-auto', isMermaid ? 'bg-[#282C34]' : 'bg-white')}
+        className={cn('h-full overflow-auto', 
+          isMermaid ? 'bg-[#282C34]' : 
+          artifact.type === 'application/vnd.workflow' ? '' : 'bg-white'
+        )}
+        style={artifact.type === 'application/vnd.workflow' ? {
+          background: 'linear-gradient(135deg, #1E3A8A 0%, #04062D 60%, #000000 100%)'
+        } : {}}
       >
         <ArtifactPreview
           files={files}

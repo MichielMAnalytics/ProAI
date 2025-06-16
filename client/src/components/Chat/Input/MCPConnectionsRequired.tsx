@@ -70,13 +70,9 @@ export default function MCPConnectionsRequired({
           key={appSlug}
           onClick={() => handleConnect({ appSlug })}
           disabled={isConnecting}
-          className="integrations-heartbeat-button relative btn-primary inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="btn-primary inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {/* Heartbeat animation border */}
-          <div className="integrations-heartbeat-ring absolute inset-0 rounded-lg"></div>
-          
-          {/* Content container */}
-          <div className="flex items-center gap-2 relative z-10">
+          <div className="flex items-center gap-2">
             {appIcon && (
               <img 
                 src={appIcon} 

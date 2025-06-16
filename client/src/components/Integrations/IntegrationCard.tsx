@@ -51,8 +51,8 @@ export default function IntegrationCard({
         {isConnected && (
           <div className="absolute top-4 right-4 z-10">
             <div className="relative">
-              <div className="h-3 w-3 bg-green-500 rounded-full"></div>
-              <div className="absolute inset-0 h-3 w-3 bg-green-400 rounded-full opacity-40 animate-pulse"></div>
+              <div className="h-3 w-3 bg-brand-blue rounded-full"></div>
+              <div className="absolute inset-0 h-3 w-3 bg-indigo-400 rounded-full opacity-40 animate-pulse"></div>
             </div>
           </div>
         )}
@@ -77,18 +77,18 @@ export default function IntegrationCard({
             </div>
             
             <div className="min-w-0 flex-1">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-lg leading-tight mb-2 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">
+              <h3 className="text-lg heading-secondary mb-2 group-hover:text-brand-blue dark:group-hover:text-indigo-400 transition-colors">
                 {integration.appName}
               </h3>
               
               {/* Badges under title */}
               <div className="flex flex-wrap gap-1.5 mb-3">
                 {integration.appCategories && integration.appCategories.length > 0 && (
-                  <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 border border-green-200/50 dark:bg-surface-secondary dark:text-gray-300 dark:border-gray-700">
+                  <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-brand-blue border border-blue-200/50 dark:bg-surface-secondary dark:text-gray-300 dark:border-gray-700">
                     {integration.appCategories[0]}
                   </span>
                 )}
-                <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 border border-green-200/50 dark:bg-surface-secondary dark:text-gray-300 dark:border-gray-700">
+                <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-brand-blue border border-blue-200/50 dark:bg-surface-secondary dark:text-gray-300 dark:border-gray-700">
                   {integration.authType || 'oauth'}
                 </span>
               </div>
@@ -97,7 +97,7 @@ export default function IntegrationCard({
 
           {/* Description - Full width and flexible height */}
           <div className="flex-1 mb-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+            <p className="text-sm body-text">
               {integration.appDescription || 'No description available'}
             </p>
           </div>
