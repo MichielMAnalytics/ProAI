@@ -42,11 +42,15 @@ const WorkflowsTable: React.FC<WorkflowsTableProps> = ({ workflows }) => {
         />
       </div>
 
-      <div className="rounded-lg border border-border-light bg-transparent shadow-sm transition-colors">
-        <Table className="w-full">
+      <div className="rounded-lg border border-border-light bg-transparent shadow-sm transition-colors overflow-hidden">
+        <Table className="w-full table-fixed">
+          <colgroup>
+            <col className="w-32 sm:w-36" />
+            <col className="w-auto" />
+          </colgroup>
           <TableHeader>
             <TableRow className="border-b border-border-light">
-              <TableHead className="bg-surface-secondary py-2 text-left text-xs font-medium text-text-secondary w-20 sm:w-24">
+              <TableHead className="bg-surface-secondary py-2 text-left text-xs font-medium text-text-secondary">
                 <div className="px-1 sm:px-2">Actions</div>
               </TableHead>
               <TableHead className="bg-surface-secondary py-2 text-left text-xs font-medium text-text-secondary">

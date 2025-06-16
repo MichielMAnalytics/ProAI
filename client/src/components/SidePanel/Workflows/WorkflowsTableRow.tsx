@@ -300,23 +300,11 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
     }).length;
   };
 
-  // Function to get description length based on sidebar width
-  const getDescriptionLength = () => {
-    return {
-      narrow: 30,   // Very narrow sidebar (collapsed state)
-      base: 50,     // Small sidebar
-      md: 100,      // Medium sidebar
-      lg: 150,      // Large sidebar  
-      xl: 200,      // Extra large sidebar
-    };
-  };
-
-  const descLengths = getDescriptionLength();
   const description = workflow.description || 'No description';
 
   return (
     <TableRow className="border-b border-border-light hover:bg-surface-hover">
-      <TableCell className="py-2 w-20 sm:w-24">
+      <TableCell className="py-2">
         <div className="flex flex-row gap-1 px-1 sm:px-2 items-center justify-start">
           <TooltipAnchor description="View workflow" side="top">
             <button
@@ -365,11 +353,13 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
       </TableCell>
       
       <TableCell className="py-2">
-        <div className="px-2 min-w-0">
-          <div className="mb-1 flex items-center gap-2">
-            <span className="truncate text-xs font-medium text-text-primary" title={workflow.name}>
-              {workflow.name}
-            </span>
+        <div className="px-2 min-w-0 max-w-full overflow-hidden">
+          <div className="mb-1 flex items-center gap-2 min-w-0">
+            <TooltipAnchor description={workflow.name} side="top">
+              <span className="truncate text-xs font-medium text-text-primary cursor-help flex-1 min-w-0">
+                {workflow.name}
+              </span>
+            </TooltipAnchor>
             <span
               className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium flex-shrink-0 ${getStatusColor(
                 workflow.isActive,
@@ -380,62 +370,43 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
             </span>
           </div>
           
-          {/* Responsive description - expands horizontally with sidebar */}
-          <div className="text-xs text-text-secondary mb-1" title={description}>
-            {/* Very narrow sidebar - minimal description */}
-            <span className="truncate block sm:hidden">
-              {description.length > descLengths.narrow ? `${description.substring(0, descLengths.narrow)}...` : description}
-            </span>
-            
-            {/* Small sidebar */}
-            <span className="truncate hidden sm:block md:hidden">
-              {description.length > descLengths.base ? `${description.substring(0, descLengths.base)}...` : description}
-            </span>
-            
-            {/* Medium size */}
-            <span className="truncate hidden md:block lg:hidden">
-              {description.length > descLengths.md ? `${description.substring(0, descLengths.md)}...` : description}
-            </span>
-            
-            {/* Large size */}
-            <span className="truncate hidden lg:block xl:hidden">
-              {description.length > descLengths.lg ? `${description.substring(0, descLengths.lg)}...` : description}
-            </span>
-            
-            {/* Extra large size */}
-            <span className="truncate hidden xl:block">
-              {description.length > descLengths.xl ? `${description.substring(0, descLengths.xl)}...` : description}
-            </span>
+          {/* Description with tooltip */}
+          <div className="text-xs text-text-secondary mb-1 min-w-0">
+            <TooltipAnchor description={description} side="top">
+              <span className="truncate block cursor-help">
+                {description}
+              </span>
+            </TooltipAnchor>
           </div>
           
           {/* Additional details - only visible when sidebar is wider */}
-          <div className="hidden lg:block space-y-1">
-            <div className="text-xs text-text-secondary">
+          <div className="hidden lg:block space-y-1 min-w-0">
+            <div className="text-xs text-text-secondary truncate">
               <span className="font-medium">Trigger:</span> {workflow.trigger.type}
             </div>
-            <div className="text-xs text-text-secondary">
+            <div className="text-xs text-text-secondary truncate">
               <span className="font-medium">Steps:</span> {getMainStepCount(workflow.steps)}
             </div>
             {workflow.next_run && (
-              <div className="text-xs text-text-secondary">
+              <div className="text-xs text-text-secondary truncate">
                 <span className="font-medium">Next run:</span> {formatDate(workflow.next_run)}
               </div>
             )}
             {workflow.last_run && (
-              <div className="text-xs text-text-secondary">
+              <div className="text-xs text-text-secondary truncate">
                 <span className="font-medium">Last run:</span> {formatDate(workflow.last_run)}
               </div>
             )}
           </div>
           
           {/* Medium width details - visible when sidebar is moderately wide */}
-          <div className="hidden md:block lg:hidden">
-            <div className="text-xs text-text-secondary">
+          <div className="hidden md:block lg:hidden min-w-0">
+            <div className="text-xs text-text-secondary truncate">
               <span className="font-medium">Trigger:</span> {workflow.trigger.type} | 
               <span className="font-medium"> Steps:</span> {getMainStepCount(workflow.steps)}
             </div>
             {workflow.next_run && (
-              <div className="text-xs text-text-secondary">
+              <div className="text-xs text-text-secondary truncate">
                 <span className="font-medium">Next:</span> {formatDate(workflow.next_run)}
               </div>
             )}

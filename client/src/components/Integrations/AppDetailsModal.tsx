@@ -130,7 +130,7 @@ export default function AppDetailsModal({
                 
                 <div className="flex-1 min-w-0 text-center sm:text-left">
                   <h2 className="text-xl sm:text-2xl heading-primary mb-2">{integration.appName || 'Unknown App'}</h2>
-                  <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mb-3 px-2 sm:px-0">{integration.appDescription || 'No description available'}</p>
+                  <p className="text-sm sm:text-base text-text-secondary mb-3 px-2 sm:px-0">{integration.appDescription || 'No description available'}</p>
                   
                   {integration.appCategories && integration.appCategories.length > 0 && (
                     <div className="flex flex-wrap justify-center sm:justify-start gap-1.5">
@@ -171,7 +171,7 @@ export default function AppDetailsModal({
               <TabsContent value="overview">
                 <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
                   <div className="space-y-3 sm:space-y-4 flex flex-col">
-                    <h3 className="text-base sm:text-lg font-semibold font-comfortaa text-gray-900 dark:text-gray-100">Connection Status</h3>
+                    <h3 className="text-base sm:text-lg font-semibold font-comfortaa text-text-primary">Connection Status</h3>
                     <div className="rounded-xl border border-gray-200 bg-surface-primary p-4 sm:p-6 shadow-sm dark:border-gray-700 dark:bg-surface-secondary flex-1 flex flex-col">
                       {isConnected ? (
                         <div className="space-y-3 sm:space-y-4 flex flex-col h-full">
@@ -182,11 +182,11 @@ export default function AppDetailsModal({
                             </div>
                             <span className="font-medium text-brand-blue dark:text-indigo-400">Connected</span>
                           </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 flex-1">
+                          <p className="text-sm text-text-secondary flex-1">
                             This app is connected to your account. You can use its actions and triggers in your workflows.
                           </p>
                           {userIntegration?.lastConnectedAt && (
-                            <p className="text-xs text-gray-500 dark:text-gray-500">
+                            <p className="text-xs text-text-tertiary">
                               Connected on {new Date(userIntegration.lastConnectedAt).toLocaleDateString()}
                             </p>
                           )}
@@ -208,9 +208,9 @@ export default function AppDetailsModal({
                         <div className="space-y-3 sm:space-y-4 flex flex-col h-full">
                           <div className="flex items-center space-x-2">
                             <div className="h-3 w-3 rounded-full bg-gray-400"></div>
-                            <span className="font-medium text-gray-600 dark:text-gray-400">Not Connected</span>
+                            <span className="font-medium text-text-secondary">Not Connected</span>
                           </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 flex-1">
+                          <p className="text-sm text-text-secondary flex-1">
                             Connect this app to your account to use its actions and triggers in your workflows.
                           </p>
                           <div className="mt-auto pt-2">
@@ -232,19 +232,19 @@ export default function AppDetailsModal({
                   </div>
 
                   <div className="space-y-3 sm:space-y-4 flex flex-col">
-                    <h3 className="text-base sm:text-lg font-semibold font-comfortaa text-gray-900 dark:text-gray-100">App Information</h3>
+                    <h3 className="text-base sm:text-lg font-semibold font-comfortaa text-text-primary">App Information</h3>
                     <div className="rounded-xl border border-gray-200 bg-surface-primary p-4 sm:p-6 shadow-sm dark:border-gray-700 dark:bg-surface-secondary flex-1">
                       <dl className="space-y-3">
                         <div>
-                          <dt className="text-sm font-medium text-gray-600 dark:text-gray-400">Authentication Type</dt>
+                          <dt className="text-sm font-medium text-text-secondary">Authentication Type</dt>
                           <dd className="mt-1">
-                            <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 border border-gray-200/50 dark:bg-surface-tertiary dark:text-gray-300 dark:border-gray-700">
+                            <span className="inline-flex items-center rounded-md bg-surface-secondary px-2 py-1 text-xs font-medium text-text-primary border border-border-light">
                               {integration.authType || 'oauth'}
                             </span>
                           </dd>
                         </div>
                         <div>
-                          <dt className="text-sm font-medium text-gray-600 dark:text-gray-400">Available Tools</dt>
+                          <dt className="text-sm font-medium text-text-secondary">Available Tools</dt>
                           <dd className="mt-1">
                             {isLoadingComponents ? (
                               <Spinner className="h-4 w-4" />
@@ -257,7 +257,7 @@ export default function AppDetailsModal({
                                 {components.actions.length}
                               </button>
                             ) : (
-                              <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              <span className="text-sm font-medium text-text-primary">
                                 0
                               </span>
                             )}
@@ -265,7 +265,7 @@ export default function AppDetailsModal({
                         </div>
                         {integration.appUrl && (
                           <div>
-                            <dt className="text-sm font-medium text-gray-600 dark:text-gray-400">Website</dt>
+                            <dt className="text-sm font-medium text-text-secondary">Website</dt>
                             <dd className="mt-1">
                               <a 
                                 href={integration.appUrl} 
@@ -286,7 +286,7 @@ export default function AppDetailsModal({
 
               <TabsContent value="actions">
                 <div className="space-y-4 sm:space-y-6">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">Available Tools</h3>
+                  <h3 className="text-base sm:text-lg font-semibold text-text-primary">Available Tools</h3>
                   
                   {isLoadingComponents ? (
                     <div className="flex h-32 items-center justify-center">
@@ -310,7 +310,7 @@ export default function AppDetailsModal({
                     </div>
                   ) : (
                     <div className="flex h-32 items-center justify-center rounded-xl border border-gray-200 bg-surface-secondary dark:border-gray-700 dark:bg-surface-secondary">
-                      <p className="text-sm text-gray-600 dark:text-gray-400 text-center px-4">No tools available for this app</p>
+                      <p className="text-sm text-text-secondary text-center px-4">No tools available for this app</p>
                     </div>
                   )}
                 </div>

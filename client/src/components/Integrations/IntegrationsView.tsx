@@ -561,13 +561,13 @@ export default function IntegrationsView() {
                     <span className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-700 dark:from-indigo-300 dark:via-blue-200 dark:to-indigo-300 bg-clip-text text-transparent font-bold tracking-tight text-sm sm:text-base">
                       2,700+
                     </span>
-                    <span className="text-gray-700 dark:text-gray-200 font-medium text-sm sm:text-base">Apps &</span>
+                    <span className="text-text-primary font-medium text-sm sm:text-base">Apps &</span>
                     <span className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-700 dark:from-indigo-300 dark:via-blue-200 dark:to-indigo-300 bg-clip-text text-transparent font-bold tracking-tight text-sm sm:text-base">
                       10,000+
                     </span>
                   </div>
                   {/* Bottom line */}
-                  <div className="text-gray-700 dark:text-gray-200 font-medium text-xs sm:text-base leading-tight">
+                  <div className="text-text-primary font-medium text-xs sm:text-base leading-tight">
                     Tools Available
                   </div>
                 </div>
@@ -599,21 +599,21 @@ export default function IntegrationsView() {
 
             {/* Feature highlights - Enhanced EVE branded dots */}
             <div className="flex flex-wrap justify-center gap-4 sm:gap-8 mb-6 sm:mb-8 text-xs sm:text-sm px-4">
-              <div className="flex items-center gap-2 text-gray-700 dark:text-text-secondary">
+              <div className="flex items-center gap-2 text-text-secondary">
                 <div className="relative">
                   <div className="w-2 h-2 bg-gradient-to-r from-brand-blue to-indigo-600 dark:bg-indigo-400 rounded-full shadow-md shadow-brand-blue/30 dark:shadow-indigo-400/20 border border-brand-blue/30 dark:border-indigo-400/40"></div>
                   <div className="absolute inset-0 w-2 h-2 bg-gradient-to-r from-indigo-500 to-purple-500 dark:bg-indigo-400/30 rounded-full animate-pulse opacity-70"></div>
                 </div>
                 <span className="font-medium">One-click Setup</span>
               </div>
-              <div className="flex items-center gap-2 text-gray-700 dark:text-text-secondary">
+              <div className="flex items-center gap-2 text-text-secondary">
                 <div className="relative">
                   <div className="w-2 h-2 bg-gradient-to-r from-brand-blue to-indigo-600 dark:bg-indigo-400 rounded-full shadow-md shadow-brand-blue/30 dark:shadow-indigo-400/20 border border-brand-blue/30 dark:border-indigo-400/40"></div>
                   <div className="absolute inset-0 w-2 h-2 bg-gradient-to-r from-indigo-500 to-purple-500 dark:bg-indigo-400/30 rounded-full animate-pulse opacity-70"></div>
                 </div>
                 <span className="font-medium">Enterprise-grade security</span>
               </div>
-              <div className="flex items-center gap-2 text-gray-700 dark:text-text-secondary">
+              <div className="flex items-center gap-2 text-text-secondary">
                 <div className="relative">
                   <div className="w-2 h-2 bg-gradient-to-r from-brand-blue to-indigo-600 dark:bg-indigo-400 rounded-full shadow-md shadow-brand-blue/30 dark:shadow-indigo-400/20 border border-brand-blue/30 dark:border-indigo-400/40"></div>
                   <div className="absolute inset-0 w-2 h-2 bg-gradient-to-r from-indigo-500 to-purple-500 dark:bg-indigo-400/30 rounded-full animate-pulse opacity-70"></div>

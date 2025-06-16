@@ -7,9 +7,10 @@ module.exports = {
   darkMode: ['class'],
   theme: {
     fontFamily: {
-      comfortaa: ['Comfortaa', 'Inter Fallback', 'system-ui', 'sans-serif'],
-      inter: ['Inter', 'Inter Fallback', 'system-ui', 'sans-serif'],
-      sans: ['Inter', 'Inter Fallback', 'system-ui', 'sans-serif'],
+      display: ['Comfortaa', 'system-ui', 'sans-serif'],
+      comfortaa: ['Comfortaa', 'system-ui', 'sans-serif'],
+      inter: ['Inter', 'system-ui', 'sans-serif'],
+      sans: ['Inter', 'system-ui', 'sans-serif'],
       mono: ['Roboto Mono', 'monospace'],
     },
     extend: {
@@ -59,6 +60,12 @@ module.exports = {
           800: '#06373e',
           900: '#031f29',
         },
+        // Eve Brand Colors
+        'brand-blue': '#0E1593',
+        'brand-dark': '#04062D',
+        'brand-black': '#0E0E0E',
+        'brand-white': '#FFFFFF',
+        'background-black': '#000000',
         'brand-purple': '#ab68ff',
         'presentation': 'var(--presentation)',
         'text-primary': 'var(--text-primary)',

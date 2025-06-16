@@ -1693,7 +1693,7 @@ body,
 html {
   height: 100%;
   background-color: var(--surface-primary);
-  font-family: 'Inter', 'Inter Fallback', system-ui, sans-serif;
+  font-family: var(--font-body);
 }
 
 .dark body,
@@ -1701,47 +1701,221 @@ html {
   background-color: var(--surface-primary);
 }
 
+/* Global heading styles - Apply Comfortaa to all headings */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Dark theme overrides for headings */
+.dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+  color: #FFFFFF;
+}
+
+h1 {
+  font-weight: 700;
+  font-size: 2.25rem;
+  line-height: 1.2;
+}
+
+h2 {
+  font-weight: 700;
+  font-size: 1.875rem;
+  line-height: 1.3;
+}
+
+h3 {
+  font-weight: 600;
+  font-size: 1.5rem;
+  line-height: 1.3;
+}
+
+h4 {
+  font-weight: 600;
+  font-size: 1.25rem;
+  line-height: 1.4;
+}
+
+h5 {
+  font-weight: 600;
+  font-size: 1.125rem;
+  line-height: 1.4;
+}
+
+h6 {
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
 /* EVE Style Guide Typography Classes */
+
+/* Font Family Variables */
+:root {
+  --font-display: 'Comfortaa', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+}
 
 /* Font Family Utilities */
 .font-display {
-  font-family: 'Comfortaa', 'Inter Fallback', system-ui, sans-serif;
+  font-family: var(--font-display);
 }
 
 .font-body {
-  font-family: 'Inter', 'Inter Fallback', system-ui, sans-serif;
+  font-family: var(--font-body);
 }
 
-/* Typography Patterns */
+.font-comfortaa {
+  font-family: var(--font-display);
+}
+
+.font-inter {
+  font-family: var(--font-body);
+}
+
+/* Typography Patterns - Following Eve Style Guide with theme support */
 .heading-primary {
-  font-family: 'Comfortaa', 'Inter Fallback', system-ui, sans-serif;
+  font-family: var(--font-display);
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1.2;
 }
 
 .heading-secondary {
-  font-family: 'Comfortaa', 'Inter Fallback', system-ui, sans-serif;
+  font-family: var(--font-display);
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.3;
 }
 
 .body-text {
-  font-family: 'Inter', 'Inter Fallback', system-ui, sans-serif;
+  font-family: var(--font-body);
   color: var(--text-secondary);
   line-height: 1.6;
 }
 
 .ui-text {
-  font-family: 'Inter', 'Inter Fallback', system-ui, sans-serif;
+  font-family: var(--font-body);
   font-weight: 500;
   color: var(--text-primary);
+}
+
+/* Dark theme specific overrides for Eve branding */
+.dark .heading-primary {
+  color: #FFFFFF;
+}
+
+.dark .heading-secondary {
+  color: #FFFFFF;
+}
+
+.dark .body-text {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.dark .ui-text {
+  color: #FFFFFF;
+}
+
+/* Typography Scale - Tailwind compatible */
+.text-6xl {
+  font-size: 3.75rem;
+  line-height: 1;
+}
+
+.text-5xl {
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.text-4xl {
+  font-size: 2.25rem;
+  line-height: 2.5rem;
+}
+
+.text-3xl {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+}
+
+.text-2xl {
+  font-size: 1.5rem;
+  line-height: 2rem;
+}
+
+.text-xl {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+}
+
+.text-lg {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+}
+
+.text-base {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+.text-sm {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 /* Custom heading spacing */
 .custom-heading-spacing {
   line-height: 1.2 !important;
+}
+
+/* Responsive text scaling */
+.responsive-text-hero {
+  font-size: 3rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+@media (min-width: 768px) {
+  .responsive-text-hero {
+    font-size: 3.75rem;
+  }
+}
+
+/* Additional typography utility classes */
+.font-heading {
+  font-family: var(--font-display);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+/* Dialog and modal title overrides */
+.dialog-title,
+[role="dialog"] h1,
+[role="dialog"] h2,
+[role="dialog"] h3,
+.modal-title {
+  font-family: var(--font-display) !important;
+  font-weight: 600;
+}
+
+/* Button text should use Inter */
+button, .btn {
+  font-family: var(--font-body);
+}
+
+/* Ensure Comfortaa is used for important headings */
+.heading-primary,
+.heading-secondary,
+.text-xl,
+.text-2xl,
+.text-3xl,
+.text-4xl,
+.text-5xl,
+.text-6xl {
+  font-family: var(--font-display);
 }
 
 #__next,
