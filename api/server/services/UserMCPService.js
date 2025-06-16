@@ -375,12 +375,17 @@ class UserMCPService {
           const originalToolCount = agent.tools.length;
           
           // Filter out tools that reference non-existent MCP servers
+          // Since tools now use clean names, we need to check if they're MCP tools
+          // and if their associated servers still exist
+          const mcpToolRegistry = global.app?.locals?.mcpToolRegistry;
+          
           const filteredTools = agent.tools.filter(tool => {
-            if (typeof tool === 'string' && tool.includes('__mcp__')) {
-              // Extract server name from tool string (format: toolName__mcp__serverName)
-              const parts = tool.split('__mcp__');
-              if (parts.length > 1) {
-                const serverName = parts[parts.length - 1];
+            if (typeof tool === 'string' && mcpToolRegistry && mcpToolRegistry.has(tool)) {
+              // This is an MCP tool, check if its server still exists
+              const mcpInfo = mcpToolRegistry.get(tool);
+              const serverName = mcpInfo?.serverName;
+              
+              if (serverName) {
                 const isValid = validMCPServers.includes(serverName);
                 
                 if (!isValid) {

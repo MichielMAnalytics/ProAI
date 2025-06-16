@@ -150,14 +150,20 @@ const getAvailableTools = async (req, res) => {
         req.app.locals.availableTools
       );
       
+      logger.info(`After MCP initialization: availableTools count = ${Object.keys(req.app.locals.availableTools).length}`);
+      
       if (mcpResult.success) {
         logger.info(`=== User MCP initialization successful ===`);
         logger.info(`Servers: ${mcpResult.serverCount}, Tools: ${mcpResult.toolCount}, Duration: ${mcpResult.duration}ms`);
         
-        // Load user MCP tools into the manifest using the initialized manager
-        if (mcpResult.mcpManager && mcpResult.serverCount > 0) {
+        // Use cached manifest tools if available, otherwise load them
+        if (mcpResult.manifestTools && mcpResult.manifestTools.length > 0) {
+          logger.info(`Using ${mcpResult.manifestTools.length} cached manifest tools for user ${userId}`);
+          pluginManifest = [...mcpResult.manifestTools, ...pluginManifest];
+        } else if (mcpResult.mcpManager && mcpResult.serverCount > 0) {
+          // Fallback to loading manifest tools if not cached (shouldn't happen in normal operation)
           try {
-            logger.info(`Loading user MCP tools into manifest...`);
+            logger.warn(`No cached manifest tools found, loading them fresh for user ${userId}`);
             const beforeSize = pluginManifest.length;
             pluginManifest = await mcpResult.mcpManager.loadUserManifestTools(pluginManifest, userId);
             const afterSize = pluginManifest.length;
@@ -193,6 +199,10 @@ const getAvailableTools = async (req, res) => {
     logger.info(`After authentication check: ${authenticatedPlugins.length}`);
 
     const toolDefinitions = req.app.locals.availableTools;
+    logger.info(`Available tools count: ${Object.keys(toolDefinitions).length}`);
+    logger.info(`Sample available tools:`, Object.keys(toolDefinitions).slice(0, 10));
+    logger.info(`Sample plugin keys:`, authenticatedPlugins.slice(0, 5).map(p => p.pluginKey));
+    
     const tools = authenticatedPlugins.filter(
       (plugin) =>
         toolDefinitions[plugin.pluginKey] !== undefined ||
@@ -205,8 +215,10 @@ const getAvailableTools = async (req, res) => {
     // via mcpManager.mapUserAvailableTools() and mcpManager.loadUserManifestTools()
     // No need for additional manual tool registration here
 
-    // Count MCP tools in final result
-    const mcpTools = tools.filter(tool => tool.pluginKey && tool.pluginKey.includes('_mcp_'));
+    // Count MCP tools in final result (check the MCP tool registry instead of pluginKey)
+    const mcpTools = tools.filter(tool => 
+      tool.pluginKey && req.app.locals.mcpToolRegistry && req.app.locals.mcpToolRegistry.has(tool.pluginKey)
+    );
     //logger.info(`Final tools count: ${tools.length}, MCP tools count: ${mcpTools.length}`);
     // Filter out the CONFIGURE_COMPONENT tool from the final list sent to the client
     const finalTools = tools.filter((tool) => tool.name !== 'CONFIGURE_COMPONENT');

@@ -21,11 +21,12 @@ export default function MCPServerIcons({ mcpServers }: MCPServerIconsProps) {
       return integration.appIcon;
     }
     
-    // Method 2: Extract from tools (for servers with pipedream- prefix)
+    // Method 2: Find tool by serverName or appSlug (clean tool names approach)
     const serverTool = tools?.find(tool => 
-      tool.pluginKey?.includes('_mcp_') && 
-      (tool.pluginKey.split('_mcp_')[1] === serverName || 
-       tool.pluginKey.split('_mcp_')[1] === `pipedream-${serverName}`)
+      tool.serverName === serverName || 
+      tool.appSlug === serverName ||
+      tool.serverName === `pipedream-${serverName}` ||
+      tool.appSlug === `pipedream-${serverName}`
     );
     
     return serverTool?.icon;

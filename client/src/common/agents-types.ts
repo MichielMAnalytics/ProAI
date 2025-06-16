@@ -33,4 +33,5 @@ export type AgentForm = {
   [AgentCapabilities.artifacts]?: ArtifactModes | string;
   workflows?: boolean;
   recursion_limit?: number;
+  mcp_servers?: string[];
 } & TAgentCapabilities;

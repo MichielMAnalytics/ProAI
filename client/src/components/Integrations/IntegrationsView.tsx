@@ -440,8 +440,9 @@ export default function IntegrationsView() {
 
   // Handle close button - navigate back to chat
   const handleClose = () => {
-    // Force a page refresh to ensure new tools are loaded
-    window.location.href = '/c/new';
+    // Navigate back to chat - no refresh needed since our caching system
+    // automatically handles data synchronization after connect/disconnect operations
+    navigate('/c/new');
   };
 
   // Handle escape key to close

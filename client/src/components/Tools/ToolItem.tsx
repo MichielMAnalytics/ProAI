@@ -19,6 +19,16 @@ function ToolItem({ tool, onAddTool, onRemoveTool, isInstalled = false }: ToolIt
     }
   };
 
+  // Format tool name: replace dashes with spaces and capitalize each word
+  const formatToolName = (name: string) => {
+    return name
+      .replace(/-/g, ' ')
+      .replace(/_/g, ' ')
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
   // Extract documentation URL from description
   const getDocUrl = () => {
     if (!tool.description) return null;
@@ -51,7 +61,7 @@ function ToolItem({ tool, onAddTool, onRemoveTool, isInstalled = false }: ToolIt
             {tool.icon != null && tool.icon ? (
               <img
                 src={tool.icon}
-                alt={localize('com_ui_logo', { 0: tool.name })}
+                alt={localize('com_ui_logo', { 0: formatToolName(tool.name) })}
                 className="h-12 w-12 rounded-lg object-cover bg-white"
               />
             ) : (
@@ -65,7 +75,7 @@ function ToolItem({ tool, onAddTool, onRemoveTool, isInstalled = false }: ToolIt
         {/* Title with full width */}
         <div className="mb-4">
           <h3 className="font-bold text-text-primary text-lg leading-tight group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors line-clamp-2">
-            {tool.name}
+            {formatToolName(tool.name)}
           </h3>
         </div>
 
@@ -120,7 +130,7 @@ function ToolItem({ tool, onAddTool, onRemoveTool, isInstalled = false }: ToolIt
           {!isInstalled ? (
             <button
               className="btn btn-primary w-full h-9 text-sm"
-              aria-label={`${localize('com_ui_add')} ${tool.name}`}
+              aria-label={`${localize('com_ui_add')} ${formatToolName(tool.name)}`}
               onClick={handleClick}
             >
               <div className="flex w-full items-center justify-center gap-2">
@@ -132,7 +142,7 @@ function ToolItem({ tool, onAddTool, onRemoveTool, isInstalled = false }: ToolIt
             <button
               className="btn btn-neutral w-full h-9 text-sm"
               onClick={handleClick}
-              aria-label={`${localize('com_nav_tool_remove')} ${tool.name}`}
+              aria-label={`${localize('com_nav_tool_remove')} ${formatToolName(tool.name)}`}
             >
               {localize('com_nav_tool_remove')}
             </button>

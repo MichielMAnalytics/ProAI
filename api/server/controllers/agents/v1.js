@@ -34,28 +34,28 @@ const systemTools = {
 
 /**
  * Extract MCP server app slugs from an array of tools
+ * Since tools now use clean names, we need to check against available MCP tools
  * @param {string[]} tools - Array of tool names
+ * @param {Object} availableTools - Available tools registry
  * @returns {string[]} Array of unique MCP server app slugs
  */
-const extractMCPServerSlugs = (tools) => {
+const extractMCPServerSlugs = (tools, availableTools = {}) => {
   if (!Array.isArray(tools)) {
     return [];
   }
 
   const mcpSlugs = new Set();
   
+  // Get MCP tool registry if available
+  const mcpToolRegistry = global.app?.locals?.mcpToolRegistry;
+  
   for (const tool of tools) {
-    if (typeof tool === 'string' && tool.includes('_mcp_')) {
-      // Extract app slug from tool name pattern: TOOL_NAME_mcp_pipedream-APP_SLUG
-      const parts = tool.split('_mcp_');
-      if (parts.length >= 2) {
-        const afterMcp = parts[1];
-        // Handle patterns like 'pipedream-microsoft_outlook' -> 'microsoft_outlook'
-        if (afterMcp.includes('-')) {
-          const appSlug = afterMcp.split('-').slice(1).join('-'); // Take everything after the first dash
-          if (appSlug) {
-            mcpSlugs.add(appSlug);
-          }
+    if (typeof tool === 'string') {
+      // Check if this tool is an MCP tool by looking it up in the registry
+      if (mcpToolRegistry && mcpToolRegistry.has(tool)) {
+        const mcpInfo = mcpToolRegistry.get(tool);
+        if (mcpInfo && mcpInfo.appSlug) {
+          mcpSlugs.add(mcpInfo.appSlug);
         }
       }
     }
@@ -96,7 +96,7 @@ const createAgentHandler = async (req, res) => {
       instructions,
       provider,
       model,
-      mcp_servers: extractMCPServerSlugs(agentData.tools),
+      mcp_servers: req.body.mcp_servers || extractMCPServerSlugs(agentData.tools, req.app.locals.availableTools),
     });
 
     agentData.id = `agent_${nanoid()}`;
@@ -192,7 +192,7 @@ const updateAgentHandler = async (req, res) => {
     
     // Extract MCP server slugs if tools are being updated
     if (updateData.tools) {
-      updateData.mcp_servers = extractMCPServerSlugs(updateData.tools);
+      updateData.mcp_servers = req.body.mcp_servers || extractMCPServerSlugs(updateData.tools, req.app.locals.availableTools);
     }
     
     const isAdmin = req.user.role === SystemRoles.ADMIN;
@@ -218,12 +218,15 @@ const updateAgentHandler = async (req, res) => {
       // Remove MCP tools from duplicated agents so users need to connect their own integrations
       if (cloneData.tools && Array.isArray(cloneData.tools)) {
         const originalToolCount = cloneData.tools.length;
-        const mcpTools = cloneData.tools.filter(tool => typeof tool === 'string' && tool.includes('_mcp_'));
+        const mcpToolRegistry = req.app.locals.mcpToolRegistry;
+        const mcpTools = cloneData.tools.filter(tool => 
+          typeof tool === 'string' && mcpToolRegistry && mcpToolRegistry.has(tool)
+        );
         
         cloneData.tools = cloneData.tools.filter(tool => {
           if (typeof tool === 'string') {
-            // MCP tools contain the delimiter '_mcp_'
-            return !tool.includes('_mcp_');
+            // Check if this is an MCP tool using the registry
+            return !(mcpToolRegistry && mcpToolRegistry.has(tool));
           }
           return true;
         });
@@ -248,7 +251,7 @@ const updateAgentHandler = async (req, res) => {
         originalAgentId: id,
         projectIds: [], // Clear project associations - duplicated agents should be private
         isCollaborative: false, // Make the private copy non-collaborative
-        mcp_servers: extractMCPServerSlugs(cloneData.tools), // Extract MCP server slugs for user onboarding
+        mcp_servers: [], // Clear MCP servers for duplicated agents - users need to connect their own integrations
       });
 
       // Handle actions duplication if the original agent has actions
@@ -404,12 +407,15 @@ const duplicateAgentHandler = async (req, res) => {
     // MCP tools are personal and should not be inherited during duplication
     if (cloneData.tools && Array.isArray(cloneData.tools)) {
       const originalToolCount = cloneData.tools.length;
-      const mcpTools = cloneData.tools.filter(tool => typeof tool === 'string' && tool.includes('_mcp_'));
+      const mcpToolRegistry = req.app.locals.mcpToolRegistry;
+      const mcpTools = cloneData.tools.filter(tool => 
+        typeof tool === 'string' && mcpToolRegistry && mcpToolRegistry.has(tool)
+      );
       
       cloneData.tools = cloneData.tools.filter(tool => {
         if (typeof tool === 'string') {
-          // MCP tools contain the delimiter '_mcp_'
-          return !tool.includes('_mcp_');
+          // Check if this is an MCP tool using the registry
+          return !(mcpToolRegistry && mcpToolRegistry.has(tool));
         }
         return true;
       });
@@ -426,7 +432,7 @@ const duplicateAgentHandler = async (req, res) => {
       author: userId,
       originalAgentId: id,
       projectIds: [], // Clear project associations - duplicated agents should be private
-      mcp_servers: extractMCPServerSlugs(cloneData.tools), // Extract MCP server slugs for user onboarding
+      mcp_servers: [], // Clear MCP servers for duplicated agents - users need to connect their own integrations
     });
 
     const newActionsList = [];

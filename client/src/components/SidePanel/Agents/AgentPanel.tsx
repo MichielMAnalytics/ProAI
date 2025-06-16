@@ -212,6 +212,7 @@ export default function AgentPanel({
         end_after_tools,
         hide_sequential_outputs,
         recursion_limit,
+        mcp_servers,
       } = data;
 
       const model = _model ?? '';
@@ -235,13 +236,9 @@ export default function AgentPanel({
             {
               onSuccess: ({ agent: duplicatedAgent }) => {
                 // Filter out MCP tools so users need to connect their own integrations
-                const filteredTools = tools.filter(tool => {
-                  if (typeof tool === 'string') {
-                    // MCP tools contain the delimiter '_mcp_'
-                    return !tool.includes('_mcp_');
-                  }
-                  return true;
-                });
+                // Note: MCP tools are now filtered out on the server side during duplication
+                // This client-side filtering is kept for backward compatibility
+                const filteredTools = tools;
 
                 // After duplication, update the new agent with the changes
                 // and make it non-collaborative since it's now the user's private copy
@@ -260,6 +257,7 @@ export default function AgentPanel({
                     end_after_tools,
                     hide_sequential_outputs,
                     recursion_limit,
+                    mcp_servers: mcp_servers || [],
                     isCollaborative: false, // Make the private copy non-collaborative
                     originalAgentId: agent_id, // Track which agent this was duplicated from
                     projectIds: [], // Ensure the duplicated agent is private (not associated with projects)
@@ -287,6 +285,7 @@ export default function AgentPanel({
             end_after_tools,
             hide_sequential_outputs,
             recursion_limit,
+            mcp_servers: mcp_servers || [],
           },
         });
         return;
@@ -312,6 +311,7 @@ export default function AgentPanel({
         end_after_tools,
         hide_sequential_outputs,
         recursion_limit,
+        mcp_servers: mcp_servers || [],
       });
     },
     [agent_id, agentQuery.data, startupConfig, user?.id, user?.role, duplicateAgent, update, create, showToast, localize],

@@ -265,12 +265,12 @@ const initializeAgentOptions = async ({
     });
     
     // Temporary logging to verify timezone functionality
-    console.log('\n=== AGENT SYSTEM PROMPT ===');
-    console.log(`Agent: ${agent.name || agent.id}`);
-    console.log(`User: ${req.user?.name || 'unknown'} (timezone: ${req.user?.timezone || 'none'})`);
-    console.log('Original instructions:', originalInstructions);
-    console.log('Processed instructions:', agent.instructions);
-    console.log('=== END SYSTEM PROMPT ===\n');
+    // console.log('\n=== AGENT SYSTEM PROMPT ===');
+    // console.log(`Agent: ${agent.name || agent.id}`);
+    // console.log(`User: ${req.user?.name || 'unknown'} (timezone: ${req.user?.timezone || 'none'})`);
+    // console.log('Original instructions:', originalInstructions);
+    // console.log('Processed instructions:', agent.instructions);
+    // console.log('=== END SYSTEM PROMPT ===\n');
   }
 
   if (typeof agent.artifacts === 'string' && agent.artifacts !== '') {

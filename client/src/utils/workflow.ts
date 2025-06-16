@@ -1,4 +1,5 @@
 import dedent from 'dedent';
+import { cronToHumanReadable, getDetectedTimezone } from './timezone';
 
 export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
   try {
@@ -121,8 +122,53 @@ export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
           toolsData: any[];
         }
 
-        // Convert cron expression to human readable format
-        const cronToHuman = (cron: string) => {
+        // Get user's timezone - fallback to browser detection if not available
+        const getUserTimezone = () => {
+          try {
+            // Try to get from localStorage first (set by useTimezone hook)
+            const storedTimezone = localStorage.getItem('timezone');
+            if (storedTimezone) {
+              const parsed = JSON.parse(storedTimezone);
+              if (typeof parsed === 'string') return parsed;
+            }
+          } catch (error) {
+            console.warn('Failed to get timezone from localStorage:', error);
+          }
+          
+          // Fallback to browser detection
+          try {
+            return Intl.DateTimeFormat().resolvedOptions().timeZone;
+          } catch (error) {
+            console.warn('Failed to detect timezone from browser:', error);
+            return 'UTC'; // Ultimate fallback
+          }
+        };
+
+        // Convert UTC time to user's timezone
+        const convertTimeFromUTC = (hour: number, minute: number, userTimezone: string): { hour: number; minute: number } => {
+          try {
+            // Create a UTC date for today at the specified time
+            const utcDate = new Date();
+            utcDate.setUTCHours(hour, minute, 0, 0);
+            
+            // Convert to user's timezone
+            const userTimeString = utcDate.toLocaleString('en-US', {
+              timeZone: userTimezone,
+              hour12: false,
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+            
+            const [userHour, userMinute] = userTimeString.split(':').map(Number);
+            return { hour: userHour, minute: userMinute };
+          } catch (error) {
+            console.warn(\`Failed to convert time from UTC for timezone \${userTimezone}:\`, error);
+            return { hour, minute }; // Return original if conversion fails
+          }
+        };
+
+        // Convert cron expression to human readable format with timezone awareness
+        const cronToHuman = (cron: string, userTimezone: string) => {
           if (!cron) return 'Not scheduled';
           
           const parts = cron.trim().split(' ');
@@ -131,19 +177,17 @@ export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
           const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
           
           // Handle common patterns
-          if (minute === '0' && hour !== '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
-            const hourNum = parseInt(hour);
-            const period = hourNum >= 12 ? 'PM' : 'AM';
-            const displayHour = hourNum === 0 ? 12 : hourNum > 12 ? hourNum - 12 : hourNum;
-            return \`Daily at \${displayHour}:00 \${period}\`;
-          }
-          
           if (minute !== '*' && hour !== '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
-            const hourNum = parseInt(hour);
-            const minuteNum = parseInt(minute);
-            const period = hourNum >= 12 ? 'PM' : 'AM';
-            const displayHour = hourNum === 0 ? 12 : hourNum > 12 ? hourNum - 12 : hourNum;
-            return \`Daily at \${displayHour}:\${minuteNum.toString().padStart(2, '0')} \${period}\`;
+            // Daily at specific time - convert from UTC to user timezone
+            const utcHour = parseInt(hour);
+            const utcMinute = parseInt(minute);
+            
+            if (!isNaN(utcHour) && !isNaN(utcMinute)) {
+              const { hour: localHour, minute: localMinute } = convertTimeFromUTC(utcHour, utcMinute, userTimezone);
+              const period = localHour >= 12 ? 'PM' : 'AM';
+              const displayHour = localHour === 0 ? 12 : localHour > 12 ? localHour - 12 : localHour;
+              return \`Daily at \${displayHour}:\${localMinute.toString().padStart(2, '0')} \${period}\`;
+            }
           }
           
           // Handle minute-based schedules
@@ -159,6 +203,12 @@ export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
           // Handle hourly schedules
           if (minute === '0' && hour === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
             return 'Every hour';
+          }
+          
+          // Handle hour-based schedules
+          if (minute === '0' && hour.startsWith('*/') && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+            const intervalHours = parseInt(hour.substring(2));
+            return \`Every \${intervalHours} hours\`;
           }
           
           return cron; // Fallback to original if we can't parse it
@@ -370,7 +420,7 @@ export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
                       </div>
                       {data.config?.schedule && (
                         <div className="text-sm opacity-80 leading-snug">
-                          {cronToHuman(data.config.schedule)}
+                          {cronToHuman(data.config.schedule, getUserTimezone())}
                         </div>
                       )}
                     </div>
@@ -619,7 +669,7 @@ export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
                   }).length}</span>
                   <span>Trigger: {workflowData.trigger.type}</span>
                   {workflowData.trigger.config?.schedule && (
-                    <span>Schedule: {cronToHuman(workflowData.trigger.config.schedule)}</span>
+                    <span>Schedule: {cronToHuman(workflowData.trigger.config.schedule, getUserTimezone())}</span>
                   )}
                 </div>
               </div>

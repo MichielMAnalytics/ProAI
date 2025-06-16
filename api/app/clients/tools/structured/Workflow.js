@@ -506,18 +506,22 @@ class WorkflowTool extends Tool {
         const toolKeys = Object.keys(availableTools);
         for (const toolKey of toolKeys) {
           const tool = availableTools[toolKey];
-          if (tool && typeof tool === 'object' && tool.function && toolKey.includes(Constants.mcp_delimiter)) {
-            const parts = toolKey.split(Constants.mcp_delimiter);
-            const serverName = parts.length > 1 ? parts[1] : 'unknown';
+          if (tool && typeof tool === 'object' && tool.function) {
+            // Check if this is an MCP tool by looking at the tool registry
+            const isMCPTool = req.app.locals.mcpToolRegistry && req.app.locals.mcpToolRegistry.has(toolKey);
             
-            mcpTools.push({
-              name: tool.function.name,
-              description: tool.function.description || 'No description available',
-              parameters: tool.function.parameters || {},
-              type: 'mcp_tool',
-              serverName: serverName,
-              toolKey: toolKey, // Store the full toolKey for filtering
-            });
+            if (isMCPTool) {
+              const mcpInfo = req.app.locals.mcpToolRegistry.get(toolKey);
+              
+              mcpTools.push({
+                name: tool.function.name,
+                description: tool.function.description || 'No description available',
+                parameters: tool.function.parameters || {},
+                type: 'mcp_tool',
+                serverName: mcpInfo?.serverName || 'unknown',
+                toolKey: toolKey, // Store the full toolKey for filtering
+              });
+            }
           }
         }
       }
@@ -533,11 +537,11 @@ class WorkflowTool extends Tool {
             // Filter MCP tools to only include those selected for this agent
             const agentToolSet = new Set(agent.tools);
             mcpTools = mcpTools.filter(tool => {
-              // Check if the full toolKey is in the agent's tools
-              return agentToolSet.has(tool.toolKey);
+              // Check if the clean tool name is in the agent's tools
+              return agentToolSet.has(tool.name);
             });
             
-            logger.info(`[WorkflowTool] Filtered MCP tools for agent ${this.model}: ${mcpTools.length} tools (from ${agent.tools.filter(t => t.includes('_mcp_')).length} agent MCP tools)`);
+            logger.info(`[WorkflowTool] Filtered MCP tools for agent ${this.model}: ${mcpTools.length} tools (from ${agent.tools.length} agent tools)`);
           } else {
             logger.warn(`[WorkflowTool] Agent ${this.model} not found or has no tools, returning all MCP tools`);
           }

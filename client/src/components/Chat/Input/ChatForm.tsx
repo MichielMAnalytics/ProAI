@@ -49,18 +49,50 @@ const MCPServerIcons = ({ mcpServers }: { mcpServers: string[] }) => {
   }
 
   const getMCPServerData = (serverName: string): { icon?: string; integration?: TAvailableIntegration } => {
-    const integration = availableIntegrations?.find(int => int.appSlug === serverName);
+    // First, try direct match with the server name
+    let integration = availableIntegrations?.find(int => int.appSlug === serverName);
     if (integration?.appIcon) {
       return { icon: integration.appIcon, integration };
     }
     
+    // If no direct match, try stripping "pipedream-" prefix if it exists
+    const strippedServerName = serverName.startsWith('pipedream-') 
+      ? serverName.replace('pipedream-', '') 
+      : serverName;
+    
+    if (strippedServerName !== serverName) {
+      integration = availableIntegrations?.find(int => int.appSlug === strippedServerName);
+      if (integration?.appIcon) {
+        return { icon: integration.appIcon, integration };
+      }
+    }
+    
+    // If still no match in integrations, look in tools
     const serverTool = tools?.find(tool => 
-      tool.pluginKey?.includes('_mcp_') && 
-      (tool.pluginKey.split('_mcp_')[1] === serverName || 
-       tool.pluginKey.split('_mcp_')[1] === `pipedream-${serverName}`)
+      tool.serverName === serverName || 
+      tool.appSlug === serverName ||
+      tool.serverName === strippedServerName ||
+      tool.appSlug === strippedServerName ||
+      tool.serverName === `pipedream-${serverName}` ||
+      tool.appSlug === `pipedream-${serverName}` ||
+      tool.serverName === `pipedream-${strippedServerName}` ||
+      tool.appSlug === `pipedream-${strippedServerName}`
     );
     
-    return { icon: serverTool?.icon, integration };
+    // If we found a server tool, try to find the corresponding integration again
+    if (serverTool) {
+      // Try to find integration by the tool's appSlug or serverName
+      integration = availableIntegrations?.find(int => 
+        int.appSlug === serverTool.appSlug ||
+        int.appSlug === serverTool.serverName ||
+        int.appSlug === strippedServerName ||
+        int.appSlug === serverName
+      );
+      
+      return { icon: serverTool.icon, integration };
+    }
+    
+    return { icon: undefined, integration: undefined };
   };
 
   const serverData = mcpServers.map(serverName => {
@@ -84,6 +116,40 @@ const MCPServerIcons = ({ mcpServers }: { mcpServers: string[] }) => {
     if (integration) {
       setSelectedIntegration(integration);
       setIsModalOpen(true);
+    } else {
+      // If no integration found, create a fallback from server tool data
+      const { icon } = getMCPServerData(serverName);
+      const strippedServerName = serverName.startsWith('pipedream-') 
+        ? serverName.replace('pipedream-', '') 
+        : serverName;
+      
+      const serverTool = tools?.find(tool => 
+        tool.serverName === serverName || 
+        tool.appSlug === serverName ||
+        tool.serverName === strippedServerName ||
+        tool.appSlug === strippedServerName ||
+        tool.serverName === `pipedream-${serverName}` ||
+        tool.appSlug === `pipedream-${serverName}` ||
+        tool.serverName === `pipedream-${strippedServerName}` ||
+        tool.appSlug === `pipedream-${strippedServerName}`
+      );
+      
+      if (serverTool) {
+        // Create a fallback integration object
+        const fallbackIntegration: TAvailableIntegration = {
+          appSlug: serverTool.appSlug || strippedServerName,
+          appName: serverTool.name || strippedServerName.charAt(0).toUpperCase() + strippedServerName.slice(1),
+          appDescription: serverTool.description || `${strippedServerName} integration`,
+          appIcon: serverTool.icon || icon,
+          authType: 'oauth',
+          appCategories: [],
+          appUrl: '',
+          isActive: true,
+        };
+        
+        setSelectedIntegration(fallbackIntegration);
+        setIsModalOpen(true);
+      }
     }
   };
 

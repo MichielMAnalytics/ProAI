@@ -38,10 +38,13 @@ export default function MCPConnectionsRequired({
   const missingServers = getMissingMCPServers(mcpServers);
 
   // Get integration details for missing servers
-  const missingIntegrations = missingServers.map(appSlug => {
+  const missingIntegrations = missingServers.map(serverName => {
+    // Convert server name to appSlug for integration lookup
+    // Server names like "pipedream-gmail" should match availableIntegrations with appSlug "gmail"
+    const appSlug = serverName.startsWith('pipedream-') ? serverName.replace('pipedream-', '') : serverName;
     const integration = availableIntegrations.find(ai => ai.appSlug === appSlug);
     return {
-      appSlug,
+      appSlug, // Use clean appSlug for connection
       appName: integration?.appName || appSlug,
       appIcon: integration?.appIcon,
     };
@@ -51,8 +54,13 @@ export default function MCPConnectionsRequired({
     if (appName && appName !== appSlug) {
       return appName;
     }
-    // Capitalize first letter and replace underscores with spaces
-    return appSlug.charAt(0).toUpperCase() + appSlug.slice(1).replace(/_/g, ' ');
+    // Format app slug: capitalize first letter and replace underscores with spaces
+    // Then capitalize each word after spaces
+    return appSlug
+      .replace(/_/g, ' ')
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   };
 
   return (

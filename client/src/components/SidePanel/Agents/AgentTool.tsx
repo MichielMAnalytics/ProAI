@@ -25,10 +25,20 @@ export default function AgentTool({
   const { getValues, setValue } = useFormContext();
   const currentTool = allTools.find((t) => t.pluginKey === tool);
 
+  // Format tool name: replace dashes with spaces and capitalize each word
+  const formatToolName = (name: string) => {
+    return name
+      .replace(/-/g, ' ')
+      .replace(/_/g, ' ')
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
   const removeTool = (tool: string) => {
     if (tool) {
       updateUserPlugins.mutate(
-        { pluginKey: tool, action: 'uninstall', auth: null, isEntityTool: true },
+        { pluginKey: tool, action: 'uninstall', auth: undefined, isEntityTool: true },
         {
           onError: (error: unknown) => {
             showToast({ message: `Error while deleting the tool: ${error}`, status: 'error' });
@@ -47,7 +57,7 @@ export default function AgentTool({
     return null;
   }
 
-  const toolName = currentTool.name;
+  const toolName = formatToolName(currentTool.name);
   const isNameTooLong = toolName && toolName.length > 30;
 
   return (

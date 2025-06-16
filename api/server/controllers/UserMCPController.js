@@ -34,14 +34,14 @@ const getUserMCPTools = async (req, res) => {
 
     // Transform to LibreChat tool format
     const formattedTools = userMCPTools.map(tool => ({
-      pluginKey: tool.serverName,
+      pluginKey: tool.name, // Use clean tool name as pluginKey
       name: tool.name,
       description: tool.description,
       icon: tool.icon,
       isUserSpecific: true,
       chatMenu: true,
-      // Add MCP delimiter to distinguish from regular tools
-      pluginKey: `${tool.appSlug}_mcp_${tool.serverName}`,
+      serverName: tool.serverName, // Keep server info separate
+      appSlug: tool.appSlug,
     }));
 
     logger.info(`UserMCPController: Returning ${formattedTools.length} user MCP tools`);
@@ -303,6 +303,12 @@ const connectMCPServer = async (req, res) => {
     );
 
     if (result.success) {
+      // Clear the MCPInitializer cache to ensure fresh data for subsequent requests
+      // This is important because req.app.locals.availableTools is request-specific
+      // and won't persist to other requests like getAvailableTools
+      logger.info(`UserMCPController: Clearing MCPInitializer cache for user ${userId} after successful connection`);
+      MCPInitializer.clearUserCache(userId);
+      
       res.json({
         success: true,
         message: `Successfully connected to MCP server '${serverName}'`,
@@ -382,6 +388,12 @@ const disconnectMCPServer = async (req, res) => {
         logger.warn(`UserMCPController: Cleanup after disconnect failed:`, cleanupError.message);
         // Don't fail the response for cleanup errors
       }
+
+      // Clear the MCPInitializer cache to ensure fresh data for subsequent requests
+      // This is important because req.app.locals.availableTools is request-specific
+      // and won't persist to other requests like getAvailableTools
+      logger.info(`UserMCPController: Clearing MCPInitializer cache for user ${userId} after successful disconnection`);
+      MCPInitializer.clearUserCache(userId);
 
       res.json({
         success: true,

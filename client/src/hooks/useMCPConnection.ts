@@ -1,4 +1,4 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthContext } from '~/hooks/AuthContext';
 import {
   useCreateConnectTokenMutation,
@@ -25,6 +25,7 @@ export function useMCPConnection({
   onDisconnectionError,
 }: UseMCPConnectionProps = {}) {
   const { user } = useAuthContext();
+  const queryClient = useQueryClient();
   
   const {
     data: userIntegrations = [],
@@ -36,6 +37,10 @@ export function useMCPConnection({
     onSuccess: (data) => {
       console.log('MCP server connected incrementally:', data);
       refetchUserIntegrations(); // Refresh to get updated integration list
+      
+      // Invalidate tools cache to ensure new tools are loaded
+      queryClient.invalidateQueries({ queryKey: ['tools'] });
+      
       onConnectionSuccess?.();
     },
     onError: (error) => {
@@ -49,6 +54,10 @@ export function useMCPConnection({
     onSuccess: (data) => {
       console.log('MCP server disconnected incrementally:', data);
       refetchUserIntegrations(); // Refresh to get updated integration list
+      
+      // Invalidate tools cache to ensure removed tools are no longer shown
+      queryClient.invalidateQueries({ queryKey: ['tools'] });
+      
       onDisconnectionSuccess?.();
     },
     onError: (error) => {
@@ -178,7 +187,7 @@ export function useMCPConnection({
   });
 
   const deleteIntegrationMutation = useDeleteIntegrationMutation({
-    onSuccess: (data, integrationId) => {
+    onSuccess: (_, integrationId) => {
       refetchUserIntegrations();
       
       // Find the integration to get the server name for incremental disconnect
@@ -221,16 +230,26 @@ export function useMCPConnection({
   };
 
   // Check if integration is connected
-  const isIntegrationConnected = (appSlug: string) => {
+  const isIntegrationConnected = (serverName: string) => {
     const integrations = Array.isArray(userIntegrations) ? userIntegrations : [];
+    
+    // Convert server name to appSlug for integration checking
+    // Server names like "pipedream-gmail" should match userIntegrations with appSlug "gmail"
+    const appSlug = serverName.startsWith('pipedream-') ? serverName.replace('pipedream-', '') : serverName;
+    
     return integrations.some(
       (userIntegration) => userIntegration.appSlug === appSlug && userIntegration.isActive
     );
   };
 
   // Get user integration for an app
-  const getUserIntegration = (appSlug: string) => {
+  const getUserIntegration = (serverName: string) => {
     const integrations = Array.isArray(userIntegrations) ? userIntegrations : [];
+    
+    // Convert server name to appSlug for integration checking
+    // Server names like "pipedream-gmail" should match userIntegrations with appSlug "gmail"
+    const appSlug = serverName.startsWith('pipedream-') ? serverName.replace('pipedream-', '') : serverName;
+    
     return integrations.find(
       (userIntegration) => userIntegration.appSlug === appSlug && userIntegration.isActive
     );
@@ -242,7 +261,18 @@ export function useMCPConnection({
       return true; // No MCP servers required
     }
     
-    return mcpServers.every(appSlug => isIntegrationConnected(appSlug));
+    console.log('[MCP Connection Check] Required servers:', mcpServers);
+    console.log('[MCP Connection Check] Available user integrations:', userIntegrations.map(ui => ({ appSlug: ui.appSlug, isActive: ui.isActive })));
+    
+    const result = mcpServers.every(serverName => {
+      const connected = isIntegrationConnected(serverName);
+      const appSlug = serverName.startsWith('pipedream-') ? serverName.replace('pipedream-', '') : serverName;
+      console.log(`[MCP Connection Check] Server "${serverName}" (appSlug: "${appSlug}") connected:`, connected);
+      return connected;
+    });
+    
+    console.log('[MCP Connection Check] All servers connected:', result);
+    return result;
   };
 
   // Get missing MCP servers
@@ -251,7 +281,7 @@ export function useMCPConnection({
       return [];
     }
     
-    return mcpServers.filter(appSlug => !isIntegrationConnected(appSlug));
+    return mcpServers.filter(serverName => !isIntegrationConnected(serverName));
   };
 
   return {

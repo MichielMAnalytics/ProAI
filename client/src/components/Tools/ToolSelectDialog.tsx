@@ -10,7 +10,6 @@ import type {
   EModelEndpoint,
   TPluginAction,
   TError,
-  TPlugin,
 } from 'librechat-data-provider';
 import type { TPluginStoreDialogProps } from '~/common/types';
 import { PluginAuthForm } from '~/components/Plugins/Store';
@@ -75,6 +74,7 @@ function ToolSelectDialog({
       const fns = getValues(toolsFormKey).slice();
       fns.push(pluginAction.pluginKey);
       setValue(toolsFormKey, fns);
+      updateMCPServers(); // Update MCP servers after adding tool
     };
 
     if (!pluginAction.auth) {
@@ -102,6 +102,7 @@ function ToolSelectDialog({
         onSuccess: () => {
           const fns = getValues(toolsFormKey).filter((fn: string) => fn !== tool);
           setValue(toolsFormKey, fns);
+          updateMCPServers(); // Update MCP servers after removing tool
         },
       },
     );
@@ -119,6 +120,32 @@ function ToolSelectDialog({
     } else {
       handleInstall({ pluginKey, action: 'install', auth: undefined });
     }
+  };
+
+  // Update mcp_servers when tools are modified
+  const updateMCPServers = () => {
+    const currentTools = getValues(toolsFormKey);
+    const mcpServers = new Set<string>();
+    
+    currentTools.forEach((toolName: string) => {
+      const tool = tools?.find(t => t.pluginKey === toolName);
+      if (tool && (tool.serverName || tool.appSlug)) {
+        // Use appSlug for mcp_servers field to match userIntegrations appSlug
+        // Remove 'pipedream-' prefix from serverName if present
+        let appSlug = tool.appSlug;
+        if (!appSlug && tool.serverName) {
+          appSlug = tool.serverName.startsWith('pipedream-') 
+            ? tool.serverName.replace('pipedream-', '') 
+            : tool.serverName;
+        }
+        if (appSlug) {
+          mcpServers.add(appSlug);
+        }
+      }
+    });
+    
+    // Update the mcp_servers field in the form
+    setValue('mcp_servers', Array.from(mcpServers));
   };
 
   const onSelectAll = () => {
@@ -139,6 +166,7 @@ function ToolSelectDialog({
     if (toolsWithoutAuth.length > 0) {
       const newTools = [...currentTools, ...toolsWithoutAuth.map(tool => tool.pluginKey)];
       setValue(toolsFormKey, newTools);
+      updateMCPServers(); // Update MCP servers after selecting all
     }
     
     // Handle tools that require authentication
@@ -168,6 +196,7 @@ function ToolSelectDialog({
       // Remove all filtered tools from the current selection
       const remainingTools = currentTools.filter((tool: string) => !toolsToRemove.includes(tool));
       setValue(toolsFormKey, remainingTools);
+      updateMCPServers(); // Update MCP servers after deselecting all
       
       // Call uninstall for each tool that needs it
       toolsToRemove.forEach(pluginKey => {
@@ -189,13 +218,21 @@ function ToolSelectDialog({
     
     const serverMap = new Map<string, { name: string; displayName: string; icon?: string }>();
     tools.forEach((tool) => {
-      if (tool.pluginKey?.includes('_mcp_')) {
-        const serverName = tool.pluginKey.split('_mcp_')[1];
-        if (!serverMap.has(serverName)) {
-          // Remove 'pipedream-' prefix and capitalize
-          const displayName = serverName.startsWith('pipedream-') 
-            ? serverName.replace('pipedream-', '').charAt(0).toUpperCase() + serverName.replace('pipedream-', '').slice(1)
+      // Check if this is an MCP tool by looking for serverName or appSlug
+      if (tool.serverName || tool.appSlug) {
+        const serverName = tool.serverName || tool.appSlug;
+        if (serverName && !serverMap.has(serverName)) {
+          // Remove 'pipedream-' prefix and format properly
+          let displayName = serverName.startsWith('pipedream-') 
+            ? serverName.replace('pipedream-', '')
             : serverName;
+          
+          // Replace underscores with spaces and capitalize each word
+          displayName = displayName
+            .replace(/_/g, ' ')
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
           
           serverMap.set(serverName, { 
             name: serverName,
@@ -221,8 +258,8 @@ function ToolSelectDialog({
       const matchesSearch = tool.name.toLowerCase().includes(searchValue.toLowerCase());
       
       if (selectedServers.size > 0) {
-        if (!tool.pluginKey?.includes('_mcp_')) return false;
-        const serverName = tool.pluginKey.split('_mcp_')[1];
+        const serverName = tool.serverName || tool.appSlug;
+        if (!serverName) return false;
         return matchesSearch && selectedServers.has(serverName);
       }
       
@@ -244,8 +281,8 @@ function ToolSelectDialog({
 
     // Get all tools from the selected servers
     const serverTools = tools?.filter(tool => {
-      if (!tool.pluginKey?.includes('_mcp_')) return false;
-      const toolServer = tool.pluginKey.split('_mcp_')[1];
+      const toolServer = tool.serverName || tool.appSlug;
+      if (!toolServer) return false;
       return newSelectedServers.has(toolServer);
     }) || [];
 
@@ -258,6 +295,7 @@ function ToolSelectDialog({
     });
     
     setValue(toolsFormKey, Array.from(currentTools));
+    updateMCPServers(); // Update MCP servers after server selection
   };
 
   const selectedToolsCount = filteredTools?.filter(tool => 
@@ -284,6 +322,13 @@ function ToolSelectDialog({
     setCurrentPage,
     setSearchChanged,
   ]);
+
+  // Initialize MCP servers when tools data is loaded
+  useEffect(() => {
+    if (tools && tools.length > 0) {
+      updateMCPServers();
+    }
+  }, [tools]);
 
   return (
     <Dialog

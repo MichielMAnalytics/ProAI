@@ -351,7 +351,7 @@ export class MCPManager {
 
         const tools = await connection.fetchTools();
         for (const tool of tools) {
-          const name = `${tool.name}${CONSTANTS.mcp_delimiter}${serverName}`;
+          const name = tool.name;
           availableTools[name] = {
             type: 'function',
             ['function']: {
@@ -384,12 +384,14 @@ export class MCPManager {
 
         const tools = await connection.fetchTools();
         for (const tool of tools) {
-          const pluginKey = `${tool.name}${CONSTANTS.mcp_delimiter}${serverName}`;
+          const pluginKey = tool.name;
           const manifestTool: t.LCManifestTool = {
             name: tool.name,
             pluginKey,
             description: tool.description ?? '',
             icon: connection.iconPath,
+            serverName: serverName,
+            appSlug: serverName,
           };
           const config = this.mcpConfigs[serverName];
           if (config?.chatMenu === false) {
@@ -497,32 +499,50 @@ export class MCPManager {
       return manifestTools;
     }
 
-    for (const [serverName, connection] of userConnectionMap.entries()) {
-      try {
-        if ((await connection.isConnected()) !== true) {
-          this.logger.warn(
-            `[MCP][User: ${userId}][${serverName}] Connection not established. Skipping manifest loading.`,
-          );
-          continue;
-        }
-
-        const tools = await connection.fetchTools();
-        for (const tool of tools) {
-          const pluginKey = `${tool.name}${CONSTANTS.mcp_delimiter}${serverName}`;
-          const manifestTool: t.LCManifestTool = {
-            name: tool.name,
-            pluginKey,
-            description: tool.description ?? '',
-            icon: connection.iconPath,
-          };
-          const config = this.mcpConfigs[serverName];
-          if (config?.chatMenu === false) {
-            manifestTool.chatMenu = false;
+    // Use parallel processing for better performance when fetching from multiple servers
+    const serverEntries = Array.from(userConnectionMap.entries());
+    const results = await Promise.allSettled(
+      serverEntries.map(async ([serverName, connection]) => {
+        try {
+          if ((await connection.isConnected()) !== true) {
+            this.logger.warn(
+              `[MCP][User: ${userId}][${serverName}] Connection not established. Skipping manifest loading.`,
+            );
+            return [];
           }
-          mcpTools.push(manifestTool);
+
+          const tools = await connection.fetchTools();
+          const serverTools: t.LCManifestTool[] = [];
+          
+          for (const tool of tools) {
+            const pluginKey = tool.name;
+            const manifestTool: t.LCManifestTool = {
+              name: tool.name,
+              pluginKey,
+              description: tool.description ?? '',
+              icon: connection.iconPath,
+              serverName: serverName,
+              appSlug: serverName,
+            };
+            const config = this.mcpConfigs[serverName];
+            if (config?.chatMenu === false) {
+              manifestTool.chatMenu = false;
+            }
+            serverTools.push(manifestTool);
+          }
+          
+          return serverTools;
+        } catch (error) {
+          this.logger.error(`[MCP][User: ${userId}][${serverName}] Error fetching tools for manifest:`, error);
+          return [];
         }
-      } catch (error) {
-        this.logger.error(`[MCP][User: ${userId}][${serverName}] Error fetching tools for manifest:`, error);
+      })
+    );
+
+    // Collect all successful results
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        mcpTools.push(...result.value);
       }
     }
 
@@ -534,7 +554,7 @@ export class MCPManager {
    * Maps user-specific tools from user connections into the provided object.
    * The object is modified in place.
    */
-  public async mapUserAvailableTools(availableTools: t.LCAvailableTools, userId: string): Promise<void> {
+  public async mapUserAvailableTools(availableTools: t.LCAvailableTools, userId: string, mcpToolRegistry?: Set<string>): Promise<void> {
     if (!userId) {
       this.logger.warn('[MCP] No userId provided for user tool mapping');
       return;
@@ -546,31 +566,55 @@ export class MCPManager {
       return;
     }
 
-    let mappedToolsCount = 0;
-    for (const [serverName, connection] of userConnectionMap.entries()) {
-      try {
-        if ((await connection.isConnected()) !== true) {
-          this.logger.warn(
-            `[MCP][User: ${userId}][${serverName}] Connection not established. Skipping tool mapping.`,
-          );
-          continue;
-        }
+    // Use parallel processing for better performance when fetching from multiple servers
+    const serverEntries = Array.from(userConnectionMap.entries());
+    const results = await Promise.allSettled(
+      serverEntries.map(async ([serverName, connection]) => {
+        try {
+          if ((await connection.isConnected()) !== true) {
+            this.logger.warn(
+              `[MCP][User: ${userId}][${serverName}] Connection not established. Skipping tool mapping.`,
+            );
+            return [];
+          }
 
-        const tools = await connection.fetchTools();
-        for (const tool of tools) {
-          const name = `${tool.name}${CONSTANTS.mcp_delimiter}${serverName}`;
-          availableTools[name] = {
-            type: 'function',
-            ['function']: {
-              name,
-              description: tool.description,
-              parameters: tool.inputSchema as JsonSchemaType,
-            },
-          };
+          const tools = await connection.fetchTools();
+          const serverTools: Array<{ name: string; tool: any }> = [];
+          
+          for (const tool of tools) {
+            const name = tool.name;
+            const toolDef = {
+              type: 'function',
+              ['function']: {
+                name,
+                description: tool.description,
+                parameters: tool.inputSchema as JsonSchemaType,
+              },
+            };
+            serverTools.push({ name, tool: toolDef });
+            
+            // Register this tool in the MCP tool registry for clean identification
+            if (mcpToolRegistry) {
+              mcpToolRegistry.add(name);
+            }
+          }
+          
+          return serverTools;
+        } catch (error) {
+          this.logger.warn(`[MCP][User: ${userId}][${serverName}] Error fetching tools for mapping:`, error);
+          return [];
+        }
+      })
+    );
+
+    // Collect all successful results and add them to availableTools
+    let mappedToolsCount = 0;
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        for (const { name, tool } of result.value) {
+          availableTools[name] = tool;
           mappedToolsCount++;
         }
-      } catch (error) {
-        this.logger.warn(`[MCP][User: ${userId}][${serverName}] Error fetching tools for mapping:`, error);
       }
     }
 

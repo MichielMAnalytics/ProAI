@@ -298,6 +298,7 @@ class MCPInitializer {
 
       let toolCount = 0;
       const mcpTools = {}; // Store tools for caching
+      let manifestTools = []; // Store manifest tools for caching
 
       if (serverCount > 0) {
         // Initialize user-specific MCP servers
@@ -326,16 +327,32 @@ class MCPInitializer {
 
         // Map tools to availableTools registry and count them
         const toolCountBefore = Object.keys(availableTools).length;
-        await mcpManager.mapUserAvailableTools(availableTools, userId);
+        
+        // Pass the MCP tool registry so tools can be registered properly
+        const mcpToolRegistry = global.app?.locals?.mcpToolRegistry;
+        await mcpManager.mapUserAvailableTools(availableTools, userId, mcpToolRegistry);
         const toolCountAfter = Object.keys(availableTools).length;
         toolCount = toolCountAfter - toolCountBefore;
 
-        // Store the MCP tools for caching (extract only the MCP tools added)
+        // Store the MCP tools for caching
+        // Since we know exactly which tools were added (the difference in count),
+        // and we know they're all MCP tools, we can store them all
         const allToolKeys = Object.keys(availableTools);
-        for (const toolKey of allToolKeys) {
-          if (toolKey.includes(Constants.mcp_delimiter)) { // MCP delimiter
-            mcpTools[toolKey] = availableTools[toolKey];
-          }
+        const newToolKeys = allToolKeys.slice(-toolCount); // Get the last N tools that were added
+        
+        for (const toolKey of newToolKeys) {
+          mcpTools[toolKey] = availableTools[toolKey];
+        }
+
+        // Cache manifest tools by fetching them once during initialization
+        logger.info(`[MCPInitializer][${context}] Caching manifest tools for user ${userId}`);
+        try {
+          // Use an empty base manifest since we only want the user's MCP tools
+          manifestTools = await mcpManager.loadUserManifestTools([], userId);
+          logger.info(`[MCPInitializer][${context}] Cached ${manifestTools.length} manifest tools for user ${userId}`);
+        } catch (manifestError) {
+          logger.warn(`[MCPInitializer][${context}] Failed to cache manifest tools for user ${userId}:`, manifestError.message);
+          manifestTools = [];
         }
 
         logger.info(`[MCPInitializer][${context}] Successfully mapped ${toolCount} user MCP tools to availableTools for user ${userId} (total tools: ${toolCountAfter})`);
@@ -347,6 +364,7 @@ class MCPInitializer {
         serverCount,
         toolCount,
         mcpTools, // Store for caching
+        manifestTools, // Store cached manifest tools
         duration: Date.now() - startTime,
         cached: false,
       };
@@ -354,7 +372,7 @@ class MCPInitializer {
       // Cache the result for future use
       this.setUserInitializationCache(userId, result);
       
-      logger.info(`[MCPInitializer][${context}] MCP initialization complete for user ${userId} in ${result.duration}ms (${serverCount} servers, ${toolCount} tools)`);
+      logger.info(`[MCPInitializer][${context}] MCP initialization complete for user ${userId} in ${result.duration}ms (${serverCount} servers, ${toolCount} tools, ${manifestTools.length} manifest tools)`);
       
       return result;
 
@@ -367,6 +385,7 @@ class MCPInitializer {
         mcpManager: null,
         serverCount: 0,
         toolCount: 0,
+        manifestTools: [],
         duration: Date.now() - startTime,
         cached: false,
       };
