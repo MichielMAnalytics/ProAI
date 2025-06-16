@@ -686,7 +686,7 @@ export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
                   attributionPosition="bottom-left"
                   defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
                 >
-                  <Background color="#f3f4f6" />
+
                   <Controls position="top-left" style={{ top: '50%', transform: 'translateY(-50%)' }} />
                 </ReactFlow>
               </div>
