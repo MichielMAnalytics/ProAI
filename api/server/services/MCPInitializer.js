@@ -136,6 +136,36 @@ class MCPInitializer {
   }
 
   /**
+   * Clear user caches without disconnecting active connections
+   * 
+   * Use this for individual server operations where connections should remain active.
+   * This clears caches to force fresh data loading but preserves existing connections.
+   * 
+   * @param {string} userId - The user ID
+   */
+  static clearUserCacheOnly(userId) {
+    const instance = MCPInitializer.getInstance();
+    
+    // 1. Clear MCPInitializer's own cache
+    instance.userInitializationCache.delete(userId);
+    instance.pendingInitializations.delete(userId);
+    
+    // 2. Clear UserMCPService cache (if available)
+    try {
+      const UserMCPService = require('~/server/services/UserMCPService');
+      UserMCPService.clearCache(userId);
+    } catch (error) {
+      // UserMCPService might not be available in all contexts
+    }
+    
+    // Note: We deliberately DO NOT disconnect connections here
+    // This method is for cache clearing only, preserving active connections
+    
+    logger.info(`[MCPInitializer] ✅ Cleared MCP caches (MCPInitializer + UserMCPService) for user ${userId} without disconnecting connections`);
+  }
+
+
+  /**
    * Clear all caches (useful for system restart scenarios)
    * 
    * This coordinates clearing all MCP-related caches system-wide.
@@ -310,22 +340,22 @@ class MCPInitializer {
         logger.info(`[MCPInitializer][${context}] Successfully initialized ${serverCount} MCP servers for user ${userId}`);
 
         // Verify connections are ready
-        let readyConnections = 0;
-        for (const serverName of Object.keys(userMCPServers)) {
-          try {
-            const connection = await mcpManager.getUserConnection(userId, serverName);
-            if (await connection.isConnected()) {
-              readyConnections++;
-              logger.debug(`[MCPInitializer][${context}] Server ${serverName} is ready for user ${userId}`);
-            } else {
-              logger.warn(`[MCPInitializer][${context}] Server ${serverName} is not connected for user ${userId}`);
-            }
-          } catch (error) {
-            logger.warn(`[MCPInitializer][${context}] Failed to verify connection for server ${serverName}:`, error.message);
-          }
-        }
+        // let readyConnections = 0;
+        // for (const serverName of Object.keys(userMCPServers)) {
+        //   try {
+        //     const connection = await mcpManager.getUserConnection(userId, serverName);
+        //     if (await connection.isConnected()) {
+        //       readyConnections++;
+        //       logger.debug(`[MCPInitializer][${context}] Server ${serverName} is ready for user ${userId}`);
+        //     } else {
+        //       logger.warn(`[MCPInitializer][${context}] Server ${serverName} is not connected for user ${userId}`);
+        //     }
+        //   } catch (error) {
+        //     logger.warn(`[MCPInitializer][${context}] Failed to verify connection for server ${serverName}:`, error.message);
+        //   }
+        // }
 
-        logger.info(`[MCPInitializer][${context}] Verified ${readyConnections}/${serverCount} MCP connections are ready for user ${userId}`);
+        // logger.info(`[MCPInitializer][${context}] Verified ${readyConnections}/${serverCount} MCP connections are ready for user ${userId}`);
 
         // Map tools to availableTools registry and count them
         const toolCountBefore = Object.keys(availableTools).length;
@@ -492,11 +522,11 @@ class MCPInitializer {
         logger.debug(`[MCPInitializer][${context}] Found server '${serverName}' in fresh configurations`);
       }
 
-      // Initialize just this single server
-      logger.debug(`[MCPInitializer][${context}] Initializing single server '${serverName}' for user ${userId}`);
-      await mcpManager.initializeUserMCP(singleServerConfig, userId);
+      // Store the server config in mcpManager for getUserConnection() to find
+      logger.debug(`[MCPInitializer][${context}] Adding server config and establishing connection for '${serverName}' for user ${userId}`);
+      mcpManager.addServerConfig(serverName, singleServerConfig[serverName]);
 
-      // Verify the connection
+      // Get or create the connection (this will initialize it if needed)
       const connection = await mcpManager.getUserConnection(userId, serverName);
       if (!(await connection.isConnected())) {
         return {

@@ -180,6 +180,11 @@ export class MCPManager {
     );
   }
 
+  /** Add a single server configuration to the manager */
+  public addServerConfig(serverName: string, config: MCPOptions): void {
+    this.mcpConfigs[serverName] = config;
+  }
+
   /** Gets or creates a connection for a specific user */
   public async getUserConnection(userId: string, serverName: string): Promise<MCPConnection> {
     const userServerMap = this.userConnections.get(userId);
@@ -408,7 +413,8 @@ export class MCPManager {
   }
 
   /**
-   * Initialize user-specific MCP servers
+   * Initialize user-specific MCP servers (batch initialization)
+   * This method does direct batch setup without calling getUserConnection() to avoid duplicate initialization
    */
   public async initializeUserMCP(userMCPServers: t.MCPServers, userId?: string): Promise<void> {
     if (!userId) {
@@ -424,17 +430,34 @@ export class MCPManager {
     const entries = Object.entries(userMCPServers);
     const initializedServers = new Set();
 
+    // Initialize user connection map if it doesn't exist
+    if (!this.userConnections.has(userId)) {
+      this.userConnections.set(userId, new Map());
+    }
+
     const connectionResults = await Promise.allSettled(
       entries.map(async ([serverName, _config], i) => {
         /** Process env for user-specific connections */
         const config = this.processMCPEnv ? this.processMCPEnv(_config, userId) : _config;
         
         try {
-          // Create user-specific connection
-          const connection = await this.getUserConnection(userId, serverName);
+          // Create new connection directly (similar to app-level initialization)
+          const connection = new MCPConnection(serverName, config, this.logger, userId);
+          
+          // Initialize the connection with timeout
+          const connectionTimeout = new Promise<void>((_, reject) =>
+            setTimeout(() => reject(new Error('Connection timeout')), 30000),
+          );
+          const connectionAttempt = this.initializeServer(
+            connection,
+            `[MCP][User: ${userId}][${serverName}]`,
+          );
+          await Promise.race([connectionAttempt, connectionTimeout]);
           
           if (await connection.isConnected()) {
             initializedServers.add(i);
+            // Store in user connections map
+            this.userConnections.get(userId)?.set(serverName, connection);
             
             const serverCapabilities = connection.client.getServerCapabilities();
             //this.logger.info(
@@ -451,6 +474,8 @@ export class MCPManager {
                 // );
               }
             }
+          } else {
+            throw new Error('Failed to establish connection after initialization attempt.');
           }
         } catch (error) {
           this.logger.error(`[MCP][User: ${userId}][${serverName}] Initialization failed`, error);
@@ -458,6 +483,9 @@ export class MCPManager {
         }
       }),
     );
+
+    // Update user activity timestamp after successful batch initialization
+    this.updateUserLastActivity(userId);
 
     const failedConnections = connectionResults.filter(
       (result): result is PromiseRejectedResult => result.status === 'rejected',

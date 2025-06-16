@@ -306,8 +306,9 @@ const connectMCPServer = async (req, res) => {
       // Clear the MCPInitializer cache to ensure fresh data for subsequent requests
       // This is important because req.app.locals.availableTools is request-specific
       // and won't persist to other requests like getAvailableTools
+      // Use clearUserCacheOnly to avoid disconnecting remaining active connections
       logger.info(`UserMCPController: Clearing MCPInitializer cache for user ${userId} after successful connection`);
-      MCPInitializer.clearUserCache(userId);
+      MCPInitializer.clearUserCacheOnly(userId);
       
       res.json({
         success: true,
@@ -392,8 +393,9 @@ const disconnectMCPServer = async (req, res) => {
       // Clear the MCPInitializer cache to ensure fresh data for subsequent requests
       // This is important because req.app.locals.availableTools is request-specific
       // and won't persist to other requests like getAvailableTools
+      // Use clearUserCacheOnly to avoid disconnecting remaining active connections
       logger.info(`UserMCPController: Clearing MCPInitializer cache for user ${userId} after successful disconnection`);
-      MCPInitializer.clearUserCache(userId);
+      MCPInitializer.clearUserCacheOnly(userId);
 
       res.json({
         success: true,

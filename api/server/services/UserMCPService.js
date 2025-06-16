@@ -149,11 +149,11 @@ class UserMCPService {
           // Continue without auth token - the MCP server will handle the auth flow
         }
 
-        logger.info(`UserMCPService: Added MCP server ${serverName}:`, {
-          type: mcpServers[serverName].type,
-          url: mcpServers[serverName].url,
-          hasIcon: !!mcpServers[serverName].iconPath
-        });
+        // logger.info(`UserMCPService: Added MCP server ${serverName}:`, {
+        //   type: mcpServers[serverName].type,
+        //   url: mcpServers[serverName].url,
+        //   hasIcon: !!mcpServers[serverName].iconPath
+        // });
       }
 
       logger.info(`UserMCPService: Built ${Object.keys(mcpServers).length} MCP servers for user ${userId}:`, Object.keys(mcpServers));

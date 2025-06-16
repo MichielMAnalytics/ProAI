@@ -567,7 +567,7 @@ async function loadAgentTools({ req, res, agent, tool_resources, openAIApiKey })
     return true;
   });
 
-  logger.info(`[loadAgentTools] Filtered agent tools for ${agent.id}: ${JSON.stringify(_agentTools)}`);
+  // logger.info(`[loadAgentTools] Filtered agent tools for ${agent.id}: ${JSON.stringify(_agentTools)}`);
   
   if (!_agentTools || _agentTools.length === 0) {
     logger.warn(`[loadAgentTools] No valid tools found for agent ${agent.id}`);
