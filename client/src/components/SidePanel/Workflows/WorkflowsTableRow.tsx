@@ -318,10 +318,10 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
           <TooltipAnchor description="Test workflow" side="top">
             <button
               onClick={handleTest}
-              className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-r from-brand-blue to-indigo-600 border border-brand-blue/60 shadow-sm transition-all hover:from-indigo-600 hover:to-blue-700 hover:shadow-md hover:border-brand-blue disabled:opacity-50 disabled:cursor-not-allowed [&:hover>svg]:text-white"
+              className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-r from-brand-blue to-indigo-600 border border-brand-blue/60 shadow-sm transition-all hover:from-indigo-600 hover:to-blue-700 hover:shadow-md hover:border-brand-blue disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={false}
             >
-              <TestTube className="h-3 w-3 text-black dark:text-white transition-colors" />
+              <TestTube className="h-3 w-3 text-white transition-colors" />
             </button>
           </TooltipAnchor>
           <TooltipAnchor description={workflow.isActive ? 'Deactivate workflow' : 'Activate workflow'} side="top">

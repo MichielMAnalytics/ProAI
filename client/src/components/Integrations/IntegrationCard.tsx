@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '~/components/ui';
 import { Spinner } from '~/components/svg';
+import AppIcon from '~/components/ui/AppIcon';
 import { useLocalize } from '~/hooks';
 import AppDetailsModal from './AppDetailsModal';
 import type { TAvailableIntegration, TUserIntegration } from 'librechat-data-provider';
@@ -61,18 +62,13 @@ export default function IntegrationCard({
           {/* Header Section */}
           <div className="flex items-start gap-4 mb-4">
             <div className="flex-shrink-0 relative">
-              <img
-                src={integration.appIcon || `https://via.placeholder.com/56x56?text=${integration.appName.charAt(0)}`}
+              <AppIcon
+                src={integration.appIcon}
                 alt={integration.appName}
-                className="h-14 w-14 rounded-xl object-cover"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  const parent = target.parentElement;
-                  if (parent) {
-                    parent.innerHTML = `<div class="h-14 w-14 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-xl">${integration.appName.charAt(0).toUpperCase()}</div>`;
-                  }
-                }}
+                size="lg"
+                variant="default"
+                fallbackText={integration.appName}
+                className="h-14 w-14"
               />
             </div>
             
