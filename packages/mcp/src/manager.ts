@@ -217,7 +217,7 @@ export class MCPManager {
 
     // If no valid connection exists, create a new one
     if (!connection) {
-      this.logger.info(`[MCP][User: ${userId}][${serverName}] Establishing new connection`);
+      // this.logger.info(`[MCP][User: ${userId}][${serverName}] Establishing new connection`);
     }
 
     let config = this.mcpConfigs[serverName];
@@ -444,11 +444,11 @@ export class MCPManager {
             if (serverCapabilities?.tools) {
               const tools = await connection.client.listTools();
               if (tools.tools.length) {
-                this.logger.info(
-                  `[MCP][User: ${userId}][${serverName}] Available tools: ${tools.tools
-                    .map((tool) => tool.name)
-                    .join(', ')}`,
-                );
+                // this.logger.info(
+                //   `[MCP][User: ${userId}][${serverName}] Available tools: ${tools.tools
+                //     .map((tool) => tool.name)
+                //     .join(', ')}`,
+                // );
               }
             }
           }
@@ -554,7 +554,7 @@ export class MCPManager {
    * Maps user-specific tools from user connections into the provided object.
    * The object is modified in place.
    */
-  public async mapUserAvailableTools(availableTools: t.LCAvailableTools, userId: string, mcpToolRegistry?: Set<string>): Promise<void> {
+  public async mapUserAvailableTools(availableTools: t.LCAvailableTools, userId: string, mcpToolRegistry?: Map<string, any>): Promise<void> {
     if (!userId) {
       this.logger.warn('[MCP] No userId provided for user tool mapping');
       return;
@@ -593,9 +593,17 @@ export class MCPManager {
             };
             serverTools.push({ name, tool: toolDef });
             
-            // Register this tool in the MCP tool registry for clean identification
+            // Register this tool in the MCP tool registry with server information
             if (mcpToolRegistry) {
-              mcpToolRegistry.add(name);
+              const toolInfo = {
+                serverName,
+                appSlug: serverName.startsWith('pipedream-') ? serverName.replace('pipedream-', '') : serverName,
+                toolName: name,
+              };
+              mcpToolRegistry.set(name, toolInfo);
+              //this.logger.info(`[MCP][User: ${userId}] Registered tool '${name}' in registry: ${JSON.stringify(toolInfo)}`);
+            } else {
+              this.logger.warn(`[MCP][User: ${userId}] mcpToolRegistry not available, cannot register tool '${name}'`);
             }
           }
           
@@ -618,7 +626,11 @@ export class MCPManager {
       }
     }
 
-    this.logger.info(`[MCP][User: ${userId}] Mapped ${mappedToolsCount} user-specific MCP tools to availableTools registry`);
+    // this.logger.info(`[MCP][User: ${userId}] Mapped ${mappedToolsCount} user-specific MCP tools to availableTools registry`);
+    // this.logger.info(`[MCP][User: ${userId}] Final mcpToolRegistry size: ${mcpToolRegistry?.size || 0}`);
+    // if (mcpToolRegistry && mcpToolRegistry.size > 0) {
+    //   this.logger.info(`[MCP][User: ${userId}] Registry tool keys: ${Array.from(mcpToolRegistry.keys()).join(', ')}`);
+    // }
   }
 
   /**

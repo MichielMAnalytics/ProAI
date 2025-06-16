@@ -16,18 +16,7 @@ const getAvailableIntegrations = async (req, res) => {
   try {
     logger.info('Calling PipedreamApps.getAvailableIntegrations()');
     const integrations = await PipedreamApps.getAvailableIntegrations();
-    
-    logger.info(`Retrieved ${integrations?.length || 0} available integrations`);
-    logger.info('Sample integration data:', integrations?.[0] ? {
-      id: integrations[0]._id,
-      appSlug: integrations[0].appSlug,
-      appName: integrations[0].appName,
-      hasCategories: !!integrations[0].appCategories,
-      categoriesCount: integrations[0].appCategories?.length || 0
-    } : 'No integrations found');
-    
-    logger.info(`getAvailableIntegrations completed in ${Date.now() - startTime}ms`);
-    
+        
     // Return the integrations array directly (not wrapped in response object)
     res.json(integrations);
   } catch (error) {

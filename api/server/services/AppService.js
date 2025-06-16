@@ -104,6 +104,7 @@ const AppService = async (app) => {
     scheduler: schedulerConfig,
     workflows: workflowsConfig,
     addUserSpecificMcpFromDb,
+    mcpToolRegistry: new Map(), // Initialize MCP tool registry as Map
   };
 
   if (!Object.keys(config).length) {

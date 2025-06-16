@@ -52,7 +52,7 @@ class UserMCPService {
         return cached;
       }
 
-      logger.info(`UserMCPService: Fetching user integrations from database for user ${userId}`);
+      // logger.info(`UserMCPService: Fetching user integrations from database for user ${userId}`);
       
       // Get user integrations with MCP server configurations
       const UserIntegration = require('~/models/UserIntegration');
@@ -78,7 +78,7 @@ class UserMCPService {
         mcpServerConfig: { $exists: true, $ne: null }
       }).lean();
 
-      logger.info(`UserMCPService: Found ${integrations.length} active integrations with MCP configs for user ${userId}`);
+      // logger.info(`UserMCPService: Found ${integrations.length} active integrations with MCP configs for user ${userId}`);
 
       if (integrations.length === 0) {
         // Cache empty result
@@ -92,7 +92,7 @@ class UserMCPService {
         const { mcpServerConfig, appSlug } = integration;
         const serverName = mcpServerConfig.serverName;
         
-        logger.info(`UserMCPService: Processing integration ${appSlug} with server name ${serverName}`);
+        // logger.info(`UserMCPService: Processing integration ${appSlug} with server name ${serverName}`);
 
         // Build the server URL
         const baseURL = process.env.PIPEDREAM_MCP_BASE_URL || 'https://remote.mcp.pipedream.net';
@@ -141,7 +141,7 @@ class UserMCPService {
             const accessToken = tokenResponse.data.access_token;
             if (accessToken) {
               mcpServers[serverName].headers['Authorization'] = `Bearer ${accessToken}`;
-              logger.info(`UserMCPService: Added Pipedream auth token for server ${serverName}`);
+              // logger.info(`UserMCPService: Added Pipedream auth token for server ${serverName}`);
             }
           }
         } catch (authError) {

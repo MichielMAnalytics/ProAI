@@ -394,6 +394,12 @@ const loadTools = async ({
   /** @type {Record<string, string>} */
   const toolContextMap = {};
   const appTools = options.req?.app?.locals?.availableTools ?? {};
+  const mcpToolRegistry = options.req?.app?.locals?.mcpToolRegistry;
+
+  // logger.info(`[loadTools] Loading ${tools.length} tools for user ${user}`);
+  // logger.info(`[loadTools] Available tools count: ${Object.keys(appTools).length}`);
+  // logger.info(`[loadTools] MCP tool registry size: ${mcpToolRegistry?.size || 0}`);
+  // logger.info(`[loadTools] Tools to load: ${tools.join(', ')}`);
 
   for (const tool of tools) {
     if (tool === Tools.execute_code) {
@@ -452,7 +458,14 @@ Current Date & Time: ${replaceSpecialVars({ text: '{{iso_datetime}}' })}
         });
       };
       continue;
-    } else if (tool && appTools[tool] && mcpToolPattern.test(tool)) {
+    } else if (tool && appTools[tool] && 
+               (mcpToolPattern.test(tool) || 
+                (options.req?.app?.locals?.mcpToolRegistry && 
+                 options.req.app.locals.mcpToolRegistry.has(tool)))) {
+      // const isMCPByPattern = mcpToolPattern.test(tool);
+      // const isMCPByRegistry = options.req?.app?.locals?.mcpToolRegistry?.has(tool);
+      // logger.info(`[loadTools] MCP tool detected: ${tool} (pattern: ${isMCPByPattern}, registry: ${isMCPByRegistry})`);
+      
       requestedTools[tool] = async () =>
         createMCPTool({
           req: options.req,

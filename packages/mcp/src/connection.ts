@@ -217,9 +217,9 @@ export class MCPConnection extends EventEmitter {
             throw new Error('Invalid options for streamable-http transport.');
           }
           const url = new URL(options.url);
-          this.logger?.info(
-            `${this.getLogPrefix()} Creating streamable-http transport: ${url.toString()}`,
-          );
+          // this.logger?.info(
+          //   `${this.getLogPrefix()} Creating streamable-http transport: ${url.toString()}`,
+          // );
           const abortController = new AbortController();
 
           const transport = new StreamableHTTPClientTransport(url, {

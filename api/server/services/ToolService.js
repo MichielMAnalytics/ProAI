@@ -538,16 +538,20 @@ async function loadAgentTools({ req, res, agent, tool_resources, openAIApiKey })
     req.user.id, 
     'loadAgentTools', 
     req.app.locals.availableTools,
-    { forceRefresh }
+    { forceRefresh, mcpToolRegistry: req.app.locals.mcpToolRegistry }
   );
   
   if (mcpResult.success) {
     logger.info(`[loadAgentTools] MCP initialization successful for agent ${agent.id}: ${mcpResult.serverCount} servers, ${mcpResult.toolCount} tools in ${mcpResult.duration}ms (forced: ${forceRefresh})`);
+    // logger.info(`[loadAgentTools] Available tools count after MCP: ${Object.keys(req.app.locals.availableTools).length}`);
+    // logger.info(`[loadAgentTools] MCP tool registry size: ${req.app.locals.mcpToolRegistry?.size || 0}`);
   } else {
     logger.warn(`[loadAgentTools] MCP initialization failed for agent ${agent.id}: ${mcpResult.error}`);
     // Continue without MCP tools - agent can still work with other tools
   }
 
+  // logger.info(`[loadAgentTools] Agent ${agent.id} has the following tools: ${JSON.stringify(agent.tools)}`);
+  
   let includesWebSearch = false;
   const _agentTools = agent.tools?.filter((tool) => {
     if (tool === Tools.file_search) {
@@ -563,7 +567,10 @@ async function loadAgentTools({ req, res, agent, tool_resources, openAIApiKey })
     return true;
   });
 
+  logger.info(`[loadAgentTools] Filtered agent tools for ${agent.id}: ${JSON.stringify(_agentTools)}`);
+  
   if (!_agentTools || _agentTools.length === 0) {
+    logger.warn(`[loadAgentTools] No valid tools found for agent ${agent.id}`);
     return {};
   }
   /** @type {ReturnType<createOnSearchResults>} */
@@ -571,6 +578,8 @@ async function loadAgentTools({ req, res, agent, tool_resources, openAIApiKey })
   if (includesWebSearch) {
     webSearchCallbacks = createOnSearchResults(res);
   }
+  logger.info(`[loadAgentTools] Loading tools for agent ${agent.id}, tool count: ${_agentTools.length}`);
+  
   const { loadedTools, toolContextMap } = await loadTools({
     agent,
     functions: true,
@@ -587,6 +596,10 @@ async function loadAgentTools({ req, res, agent, tool_resources, openAIApiKey })
       [Tools.web_search]: webSearchCallbacks,
     },
   });
+  
+  // logger.info(`[loadAgentTools] Loaded ${loadedTools.length} tools for agent ${agent.id}`);
+  // logger.info(`[loadAgentTools] Loaded tool names: ${loadedTools.map(t => t.name).join(', ')}`);
+  // logger.info(`[loadAgentTools] MCP tools in loaded set: ${loadedTools.filter(t => t.mcp === true).length}`);
 
   const agentTools = [];
   for (let i = 0; i < loadedTools.length; i++) {

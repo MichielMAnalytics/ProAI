@@ -21,9 +21,16 @@ const { logger, getMCPManager } = require('~/config');
  * @returns { Promise<typeof tool | { _call: (toolInput: Object | string) => unknown}> } An object with `_call` method to execute the tool input.
  */
 async function createMCPTool({ req, toolKey, provider: _provider }) {
+  // logger.info(`[MCP] createMCPTool called for toolKey: ${toolKey}`);
+  // logger.info(`[MCP] Provider: ${_provider}`);
+  // logger.info(`[MCP] Available tools count: ${Object.keys(req.app.locals.availableTools || {}).length}`);
+  // logger.info(`[MCP] Sample available tools: ${Object.keys(req.app.locals.availableTools || {}).slice(0, 5).join(', ')}`);
+  // logger.info(`[MCP] Looking for tool definition for key: ${toolKey}`);
+  
   const toolDefinition = req.app.locals.availableTools[toolKey]?.function;
   if (!toolDefinition) {
-    logger.error(`Tool ${toolKey} not found in available tools`);
+    logger.error(`[MCP] Tool ${toolKey} not found in available tools`);
+    logger.error(`[MCP] Available tools keys: ${Object.keys(req.app.locals.availableTools || {}).join(', ')}`);
     return null;
   }
   /** @type {LCTool} */
@@ -38,17 +45,36 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
     schema = z.object({ input: z.string().optional() });
   }
 
-  const [toolName, serverName] = toolKey.split(Constants.mcp_delimiter);
+  // Get server information from the MCP tool registry
+  const mcpToolRegistry = req.app.locals.mcpToolRegistry;
+  // logger.info(`[MCP] mcpToolRegistry exists: ${!!mcpToolRegistry}`);
+  // logger.info(`[MCP] mcpToolRegistry size: ${mcpToolRegistry?.size || 0}`);
+  // logger.info(`[MCP] mcpToolRegistry has toolKey ${toolKey}: ${mcpToolRegistry?.has(toolKey) || false}`);
+  
+  // if (mcpToolRegistry && mcpToolRegistry.size > 0) {
+  //   logger.info(`[MCP] mcpToolRegistry contents: ${Array.from(mcpToolRegistry.keys()).join(', ')}`);
+  // }
+  
+  if (!mcpToolRegistry || !mcpToolRegistry.has(toolKey)) {
+    logger.error(`[MCP] Tool ${toolKey} not found in MCP tool registry`);
+    // logger.error(`[MCP] Registry keys: ${mcpToolRegistry ? Array.from(mcpToolRegistry.keys()).join(', ') : 'No registry'}`);
+    return null;
+  }
+
+  const mcpInfo = mcpToolRegistry.get(toolKey);
+  const serverName = mcpInfo?.serverName;
+  const toolName = mcpInfo?.toolName || toolKey; // Fallback to toolKey if toolName not available
+  
+  // logger.info(`[MCP] Tool info for ${toolKey}: serverName=${serverName}, toolName=${toolName}`);
+  // logger.info(`[MCP] Full mcpInfo: ${JSON.stringify(mcpInfo)}`);
+  
+  if (!serverName) {
+    logger.error(`[MCP] Could not determine server name for MCP tool: ${toolKey}`);
+    return null;
+  }
   
   // Use only the original tool name for the function name to avoid exceeding OpenAI's 64-character limit
-  // The toolKey includes server information but the tool name should be just the tool itself
   const functionName = toolName;
-
-  let normalizedToolKey = `${toolName}${Constants.mcp_delimiter}${normalizeServerName(serverName)}`;
-  
-  // Don't modify the tool key - keep original names to avoid breaking existing tool calls
-  // OpenAI's function name limits are more flexible in practice than the strict 64-character documentation
-  normalizedToolKey = toolKey;
 
   if (!req.user?.id) {
     logger.error(
@@ -145,6 +171,8 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
     responseFormat: AgentConstants.CONTENT_AND_ARTIFACT,
   });
   toolInstance.mcp = true;
+  
+  // logger.info(`[MCP] Successfully created MCP tool: ${functionName} (toolKey: ${toolKey}, server: ${serverName})`);
   return toolInstance;
 }
 

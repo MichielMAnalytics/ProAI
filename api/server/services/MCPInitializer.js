@@ -179,11 +179,12 @@ class MCPInitializer {
    * @param {Object} availableTools - Tools registry to enhance with MCP tools
    * @param {Object} options - Additional options
    * @param {boolean} options.forceRefresh - Force refresh even if cached (default: false)
+   * @param {Map} options.mcpToolRegistry - The MCP tool registry for storing tool metadata
    * @returns {Promise<Object>} Initialization result with mcpManager, serverCount, toolCount, and cache info
    */
   async ensureUserMCPReady(userId, context, availableTools = {}, options = {}) {
     const startTime = Date.now();
-    const { forceRefresh = false } = options;
+    const { forceRefresh = false, mcpToolRegistry = null } = options;
 
     if (!userId) {
       return {
@@ -249,7 +250,7 @@ class MCPInitializer {
     }
 
     // Create promise for concurrent requests
-    const initializationPromise = this.performUserMCPInitialization(userId, context, availableTools, startTime);
+    const initializationPromise = this.performUserMCPInitialization(userId, context, availableTools, startTime, mcpToolRegistry);
     this.pendingInitializations.set(userId, initializationPromise);
 
     try {
@@ -269,9 +270,10 @@ class MCPInitializer {
    * @param {string} context - Context identifier for logging
    * @param {Object} availableTools - Tools registry to enhance with MCP tools
    * @param {number} startTime - Start time for duration calculation
+   * @param {Map} mcpToolRegistry - The MCP tool registry for storing tool metadata
    * @returns {Promise<Object>} Initialization result
    */
-  async performUserMCPInitialization(userId, context, availableTools, startTime) {
+  async performUserMCPInitialization(userId, context, availableTools, startTime, mcpToolRegistry = null) {
     try {
       const mcpManager = getMCPManager(userId);
       if (!mcpManager) {
@@ -329,7 +331,6 @@ class MCPInitializer {
         const toolCountBefore = Object.keys(availableTools).length;
         
         // Pass the MCP tool registry so tools can be registered properly
-        const mcpToolRegistry = global.app?.locals?.mcpToolRegistry;
         await mcpManager.mapUserAvailableTools(availableTools, userId, mcpToolRegistry);
         const toolCountAfter = Object.keys(availableTools).length;
         toolCount = toolCountAfter - toolCountBefore;
@@ -355,7 +356,7 @@ class MCPInitializer {
           manifestTools = [];
         }
 
-        logger.info(`[MCPInitializer][${context}] Successfully mapped ${toolCount} user MCP tools to availableTools for user ${userId} (total tools: ${toolCountAfter})`);
+        // logger.info(`[MCPInitializer][${context}] Successfully mapped ${toolCount} user MCP tools to availableTools for user ${userId} (total tools: ${toolCountAfter})`);
       }
 
       const result = {
