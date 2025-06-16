@@ -172,16 +172,10 @@ async function smartMCPCacheInvalidation(userId: string, operation: string, doc?
         // Let the incremental operations handle their own cache management
         logger.info(`[UserIntegration] 🎯 INCREMENTAL mode: Skipping automatic cache clear for ${operation} - incremental operations will handle cache updates for user ${userId}`);
         
-        // Only cleanup orphaned tools if this is a deactivation
+        // For deactivations, we could run general cleanup, but the user still has the integration
+        // so we'll let the normal agent editing flow handle tool removal when needed
         if (doc && doc.isActive === false) {
-          try {
-            const UserMCPService = require('~/server/services/UserMCPService');
-            await UserMCPService.cleanupOrphanedMCPTools(userId);
-            logger.info(`[UserIntegration] ✅ CLEANED UP orphaned tools for deactivated integration for user ${userId}`);
-          } catch (cleanupError: unknown) {
-            const errorMessage = cleanupError instanceof Error ? cleanupError.message : 'Unknown error';
-            logger.warn(`[UserIntegration] Failed to cleanup orphaned tools for user ${userId}: ${errorMessage}`);
-          }
+          logger.info(`[UserIntegration] 📝 Integration deactivated for user ${userId}, tools will be cleaned up when agents are next modified`);
         }
         
         return; // Skip full cache clearing
@@ -204,17 +198,12 @@ async function smartMCPCacheInvalidation(userId: string, operation: string, doc?
           );
           
           if (result.success) {
-            logger.info(`[UserIntegration] ✅ INCREMENTAL DELETE successful: Disconnected server '${doc.mcpServerConfig.serverName}' for user ${userId}, removed ${result.toolsRemoved} tools`);
+            // Note: result.toolsRemoved will be 0 because MCPInitializer doesn't track tools
+            // The actual tool cleanup happens in the targeted cleanup service
+            logger.info(`[UserIntegration] ✅ INCREMENTAL DELETE successful: Disconnected server '${doc.mcpServerConfig.serverName}' for user ${userId} (tools cleaned up separately by targeted cleanup)`);
             
-            // Still cleanup orphaned tools from agents as a safety measure
-            try {
-              const UserMCPService = require('~/server/services/UserMCPService');
-              await UserMCPService.cleanupOrphanedMCPTools(userId);
-              logger.info(`[UserIntegration] ✅ CLEANED UP orphaned tools after incremental delete for user ${userId}`);
-            } catch (cleanupError: unknown) {
-              const errorMessage = cleanupError instanceof Error ? cleanupError.message : 'Unknown error';
-              logger.warn(`[UserIntegration] Failed to cleanup orphaned tools after incremental delete for user ${userId}: ${errorMessage}`);
-            }
+            // The disconnectSingleMCPServer already handles targeted cleanup of tools from agents
+            // via cleanupToolsForDisconnectedServer, so no additional cleanup is needed
             
             return; // Skip full cache clearing
           } else {

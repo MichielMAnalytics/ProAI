@@ -204,7 +204,10 @@ const cleanupOrphanedMCPTools = async (req, res) => {
     }
 
     // Clean up orphaned MCP tools
-    const cleanupResult = await UserMCPService.cleanupOrphanedMCPTools(userId);
+    const cleanupResult = await UserMCPService.cleanupOrphanedMCPTools(
+      userId, 
+      req.app.locals.mcpToolRegistry
+    );
 
     res.json({
       success: true,
@@ -303,12 +306,12 @@ const connectMCPServer = async (req, res) => {
     );
 
     if (result.success) {
-      // Clear the MCPInitializer cache to ensure fresh data for subsequent requests
-      // This is important because req.app.locals.availableTools is request-specific
-      // and won't persist to other requests like getAvailableTools
-      // Use clearUserCacheOnly to avoid disconnecting remaining active connections
-      logger.info(`UserMCPController: Clearing MCPInitializer cache for user ${userId} after successful connection`);
-      MCPInitializer.clearUserCacheOnly(userId);
+      // Update Express app-level caches to reflect the new server tools
+      // This ensures req.app.locals.availableTools and mcpToolRegistry are updated
+      // The tools were added to the request-specific availableTools by connectSingleMCPServer
+      if (result.connectedTools) {
+        MCPInitializer.updateAppLevelCaches(req.app, userId, serverName, result.connectedTools, []);
+      }
       
       res.json({
         success: true,
@@ -382,26 +385,39 @@ const disconnectMCPServer = async (req, res) => {
     );
 
     if (result.success) {
-      // Also trigger cleanup of orphaned tools
+      // Clean up tools from agents for the disconnected server
+      // Since we no longer get tool keys from the disconnect operation, we'll let the 
+      // cleanup service discover which tools need to be removed based on the MCP tool registry
+      let actualToolsRemoved = 0;
       try {
-        await UserMCPService.cleanupOrphanedMCPTools(userId);
+        const cleanupResult = await UserMCPService.cleanupToolsForDisconnectedServer(
+          userId, 
+          serverName, 
+          [], // Empty array - the cleanup service will discover tools to remove from the registry
+          req.app.locals.mcpToolRegistry // Pass the MCP tool registry for tool discovery
+        );
+        actualToolsRemoved = cleanupResult.toolsRemoved;
+        logger.info(`UserMCPController: Cleaned up ${cleanupResult.toolsRemoved} tools from ${cleanupResult.agentsUpdated} agents after disconnecting '${serverName}'`);
+        
+        // Update Express app-level caches using the tools that were actually removed
+        if (cleanupResult.removedToolsDetails && cleanupResult.removedToolsDetails.length > 0) {
+          const removedToolKeys = [...new Set(cleanupResult.removedToolsDetails.map(detail => detail.toolName))];
+          MCPInitializer.updateAppLevelCaches(req.app, userId, serverName, {}, removedToolKeys);
+          
+          // Also update the MCPInitializer cache with the actual tool removal numbers
+          const mcpInitializer = MCPInitializer.getInstance();
+          mcpInitializer.updateCacheForServerRemoval(userId, serverName, removedToolKeys);
+        }
       } catch (cleanupError) {
         logger.warn(`UserMCPController: Cleanup after disconnect failed:`, cleanupError.message);
         // Don't fail the response for cleanup errors
       }
 
-      // Clear the MCPInitializer cache to ensure fresh data for subsequent requests
-      // This is important because req.app.locals.availableTools is request-specific
-      // and won't persist to other requests like getAvailableTools
-      // Use clearUserCacheOnly to avoid disconnecting remaining active connections
-      logger.info(`UserMCPController: Clearing MCPInitializer cache for user ${userId} after successful disconnection`);
-      MCPInitializer.clearUserCacheOnly(userId);
-
       res.json({
         success: true,
         message: `Successfully disconnected from MCP server '${serverName}'`,
         serverName: result.serverName,
-        toolsRemoved: result.toolsRemoved,
+        toolsRemoved: actualToolsRemoved, // Use the actual number from cleanup
         duration: result.duration,
       });
     } else {

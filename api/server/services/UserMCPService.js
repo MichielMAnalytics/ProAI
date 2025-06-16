@@ -318,25 +318,199 @@ class UserMCPService {
   }
 
   /**
+   * Clean up tools from agents for a specific disconnected server
+   * 
+   * @param {string} userId - The user ID
+   * @param {string} disconnectedServerName - The server that was disconnected
+   * @param {string[]} toolsToRemove - Array of tool names to remove from agents (if empty, will be discovered from registry)
+   * @param {Map} mcpToolRegistry - Optional MCP tool registry for discovering tools
+   * @returns {Promise<Object>} Cleanup result with statistics
+   */
+  async cleanupToolsForDisconnectedServer(userId, disconnectedServerName, toolsToRemove = [], mcpToolRegistry = null) {
+    return UserMCPService.cleanupToolsForDisconnectedServer(userId, disconnectedServerName, toolsToRemove, mcpToolRegistry);
+  }
+
+  /**
    * Clean up orphaned MCP tools from agents
    * 
    * This method finds all agents that belong to the user and removes tools that reference
    * MCP servers that no longer exist in the user's integrations.
    * 
    * @param {string} userId - The user ID
+   * @param {Map} mcpToolRegistry - Optional MCP tool registry for identifying tools
    * @returns {Promise<Object>} Cleanup result with statistics
    */
-  async cleanupOrphanedMCPTools(userId) {
-    return UserMCPService.cleanupOrphanedMCPTools(userId);
+  async cleanupOrphanedMCPTools(userId, mcpToolRegistry = null) {
+    return UserMCPService.cleanupOrphanedMCPTools(userId, mcpToolRegistry);
+  }
+
+  /**
+   * Static method: Clean up tools from agents for a specific disconnected server
+   * 
+   * @param {string} userId - The user ID
+   * @param {string} disconnectedServerName - The server that was disconnected
+   * @param {string[]} toolsToRemove - Array of tool names to remove from agents (if empty, will be discovered from registry)
+   * @param {Map} mcpToolRegistry - Optional MCP tool registry for discovering tools
+   * @returns {Promise<Object>} Cleanup result with statistics
+   */
+  static async cleanupToolsForDisconnectedServer(userId, disconnectedServerName, toolsToRemove = [], mcpToolRegistry = null) {
+    if (!userId || !disconnectedServerName) {
+      return {
+        agentsProcessed: 0,
+        agentsUpdated: 0,
+        toolsRemoved: 0,
+        disconnectedServer: disconnectedServerName,
+      };
+    }
+
+    try {
+      // If no tools are specified, discover them from the MCP tool registry
+      if (!Array.isArray(toolsToRemove) || toolsToRemove.length === 0) {
+        logger.info(`UserMCPService: Discovering tools to remove for server '${disconnectedServerName}' from MCP tool registry`);
+        
+        try {
+          // Use the provided MCP tool registry to discover tools
+          if (mcpToolRegistry && mcpToolRegistry.size > 0) {
+            const discoveredTools = [];
+            for (const [toolName, toolInfo] of mcpToolRegistry.entries()) {
+              if (toolInfo && toolInfo.serverName === disconnectedServerName) {
+                discoveredTools.push(toolName);
+              }
+            }
+            toolsToRemove = discoveredTools;
+            logger.info(`UserMCPService: Discovered ${toolsToRemove.length} tools for server '${disconnectedServerName}': [${toolsToRemove.join(', ')}]`);
+          } else {
+            logger.warn(`UserMCPService: No MCP tool registry provided to discover tools for server '${disconnectedServerName}'`);
+          }
+        } catch (discoveryError) {
+          logger.warn(`UserMCPService: Failed to discover tools for server '${disconnectedServerName}':`, discoveryError.message);
+        }
+        
+        if (toolsToRemove.length === 0) {
+          logger.info(`UserMCPService: No tools found for cleanup for server '${disconnectedServerName}'`);
+          return {
+            agentsProcessed: 0,
+            agentsUpdated: 0,
+            toolsRemoved: 0,
+            disconnectedServer: disconnectedServerName,
+            removedToolsDetails: [],
+          };
+        }
+      }
+
+      logger.info(`UserMCPService: Starting tool cleanup for disconnected server '${disconnectedServerName}' for user ${userId}`);
+      logger.info(`UserMCPService: Tools to remove: [${toolsToRemove.join(', ')}]`);
+
+      // Get all agents for this user
+      const { Agent } = require('~/models/Agent');
+      const userAgents = await Agent.find({ author: userId }).lean();
+
+      logger.info(`UserMCPService: Found ${userAgents.length} agents for user ${userId}`);
+
+      let agentsProcessed = 0;
+      let agentsUpdated = 0;
+      let totalToolsRemoved = 0;
+      const removedToolsDetails = [];
+
+      for (const agent of userAgents) {
+        agentsProcessed++;
+        let agentToolsRemoved = 0;
+
+        if (agent.tools && Array.isArray(agent.tools)) {
+          const originalToolCount = agent.tools.length;
+          
+          // Filter out the specific tools that belonged to the disconnected server
+          const filteredTools = agent.tools.filter(tool => {
+            if (typeof tool === 'string' && toolsToRemove.includes(tool)) {
+              logger.info(`UserMCPService: Removing tool '${tool}' from agent '${agent.name}' (server '${disconnectedServerName}' disconnected)`);
+              agentToolsRemoved++;
+              totalToolsRemoved++;
+              removedToolsDetails.push({
+                agentId: agent._id,
+                agentName: agent.name,
+                toolName: tool,
+                serverName: disconnectedServerName,
+              });
+              return false; // Remove this tool
+            }
+            return true; // Keep this tool
+          });
+
+          // Also remove the disconnected server from the agent's mcp_servers array
+          let filteredMcpServers = agent.mcp_servers || [];
+          let mcpServerRemoved = false;
+          
+          if (Array.isArray(filteredMcpServers)) {
+            const originalMcpServersCount = filteredMcpServers.length;
+            // Remove server name with and without 'pipedream-' prefix to handle both formats
+            const serverNameClean = disconnectedServerName.startsWith('pipedream-') 
+              ? disconnectedServerName.replace('pipedream-', '') 
+              : disconnectedServerName;
+            const serverNameWithPrefix = disconnectedServerName.startsWith('pipedream-') 
+              ? disconnectedServerName 
+              : `pipedream-${disconnectedServerName}`;
+              
+            filteredMcpServers = filteredMcpServers.filter(server => 
+              server !== disconnectedServerName && 
+              server !== serverNameClean && 
+              server !== serverNameWithPrefix
+            );
+            
+            mcpServerRemoved = filteredMcpServers.length !== originalMcpServersCount;
+            if (mcpServerRemoved) {
+              logger.info(`UserMCPService: Removed server '${disconnectedServerName}' from agent '${agent.name}' mcp_servers array`);
+            }
+          }
+
+          if (filteredTools.length !== originalToolCount || mcpServerRemoved) {
+            logger.info(`UserMCPService: Agent '${agent.name}' (${agent._id}): Removed ${agentToolsRemoved} tools and ${mcpServerRemoved ? 1 : 0} server references from disconnected server '${disconnectedServerName}'`);
+            
+            // Update the agent in the database with both tools and mcp_servers
+            const updateData = {
+              tools: filteredTools,
+              mcp_servers: filteredMcpServers
+            };
+            
+            await Agent.updateOne(
+              { _id: agent._id },
+              { $set: updateData }
+            );
+            
+            agentsUpdated++;
+          }
+        }
+      }
+
+      const result = {
+        agentsProcessed,
+        agentsUpdated,
+        toolsRemoved: totalToolsRemoved,
+        disconnectedServer: disconnectedServerName,
+        removedToolsDetails: removedToolsDetails.length > 0 ? removedToolsDetails : undefined,
+      };
+
+      logger.info(`UserMCPService: Server-specific cleanup completed for user ${userId}:`, {
+        agentsProcessed: result.agentsProcessed,
+        agentsUpdated: result.agentsUpdated,
+        toolsRemoved: result.toolsRemoved,
+        disconnectedServer: disconnectedServerName,
+      });
+
+      return result;
+    } catch (error) {
+      logger.error(`UserMCPService: Failed to cleanup tools for disconnected server '${disconnectedServerName}' for user ${userId}:`, error);
+      throw error;
+    }
   }
 
   /**
    * Static method: Clean up orphaned MCP tools from agents
    * 
    * @param {string} userId - The user ID
+   * @param {Map} mcpToolRegistry - Optional MCP tool registry for identifying tools (production-grade injection)
    * @returns {Promise<Object>} Cleanup result with statistics
    */
-  static async cleanupOrphanedMCPTools(userId) {
+  static async cleanupOrphanedMCPTools(userId, mcpToolRegistry = null) {
     if (!userId) {
       return {
         agentsProcessed: 0,
@@ -377,28 +551,56 @@ class UserMCPService {
           // Filter out tools that reference non-existent MCP servers
           // Since tools now use clean names, we need to check if they're MCP tools
           // and if their associated servers still exist
-          const mcpToolRegistry = global.app?.locals?.mcpToolRegistry;
+          
+          logger.debug(`UserMCPService: mcpToolRegistry provided: ${!!mcpToolRegistry}`);
+          logger.debug(`UserMCPService: mcpToolRegistry size: ${mcpToolRegistry?.size || 0}`);
           
           const filteredTools = agent.tools.filter(tool => {
-            if (typeof tool === 'string' && mcpToolRegistry && mcpToolRegistry.has(tool)) {
-              // This is an MCP tool, check if its server still exists
-              const mcpInfo = mcpToolRegistry.get(tool);
-              const serverName = mcpInfo?.serverName;
-              
-              if (serverName) {
-                const isValid = validMCPServers.includes(serverName);
+            // Check if this is a string tool (only strings can be MCP tools)
+            if (typeof tool === 'string') {
+              // Try to identify MCP tools by registry lookup first
+              if (mcpToolRegistry && mcpToolRegistry.has(tool)) {
+                // This is an MCP tool, check if its server still exists
+                const mcpInfo = mcpToolRegistry.get(tool);
+                const serverName = mcpInfo?.serverName;
                 
-                if (!isValid) {
-                  logger.debug(`UserMCPService: Removing orphaned tool '${tool}' (server '${serverName}' no longer exists)`);
-                  agentToolsRemoved++;
-                  totalToolsRemoved++;
-                  removedToolsDetails.push({
-                    agentId: agent._id,
-                    agentName: agent.name,
-                    toolName: tool,
-                    serverName: serverName,
-                  });
-                  return false; // Remove this tool
+                if (serverName) {
+                  const isValid = validMCPServers.includes(serverName);
+                  
+                  if (!isValid) {
+                    logger.info(`UserMCPService: Removing orphaned tool '${tool}' (server '${serverName}' no longer exists)`);
+                    agentToolsRemoved++;
+                    totalToolsRemoved++;
+                    removedToolsDetails.push({
+                      agentId: agent._id,
+                      agentName: agent.name,
+                      toolName: tool,
+                      serverName: serverName,
+                    });
+                    return false; // Remove this tool
+                  }
+                }
+              }
+              // FALLBACK: If registry is not available, use pattern-based detection for legacy tools
+              else if (!mcpToolRegistry && tool.includes('_mcp_')) {
+                // Legacy delimiter format detection (fallback only)
+                const parts = tool.split('_mcp_');
+                if (parts.length === 2) {
+                  const serverName = parts[1];
+                  const isValid = validMCPServers.includes(serverName);
+                  
+                  if (!isValid) {
+                    logger.info(`UserMCPService: Removing orphaned legacy tool '${tool}' (server '${serverName}' no longer exists)`);
+                    agentToolsRemoved++;
+                    totalToolsRemoved++;
+                    removedToolsDetails.push({
+                      agentId: agent._id,
+                      agentName: agent.name,
+                      toolName: tool,
+                      serverName: serverName,
+                    });
+                    return false; // Remove this tool
+                  }
                 }
               }
             }

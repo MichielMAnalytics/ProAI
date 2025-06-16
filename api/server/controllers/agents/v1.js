@@ -37,17 +37,15 @@ const systemTools = {
  * Since tools now use clean names, we need to check against available MCP tools
  * @param {string[]} tools - Array of tool names
  * @param {Object} availableTools - Available tools registry
+ * @param {Map} mcpToolRegistry - MCP tool registry for server information
  * @returns {string[]} Array of unique MCP server app slugs
  */
-const extractMCPServerSlugs = (tools, availableTools = {}) => {
+const extractMCPServerSlugs = (tools, availableTools = {}, mcpToolRegistry = null) => {
   if (!Array.isArray(tools)) {
     return [];
   }
 
   const mcpSlugs = new Set();
-  
-  // Get MCP tool registry if available
-  const mcpToolRegistry = global.app?.locals?.mcpToolRegistry;
   
   for (const tool of tools) {
     if (typeof tool === 'string') {
@@ -96,7 +94,7 @@ const createAgentHandler = async (req, res) => {
       instructions,
       provider,
       model,
-      mcp_servers: req.body.mcp_servers || extractMCPServerSlugs(agentData.tools, req.app.locals.availableTools),
+      mcp_servers: req.body.mcp_servers || extractMCPServerSlugs(agentData.tools, req.app.locals.availableTools, req.app.locals.mcpToolRegistry),
     });
 
     agentData.id = `agent_${nanoid()}`;
@@ -192,7 +190,7 @@ const updateAgentHandler = async (req, res) => {
     
     // Extract MCP server slugs if tools are being updated
     if (updateData.tools) {
-      updateData.mcp_servers = req.body.mcp_servers || extractMCPServerSlugs(updateData.tools, req.app.locals.availableTools);
+      updateData.mcp_servers = req.body.mcp_servers || extractMCPServerSlugs(updateData.tools, req.app.locals.availableTools, req.app.locals.mcpToolRegistry);
     }
     
     const isAdmin = req.user.role === SystemRoles.ADMIN;

@@ -126,20 +126,13 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
       
       const provider = (config?.metadata?.provider || _provider)?.toLowerCase();
       
-      // Add user and conversation context to tool arguments for MCP tools
-      const enhancedArguments = {
-        ...toolArguments,
-        librechat_context: {
-          user_id: currentUserId,
-          conversation_id: config?.configurable?.thread_id,
-        }
-      };
-      
+      // Pass tool arguments directly to MCP server without modification
+      // MCP servers expect specific argument structures and adding extra fields can break parsing
       const result = await mcpManager.callTool({
         serverName,
         toolName,
         provider,
-        toolArguments: enhancedArguments,
+        toolArguments,
         options: {
           userId: currentUserId,
           signal: derivedSignal,

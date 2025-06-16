@@ -164,6 +164,24 @@ class MCPInitializer {
     logger.info(`[MCPInitializer] ✅ Cleared MCP caches (MCPInitializer + UserMCPService) for user ${userId} without disconnecting connections`);
   }
 
+  /**
+   * Clear only UserMCPService cache to refresh integration data
+   * 
+   * Use this for individual operations where the user's integration list has changed
+   * but you want to preserve MCPInitializer cache and connections.
+   * 
+   * @param {string} userId - The user ID
+   */
+  static clearUserMCPServiceCacheOnly(userId) {
+    try {
+      const UserMCPService = require('~/server/services/UserMCPService');
+      UserMCPService.clearCache(userId);
+      logger.info(`[MCPInitializer] ✅ Cleared UserMCPService cache for user ${userId} to refresh integration data`);
+    } catch (error) {
+      logger.warn(`[MCPInitializer] Failed to clear UserMCPService cache for user ${userId}:`, error.message);
+    }
+  }
+
 
   /**
    * Clear all caches (useful for system restart scenarios)
@@ -545,17 +563,21 @@ class MCPInitializer {
       try {
         const tools = await connection.fetchTools();
         let mappedToolsCount = 0;
+        const connectedTools = {}; // Store the tools to return in result
         
         for (const tool of tools) {
-          const toolKey = `${tool.name}${Constants.mcp_delimiter}${serverName}`;
-          availableTools[toolKey] = {
+          const toolName = tool.name; // Use actual tool name without delimiter
+          const toolDef = {
             type: 'function',
             ['function']: {
-              name: toolKey,
+              name: toolName,
               description: tool.description,
               parameters: tool.inputSchema,
             },
           };
+          
+          availableTools[toolName] = toolDef;
+          connectedTools[toolName] = toolDef; // Store for result
           mappedToolsCount++;
         }
 
@@ -564,10 +586,27 @@ class MCPInitializer {
         // Update the cache incrementally
         this.updateCacheForSingleServer(userId, serverName, mappedToolsCount, availableTools);
 
+        // Update manifest tools cache incrementally
+        logger.info(`[MCPInitializer][${context}] Updating manifest tools cache after connecting server '${serverName}'`);
+        try {
+          const cached = this.getUserInitializationCache(userId);
+          if (cached) {
+            // Refresh the cached manifest tools to include the new server
+            const updatedManifestTools = await mcpManager.loadUserManifestTools([], userId);
+            cached.manifestTools = updatedManifestTools;
+            cached.timestamp = Date.now();
+            this.setUserInitializationCache(userId, cached);
+            logger.info(`[MCPInitializer][${context}] Updated manifest tools cache: ${updatedManifestTools.length} total manifest tools`);
+          }
+        } catch (manifestError) {
+          logger.warn(`[MCPInitializer][${context}] Failed to update manifest tools cache:`, manifestError.message);
+        }
+
         return {
           success: true,
           serverName,
           toolCount: mappedToolsCount,
+          connectedTools, // Return the tools that were connected
           duration: Date.now() - startTime,
         };
       } catch (toolError) {
@@ -640,33 +679,36 @@ class MCPInitializer {
         };
       }
 
-      // Remove tools for this specific server from availableTools
-      const toolsToRemove = [];
-      const serverSuffix = `${Constants.mcp_delimiter}${serverName}`;
-      
-      for (const toolKey of Object.keys(availableTools)) {
-        if (toolKey.endsWith(serverSuffix)) {
-          toolsToRemove.push(toolKey);
-        }
-      }
-
-      // Remove the tools
-      for (const toolKey of toolsToRemove) {
-        delete availableTools[toolKey];
-      }
-
       // Disconnect the specific server
+      // The disconnection will automatically remove tools from memory/connections
       await mcpManager.disconnectUserConnection(userId, serverName);
 
-      logger.info(`[MCPInitializer][${context}] Successfully disconnected server '${serverName}' for user ${userId} and removed ${toolsToRemove.length} tools`);
+      logger.info(`[MCPInitializer][${context}] Successfully disconnected server '${serverName}' for user ${userId}`);
 
-      // Update the cache incrementally
-      this.updateCacheForServerRemoval(userId, serverName, toolsToRemove, availableTools);
+      // Note: Cache updates for tool removal are handled by the controller after cleanup
+      // to ensure we have the accurate tool count. Only update manifest tools here.
+
+      // Update manifest tools cache incrementally
+      logger.info(`[MCPInitializer][${context}] Updating manifest tools cache after disconnecting server '${serverName}'`);
+      try {
+        const cached = this.getUserInitializationCache(userId);
+        if (cached) {
+          // Refresh the cached manifest tools to exclude the removed server
+          const updatedManifestTools = await mcpManager.loadUserManifestTools([], userId);
+          cached.manifestTools = updatedManifestTools;
+          cached.timestamp = Date.now();
+          this.setUserInitializationCache(userId, cached);
+          logger.info(`[MCPInitializer][${context}] Updated manifest tools cache: ${updatedManifestTools.length} total manifest tools`);
+        }
+      } catch (manifestError) {
+        logger.warn(`[MCPInitializer][${context}] Failed to update manifest tools cache:`, manifestError.message);
+      }
 
       return {
         success: true,
         serverName,
-        toolsRemoved: toolsToRemove.length,
+        toolsRemoved: 0, // Tools are removed by the targeted cleanup, not here
+        removedToolKeys: [], // Tool removal is handled by UserMCPService.cleanupToolsForDisconnectedServer
         duration: Date.now() - startTime,
       };
 
@@ -681,6 +723,67 @@ class MCPInitializer {
         duration: Date.now() - startTime,
       };
     }
+  }
+
+  /**
+   * Update Express app-level caches (availableTools and mcpToolRegistry) for individual server operations
+   * 
+   * @private
+   * @param {Express.Application} app - Express app instance
+   * @param {string} userId - The user ID
+   * @param {string} serverName - The server name
+   * @param {Object} toolsToAdd - Tools to add (for connect operations)
+   * @param {Array} toolKeysToRemove - Tool keys to remove (for disconnect operations)
+   */
+  static updateAppLevelCaches(app, userId, serverName, toolsToAdd = {}, toolKeysToRemove = []) {
+    if (!app || !app.locals) {
+      logger.warn(`[MCPInitializer] No app.locals available to update caches`);
+      return;
+    }
+
+    const { availableTools, mcpToolRegistry } = app.locals;
+    
+    if (!availableTools || !mcpToolRegistry) {
+      logger.warn(`[MCPInitializer] app.locals.availableTools or mcpToolRegistry not found`);
+      return;
+    }
+
+    // Add new tools to availableTools and mcpToolRegistry
+    if (Object.keys(toolsToAdd).length > 0) {
+      let addedCount = 0;
+      for (const [toolName, toolDef] of Object.entries(toolsToAdd)) {
+        availableTools[toolName] = toolDef;
+        
+        // Tool name is already the actual name (no delimiter parsing needed)
+        const toolInfo = {
+          serverName,
+          appSlug: serverName.startsWith('pipedream-') ? serverName.replace('pipedream-', '') : serverName,
+          toolName,
+        };
+        mcpToolRegistry.set(toolName, toolInfo);
+        addedCount++;
+      }
+      logger.info(`[MCPInitializer] Added ${addedCount} tools to app.locals for server '${serverName}'`);
+    }
+
+    // Remove tools from availableTools and mcpToolRegistry
+    if (toolKeysToRemove.length > 0) {
+      let removedCount = 0;
+      for (const toolName of toolKeysToRemove) {
+        if (availableTools[toolName]) {
+          delete availableTools[toolName];
+          removedCount++;
+        }
+        
+        // Tool name is already the actual name (no delimiter parsing needed)
+        if (mcpToolRegistry.has(toolName)) {
+          mcpToolRegistry.delete(toolName);
+        }
+      }
+      logger.info(`[MCPInitializer] Removed ${removedCount} tools from app.locals for server '${serverName}'`);
+    }
+
+    logger.info(`[MCPInitializer] Updated app.locals caches for user ${userId}, server '${serverName}' (total tools: ${Object.keys(availableTools).length}, registry size: ${mcpToolRegistry.size})`);
   }
 
   /**
@@ -699,24 +802,23 @@ class MCPInitializer {
       cached.serverCount = cached.serverCount + 1;
       cached.toolCount = cached.toolCount + toolCount;
       
-      // Update the cached tools
+      // Ensure cached tools object exists
       if (!cached.mcpTools) {
         cached.mcpTools = {};
       }
 
-      // Add new tools from this server to the cache
-      const serverSuffix = `${Constants.mcp_delimiter}${serverName}`;
-      for (const [toolKey, tool] of Object.entries(availableTools)) {
-        if (toolKey.endsWith(serverSuffix)) {
-          cached.mcpTools[toolKey] = tool;
-        }
-      }
+      // Since this method is called after tools are already added to availableTools,
+      // we need to add the newly connected tools to the cache
+      // This is a simplified approach - in a more complex system, we'd track server ownership
+      logger.debug(`[MCPInitializer] Note: Incremental cache update for connect - actual cache update happens elsewhere`);
 
       // Update timestamp and save
       cached.timestamp = Date.now();
       this.setUserInitializationCache(userId, cached);
       
-      logger.debug(`[MCPInitializer] Updated cache for user ${userId}: added server '${serverName}' with ${toolCount} tools`);
+      logger.info(`[MCPInitializer] Updated cache for user ${userId}: added server '${serverName}' with ${toolCount} tools (total cached tools: ${Object.keys(cached.mcpTools).length})`);
+    } else {
+      logger.warn(`[MCPInitializer] No cached data found for user ${userId} to update incrementally`);
     }
   }
 
@@ -729,7 +831,7 @@ class MCPInitializer {
    * @param {Array} removedToolKeys - Array of tool keys that were removed
    * @param {Object} availableTools - Current available tools registry
    */
-  updateCacheForServerRemoval(userId, serverName, removedToolKeys, availableTools) {
+  updateCacheForServerRemoval(userId, serverName, removedToolKeys) {
     const cached = this.getUserInitializationCache(userId);
     if (cached) {
       // Update the cached data
@@ -747,7 +849,9 @@ class MCPInitializer {
       cached.timestamp = Date.now();
       this.setUserInitializationCache(userId, cached);
       
-      logger.debug(`[MCPInitializer] Updated cache for user ${userId}: removed server '${serverName}' and ${removedToolKeys.length} tools`);
+      logger.info(`[MCPInitializer] Updated cache for user ${userId}: removed server '${serverName}' and ${removedToolKeys.length} tools (total cached tools: ${cached.mcpTools ? Object.keys(cached.mcpTools).length : 0})`);
+    } else {
+      logger.warn(`[MCPInitializer] No cached data found for user ${userId} to update incrementally`);
     }
   }
 }
