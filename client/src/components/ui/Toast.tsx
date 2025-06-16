@@ -5,10 +5,10 @@ import { useToast } from '~/hooks';
 export default function Toast() {
   const { toast, onOpenChange } = useToast();
   const severityClassName = {
-    [NotificationSeverity.INFO]: 'border-gray-500 bg-gray-500',
-    [NotificationSeverity.SUCCESS]: 'border-green-500 bg-green-500',
-    [NotificationSeverity.WARNING]: 'border-orange-500 bg-orange-500',
-    [NotificationSeverity.ERROR]: 'border-red-500 bg-red-500',
+    [NotificationSeverity.INFO]: 'border-[#0E1593] bg-[#0E1593]',
+    [NotificationSeverity.SUCCESS]: 'border-[#0E1593] bg-[#0E1593]',
+    [NotificationSeverity.WARNING]: 'border-[#FF4D1C] bg-[#FF4D1C]',
+    [NotificationSeverity.ERROR]: 'border-[#E11D48] bg-[#E11D48]',
   };
 
   return (
@@ -23,7 +23,7 @@ export default function Toast() {
     >
       <div className="w-full p-1 text-center md:w-auto md:text-justify">
         <div
-          className={`alert-root pointer-events-auto inline-flex flex-row gap-2 rounded-md border px-3 py-2 text-white ${
+          className={`alert-root pointer-events-auto inline-flex flex-row gap-2 rounded-lg border-2 px-4 py-3 text-white font-inter font-medium backdrop-blur-sm transition-all duration-300 shadow-lg ${
             severityClassName[toast.severity]
           }`}
         >
@@ -48,7 +48,7 @@ export default function Toast() {
             </div>
           )}
           <RadixToast.Description className="flex-1 justify-center gap-2">
-            <div className="whitespace-pre-wrap text-left">{toast.message}</div>
+            <div className="whitespace-pre-wrap text-left text-white font-inter">{toast.message}</div>
           </RadixToast.Description>
         </div>
       </div>

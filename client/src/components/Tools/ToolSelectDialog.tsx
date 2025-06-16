@@ -427,7 +427,7 @@ function ToolSelectDialog({
                     value={searchValue}
                     onChange={handleSearch}
                     placeholder={localize('com_nav_tool_search')}
-                    className="w-full h-12 pl-12 pr-12 text-base bg-surface-primary border border-border-light rounded-lg shadow-sm focus:border-green-500 focus:ring-2 focus:ring-green-500/20 text-text-primary placeholder:text-text-tertiary transition-all duration-200"
+                    className="w-full h-12 pl-12 pr-12 text-base bg-surface-primary border border-border-light rounded-lg shadow-sm focus:border-[#0E1593] focus:ring-2 focus:ring-[#0E1593]/20 text-text-primary placeholder:text-text-tertiary transition-all duration-200"
                   />
                   {searchValue && (
                     <button
@@ -456,7 +456,7 @@ function ToolSelectDialog({
                       type="button"
                       onClick={onSelectAll}
                       disabled={selectedToolsCount === totalFilteredTools || totalFilteredTools === 0}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-green-500 text-green-600 hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200 dark:text-green-400 dark:border-green-400 dark:hover:bg-green-900/10"
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-[#0E1593] text-[#0E1593] hover:bg-[#0E1593]/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200"
                     >
                       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -496,7 +496,7 @@ function ToolSelectDialog({
                                   onClick={() => handleServerSelection(server.name)}
                                   className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors
                                     ${selectedServers.has(server.name)
-                                      ? 'bg-green-50 text-green-600 dark:bg-green-900/10 dark:text-green-400'
+                                      ? 'bg-[#0E1593]/10 text-[#0E1593]'
                                       : 'hover:bg-surface-hover text-text-primary'
                                     }`}
                                 >
@@ -528,7 +528,7 @@ function ToolSelectDialog({
                {isLoadingTools ? (
                  <div className="flex flex-col items-center justify-center py-16 px-4">
                    <div className="flex items-center justify-center space-x-2">
-                     <div className="h-8 w-8 animate-spin rounded-full border-4 border-green-500 border-t-transparent"></div>
+                     <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#0E1593] border-t-transparent"></div>
                      <p className="text-lg text-text-secondary">Loading tools...</p>
                    </div>
                  </div>
@@ -548,7 +548,7 @@ function ToolSelectDialog({
                        setIsOpen(false);
                        navigate('/d/integrations');
                      }}
-                     className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 text-white border border-green-600 hover:from-green-600 hover:to-emerald-700 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 shadow-md"
+                     className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium rounded-lg bg-gradient-to-br from-[#0E1593] to-[#04062D] text-white border border-[#0E1593] hover:from-[#04062D] hover:to-[#0E0E0E] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 shadow-md"
                    >
                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />

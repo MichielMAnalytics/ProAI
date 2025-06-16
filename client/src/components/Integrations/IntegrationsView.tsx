@@ -530,7 +530,15 @@ export default function IntegrationsView() {
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-12">
           <div className="text-center max-w-4xl mx-auto">
             {/* Badge - Premium design with improved mobile layout */}
-            <div className="relative inline-flex items-center rounded-2xl bg-gradient-to-r from-blue-50/95 via-indigo-50/90 to-blue-50/95 dark:from-gray-900/80 dark:via-indigo-900/30 dark:to-blue-900/40 px-3 py-2 sm:px-6 sm:py-4 text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-100 mb-4 sm:mb-8 backdrop-blur-xl border border-blue-300/80 dark:border-indigo-400/30 shadow-lg shadow-brand-blue/15 dark:shadow-indigo-400/20 hover:shadow-xl hover:shadow-brand-blue/25 dark:hover:shadow-indigo-400/30 transition-all duration-300 group max-w-sm sm:max-w-none mx-auto">
+            <div 
+              className="relative inline-flex items-center rounded-2xl bg-gradient-to-r from-blue-50/95 via-indigo-50/90 to-blue-50/95 dark:from-gray-900/80 dark:via-indigo-900/30 dark:to-blue-900/40 px-3 py-2 sm:px-6 sm:py-4 text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-100 mb-4 sm:mb-8 backdrop-blur-xl border border-blue-300/80 dark:border-indigo-400/30 shadow-lg shadow-brand-blue/15 dark:shadow-indigo-400/20 hover:shadow-xl hover:shadow-brand-blue/25 dark:hover:shadow-indigo-400/30 transition-all duration-300 group max-w-sm sm:max-w-none mx-auto cursor-pointer"
+              onClick={() => {
+                const toolsSection = document.querySelector('.grid.grid-cols-1.sm\\:grid-cols-2.lg\\:grid-cols-3');
+                if (toolsSection) {
+                  toolsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }}
+            >
               {/* Premium glassmorphism overlay */}
               <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-brand-blue/8 via-indigo-500/12 to-brand-blue/8 dark:from-indigo-400/10 dark:via-blue-400/15 dark:to-indigo-400/10"></div>
               
@@ -539,14 +547,12 @@ export default function IntegrationsView() {
               
               {/* Content container */}
               <div className="relative z-10 flex items-center gap-2 sm:gap-3">
-                {/* Premium icon with enhanced coloring and subtle animation */}
-                <div className="flex items-center justify-center w-7 h-7 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-brand-blue via-indigo-500 to-indigo-600 dark:from-indigo-400 dark:to-blue-500 shadow-lg shadow-brand-blue/30 dark:shadow-indigo-400/30 group-hover:scale-110 group-hover:shadow-brand-blue/40 dark:group-hover:shadow-indigo-400/40 transition-all duration-300 flex-shrink-0 ring-1 ring-white/20 dark:ring-white/10">
-                  <svg className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-white drop-shadow-md" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  {/* Inner glow effect for the icon */}
-                  <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 to-transparent opacity-50 group-hover:opacity-70 transition-opacity duration-300"></div>
-                </div>
+                {/* Eve logo - replacing entire square container */}
+                <img 
+                  src="/assets/logo.svg" 
+                  alt="Eve Logo" 
+                  className="w-7 h-7 sm:w-10 sm:h-10 rounded-xl shadow-lg shadow-brand-blue/30 dark:shadow-indigo-400/30 group-hover:scale-110 group-hover:shadow-brand-blue/40 dark:group-hover:shadow-indigo-400/40 transition-all duration-300 flex-shrink-0"
+                />
                 
                 {/* Text content with premium typography - Mobile optimized */}
                 <div className="flex flex-col min-w-0">
