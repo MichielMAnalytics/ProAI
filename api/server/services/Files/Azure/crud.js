@@ -7,7 +7,7 @@ const { logger } = require('~/config');
 const { getAzureContainerClient } = require('./initialize');
 
 const defaultBasePath = 'images';
-const { AZURE_STORAGE_PUBLIC_ACCESS = 'true', AZURE_CONTAINER_NAME = 'files' } = process.env;
+const { AZURE_STORAGE_PUBLIC_ACCESS = 'true', AZURE_STORAGE_CONTAINER_NAME = 'files' } = process.env;
 
 /**
  * Uploads a buffer to Azure Blob Storage.
@@ -103,8 +103,8 @@ async function getAzureURL({ fileName, basePath = defaultBasePath, userId, conta
  */
 async function deleteFileFromAzure(req, file) {
   try {
-    const containerClient = getAzureContainerClient(AZURE_CONTAINER_NAME);
-    const blobPath = file.filepath.split(`${AZURE_CONTAINER_NAME}/`)[1];
+    const containerClient = getAzureContainerClient(AZURE_STORAGE_CONTAINER_NAME);
+    const blobPath = file.filepath.split(`${AZURE_STORAGE_CONTAINER_NAME}/`)[1];
     if (!blobPath.includes(req.user.id)) {
       throw new Error('User ID not found in blob path');
     }
