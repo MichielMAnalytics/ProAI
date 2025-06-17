@@ -29,6 +29,7 @@ import {
 } from '~/utils';
 import { useDeleteFilesMutation, useGetEndpointsQuery, useGetStartupConfig } from '~/data-provider';
 import useAssistantListMap from './Assistants/useAssistantListMap';
+import { useAgentsMapContext } from '~/Providers/AgentsMapContext';
 import { useResetChatBadges } from './useChatBadges';
 import { usePauseGlobalAudio } from './Audio';
 
@@ -50,6 +51,7 @@ const useNewConvo = (index = 0) => {
 
   const modelsQuery = useGetModelsQuery();
   const assistantsListMap = useAssistantListMap();
+  const agentsMap = useAgentsMapContext();
   const { pauseGlobalAudio } = usePauseGlobalAudio(index);
   const saveDrafts = useRecoilValue<boolean>(store.saveDrafts);
   const resetBadges = useResetChatBadges();
@@ -151,9 +153,28 @@ const useNewConvo = (index = 0) => {
 
           // Agent handling - similar to assistant logic above
           const isAgentEndpoint = isAgentsEndpoint(defaultEndpoint);
+          const agents = Object.values(agentsMap || {});
           const currentAgentId = conversation.agent_id ?? '';
+          const currentAgent = agentsMap?.[currentAgentId];
 
-          // Store last used agent in localStorage if switching away from agents endpoint
+          if (currentAgentId && !currentAgent) {
+            conversation.agent_id = undefined;
+          }
+
+          if (!currentAgentId && isAgentEndpoint && agentsMap && Object.keys(agentsMap).length > 0) {
+            // Check URL params first, then localStorage, then default
+            const urlAgentId = searchParams.get('agent_id');
+            const storedAgentId = localStorage.getItem(`${LocalStorageKeys.AGENT_ID_PREFIX}${index}`);
+            
+            if (urlAgentId && agentsMap[urlAgentId]) {
+              conversation.agent_id = urlAgentId;
+            } else if (storedAgentId && agentsMap[storedAgentId]) {
+              conversation.agent_id = storedAgentId;
+            } else if (agents.length > 0) {
+              conversation.agent_id = agents[0]?.id;
+            }
+          }
+
           if (currentAgentId && !isAgentEndpoint) {
             conversation.agent_id = undefined;
           }
@@ -216,7 +237,7 @@ const useNewConvo = (index = 0) => {
           state: disableFocus ? {} : { focusChat: true },
         });
       },
-    [endpointsConfig, defaultPreset, assistantsListMap, modelsQuery.data],
+    [endpointsConfig, defaultPreset, assistantsListMap, agentsMap, modelsQuery.data, searchParams],
   );
 
   const newConversation = useCallback(

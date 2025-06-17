@@ -110,10 +110,6 @@ function AccountSettings() {
               <button
                 onClick={handleUpgradeClick}
                 className="btn btn-primary ml-3 px-3 py-1 text-xs font-semibold text-white"
-                style={{
-                  background: 'linear-gradient(90deg, #904887 10.79%, #8b257e 87.08%)',
-                  borderColor: '#8b257e'
-                }}
               >
                 Upgrade
               </button>

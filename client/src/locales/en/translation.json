@@ -22,7 +22,7 @@
   "com_agents_no_access": "Create a new agent to enjoy full customization",
   "com_agents_not_available": "System Agent",
   "com_agents_search_info": "When enabled, allows your agent to search the web for up-to-date information.",
-  "com_agents_search_name": "Search agents by name",
+  "com_agents_search_name": "Search agents",
   "com_agents_update_error": "There was an error updating your agent.",
   "com_assistants_action_attempt": "Assistant wants to talk to {{0}}",
   "com_assistants_actions": "Actions",

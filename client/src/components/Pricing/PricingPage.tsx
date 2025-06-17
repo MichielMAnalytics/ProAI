@@ -379,13 +379,13 @@ const PricingPage = () => {
         {checkoutStatus && (
           <div className={`mb-8 p-4 rounded-lg border ${
             checkoutStatus === 'success' 
-              ? 'bg-green-50 border-green-200' 
+              ? 'bg-blue-50 border-blue-200' 
               : 'bg-yellow-50 border-yellow-200'
           }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 {checkoutStatus === 'success' ? (
-                  <svg className="w-5 h-5 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--brand-blue)' }}>
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 ) : (
@@ -396,8 +396,8 @@ const PricingPage = () => {
                 <div>
                   {checkoutStatus === 'success' ? (
                     <>
-                      <p className="font-semibold text-green-800">Payment Successful!</p>
-                      <p className="text-sm text-green-700">Welcome to Eve Pro! Your subscription is now active.</p>
+                      <p className="font-semibold" style={{ color: 'var(--brand-blue)' }}>Payment Successful!</p>
+                      <p className="text-sm" style={{ color: 'var(--brand-blue)' }}>Welcome to Eve Pro! Your subscription is now active.</p>
                     </>
                   ) : (
                     <>
@@ -471,16 +471,16 @@ const PricingPage = () => {
               </div>
               <ul className="space-y-3">
                 <li className="flex items-center text-sm">
-                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
                   <span style={{ color: 'var(--text-secondary)' }}>Access 2700+ apps and 10,000+ tools</span>
                 </li>
                 <li className="flex items-center text-sm">
-                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
                   <span style={{ color: 'var(--text-secondary)' }}>Access to all state of the art large language models</span>
                 </li>
                 <li className="flex items-center text-sm">
-                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>Unlimited tasks</span>
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
+                  <span style={{ color: 'var(--text-secondary)' }}>Unlimited tasks & workflows</span>
                 </li>
               </ul>
             </div>
@@ -510,7 +510,7 @@ const PricingPage = () => {
             className="p-8 relative flex flex-col h-full rounded-2xl"
             style={{
               backgroundColor: 'var(--surface-secondary)',
-              border: isCurrentPlan('pro') ? '2px solid var(--green-600)' : '2px solid var(--green-500)'
+              border: isCurrentPlan('pro') ? '2px solid var(--brand-blue)' : '2px solid var(--brand-blue)'
             }}
           >
             <div className="flex items-center gap-2 mb-8">
@@ -521,7 +521,7 @@ const PricingPage = () => {
                 <span 
                   className="px-3 py-1 rounded-full text-xs font-semibold text-white"
                   style={{ 
-                    background: 'linear-gradient(135deg, var(--green-600) 0%, var(--green-700) 100%)'
+                    background: 'linear-gradient(135deg, var(--brand-blue) 0%, var(--brand-dark) 100%)'
                   }}
                 >
                   CURRENT
@@ -530,7 +530,7 @@ const PricingPage = () => {
                 <span 
                   className="px-3 py-1 rounded-full text-xs font-semibold text-white"
                   style={{ 
-                    background: 'linear-gradient(135deg, var(--green-500) 0%, var(--green-600) 100%)'
+                    background: 'linear-gradient(135deg, var(--brand-blue) 0%, var(--brand-dark) 100%)'
                   }}
                 >
                   POPULAR
@@ -591,7 +591,7 @@ const PricingPage = () => {
                         }}
                         className="w-full px-4 py-3 text-left transition-colors"
                         style={{
-                          color: selectedProCredits === option.credits ? 'var(--green-600)' : 'var(--text-primary)',
+                          color: selectedProCredits === option.credits ? 'var(--brand-blue)' : 'var(--text-primary)',
                           backgroundColor: selectedProCredits === option.credits ? 'var(--surface-hover)' : 'transparent'
                         }}
                         onMouseEnter={(e) => {
@@ -608,7 +608,7 @@ const PricingPage = () => {
                         <div className="flex justify-between items-center">
                           <span>{getTierEmoji(tierInfo.tierName, tierInfo.tier)} {formatCredits(option.credits)} credits / month</span>
                           {selectedProCredits === option.credits && (
-                            <Check className="h-4 w-4" style={{ color: 'var(--green-600)' }} />
+                            <Check className="h-4 w-4" style={{ color: 'var(--brand-blue)' }} />
                           )}
                         </div>
                       </button>
@@ -624,15 +624,15 @@ const PricingPage = () => {
               </div>
               <ul className="space-y-3">
                 <li className="flex items-center text-sm">
-                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
                   <span style={{ color: 'var(--text-secondary)' }}>{formatCredits(selectedProCredits)} credits / month</span>
                 </li>
                 <li className="flex items-center text-sm">
-                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
                   <span style={{ color: 'var(--text-secondary)' }}>Request custom apps and tools</span>
                 </li>
                 <li className="flex items-center text-sm">
-                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
                   <span style={{ color: 'var(--text-secondary)' }}>Priority support</span>
                 </li>
               </ul>
@@ -690,23 +690,23 @@ const PricingPage = () => {
               </div>
               <ul className="space-y-3">
                 <li className="flex items-center text-sm">
-                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
                   <span style={{ color: 'var(--text-secondary)' }}>Unlimited credits</span>
                 </li>
                 <li className="flex items-center text-sm">
-                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
                   <span style={{ color: 'var(--text-secondary)' }}>Team collaboration tools</span>
                 </li>
                 <li className="flex items-center text-sm">
-                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
                   <span style={{ color: 'var(--text-secondary)' }}>Advanced analytics</span>
                 </li>
                 <li className="flex items-center text-sm">
-                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
                   <span style={{ color: 'var(--text-secondary)' }}>Dedicated support</span>
                 </li>
                 <li className="flex items-center text-sm">
-                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--green-500)' }} />
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
                   <span style={{ color: 'var(--text-secondary)' }}>SSO & advanced security</span>
                 </li>
               </ul>

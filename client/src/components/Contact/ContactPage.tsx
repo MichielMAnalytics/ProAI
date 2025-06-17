@@ -221,7 +221,7 @@ const ContactPage = () => {
       }}>
         <div className="max-w-2xl mx-auto text-center">
           <div className="w-16 h-16 mx-auto mb-6 rounded-full flex items-center justify-center" style={{
-            background: 'linear-gradient(135deg, var(--green-500) 0%, var(--green-600) 100%)'
+            background: 'linear-gradient(135deg, var(--brand-blue) 0%, var(--brand-dark) 100%)'
           }}>
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -253,7 +253,7 @@ const ContactPage = () => {
         {/* Header */}
         <div className="text-center mb-12">
           <div className="w-12 h-12 mx-auto mb-6 rounded-lg flex items-center justify-center" style={{
-            background: 'linear-gradient(135deg, var(--green-500) 0%, var(--green-600) 100%)'
+            background: 'linear-gradient(135deg, var(--brand-blue) 0%, var(--brand-dark) 100%)'
           }}>
             <span className="text-white font-bold text-lg">E</span>
           </div>
@@ -274,7 +274,7 @@ const ContactPage = () => {
                       : 'text-gray-400'
                   }`}
                   style={{
-                    backgroundColor: step <= currentStep ? 'var(--green-500)' : 'var(--border-light)'
+                    backgroundColor: step <= currentStep ? 'var(--brand-blue)' : 'var(--border-light)'
                   }}
                 >
                   {step}
@@ -283,7 +283,7 @@ const ContactPage = () => {
                   <div 
                     className="w-16 h-0.5 mx-4"
                     style={{
-                      backgroundColor: step < currentStep ? 'var(--green-500)' : 'var(--border-light)'
+                      backgroundColor: step < currentStep ? 'var(--brand-blue)' : 'var(--border-light)'
                     }}
                   />
                 )}
@@ -493,7 +493,7 @@ const ContactPage = () => {
                             checked={formData.useCases.includes(option)}
                             onChange={() => handleCheckboxChange('useCases', option)}
                             className="w-4 h-4 rounded border-2"
-                            style={{ accentColor: 'var(--green-500)' }}
+                            style={{ accentColor: 'var(--brand-blue)' }}
                           />
                           <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                             {option}
@@ -515,7 +515,7 @@ const ContactPage = () => {
                             checked={formData.complianceNeeds.includes(option)}
                             onChange={() => handleCheckboxChange('complianceNeeds', option)}
                             className="w-4 h-4 rounded border-2"
-                            style={{ accentColor: 'var(--green-500)' }}
+                            style={{ accentColor: 'var(--brand-blue)' }}
                           />
                           <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                             {option}
@@ -640,7 +640,7 @@ const ContactPage = () => {
                     Invite
                   </span>
                   <button className="text-xs px-3 py-1 rounded-md" style={{ 
-                    backgroundColor: 'var(--green-500)', 
+                    backgroundColor: 'var(--brand-blue)', 
                     color: 'white' 
                   }}>
                     Invite

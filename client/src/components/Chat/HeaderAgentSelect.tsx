@@ -41,8 +41,14 @@ export default function HeaderAgentSelect() {
   );
 
   // Auto-select first agent when no agent is selected and agents are available
+  // Skip if conversation is new (let useNewConvo handle agent restoration)
   useEffect(() => {
-    if (conversation?.endpoint === 'agents' && !currentAgentId && agents.length > 0) {
+    if (
+      conversation?.endpoint === 'agents' && 
+      !currentAgentId && 
+      agents.length > 0 &&
+      conversation?.conversationId !== 'new'
+    ) {
       const lastAgentId = localStorage.getItem(`${LocalStorageKeys.AGENT_ID_PREFIX}${index}`);
       if (lastAgentId && agents.find((a) => a.id === lastAgentId)) {
         handleSelectAgent(lastAgentId);
@@ -50,7 +56,7 @@ export default function HeaderAgentSelect() {
         handleSelectAgent(agents[0].id);
       }
     }
-  }, [currentAgentId, agents, conversation?.endpoint, handleSelectAgent, index]);
+  }, [currentAgentId, agents, conversation?.endpoint, conversation?.conversationId, handleSelectAgent, index]);
 
   const agentItems = useMemo(
     () =>
