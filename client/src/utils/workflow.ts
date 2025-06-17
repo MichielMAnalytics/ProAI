@@ -6,51 +6,29 @@ export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
     // Parse the workflow data to validate it
     const workflowData = JSON.parse(content);
     
-    // Use Base64 encoding to completely avoid any serialization issues
-    const workflowDataBase64 = btoa(JSON.stringify(workflowData));
-    const toolsDataBase64 = btoa(JSON.stringify(toolsData));
+    // Use a more robust serialization approach that avoids template literal conflicts
+    // Instead of embedding JSON directly in template literals, use a safer approach
+    const safeWorkflowData = JSON.stringify(workflowData).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const safeToolsData = JSON.stringify(toolsData).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     
     return {
       'App.tsx': dedent`
         import React from 'react';
         import WorkflowVisualization from './components/ui/WorkflowVisualization';
 
-        // Use Base64 encoded data to completely avoid serialization issues
-        const workflowDataB64 = "${workflowDataBase64}";
-        const toolsDataB64 = "${toolsDataBase64}";
+        // Workflow data safely embedded using encoded strings to avoid template literal conflicts
+        const workflowDataStr = "${safeWorkflowData}";
+        const toolsDataStr = "${safeToolsData}";
         
-        // Decode and parse data safely
+        // Parse the data at runtime with error handling
         let workflowData, toolsData;
         try {
-          const workflowStr = atob(workflowDataB64);
-          const toolsStr = atob(toolsDataB64);
-          workflowData = JSON.parse(workflowStr);
-          toolsData = JSON.parse(toolsStr);
+          workflowData = JSON.parse(workflowDataStr);
+          toolsData = JSON.parse(toolsDataStr);
         } catch (error) {
-          console.error('Failed to decode/parse workflow data:', error);
-          workflowData = { 
-            workflow: { 
-              id: 'error', 
-              name: 'Data Loading Error', 
-              description: 'Could not load workflow data',
-              trigger: { type: 'manual', config: {} }, 
-              steps: [] 
-            }, 
-            nodes: [], 
-            edges: [], 
-            trigger: { type: 'manual', config: {} } 
-          };
+          console.error('Failed to parse workflow data:', error);
+          workflowData = { workflow: { id: '', name: 'Error', trigger: { type: 'manual', config: {} }, steps: [] }, nodes: [], edges: [], trigger: { type: 'manual', config: {} } };
           toolsData = [];
-        }
-
-        // Add global error handler for digest errors
-        if (typeof window !== 'undefined') {
-          window.addEventListener('unhandledrejection', function(event) {
-            if (event.reason?.message?.includes('digest')) {
-              console.warn('Suppressed digest error:', event.reason);
-              event.preventDefault();
-            }
-          });
         }
 
         export default function App() {

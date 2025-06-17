@@ -134,7 +134,13 @@ const standardDependencies = {
 
 const workflowDependencies = Object.assign(
   {
-    'reactflow': '^11.10.1',
+    'reactflow': '^11.11.4',
+    '@reactflow/core': '^11.11.4',
+    '@reactflow/background': '^11.3.14',
+    '@reactflow/controls': '^11.2.14',
+    '@reactflow/minimap': '^11.7.14',
+    '@reactflow/node-resizer': '^2.2.14',
+    '@reactflow/node-toolbar': '^1.3.14',
   },
   standardDependencies,
 );
