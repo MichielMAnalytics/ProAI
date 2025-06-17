@@ -10,8 +10,8 @@ interface AgentSelectModalProps {
   onClose: () => void;
 }
 
-// Custom component to render agent avatars at large sizes, bypassing EndpointIcon limitations
-function AgentAvatar({ agent, size = 160 }: { agent: any; size?: number }) {
+// Custom component to render agent avatars without circular constraints
+function AgentAvatar({ agent }: { agent: any }) {
   const [imageError, setImageError] = useState(false);
   
   const handleImageError = () => {
@@ -22,21 +22,15 @@ function AgentAvatar({ agent, size = 160 }: { agent: any; size?: number }) {
   const isValidURL = iconURL && (iconURL.includes('http') || iconURL.startsWith('/images/') || iconURL.startsWith('/assets/'));
 
   if (imageError || !isValidURL) {
-    // Fallback to a large default avatar when no image or error
+    // Fallback to agent name initial when no image
     return (
-      <div 
-        className="relative flex items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 shadow-xl"
-        style={{ width: size, height: size }}
-      >
-        <div className="text-white font-bold" style={{ fontSize: size * 0.4 }}>
+      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 transition-all duration-300 group-hover:scale-105">
+        <div className="text-white font-bold text-6xl">
           {agent.name?.charAt(0)?.toUpperCase() || 'A'}
         </div>
         {imageError && iconURL && (
-          <div
-            className="absolute flex items-center justify-center rounded-full bg-red-500 border-2 border-white"
-            style={{ width: size * 0.25, height: size * 0.25, top: -2, right: -2 }}
-          >
-            <AlertCircle size={size * 0.15} className="text-white" />
+          <div className="absolute top-4 right-4 flex items-center justify-center w-8 h-8 rounded-full bg-red-500 border-2 border-white">
+            <AlertCircle size={20} className="text-white" />
           </div>
         )}
       </div>
@@ -44,17 +38,14 @@ function AgentAvatar({ agent, size = 160 }: { agent: any; size?: number }) {
   }
 
   return (
-    <div className="relative">
-      <img
-        src={iconURL}
-        alt={agent.name || 'Agent Avatar'}
-        className="rounded-full object-cover shadow-xl transition-all duration-300 group-hover:shadow-2xl"
-        style={{ width: size, height: size }}
-        onError={handleImageError}
-        loading="lazy"
-        decoding="async"
-      />
-    </div>
+    <img
+      src={iconURL}
+      alt={agent.name || 'Agent Avatar'}
+      className="absolute inset-0 w-full h-full object-contain transition-all duration-300 group-hover:scale-105"
+      onError={handleImageError}
+      loading="lazy"
+      decoding="async"
+    />
   );
 }
 
@@ -122,13 +113,9 @@ export default function AgentSelectModal({ isOpen, onClose }: AgentSelectModalPr
                   onClick={() => handleSelectAgent(agent.id || '')}
                 >
                   {/* Image Container - Takes up most of the card */}
-                  <div className="relative h-80 w-full overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-700 dark:to-gray-800">
-                    {/* Agent Image/Icon */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="transition-all duration-300 group-hover:scale-110">
-                        <AgentAvatar agent={agent} size={180} />
-                      </div>
-                    </div>
+                  <div className="relative h-80 w-full overflow-hidden bg-gray-100 dark:bg-gray-800">
+                    {/* Agent Image/Icon - fills entire container */}
+                    <AgentAvatar agent={agent} />
                     
                     {/* Gradient Overlay for better text readability */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-60 group-hover:opacity-70 transition-opacity duration-300" />
