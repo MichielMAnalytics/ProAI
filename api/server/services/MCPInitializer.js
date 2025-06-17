@@ -292,22 +292,28 @@ class MCPInitializer {
         }
 
         // CRITICAL FIX: Restore the cached mcpToolRegistry to the passed-in registry
-        if (mcpToolRegistry) {
-          if (cached.mcpToolRegistry) {
-            // Clear the passed-in registry and populate it with cached data
-            mcpToolRegistry.clear();
+        if (mcpToolRegistry && cached.mcpTools) {
+          // Get the current registry size for comparison
+          const initialRegistrySize = mcpToolRegistry.size;
+          
+          if (cached.mcpToolRegistry && cached.mcpToolRegistry.size > 0) {
+            // Add cached registry entries to the existing registry (don't clear existing ones)
+            let restoredCount = 0;
             for (const [key, value] of cached.mcpToolRegistry.entries()) {
-              mcpToolRegistry.set(key, value);
+              if (!mcpToolRegistry.has(key)) { // Only add if not already present
+                mcpToolRegistry.set(key, value);
+                restoredCount++;
+              }
             }
-            logger.info(`[MCPInitializer][${context}] Restored ${mcpToolRegistry.size} tools to mcpToolRegistry from cache`);
+            logger.info(`[MCPInitializer][${context}] Restored ${restoredCount} new tools to mcpToolRegistry from cache (registry had ${initialRegistrySize}, now has ${mcpToolRegistry.size})`);
           } else {
             // Fallback: If cached result doesn't have mcpToolRegistry, regenerate it from cached tools
             logger.warn(`[MCPInitializer][${context}] Cached result missing mcpToolRegistry, regenerating from cached tools`);
-            mcpToolRegistry.clear();
             
             // Rebuild registry from cached tools (this handles old cache entries)
-            if (cached.mcpTools) {
-              for (const toolKey of Object.keys(cached.mcpTools)) {
+            let regeneratedCount = 0;
+            for (const toolKey of Object.keys(cached.mcpTools)) {
+              if (!mcpToolRegistry.has(toolKey)) { // Only add if not already present
                 // Extract server name from tool key (assuming format: toolname-servername or servername-toolname)
                 let serverName = 'unknown';
                 if (toolKey.includes('-')) {
@@ -330,9 +336,10 @@ class MCPInitializer {
                   toolName: toolKey,
                   appSlug: serverName.replace('pipedream-', ''),
                 });
+                regeneratedCount++;
               }
-              logger.info(`[MCPInitializer][${context}] Regenerated ${mcpToolRegistry.size} tools in mcpToolRegistry from cached tools`);
             }
+            logger.info(`[MCPInitializer][${context}] Regenerated ${regeneratedCount} tools in mcpToolRegistry from cached tools (registry had ${initialRegistrySize}, now has ${mcpToolRegistry.size})`);
           }
         }
 
