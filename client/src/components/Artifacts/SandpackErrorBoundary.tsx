@@ -26,6 +26,12 @@ class SandpackErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('Sandpack Error Boundary caught an error:', error, errorInfo);
+    
+    // Special handling for the digest error
+    if (error.message?.includes('digest') || error.stack?.includes('digest')) {
+      console.warn('Detected Sandpack digest error - this is a known bundler issue');
+    }
+    
     this.setState({ errorInfo });
   }
 

@@ -44,24 +44,40 @@ export const ArtifactPreview = memo(function ({
   }, [currentCode, files, fileKey]);
 
   const options: typeof sharedOptions = useMemo(() => {
+    // Special handling for workflow artifacts to avoid digest issues
+    const appFile = artifactFiles['App.tsx'];
+    const appCode = typeof appFile === 'string' ? appFile : appFile?.code;
+    if (fileKey === 'App.tsx' && appCode?.includes('WorkflowVisualization')) {
+      return {
+        ...sharedOptions,
+        bundlerTimeOut: 90000, // Extended timeout for complex workflow components
+        autoReload: false,
+        recompileMode: 'immediate',
+        recompileDelay: 500,
+        // Use a more stable bundler configuration
+        ...(startupConfig?.bundlerURL && { 
+          bundlerURL: startupConfig.bundlerURL 
+        }),
+      };
+    }
+
     if (!startupConfig) {
       return {
         ...sharedOptions,
-        // Add timeout configuration for better reliability
-        bundlerTimeOut: 60000, // 60 seconds
+        bundlerTimeOut: 60000,
         autoReload: false,
       };
     }
+    
     const _options: typeof sharedOptions = {
       ...sharedOptions,
       bundlerURL: template === 'static' ? startupConfig.staticBundlerURL : startupConfig.bundlerURL,
-      // Add enhanced timeout configuration
       bundlerTimeOut: 60000,
       autoReload: false,
     };
 
     return _options;
-  }, [startupConfig, template]);
+  }, [startupConfig, template, fileKey, artifactFiles]);
 
   if (Object.keys(artifactFiles).length === 0) {
     return null;
