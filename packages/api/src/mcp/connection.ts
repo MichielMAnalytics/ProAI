@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { logger } from '@librechat/data-schemas';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import {
@@ -10,7 +11,7 @@ import { ResourceListChangedNotificationSchema } from '@modelcontextprotocol/sdk
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
-import type { Logger } from 'winston';
+import type { MCPOAuthTokens } from './oauth/types';
 import type * as t from './types';
 
 function isStdioOptions(options: t.MCPOptions): options is t.StdioOptions {
@@ -51,39 +52,49 @@ function isStreamableHTTPOptions(options: t.MCPOptions): options is t.Streamable
   return false;
 }
 
+const FIVE_MINUTES = 5 * 60 * 1000;
 export class MCPConnection extends EventEmitter {
+  private static instance: MCPConnection | null = null;
   public client: Client;
   private transport: Transport | null = null; // Make this nullable
   private connectionState: t.ConnectionState = 'disconnected';
   private connectPromise: Promise<void> | null = null;
   private lastError: Error | null = null;
+  private lastConfigUpdate = 0;
+  private readonly CONFIG_TTL = 5 * 60 * 1000; // 5 minutes
   private readonly MAX_RECONNECT_ATTEMPTS = 3;
   public readonly serverName: string;
   private shouldStopReconnecting = false;
   private isReconnecting = false;
   private isInitializing = false;
   private reconnectAttempts = 0;
+  private readonly userId?: string;
+  private lastPingTime: number;
+  private oauthTokens?: MCPOAuthTokens | null;
+  private oauthRequired = false;
   iconPath?: string;
   timeout?: number;
-  private readonly userId?: string;
-  private needsTransportRecreation = false;
+  url?: string;
 
   constructor(
     serverName: string,
     private readonly options: t.MCPOptions,
-    private logger?: Logger,
     userId?: string,
+    oauthTokens?: MCPOAuthTokens | null,
   ) {
     super();
     this.serverName = serverName;
-    this.logger = logger;
     this.userId = userId;
     this.iconPath = options.iconPath;
     this.timeout = options.timeout;
+    this.lastPingTime = Date.now();
+    if (oauthTokens) {
+      this.oauthTokens = oauthTokens;
+    }
     this.client = new Client(
       {
         name: '@librechat/api-client',
-        version: '1.2.2',
+        version: '1.2.3',
       },
       {
         capabilities: {},
@@ -99,40 +110,33 @@ export class MCPConnection extends EventEmitter {
     return `[MCP]${userPart}[${this.serverName}]`;
   }
 
-  /** Helper to detect authentication errors */
-  private isAuthenticationError(errorMessage: string): boolean {
-    const authErrorPatterns = [
-      'HTTP 401',
-      'HTTP 403',
-      'HTTP 500',
-      'Unauthorized',
-      'Forbidden',
-      'Internal server error',
-      'Authentication failed',
-      'Invalid token',
-      'Token expired',
-      'access_token',
-      'jsonrpc.*error.*-32603', // Pipedream JSON-RPC internal error
-    ];
-
-    // Check for Pipedream-specific error pattern
-    if (errorMessage.includes('"code":-32603') && errorMessage.includes('Internal server error')) {
-      this.logger?.debug(
-        `${this.getLogPrefix()} Detected Pipedream JSON-RPC auth error pattern`,
-      );
-      return true;
+  public static getInstance(
+    serverName: string,
+    options: t.MCPOptions,
+    userId?: string,
+  ): MCPConnection {
+    if (!MCPConnection.instance) {
+      MCPConnection.instance = new MCPConnection(serverName, options, userId);
     }
+    return MCPConnection.instance;
+  }
 
-    return authErrorPatterns.some((pattern) =>
-      errorMessage.toLowerCase().includes(pattern.toLowerCase()),
-    );
+  public static getExistingInstance(): MCPConnection | null {
+    return MCPConnection.instance;
+  }
+
+  public static async destroyInstance(): Promise<void> {
+    if (MCPConnection.instance) {
+      await MCPConnection.instance.disconnect();
+      MCPConnection.instance = null;
+    }
   }
 
   /** Helper to refresh Pipedream authentication token */
-  private async refreshAuthToken(): Promise<boolean> {
+  private async refreshPipedreamToken(): Promise<boolean> {
     try {
       // Only refresh if this is a Pipedream streamable-http connection
-      if (this.options.type !== 'streamable-http' || !this.options.headers) {
+      if (this.options.type !== 'streamable-http') {
         return false;
       }
 
@@ -142,7 +146,7 @@ export class MCPConnection extends EventEmitter {
         return false;
       }
 
-      this.logger?.info(`${this.getLogPrefix()} Attempting to refresh Pipedream auth token`);
+      logger.info(`${this.getLogPrefix()} Attempting to refresh Pipedream auth token`);
 
       // Dynamically import PipedreamConnect to avoid circular dependencies
       const PipedreamConnect = require('../../../api/server/services/Pipedream/PipedreamConnect');
@@ -153,9 +157,17 @@ export class MCPConnection extends EventEmitter {
 
         const newToken = await PipedreamConnect.getOAuthAccessToken();
         if (newToken) {
-          this.options.headers['Authorization'] = `Bearer ${newToken}`;
-          this.needsTransportRecreation = true;
-          this.logger?.info(
+          // Update both the options headers and OAuth tokens
+          if (this.options.headers) {
+            this.options.headers['Authorization'] = `Bearer ${newToken}`;
+          }
+          this.oauthTokens = {
+            access_token: newToken,
+            token_type: 'Bearer',
+            obtained_at: Date.now(),
+            expires_in: 3600, // 1 hour
+          };
+          logger.info(
             `${this.getLogPrefix()} Successfully refreshed Pipedream auth token at ${new Date().toISOString()}`,
           );
           return true;
@@ -164,14 +176,14 @@ export class MCPConnection extends EventEmitter {
 
       return false;
     } catch (error) {
-      this.logger?.error(`${this.getLogPrefix()} Failed to refresh auth token:`, error);
+      logger.error(`${this.getLogPrefix()} Failed to refresh auth token:`, error);
       return false;
     }
   }
 
   private emitError(error: unknown, errorContext: string): void {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    this.logger?.error(`${this.getLogPrefix()} ${errorContext}: ${errorMessage}`);
+    logger.error(`${this.getLogPrefix()} ${errorContext}: ${errorMessage}`);
     this.emit('error', new Error(`${errorContext}: ${errorMessage}`));
   }
 
@@ -209,48 +221,52 @@ export class MCPConnection extends EventEmitter {
           if (!isWebSocketOptions(options)) {
             throw new Error('Invalid options for websocket transport.');
           }
+          this.url = options.url;
           return new WebSocketClientTransport(new URL(options.url));
 
         case 'sse': {
           if (!isSSEOptions(options)) {
             throw new Error('Invalid options for sse transport.');
           }
+          this.url = options.url;
           const url = new URL(options.url);
-          this.logger?.info(`${this.getLogPrefix()} Creating SSE transport: ${url.toString()}`);
+          logger.info(`${this.getLogPrefix()} Creating SSE transport: ${url.toString()}`);
           const abortController = new AbortController();
+
+          /** Add OAuth token to headers if available */
+          const headers = { ...options.headers };
+          if (this.oauthTokens?.access_token) {
+            headers['Authorization'] = `Bearer ${this.oauthTokens.access_token}`;
+          }
+
           const transport = new SSEClientTransport(url, {
             requestInit: {
-              headers: options.headers,
+              headers,
               signal: abortController.signal,
             },
             eventSourceInit: {
               fetch: (url, init) => {
-                const headers = new Headers(Object.assign({}, init?.headers, options.headers));
+                const fetchHeaders = new Headers(Object.assign({}, init?.headers, headers));
                 return fetch(url, {
                   ...init,
-                  headers,
+                  headers: fetchHeaders,
                 });
               },
             },
           });
 
           transport.onclose = () => {
-            this.logger?.info(`${this.getLogPrefix()} SSE transport closed`);
-            // Only emit disconnected if we're not intentionally stopping
-            if (!this.shouldStopReconnecting && this.connectionState === 'connected') {
-              this.emit('connectionChange', 'disconnected');
-            }
+            logger.info(`${this.getLogPrefix()} SSE transport closed`);
+            this.emit('connectionChange', 'disconnected');
           };
 
           transport.onerror = (error) => {
-            this.logger?.error(`${this.getLogPrefix()} SSE transport error:`, error);
+            logger.error(`${this.getLogPrefix()} SSE transport error:`, error);
             this.emitError(error, 'SSE transport error:');
           };
 
           transport.onmessage = (message) => {
-            this.logger?.info(
-              `${this.getLogPrefix()} Message received: ${JSON.stringify(message)}`,
-            );
+            logger.info(`${this.getLogPrefix()} Message received: ${JSON.stringify(message)}`);
           };
 
           this.setupTransportErrorHandlers(transport);
@@ -261,46 +277,38 @@ export class MCPConnection extends EventEmitter {
           if (!isStreamableHTTPOptions(options)) {
             throw new Error('Invalid options for streamable-http transport.');
           }
+          this.url = options.url;
           const url = new URL(options.url);
-          // this.logger?.info(
-          //   `${this.getLogPrefix()} Creating streamable-http transport: ${url.toString()}`,
-          // );
+          logger.info(
+            `${this.getLogPrefix()} Creating streamable-http transport: ${url.toString()}`,
+          );
           const abortController = new AbortController();
+
+          // Add OAuth token to headers if available
+          const headers = { ...options.headers };
+          if (this.oauthTokens?.access_token) {
+            headers['Authorization'] = `Bearer ${this.oauthTokens.access_token}`;
+          }
 
           const transport = new StreamableHTTPClientTransport(url, {
             requestInit: {
-              headers: options.headers,
+              headers,
               signal: abortController.signal,
             },
           });
 
           transport.onclose = () => {
-            this.logger?.info(`${this.getLogPrefix()} Streamable-http transport closed`);
-            // Only emit disconnected if we're not intentionally stopping
-            if (!this.shouldStopReconnecting && this.connectionState === 'connected') {
-              this.emit('connectionChange', 'disconnected');
-            }
+            logger.info(`${this.getLogPrefix()} Streamable-http transport closed`);
+            this.emit('connectionChange', 'disconnected');
           };
 
           transport.onerror = (error: Error | unknown) => {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            this.logger?.error(`${this.getLogPrefix()} Streamable-http transport error:`, error);
-
-            // Check if this is an authentication error (HTTP 401/403/500 with auth-related message)
-            if (this.isAuthenticationError(errorMessage)) {
-              this.logger?.warn(
-                `${this.getLogPrefix()} Authentication error detected - token may have expired`,
-              );
-              this.emit('authenticationError', error);
-            }
-
-            this.emitError(error, 'Streamable-http transport error');
+            logger.error(`${this.getLogPrefix()} Streamable-http transport error:`, error);
+            this.emitError(error, 'Streamable-http transport error:');
           };
 
           transport.onmessage = (message: JSONRPCMessage) => {
-            this.logger?.info(
-              `${this.getLogPrefix()} Message received: ${JSON.stringify(message)}`,
-            );
+            logger.info(`${this.getLogPrefix()} Message received: ${JSON.stringify(message)}`);
           };
 
           this.setupTransportErrorHandlers(transport);
@@ -329,47 +337,18 @@ export class MCPConnection extends EventEmitter {
         /**
          * // FOR DEBUGGING
          * // this.client.setRequestHandler(PingRequestSchema, async (request, extra) => {
-         * //    this.logger?.info(`[MCP][${this.serverName}] PingRequest: ${JSON.stringify(request)}`);
+         * //    logger.info(`[MCP][${this.serverName}] PingRequest: ${JSON.stringify(request)}`);
          * //    if (getEventListeners && extra.signal) {
          * //      const listenerCount = getEventListeners(extra.signal, 'abort').length;
-         * //      this.logger?.debug(`Signal has ${listenerCount} abort listeners`);
+         * //      logger.debug(`Signal has ${listenerCount} abort listeners`);
          * //    }
          * //    return {};
          * //  });
          */
       } else if (state === 'error' && !this.isReconnecting && !this.isInitializing) {
-        // Add small delay to prevent immediate reconnection storms
-        setTimeout(() => {
-          if (!this.isReconnecting && !this.shouldStopReconnecting) {
-            this.handleReconnection().catch((error) => {
-              this.logger?.error(`${this.getLogPrefix()} Reconnection handler failed:`, error);
-            });
-          }
-        }, 1000);
-      }
-    });
-
-    // Handle authentication errors with token refresh
-    this.on('authenticationError', async () => {
-      this.logger?.info(
-        `${this.getLogPrefix()} Handling authentication error with token refresh attempt`,
-      );
-      try {
-        const refreshed = await this.refreshAuthToken();
-        if (refreshed) {
-          this.logger?.info(`${this.getLogPrefix()} Token refreshed, attempting reconnection`);
-          // Attempt reconnection with new token
-          setTimeout(() => {
-            this.handleReconnection().catch((reconnectError) => {
-              this.logger?.error(
-                `${this.getLogPrefix()} Reconnection after token refresh failed:`,
-                reconnectError,
-              );
-            });
-          }, 1000);
-        }
-      } catch (refreshError) {
-        this.logger?.error(`${this.getLogPrefix()} Token refresh failed:`, refreshError);
+        this.handleReconnection().catch((error) => {
+          logger.error(`${this.getLogPrefix()} Reconnection handler failed:`, error);
+        });
       }
     });
 
@@ -377,16 +356,20 @@ export class MCPConnection extends EventEmitter {
   }
 
   private async handleReconnection(): Promise<void> {
-    if (this.isReconnecting || this.shouldStopReconnecting || this.isInitializing) {
-      this.logger?.debug(`${this.getLogPrefix()} Skipping reconnection - already in progress or stopped`);
+    if (
+      this.isReconnecting ||
+      this.shouldStopReconnecting ||
+      this.isInitializing ||
+      this.oauthRequired
+    ) {
+      if (this.oauthRequired) {
+        logger.info(`${this.getLogPrefix()} OAuth required, skipping reconnection attempts`);
+      }
       return;
     }
 
     this.isReconnecting = true;
-    this.shouldStopReconnecting = false; // Reset stop flag for legitimate reconnection
     const backoffDelay = (attempt: number) => Math.min(1000 * Math.pow(2, attempt), 30000);
-    
-    this.logger?.info(`${this.getLogPrefix()} Starting reconnection process (attempts: ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS})`);
 
     try {
       while (
@@ -396,39 +379,24 @@ export class MCPConnection extends EventEmitter {
         this.reconnectAttempts++;
         const delay = backoffDelay(this.reconnectAttempts);
 
-        this.logger?.info(
+        logger.info(
           `${this.getLogPrefix()} Reconnecting ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS} (delay: ${delay}ms)`,
         );
 
         await new Promise((resolve) => setTimeout(resolve, delay));
 
         try {
-          // Clean transport cleanup without setting shouldStopReconnecting flag
-          if (this.transport) {
-            this.logger?.debug(`${this.getLogPrefix()} Cleaning up transport before reconnection`);
-            try {
-              await this.client.close();
-            } catch (closeError) {
-              this.logger?.debug(`${this.getLogPrefix()} Error closing transport (expected):`, closeError);
-            }
-            this.transport = null;
-          }
-          
-          // Reset state for fresh connection attempt
-          this.connectionState = 'disconnected';
-          this.connectPromise = null;
-          
           await this.connect();
           this.reconnectAttempts = 0;
           return;
         } catch (error) {
-          this.logger?.error(`${this.getLogPrefix()} Reconnection attempt failed:`, error);
+          logger.error(`${this.getLogPrefix()} Reconnection attempt failed:`, error);
 
           if (
             this.reconnectAttempts === this.MAX_RECONNECT_ATTEMPTS ||
             (this.shouldStopReconnecting as boolean)
           ) {
-            this.logger?.error(`${this.getLogPrefix()} Stopping reconnection attempts`);
+            logger.error(`${this.getLogPrefix()} Stopping reconnection attempts`);
             return;
           }
         }
@@ -447,6 +415,7 @@ export class MCPConnection extends EventEmitter {
 
   private invalidateCache(): void {
     // this.cachedConfig = null;
+    this.lastConfigUpdate = 0;
   }
 
   async connectClient(): Promise<void> {
@@ -466,28 +435,26 @@ export class MCPConnection extends EventEmitter {
 
     this.connectPromise = (async () => {
       try {
-        // Force recreation if token was refreshed or transport exists
-        if (this.transport || this.needsTransportRecreation) {
+        if (this.transport) {
           try {
-            this.logger?.info(
-              `${this.getLogPrefix()} Closing existing transport (needsRecreation: ${this.needsTransportRecreation})`,
-            );
             await this.client.close();
             this.transport = null;
           } catch (error) {
-            this.logger?.warn(`${this.getLogPrefix()} Error closing connection:`, error);
+            logger.warn(`${this.getLogPrefix()} Error closing connection:`, error);
           }
         }
 
-        this.needsTransportRecreation = false;
         this.transport = this.constructTransport(this.options);
         this.setupTransportDebugHandlers();
 
-        const connectTimeout = this.options.initTimeout ?? 10000;
+        const connectTimeout = this.options.initTimeout ?? 120000;
         await Promise.race([
           this.client.connect(this.transport),
           new Promise((_resolve, reject) =>
-            setTimeout(() => reject(new Error('Connection timeout')), connectTimeout),
+            setTimeout(
+              () => reject(new Error(`Connection timeout after ${connectTimeout}ms`)),
+              connectTimeout,
+            ),
           ),
         ]);
 
@@ -495,9 +462,102 @@ export class MCPConnection extends EventEmitter {
         this.emit('connectionChange', 'connected');
         this.reconnectAttempts = 0;
       } catch (error) {
+        // Check if it's an OAuth authentication error
+        if (this.isOAuthError(error)) {
+          logger.warn(`${this.getLogPrefix()} OAuth authentication required`);
+          this.oauthRequired = true;
+          const serverUrl = this.url;
+          logger.debug(`${this.getLogPrefix()} Server URL for OAuth: ${serverUrl}`);
+
+          // For Pipedream servers, try to refresh token instead of full OAuth flow
+          if (serverUrl?.includes('pipedream.net')) {
+            logger.info(`${this.getLogPrefix()} Attempting Pipedream token refresh`);
+            try {
+              const refreshed = await this.refreshPipedreamToken();
+              if (refreshed) {
+                this.oauthRequired = false;
+                logger.info(
+                  `${this.getLogPrefix()} Pipedream token refreshed successfully, connection will be retried`,
+                );
+                return;
+              }
+            } catch (refreshError) {
+              logger.error(`${this.getLogPrefix()} Pipedream token refresh failed:`, refreshError);
+            }
+          }
+
+          const oauthTimeout = this.options.initTimeout ?? 60000;
+          /** Promise that will resolve when OAuth is handled */
+          const oauthHandledPromise = new Promise<void>((resolve, reject) => {
+            let timeoutId: NodeJS.Timeout | null = null;
+            let oauthHandledListener: (() => void) | null = null;
+            let oauthFailedListener: ((error: Error) => void) | null = null;
+
+            /** Cleanup function to remove listeners and clear timeout */
+            const cleanup = () => {
+              if (timeoutId) {
+                clearTimeout(timeoutId);
+              }
+              if (oauthHandledListener) {
+                this.off('oauthHandled', oauthHandledListener);
+              }
+              if (oauthFailedListener) {
+                this.off('oauthFailed', oauthFailedListener);
+              }
+            };
+
+            // Success handler
+            oauthHandledListener = () => {
+              cleanup();
+              resolve();
+            };
+
+            // Failure handler
+            oauthFailedListener = (error: Error) => {
+              cleanup();
+              reject(error);
+            };
+
+            // Timeout handler
+            timeoutId = setTimeout(() => {
+              cleanup();
+              reject(new Error(`OAuth handling timeout after ${oauthTimeout}ms`));
+            }, oauthTimeout);
+
+            // Listen for both success and failure events
+            this.once('oauthHandled', oauthHandledListener);
+            this.once('oauthFailed', oauthFailedListener);
+          });
+
+          // Emit the event
+          this.emit('oauthRequired', {
+            serverName: this.serverName,
+            error,
+            serverUrl,
+            userId: this.userId,
+          });
+
+          try {
+            // Wait for OAuth to be handled
+            await oauthHandledPromise;
+            // Reset the oauthRequired flag
+            this.oauthRequired = false;
+            // Don't throw the error - just return so connection can be retried
+            logger.info(
+              `${this.getLogPrefix()} OAuth handled successfully, connection will be retried`,
+            );
+            return;
+          } catch (oauthError) {
+            // OAuth failed or timed out
+            this.oauthRequired = false;
+            logger.error(`${this.getLogPrefix()} OAuth handling failed:`, oauthError);
+            // Re-throw the original authentication error
+            throw error;
+          }
+        }
+
         this.connectionState = 'error';
         this.emit('connectionChange', 'error');
-        this.lastError = error instanceof Error ? error : new Error(String(error));
         throw error;
       } finally {
         this.connectPromise = null;
@@ -513,75 +573,66 @@ export class MCPConnection extends EventEmitter {
     }
 
     this.transport.onmessage = (msg) => {
-      this.logger?.debug(`${this.getLogPrefix()} Transport received: ${JSON.stringify(msg)}`);
+      logger.debug(`${this.getLogPrefix()} Transport received: ${JSON.stringify(msg)}`);
     };
 
     const originalSend = this.transport.send.bind(this.transport);
     this.transport.send = async (msg) => {
-      this.logger?.debug(`${this.getLogPrefix()} Transport sending: ${JSON.stringify(msg)}`);
+      if ('result' in msg && !('method' in msg) && Object.keys(msg.result ?? {}).length === 0) {
+        if (Date.now() - this.lastPingTime < FIVE_MINUTES) {
+          throw new Error('Empty result');
+        }
+        this.lastPingTime = Date.now();
+      }
+      logger.debug(`${this.getLogPrefix()} Transport sending: ${JSON.stringify(msg)}`);
       return originalSend(msg);
     };
   }
 
   async connect(): Promise<void> {
     try {
-      // Reset reconnection flags to allow connection
-      this.shouldStopReconnecting = false;
-      
+      await this.disconnect();
       await this.connectClient();
-
-      // Wait a bit for connection to stabilize before checking
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      if (!(await this.isConnected())) {
+      if (!this.isConnected()) {
         throw new Error('Connection not established');
       }
     } catch (error) {
-      this.logger?.error(`${this.getLogPrefix()} Connection failed:`, error);
+      logger.error(`${this.getLogPrefix()} Connection failed:`, error);
       throw error;
     }
   }
 
   private setupTransportErrorHandlers(transport: Transport): void {
     transport.onerror = (error) => {
-      this.logger?.error(`${this.getLogPrefix()} Transport error:`, error);
+      logger.error(`${this.getLogPrefix()} Transport error:`, error);
+
+      // Check if it's an OAuth authentication error
+      if (error && typeof error === 'object' && 'code' in error) {
+        const errorCode = (error as unknown as { code?: number }).code;
+        if (errorCode === 401 || errorCode === 403) {
+          logger.warn(`${this.getLogPrefix()} OAuth authentication error detected`);
+          this.emit('oauthError', error);
+        }
+      }
+
       this.emit('connectionChange', 'error');
     };
   }
 
   public async disconnect(): Promise<void> {
     try {
-      // Clear any pending reconnection state
-      this.shouldStopReconnecting = true;
-      
       if (this.transport) {
-        this.logger?.debug(`${this.getLogPrefix()} Disconnecting transport`);
-        try {
-          await this.client.close();
-        } catch (closeError) {
-          this.logger?.debug(`${this.getLogPrefix()} Error closing client (expected):`, closeError);
-        }
+        await this.client.close();
         this.transport = null;
       }
-      
       if (this.connectionState === 'disconnected') {
         return;
       }
-      
       this.connectionState = 'disconnected';
-      // Don't emit connectionChange here as it triggers reconnection
-      // this.emit('connectionChange', 'disconnected');
-      
-      // Reset connection state flags
-      this.isReconnecting = false;
-      this.isInitializing = false;
-      this.reconnectAttempts = 0;
-      this.needsTransportRecreation = false;
-      
-      this.logger?.debug(`${this.getLogPrefix()} Disconnection completed`);
+      this.emit('connectionChange', 'disconnected');
     } catch (error) {
-      this.logger?.error(`${this.getLogPrefix()} Error during disconnect:`, error);
-      // Don't throw error on disconnect, just log it
+      this.emit('error', error);
+      throw error;
     } finally {
       this.invalidateCache();
       this.connectPromise = null;
@@ -691,30 +742,36 @@ export class MCPConnection extends EventEmitter {
   //   }
   // }
 
-  // Public getters for state information
-  public getConnectionState(): t.ConnectionState {
-    return this.connectionState;
-  }
-
   public async isConnected(): Promise<boolean> {
-    // Check connection state first before attempting ping
-    if (this.connectionState !== 'connected' || !this.transport) {
-      return false;
-    }
-
     try {
       await this.client.ping();
-      return true;
+      return this.connectionState === 'connected';
     } catch (error) {
-      this.logger?.error(`${this.getLogPrefix()} Ping failed:`, error);
-      // Update connection state if ping fails
-      this.connectionState = 'error';
-      this.emit('connectionChange', 'error');
+      logger.error(`${this.getLogPrefix()} Ping failed:`, error);
       return false;
     }
   }
 
-  public getLastError(): Error | null {
-    return this.lastError;
+  public setOAuthTokens(tokens: MCPOAuthTokens): void {
+    this.oauthTokens = tokens;
+  }
+
+  private isOAuthError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    // Check for SSE error with 401 status
+    if ('message' in error && typeof error.message === 'string') {
+      return error.message.includes('401') || error.message.includes('Non-200 status code (401)');
+    }
+
+    // Check for error code
+    if ('code' in error) {
+      const code = (error as { code?: number }).code;
+      return code === 401 || code === 403;
+    }
+
+    return false;
   }
 }
