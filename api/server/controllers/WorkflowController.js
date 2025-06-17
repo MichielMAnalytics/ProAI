@@ -364,6 +364,34 @@ const testWorkflow = async (req, res) => {
 };
 
 /**
+ * Stop a running workflow test/execution
+ * @route POST /workflows/:workflowId/stop
+ * @param {string} workflowId - The workflow ID
+ * @returns {object} Success response
+ */
+const stopWorkflow = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { workflowId } = req.params;
+    
+    const workflowService = new WorkflowService();
+    const result = await workflowService.stopWorkflow(workflowId, userId);
+    
+    res.json({
+      success: true,
+      message: 'Workflow execution stopped',
+      result
+    });
+  } catch (error) {
+    logger.error('[WorkflowController] Error stopping workflow:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+};
+
+/**
  * Execute a workflow immediately
  * @route POST /workflows/:workflowId/execute
  * @param {string} workflowId - The workflow ID
@@ -508,6 +536,7 @@ module.exports = {
   activateWorkflow,
   deactivateWorkflow,
   testWorkflow,
+  stopWorkflow,
   executeWorkflow,
   getWorkflowExecutions,
   getSchedulerStatus,

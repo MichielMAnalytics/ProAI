@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRecoilState, useSetRecoilState } from 'recoil';
 import * as Tabs from '@radix-ui/react-tabs';
-import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, RefreshCw, X, Play, Pause, TestTube, Trash2, Plus, Search, RotateCcw, Eye, Copy, Check } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, RefreshCw, X, Play, Pause, TestTube, Trash2, Plus, Search, RotateCcw, Eye, Copy, Check, Square } from 'lucide-react';
 import type { SandpackPreviewRef, CodeEditorRef } from '@codesandbox/sandpack-react';
 import useArtifacts from '~/hooks/Artifacts/useArtifacts';
 import DownloadArtifact from './DownloadArtifact';
@@ -14,6 +14,7 @@ import {
   useDeleteWorkflowMutation,
   useToggleWorkflowMutation,
   useTestWorkflowMutation,
+  useStopWorkflowMutation,
   useWorkflowQuery,
 } from '~/data-provider';
 import { NotificationSeverity } from '~/common';
@@ -41,6 +42,7 @@ export default function Artifacts() {
   const toggleMutation = useToggleWorkflowMutation();
   const deleteMutation = useDeleteWorkflowMutation();
   const testMutation = useTestWorkflowMutation();
+  const stopMutation = useStopWorkflowMutation();
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -211,6 +213,34 @@ export default function Artifacts() {
   const handleTestWorkflow = () => {
     if (!workflowId) return;
     
+    // If workflow is currently testing, stop it
+    if (isWorkflowTesting) {
+      stopMutation.mutate(workflowId, {
+        onSuccess: () => {
+          showToast({
+            message: 'Workflow test stopped successfully',
+            severity: NotificationSeverity.SUCCESS,
+          });
+          // Remove from testing workflows state
+          setTestingWorkflows(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(workflowId);
+            return newSet;
+          });
+          setIsTesting(false);
+        },
+        onError: (error: unknown) => {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          showToast({
+            message: `Failed to stop workflow test: ${errorMessage}`,
+            severity: NotificationSeverity.ERROR,
+          });
+        },
+      });
+      return;
+    }
+    
+    // Otherwise, start testing
     setIsTesting(true);
     // Add to testing workflows state
     setTestingWorkflows(prev => new Set(prev).add(workflowId));
@@ -323,14 +353,22 @@ export default function Artifacts() {
             {/* Center: Main workflow actions */}
             {isWorkflowArtifact && workflowId && (
               <div className="flex items-center gap-1 sm:gap-2">
-                {/* Test Button */}
-                <TooltipAnchor description="Test workflow" side="bottom">
+                {/* Test/Stop Button */}
+                <TooltipAnchor description={isWorkflowTesting ? "Stop workflow test" : "Test workflow"} side="bottom">
                   <button
-                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-r from-brand-blue to-indigo-600 border border-brand-blue/60 shadow-sm transition-all hover:from-indigo-600 hover:to-blue-700 hover:shadow-md hover:border-brand-blue disabled:opacity-50 disabled:cursor-not-allowed"
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg shadow-sm transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isWorkflowTesting 
+                        ? 'bg-gradient-to-r from-red-500 to-red-600 border border-red-500/60 hover:from-red-600 hover:to-red-700 hover:border-red-500' 
+                        : 'bg-gradient-to-r from-brand-blue to-indigo-600 border border-brand-blue/60 hover:from-indigo-600 hover:to-blue-700 hover:border-brand-blue'
+                    }`}
                     onClick={handleTestWorkflow}
-                    disabled={testMutation.isLoading || isWorkflowTesting || isTesting}
+                    disabled={(testMutation.isLoading || stopMutation.isLoading) && !isWorkflowTesting}
                   >
-                    <TestTube className="h-4 w-4 text-white" />
+                    {isWorkflowTesting ? (
+                      <Square className="h-4 w-4 text-white" />
+                    ) : (
+                      <TestTube className="h-4 w-4 text-white" />
+                    )}
                   </button>
                 </TooltipAnchor>
                 

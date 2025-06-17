@@ -528,6 +528,68 @@ class WorkflowService {
   }
 
   /**
+   * Stop a running workflow test or execution
+   * @param {string} workflowId - Workflow ID to stop
+   * @param {string} userId - User ID
+   * @returns {Promise<Object>} Stop result
+   */
+  async stopWorkflow(workflowId, userId) {
+    try {
+      logger.info(`[WorkflowService] Stopping workflow ${workflowId}`);
+      
+      // Get workflow to verify ownership
+      const workflow = await this.getWorkflowById(workflowId, userId);
+      if (!workflow) {
+        throw new Error(`Workflow ${workflowId} not found`);
+      }
+
+      // Try to stop execution via WorkflowExecutor
+      const WorkflowExecutor = require('~/server/services/Workflows/WorkflowExecutor');
+      const executor = new WorkflowExecutor();
+      
+      // Find and stop any running executions for this workflow
+      const stopped = await executor.stopWorkflowExecutions(workflowId, userId);
+      
+      if (stopped) {
+        // Send real-time notification for workflow stop
+        try {
+          const SchedulerService = require('~/server/services/Scheduler/SchedulerService');
+          await SchedulerService.sendWorkflowStatusUpdate({
+            userId: userId,
+            workflowName: workflow.name,
+            workflowId: workflow.id,
+            notificationType: 'execution_failed', // Use failed to indicate stopped
+            details: `Workflow "${workflow.name}" execution stopped by user`,
+            executionResult: {
+              success: false,
+              result: null,
+              error: 'Execution stopped by user',
+              isTest: true // Most stops will be from test executions
+            }
+          });
+        } catch (notificationError) {
+          logger.warn(`[WorkflowService] Failed to send workflow stop notification: ${notificationError.message}`);
+        }
+        
+        logger.info(`[WorkflowService] Successfully stopped workflow ${workflowId}`);
+        return { 
+          success: true, 
+          message: 'Workflow execution stopped successfully'
+        };
+      } else {
+        logger.info(`[WorkflowService] No running executions found for workflow ${workflowId}`);
+        return { 
+          success: true, 
+          message: 'No running executions found for this workflow'
+        };
+      }
+    } catch (error) {
+      logger.error(`[WorkflowService] Error stopping workflow ${workflowId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Get active workflows for scheduling
    * @returns {Promise<Array>} Active workflows
    */

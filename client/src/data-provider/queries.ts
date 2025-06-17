@@ -814,6 +814,19 @@ export const useTestWorkflowMutation = (
   });
 };
 
+export const useStopWorkflowMutation = (
+  options?: UseMutationOptions<void, unknown, string>
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (workflowId: string) => dataService.stopWorkflow(workflowId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.workflowExecutions] });
+    },
+    ...options,
+  });
+};
+
 export const useWorkflowExecutionsQuery = (
   workflowId: string,
   options?: UseQueryOptions<t.TWorkflowExecution[]>

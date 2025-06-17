@@ -158,6 +158,19 @@ async function createFreshAgent(workflow, step, context) {
     throw new Error('Failed to load agent for fresh agent creation');
   }
 
+  // Filter out the workflows tool to prevent recursive workflow creation during execution
+  if (agent.tools && Array.isArray(agent.tools)) {
+    const originalToolCount = agent.tools.length;
+    agent.tools = agent.tools.filter(tool => tool !== 'workflows');
+    const filteredToolCount = agent.tools.length;
+    
+    if (originalToolCount > filteredToolCount) {
+      logger.info(
+        `[WorkflowAgentExecutor] Filtered out 'workflows' tool to prevent recursive workflow creation (${originalToolCount} -> ${filteredToolCount} tools)`
+      );
+    }
+  }
+
   logger.info(
     `[WorkflowAgentExecutor] Loaded fresh agent with ${
       agent.tools?.length || 0

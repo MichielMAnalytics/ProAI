@@ -375,6 +375,46 @@ class WorkflowExecutor {
   }
 
   /**
+   * Stop all running executions for a specific workflow
+   * @param {string} workflowId - Workflow ID to stop
+   * @param {string} userId - User ID for verification
+   * @returns {Promise<boolean>} True if any executions were stopped
+   */
+  async stopWorkflowExecutions(workflowId, userId) {
+    let stopped = false;
+    
+    for (const [executionId, data] of this.runningExecutions.entries()) {
+      if (data.workflowId === workflowId) {
+        logger.info(`[WorkflowExecutor] Stopping execution ${executionId} for workflow ${workflowId}`);
+        
+        // Remove from running executions
+        this.runningExecutions.delete(executionId);
+        
+        // Update execution status
+        try {
+          await updateSchedulerExecution(executionId, userId, {
+            status: 'cancelled',
+            endTime: new Date(),
+            error: 'Execution stopped by user'
+          });
+        } catch (error) {
+          logger.warn(`[WorkflowExecutor] Failed to update execution status for ${executionId}: ${error.message}`);
+        }
+        
+        stopped = true;
+      }
+    }
+    
+    if (stopped) {
+      logger.info(`[WorkflowExecutor] Stopped executions for workflow ${workflowId}`);
+    } else {
+      logger.info(`[WorkflowExecutor] No running executions found for workflow ${workflowId}`);
+    }
+    
+    return stopped;
+  }
+
+  /**
    * Get status of running executions
    * @returns {Array} Array of running execution statuses
    */

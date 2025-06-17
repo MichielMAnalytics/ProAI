@@ -921,6 +921,10 @@ export function testWorkflow(workflowId: string): Promise<t.TWorkflowExecution> 
   return request.post(endpoints.workflowTest(workflowId)).then((response: any) => response.execution);
 }
 
+export function stopWorkflow(workflowId: string): Promise<void> {
+  return request.post(endpoints.workflowAction(workflowId, 'stop'));
+}
+
 export function getWorkflowExecutions(workflowId: string): Promise<t.TWorkflowExecution[]> {
   return request.get(endpoints.workflowExecutions(workflowId)).then((response: any) => response.executions || []);
 }

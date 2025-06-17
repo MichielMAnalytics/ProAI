@@ -9,6 +9,7 @@ const {
   activateWorkflow,
   deactivateWorkflow,
   testWorkflow,
+  stopWorkflow,
   executeWorkflow,
   getWorkflowExecutions,
   getSchedulerStatus,
@@ -84,6 +85,14 @@ router.post('/:workflowId/deactivate', requireJwtAuth, deactivateWorkflow);
  * @returns {object} Execution result
  */
 router.post('/:workflowId/test', requireJwtAuth, testWorkflow);
+
+/**
+ * Stop a running workflow test/execution
+ * @route POST /workflows/:workflowId/stop
+ * @param {string} workflowId - The workflow ID
+ * @returns {object} Success response
+ */
+router.post('/:workflowId/stop', requireJwtAuth, stopWorkflow);
 
 /**
  * Execute a workflow immediately
