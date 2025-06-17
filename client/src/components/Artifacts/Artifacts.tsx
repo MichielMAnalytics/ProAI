@@ -35,6 +35,7 @@ export default function Artifacts() {
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
   const setArtifactsVisible = useSetRecoilState(store.artifactsVisibility);
   const setArtifactRefreshFunction = useSetRecoilState(store.artifactRefreshFunction);
+  const [testingWorkflows, setTestingWorkflows] = useRecoilState(store.testingWorkflows);
 
   // Workflow mutations
   const toggleMutation = useToggleWorkflowMutation();
@@ -92,6 +93,9 @@ export default function Artifacts() {
   const effectiveActiveTab = isWorkflowArtifact ? 'preview' : activeTab;
   const workflowId = workflowData?.workflow?.id;
   
+  // Check if this workflow is currently being tested
+  const isWorkflowTesting = workflowId ? testingWorkflows.has(workflowId) : false;
+  
   // Query the current workflow state from the database
   const { data: currentWorkflowData, refetch: refetchWorkflow } = useWorkflowQuery(workflowId, {
     enabled: !!workflowId && isWorkflowArtifact,
@@ -104,11 +108,13 @@ export default function Artifacts() {
   const isDraft = currentWorkflowData?.isDraft ?? workflowData?.workflow?.isDraft;
   
   // Listen for workflow test notifications from agent-initiated tests
-  const { isWorkflowTesting, getCurrentStep, getExecutionResult, clearExecutionResult } = useWorkflowNotifications({
+  const { isWorkflowTesting: isWorkflowTestingFromHook, getCurrentStep, getExecutionResult, clearExecutionResult } = useWorkflowNotifications({
     workflowId,
     onTestStart: (testWorkflowId) => {
       if (testWorkflowId === workflowId) {
         setIsTesting(true);
+        // Add to testing workflows state
+        setTestingWorkflows(prev => new Set(prev).add(testWorkflowId));
         // Result data will be managed by the hook
       }
     },
@@ -120,6 +126,12 @@ export default function Artifacts() {
     onTestComplete: (testWorkflowId, success, result) => {
       if (testWorkflowId === workflowId) {
         setIsTesting(false);
+        // Remove from testing workflows state
+        setTestingWorkflows(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(testWorkflowId);
+          return newSet;
+        });
         // Result data is now managed by the hook - no automatic clearing
       }
     },
@@ -130,12 +142,12 @@ export default function Artifacts() {
   const resultData = workflowId ? getExecutionResult(workflowId) : null;
   
   // Determine if we should show the result overlay
-  const showingResult = !!(resultData && !isTesting && !(workflowId && isWorkflowTesting(workflowId)));
+  const showingResult = !!(resultData && !isTesting && !(workflowId && isWorkflowTestingFromHook(workflowId)));
   
   // Debug logging
   console.log('[Artifacts] Workflow ID:', workflowId);
   console.log('[Artifacts] Is testing:', isTesting);
-  console.log('[Artifacts] Is workflow testing:', workflowId && isWorkflowTesting(workflowId));
+  console.log('[Artifacts] Is workflow testing:', workflowId && isWorkflowTestingFromHook(workflowId));
   console.log('[Artifacts] Current step:', currentStep);
   console.log('[Artifacts] Showing result:', showingResult);
   console.log('[Artifacts] Result data:', resultData);
@@ -200,14 +212,28 @@ export default function Artifacts() {
     if (!workflowId) return;
     
     setIsTesting(true);
+    // Add to testing workflows state
+    setTestingWorkflows(prev => new Set(prev).add(workflowId));
     
     testMutation.mutate(workflowId, {
       onSuccess: (response) => {
         // The workflow notification system will handle the result display
         setIsTesting(false);
+        // Remove from testing workflows state
+        setTestingWorkflows(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(workflowId);
+          return newSet;
+        });
       },
       onError: (error: unknown) => {
         setIsTesting(false);
+        // Remove from testing workflows state on error
+        setTestingWorkflows(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(workflowId);
+          return newSet;
+        });
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         // We could show an immediate error toast, but the notification system should handle this too
         showToast({
@@ -302,7 +328,7 @@ export default function Artifacts() {
                   <button
                     className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-r from-brand-blue to-indigo-600 border border-brand-blue/60 shadow-sm transition-all hover:from-indigo-600 hover:to-blue-700 hover:shadow-md hover:border-brand-blue disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={handleTestWorkflow}
-                    disabled={testMutation.isLoading}
+                    disabled={testMutation.isLoading || isWorkflowTesting || isTesting}
                   >
                     <TestTube className="h-4 w-4 text-white" />
                   </button>
@@ -317,7 +343,7 @@ export default function Artifacts() {
                         : 'bg-gradient-to-r from-green-500 to-emerald-600 border border-green-500/60 text-white hover:from-green-600 hover:to-emerald-700 hover:border-green-500'
                     }`}
                     onClick={handleToggleWorkflow}
-                    disabled={toggleMutation.isLoading}
+                    disabled={toggleMutation.isLoading || isWorkflowTesting || isTesting}
                   >
                     {toggleMutation.isLoading ? (
                       <RefreshCw className="h-4 w-4 animate-spin text-white" />
@@ -334,7 +360,7 @@ export default function Artifacts() {
                   <button
                     className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-r from-red-500 to-red-600 border border-red-500/60 text-white shadow-sm transition-all hover:from-red-600 hover:to-red-700 hover:shadow-md hover:border-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={handleDeleteWorkflow}
-                    disabled={deleteMutation.isLoading}
+                    disabled={deleteMutation.isLoading || isWorkflowTesting || isTesting}
                   >
                     <Trash2 className="h-4 w-4 text-white" />
                   </button>
@@ -363,12 +389,12 @@ export default function Artifacts() {
             />
             
             {/* Testing Overlay - Show for both button-initiated and agent-initiated tests */}
-            {(isTesting || (workflowId && isWorkflowTesting(workflowId)) || showingResult) && (
+            {(isTesting || (workflowId && isWorkflowTestingFromHook(workflowId)) || showingResult) && (
               <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/20 backdrop-blur-sm">
                 <div className="absolute inset-0 bg-gray-900/50"></div>
                 
                 {/* Scanner Line Animation - Only show when testing */}
-                {(isTesting || (workflowId && isWorkflowTesting(workflowId))) && !showingResult && (
+                {(isTesting || (workflowId && isWorkflowTestingFromHook(workflowId))) && !showingResult && (
                   <div className="absolute inset-0 overflow-hidden">
                     <div className="scanner-line absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-blue-400 to-transparent opacity-80 shadow-lg shadow-blue-400/50"></div>
                   </div>
@@ -573,7 +599,7 @@ export default function Artifacts() {
                       <div className="flex flex-col items-center space-y-4">
                         <div className="text-center">
                           <span className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100 block break-words">
-                            {workflowId && isWorkflowTesting(workflowId) && !isTesting 
+                            {workflowId && isWorkflowTestingFromHook(workflowId) && !isTesting 
                               ? 'Agent initiated test...'
                               : 'Initializing workflow test...'
                             }

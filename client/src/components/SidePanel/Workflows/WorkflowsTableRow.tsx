@@ -1,6 +1,6 @@
 import React from 'react';
 import { Play, Pause, Trash2, Eye } from 'lucide-react';
-import { useSetRecoilState } from 'recoil';
+import { useSetRecoilState, useRecoilValue } from 'recoil';
 import type { TUserWorkflow } from 'librechat-data-provider';
 import { EModelEndpoint } from 'librechat-data-provider';
 import { Button, TableCell, TableRow } from '~/components/ui';
@@ -30,6 +30,10 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
   const setArtifacts = useSetRecoilState(store.artifactsState);
   const setCurrentArtifactId = useSetRecoilState(store.currentArtifactId);
   const setArtifactsVisible = useSetRecoilState(store.artifactsVisibility);
+  
+  // Check if this workflow is currently being tested
+  const testingWorkflows = useRecoilValue(store.testingWorkflows);
+  const isWorkflowTesting = testingWorkflows.has(workflow.id);
 
   const handleToggle = () => {
     toggleMutation.mutate(
@@ -305,7 +309,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
                   ? 'bg-gradient-to-r from-amber-500 to-orange-600 border border-amber-500/60 text-white hover:from-amber-600 hover:to-orange-700 hover:border-amber-500' 
                   : 'bg-gradient-to-r from-green-500 to-emerald-600 border border-green-500/60 text-white hover:from-green-600 hover:to-emerald-700 hover:border-green-500'
               }`}
-              disabled={false}
+              disabled={toggleMutation.isLoading || isWorkflowTesting}
             >
               {workflow.isActive ? (
                 <Pause className="h-3 w-3 text-white" />
@@ -318,6 +322,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
             <button
               onClick={handleDelete}
               className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-r from-red-500 to-red-600 border border-red-500/60 text-white shadow-sm transition-all hover:from-red-600 hover:to-red-700 hover:shadow-md hover:border-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={deleteMutation.isLoading || isWorkflowTesting}
             >
               <Trash2 className="h-3 w-3 text-white" />
             </button>
@@ -341,6 +346,12 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
             >
               {getStatusText(workflow.isActive, workflow.isDraft)}
             </span>
+            {/* Show testing indicator */}
+            {isWorkflowTesting && (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium flex-shrink-0 bg-blue-100 text-blue-700 animate-pulse">
+                testing
+              </span>
+            )}
           </div>
           
           {/* Description with tooltip */}

@@ -76,3 +76,18 @@ export const artifactRefreshFunction = atom<(() => void) | null>({
     },
   ] as const,
 });
+
+export const testingWorkflows = atom<Set<string>>({
+  key: 'testingWorkflows',
+  default: new Set(),
+  effects: [
+    ({ onSet, node }) => {
+      onSet(async (newValue) => {
+        logger.log('artifacts', 'Recoil Effect: Setting testingWorkflows', {
+          key: node.key,
+          testingWorkflowIds: Array.from(newValue),
+        });
+      });
+    },
+  ] as const,
+});
