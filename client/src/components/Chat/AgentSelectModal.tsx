@@ -1,0 +1,172 @@
+import React, { useCallback, useState } from 'react';
+import { useListAgentsQuery, useGetStartupConfig } from '~/data-provider';
+import { useSelectAgent, useLocalize } from '~/hooks';
+import { processAgentOption } from '~/utils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '~/components/ui';
+import { AlertCircle } from 'lucide-react';
+
+interface AgentSelectModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+// Custom component to render agent avatars at large sizes, bypassing EndpointIcon limitations
+function AgentAvatar({ agent, size = 160 }: { agent: any; size?: number }) {
+  const [imageError, setImageError] = useState(false);
+  
+  const handleImageError = () => {
+    setImageError(true);
+  };
+
+  const iconURL = agent.avatar?.filepath;
+  const isValidURL = iconURL && (iconURL.includes('http') || iconURL.startsWith('/images/') || iconURL.startsWith('/assets/'));
+
+  if (imageError || !isValidURL) {
+    // Fallback to a large default avatar when no image or error
+    return (
+      <div 
+        className="relative flex items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 shadow-xl"
+        style={{ width: size, height: size }}
+      >
+        <div className="text-white font-bold" style={{ fontSize: size * 0.4 }}>
+          {agent.name?.charAt(0)?.toUpperCase() || 'A'}
+        </div>
+        {imageError && iconURL && (
+          <div
+            className="absolute flex items-center justify-center rounded-full bg-red-500 border-2 border-white"
+            style={{ width: size * 0.25, height: size * 0.25, top: -2, right: -2 }}
+          >
+            <AlertCircle size={size * 0.15} className="text-white" />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <img
+        src={iconURL}
+        alt={agent.name || 'Agent Avatar'}
+        className="rounded-full object-cover shadow-xl transition-all duration-300 group-hover:shadow-2xl"
+        style={{ width: size, height: size }}
+        onError={handleImageError}
+        loading="lazy"
+        decoding="async"
+      />
+    </div>
+  );
+}
+
+export default function AgentSelectModal({ isOpen, onClose }: AgentSelectModalProps) {
+  const localize = useLocalize();
+  const { onSelect } = useSelectAgent();
+  const { data: startupConfig } = useGetStartupConfig();
+
+  const { data: agents = [] } = useListAgentsQuery(undefined, {
+    select: (res) =>
+      res.data.map((agent) =>
+        processAgentOption({
+          agent,
+          instanceProjectId: startupConfig?.instanceProjectId,
+        }),
+      ),
+  });
+
+  const handleSelectAgent = useCallback(
+    (agentId: string) => {
+      const agent = agents.find((a) => a.id === agentId);
+      if (agent) {
+        onSelect(agentId);
+        onClose();
+      }
+    },
+    [agents, onSelect, onClose],
+  );
+
+  return (
+    <Dialog open={isOpen} onOpenChange={() => {}}>
+      <DialogContent className="max-w-7xl max-h-[95vh] overflow-hidden bg-white/95 backdrop-blur-sm dark:bg-gray-900/95 border shadow-2xl flex flex-col" showCloseButton={false}>
+        <DialogHeader className="pb-6 flex-shrink-0">
+          <DialogTitle className="text-2xl font-bold text-center text-gray-900 dark:text-gray-100">
+            {localize('com_endpoint_agent_placeholder')}
+          </DialogTitle>
+          <p className="text-sm text-gray-600 dark:text-gray-400 text-center mt-2">
+            Choose an agent to start your conversation
+          </p>
+        </DialogHeader>
+        
+        <div className="flex-1 overflow-y-auto px-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 hover:scrollbar-thumb-gray-400 dark:hover:scrollbar-thumb-gray-500">
+          {agents.length === 0 ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+                <p className="text-lg font-medium text-gray-500 dark:text-gray-400 mb-2">
+                  No agents available
+                </p>
+                <p className="text-sm text-gray-400 dark:text-gray-500">
+                  Contact your administrator to create agents
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12 pb-8 px-4 pt-6">
+              {agents.map((agent) => (
+                <div
+                  key={agent.id}
+                  className="group cursor-pointer rounded-2xl overflow-hidden bg-white dark:bg-gray-800 shadow-lg transition-all duration-300 hover:shadow-2xl hover:scale-[1.03] border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:z-10 relative"
+                  onClick={() => handleSelectAgent(agent.id || '')}
+                >
+                  {/* Image Container - Takes up most of the card */}
+                  <div className="relative h-80 w-full overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-700 dark:to-gray-800">
+                    {/* Agent Image/Icon */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="transition-all duration-300 group-hover:scale-110">
+                        <AgentAvatar agent={agent} size={180} />
+                      </div>
+                    </div>
+                    
+                    {/* Gradient Overlay for better text readability */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-60 group-hover:opacity-70 transition-opacity duration-300" />
+                    
+                    {/* Name Tag - Positioned at bottom */}
+                    <div className="absolute bottom-0 left-0 right-0 p-4">
+                      <div className="bg-white/20 dark:bg-black/30 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/30 dark:border-gray-600/30">
+                        <h3 className="text-lg font-bold text-white text-center truncate group-hover:text-blue-200 transition-colors duration-300">
+                          {agent.name || 'Unnamed Agent'}
+                        </h3>
+                      </div>
+                    </div>
+                    
+                    {/* Status/Type Badge - Top right corner */}
+                    <div className="absolute top-3 right-3">
+                      <div className="bg-blue-500/80 backdrop-blur-sm text-white text-xs font-medium px-2 py-1 rounded-full border border-blue-400/50">
+                        Agent
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Description Section - Compact bottom section */}
+                  {agent.description && (
+                    <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
+                      <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 leading-relaxed text-center group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-300">
+                        {agent.description}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Hover Effect Indicator */}
+                  <div className="absolute inset-0 ring-0 ring-blue-500/20 rounded-2xl transition-all duration-300 group-hover:ring-4 pointer-events-none" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

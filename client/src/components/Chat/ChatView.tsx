@@ -7,15 +7,17 @@ import type { TMessage } from 'librechat-data-provider';
 import type { ChatFormValues } from '~/common';
 import { ChatContext, AddedChatContext, useFileMapContext, ChatFormProvider } from '~/Providers';
 import { useChatHelpers, useAddedResponse, useSSE, useMCPConnection } from '~/hooks';
+import { useAgentsMapContext } from '~/Providers/AgentsMapContext';
 import { mainTextareaId } from '~/common';
 import ConversationStarters from './Input/ConversationStarters';
 import MCPConnectionsRequired from './Input/MCPConnectionsRequired';
 import DefaultPrompts from './Input/DefaultPrompts';
+import AgentSelectModal from './AgentSelectModal';
 import { useGetMessagesByConvoId, useGetAgentByIdQuery } from '~/data-provider';
 import MessagesView from './Messages/MessagesView';
 import { Spinner } from '~/components/svg';
 import Presentation from './Presentation';
-import { buildTree, cn } from '~/utils';
+import { buildTree, cn, getEntity } from '~/utils';
 import ChatForm from './Input/ChatForm';
 import Landing from './Landing';
 import Header from './Header';
@@ -40,8 +42,10 @@ function ChatView({ index = 0 }: { index?: number }) {
   
   const [isMcpChecking, setIsMcpChecking] = useState(false);
   const [mcpConnectionsComplete, setMCPConnectionsComplete] = useState(true);
+  const [showAgentSelectModal, setShowAgentSelectModal] = useState(false);
 
   const fileMap = useFileMapContext();
+  const agentsMap = useAgentsMapContext();
 
   const { data: messagesTree = null, isLoading } = useGetMessagesByConvoId(conversationId ?? '', {
     select: useCallback(
@@ -61,7 +65,7 @@ function ChatView({ index = 0 }: { index?: number }) {
 
   // Fetch agent data if we have an agent_id
   const agentId = chatHelpers.conversation?.agent_id;
-  const { data: agentData, isLoading: isAgentLoading, error: agentError } = useGetAgentByIdQuery(agentId ?? '', {
+  const { data: agentData, isLoading: isAgentLoading } = useGetAgentByIdQuery(agentId ?? '', {
     enabled: !!(agentId && agentId !== Constants.EPHEMERAL_AGENT_ID),
   });
 
@@ -81,6 +85,40 @@ function ChatView({ index = 0 }: { index?: number }) {
     }
   };
   
+  // Check if we need to show agent select modal
+  const shouldShowAgentModal = (() => {
+    const { conversation } = chatHelpers;
+    if (!conversation) return false;
+    
+    const endpoint = conversation.endpointType ?? conversation.endpoint;
+    const currentAgentId = conversation.agent_id ?? '';
+    
+    // Check if we're on an agent endpoint and need to select an agent
+    if (isAgentsEndpoint(endpoint)) {
+      const { isAgent } = getEntity({
+        endpoint,
+        agentsMap,
+        assistantMap: {},
+        agent_id: currentAgentId,
+        assistant_id: undefined,
+      });
+      
+      // Show modal if it's an agent endpoint but no valid agent is selected
+      return isAgent && (!currentAgentId || !agentsMap?.[currentAgentId]);
+    }
+    
+    return false;
+  })();
+
+  // Auto-show modal when agent selection is needed
+  useEffect(() => {
+    if (shouldShowAgentModal && !showAgentSelectModal) {
+      setShowAgentSelectModal(true);
+    } else if (!shouldShowAgentModal && showAgentSelectModal) {
+      setShowAgentSelectModal(false);
+    }
+  }, [shouldShowAgentModal, showAgentSelectModal]);
+
   // Consolidated useEffect for handling MCP connection checks
   useEffect(() => {
     const { conversation } = chatHelpers;
@@ -143,7 +181,10 @@ function ChatView({ index = 0 }: { index?: number }) {
         <AddedChatContext.Provider value={addedChatHelpers}>
           <Presentation>
             <div 
-              className="flex h-full w-full flex-col chat-grid-bg"
+              className={cn(
+                "flex h-full w-full flex-col chat-grid-bg",
+                shouldShowAgentModal && "blur-sm pointer-events-none"
+              )}
               style={{
                 backgroundSize: '32px 32px',
                 backgroundRepeat: 'repeat'
@@ -170,7 +211,7 @@ function ChatView({ index = 0 }: { index?: number }) {
                       <ChatForm
                         index={index}
                         isMcpChecking={isMcpChecking}
-                        disabled={isMcpChecking || !mcpConnectionsComplete}
+                        disabled={isMcpChecking || !mcpConnectionsComplete || shouldShowAgentModal}
                         mcpServers={agentData?.mcp_servers || []}
                       />
                       {/* Show MCP connections required component integrated with the chat form */}
@@ -197,6 +238,12 @@ function ChatView({ index = 0 }: { index?: number }) {
                 {isLandingPage && <Footer />}
               </>
             </div>
+            
+            {/* Agent Select Modal */}
+            <AgentSelectModal
+              isOpen={showAgentSelectModal}
+              onClose={() => setShowAgentSelectModal(false)}
+            />
           </Presentation>
         </AddedChatContext.Provider>
       </ChatContext.Provider>
