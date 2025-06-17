@@ -41,7 +41,7 @@ export function EndpointModelItem({ modelId, endpoint, isSelected }: EndpointMod
       <div className="flex items-center gap-2">
         {avatarUrl ? (
           <div className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full">
-            <img src={avatarUrl} alt={modelName ?? ''} className="h-full w-full object-cover" />
+            <img src={avatarUrl} alt={modelName ?? ''} className="h-full w-full object-contain" />
           </div>
         ) : (isAgentsEndpoint(endpoint.value) || isAssistantsEndpoint(endpoint.value)) &&
           endpoint.icon ? (

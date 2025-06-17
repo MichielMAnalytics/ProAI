@@ -26,7 +26,7 @@ const AssistantAvatar = ({
     return (
       <img
         src={avatar}
-        className="bg-token-surface-secondary dark:bg-token-surface-tertiary h-full w-full rounded-full object-cover"
+        className="bg-token-surface-secondary dark:bg-token-surface-tertiary h-full w-full rounded-full object-contain"
         alt={assistantName}
         width="80"
         height="80"
@@ -44,7 +44,7 @@ const AgentAvatar = ({ className = '', avatar = '', agentName, size }: AgentIcon
     return (
       <img
         src={avatar}
-        className="bg-token-surface-secondary dark:bg-token-surface-tertiary h-full w-full rounded-full object-cover"
+        className="bg-token-surface-secondary dark:bg-token-surface-tertiary h-full w-full rounded-full object-contain"
         alt={agentName}
         width="80"
         height="80"

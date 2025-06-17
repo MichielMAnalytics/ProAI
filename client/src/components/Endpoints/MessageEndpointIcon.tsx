@@ -79,7 +79,7 @@ const MessageEndpointIcon: React.FC<IconProps> = (props) => {
           className={cn('overflow-hidden rounded-full', props.className ?? '')}
         >
           <img
-            className="shadow-stroke h-full w-full object-cover"
+            className="shadow-stroke h-full w-full object-contain"
             src={iconURL}
             alt={assistantName}
             style={{ height: '80', width: '80' }}
@@ -108,7 +108,7 @@ const MessageEndpointIcon: React.FC<IconProps> = (props) => {
           className={cn('overflow-hidden rounded-full', props.className ?? '')}
         >
           <img
-            className="shadow-stroke h-full w-full object-cover"
+            className="shadow-stroke h-full w-full object-contain"
             src={iconURL}
             alt={agentName}
             style={{ height: '80', width: '80' }}

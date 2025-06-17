@@ -45,7 +45,7 @@ export const AgentAvatarRender = ({
       <div className="relative h-20 w-20 overflow-hidden rounded-full">
         <img
           src={url}
-          className="bg-token-surface-secondary dark:bg-token-surface-tertiary h-full w-full rounded-full object-cover"
+          className="bg-token-surface-secondary dark:bg-token-surface-tertiary h-full w-full rounded-full object-contain"
           alt="GPT"
           width="80"
           height="80"

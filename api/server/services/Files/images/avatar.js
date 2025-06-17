@@ -45,13 +45,11 @@ async function resizeAvatar({ userId, input, desiredFormat = EImageOutputType.PN
     }
 
     const { width, height } = await sharp(imageBuffer).metadata();
-    const minSize = Math.min(width, height);
+    const maxSize = Math.max(width, height);
     const squaredBuffer = await sharp(imageBuffer)
-      .extract({
-        left: Math.floor((width - minSize) / 2),
-        top: Math.floor((height - minSize) / 2),
-        width: minSize,
-        height: minSize,
+      .resize(maxSize, maxSize, {
+        fit: 'contain',
+        background: { r: 255, g: 255, b: 255, alpha: 0 }
       })
       .toBuffer();
 
