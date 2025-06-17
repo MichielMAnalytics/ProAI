@@ -330,14 +330,23 @@ function ToolSelectDialog({
     }
   }, [tools]);
 
+  // Initialize selectedServers from existing mcp_servers field
+  useEffect(() => {
+    const currentMcpServers = getValues('mcp_servers') || [];
+    if (currentMcpServers.length > 0) {
+      setSelectedServers(new Set(currentMcpServers));
+    }
+  }, [getValues, isOpen]); // Re-run when dialog opens
+
   return (
     <Dialog
       open={isOpen}
       onClose={() => {
+        updateMCPServers(); // Ensure MCP servers are updated when dialog closes
         setIsOpen(false);
         setCurrentPage(1);
         setSearchValue('');
-        setSelectedServers(new Set());
+        // Don't reset selectedServers here - let it be managed by the useEffect
       }}
       className="relative z-[102]"
     >
@@ -366,6 +375,7 @@ function ToolSelectDialog({
                 {!isLoadingTools && filteredTools && filteredTools.length > 0 && (
                   <button
                     onClick={() => {
+                      updateMCPServers(); // Ensure MCP servers are updated before navigating
                       setIsOpen(false);
                       navigate('/d/integrations');
                     }}
@@ -380,8 +390,10 @@ function ToolSelectDialog({
                 )}
                 <button
                   onClick={() => {
+                    updateMCPServers(); // Ensure MCP servers are updated when dialog closes
                     setIsOpen(false);
                     setCurrentPage(1);
+                    setSearchValue('');
                   }}
                   className="rounded-lg p-2 text-text-tertiary hover:bg-surface-hover hover:text-text-primary transition-all duration-200"
                   aria-label="Close dialog"
@@ -545,6 +557,7 @@ function ToolSelectDialog({
                    </p>
                    <button
                      onClick={() => {
+                       updateMCPServers(); // Ensure MCP servers are updated before navigating
                        setIsOpen(false);
                        navigate('/d/integrations');
                      }}

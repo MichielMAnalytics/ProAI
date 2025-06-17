@@ -98,6 +98,15 @@ export default function AgentSelect({
           return;
         }
 
+        if (
+          name === 'mcp_servers' &&
+          Array.isArray(value) &&
+          value.every((item) => typeof item === 'string')
+        ) {
+          formValues[name] = value;
+          return;
+        }
+
         if (!keys.has(name)) {
           return;
         }
