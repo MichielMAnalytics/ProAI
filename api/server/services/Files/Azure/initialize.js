@@ -41,10 +41,10 @@ const initializeAzureBlobService = () => {
 
 /**
  * Retrieves the Azure ContainerClient for the given container name.
- * @param {string} [containerName=process.env.AZURE_CONTAINER_NAME || 'files'] - The container name.
+ * @param {string} [containerName=process.env.AZURE_STORAGE_CONTAINER_NAME || 'files'] - The container name.
  * @returns {ContainerClient|null} The Azure ContainerClient.
  */
-const getAzureContainerClient = (containerName = process.env.AZURE_CONTAINER_NAME || 'files') => {
+const getAzureContainerClient = (containerName = process.env.AZURE_STORAGE_CONTAINER_NAME || 'files') => {
   const serviceClient = initializeAzureBlobService();
   return serviceClient ? serviceClient.getContainerClient(containerName) : null;
 };

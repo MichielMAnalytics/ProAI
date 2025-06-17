@@ -34,7 +34,7 @@ async function saveBufferToAzure({
     const access = AZURE_STORAGE_PUBLIC_ACCESS?.toLowerCase() === 'true' ? 'blob' : undefined;
     // Create the container if it doesn't exist. This is done per operation.
     await containerClient.createIfNotExists({ access });
-    const blobPath = `${basePath}/${userId}/${fileName}`;
+    const blobPath = basePath ? `${basePath}/${userId}/${fileName}` : `${userId}/${fileName}`;
     const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
     await blockBlobClient.uploadData(buffer);
     return blockBlobClient.url;
@@ -146,7 +146,7 @@ async function streamFileToAzure({
     // Create the container if it doesn't exist
     await containerClient.createIfNotExists({ access });
 
-    const blobPath = `${basePath}/${userId}/${fileName}`;
+    const blobPath = basePath ? `${basePath}/${userId}/${fileName}` : `${userId}/${fileName}`;
     const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
 
     // Get file size for proper content length
