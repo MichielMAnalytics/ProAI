@@ -300,18 +300,18 @@ export default function Artifacts() {
                 {/* Test Button */}
                 <TooltipAnchor description="Test workflow" side="bottom">
                   <button
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-r from-brand-blue to-indigo-600 border border-brand-blue/60 shadow-sm transition-all hover:from-indigo-600 hover:to-blue-700 hover:shadow-md hover:border-brand-blue disabled:opacity-50 disabled:cursor-not-allowed [&:hover>svg]:text-white"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-r from-brand-blue to-indigo-600 border border-brand-blue/60 shadow-sm transition-all hover:from-indigo-600 hover:to-blue-700 hover:shadow-md hover:border-brand-blue disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={handleTestWorkflow}
                     disabled={testMutation.isLoading}
                   >
-                    <TestTube className="h-4 w-4 text-black dark:text-white transition-colors" />
+                    <TestTube className="h-4 w-4 text-white" />
                   </button>
                 </TooltipAnchor>
                 
                 {/* Toggle Button */}
                 <TooltipAnchor description={isWorkflowActive ? 'Deactivate workflow' : 'Activate workflow'} side="bottom">
                   <button
-                    className={`flex h-8 w-8 items-center justify-center rounded-lg shadow-sm transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg shadow-sm transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
                       isWorkflowActive 
                         ? 'bg-gradient-to-r from-amber-500 to-orange-600 border border-amber-500/60 text-white hover:from-amber-600 hover:to-orange-700 hover:border-amber-500' 
                         : 'bg-gradient-to-r from-green-500 to-emerald-600 border border-green-500/60 text-white hover:from-green-600 hover:to-emerald-700 hover:border-green-500'
@@ -332,7 +332,7 @@ export default function Artifacts() {
                 {/* Delete Button */}
                 <TooltipAnchor description="Delete workflow" side="bottom">
                   <button
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-r from-red-500 to-red-600 border border-red-500/60 text-white shadow-sm transition-all hover:from-red-600 hover:to-red-700 hover:shadow-md hover:border-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-r from-red-500 to-red-600 border border-red-500/60 text-white shadow-sm transition-all hover:from-red-600 hover:to-red-700 hover:shadow-md hover:border-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={handleDeleteWorkflow}
                     disabled={deleteMutation.isLoading}
                   >

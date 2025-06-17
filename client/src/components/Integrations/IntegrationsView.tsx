@@ -572,16 +572,32 @@ export default function IntegrationsView() {
                   {/* Pipedream attribution - Under Eve logo */}
                   <div className="flex items-center gap-1">
                     <span className="text-text-tertiary text-xs font-inter font-medium hidden sm:block">powered by</span>
-                    <img 
-                      src="/assets/pipedream.png" 
-                      alt="Pipedream" 
-                      className="w-3 h-3 sm:w-4 sm:h-4 rounded opacity-60 hover:opacity-100 transition-all duration-200 cursor-pointer hover:scale-110"
+                    <div 
+                      className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-green-500 opacity-60 hover:opacity-100 transition-all duration-200 cursor-pointer hover:scale-110 flex items-center justify-center"
                       title="Visit Pipedream.com"
                       onClick={(e) => {
                         e.stopPropagation(); // Prevent badge scroll behavior
                         window.open('https://pipedream.com', '_blank', 'noopener,noreferrer');
                       }}
-                    />
+                    >
+                      <img 
+                        src="/assets/pipedream.png" 
+                        alt="Pipedream" 
+                        className="w-full h-full object-contain rounded"
+                        style={{ minHeight: '100%', minWidth: '100%' }}
+                        onLoad={(e) => {
+                          (e.target as HTMLImageElement).style.opacity = '1';
+                        }}
+                        onError={(e) => {
+                          // Fallback if logo fails to load
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          const parent = (e.target as HTMLImageElement).parentElement;
+                          if (parent) {
+                            parent.innerHTML = '<span class="text-white font-bold text-xs">P</span>';
+                          }
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
                 
