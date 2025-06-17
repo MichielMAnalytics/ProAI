@@ -64,16 +64,20 @@ class WorkflowExecutor {
       const mcpInitializer = MCPInitializer.getInstance();
 
       const availableTools = {};
+      const mcpToolRegistry = new Map(); // Create MCP tool registry for workflow execution
+      
       const mcpResult = await mcpInitializer.ensureUserMCPReady(
         userId,
         'WorkflowExecutor',
         availableTools,
+        { mcpToolRegistry } // Pass the MCP tool registry
       );
 
       // Store the result
       const result = {
         success: mcpResult.success,
         availableTools,
+        mcpToolRegistry, // Include the MCP tool registry in the result
         toolCount: mcpResult.toolCount,
         serverCount: mcpResult.serverCount,
       };
@@ -90,6 +94,7 @@ class WorkflowExecutor {
       const errorResult = {
         success: false,
         availableTools: {},
+        mcpToolRegistry: new Map(), // Include empty registry in error case
         toolCount: 0,
         serverCount: 0,
         error: error.message,
@@ -228,6 +233,7 @@ class WorkflowExecutor {
           toolCount: mcpResult.toolCount,
           serverCount: mcpResult.serverCount,
           availableTools: mcpResult.availableTools,
+          mcpToolRegistry: mcpResult.mcpToolRegistry, // Include the MCP tool registry
         },
         steps: {},
         variables: {},

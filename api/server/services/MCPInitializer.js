@@ -273,6 +273,9 @@ class MCPInitializer {
       const cached = this.getUserInitializationCache(userId);
       if (cached) {
         logger.info(`[MCPInitializer][${context}] Using cached MCP initialization for user ${userId} (age: ${Math.floor((Date.now() - cached.timestamp) / 1000)}s)`);
+      
+      // Debug: Log if cached result has mcpToolRegistry
+      logger.info(`[MCPInitializer][${context}] Cached result has mcpToolRegistry: ${!!cached.mcpToolRegistry}, size: ${cached.mcpToolRegistry?.size || 0}`);
         
         // Apply cached tools to current availableTools registry
         let reportedToolCount = 0;
@@ -286,6 +289,51 @@ class MCPInitializer {
           reportedToolCount = Object.keys(cached.mcpTools).length;
           
           logger.debug(`[MCPInitializer][${context}] Applied ${Object.keys(cached.mcpTools).length} cached MCP tools to availableTools (${newlyAppliedCount} newly added, ${reportedToolCount} total for user)`);
+        }
+
+        // CRITICAL FIX: Restore the cached mcpToolRegistry to the passed-in registry
+        if (mcpToolRegistry) {
+          if (cached.mcpToolRegistry) {
+            // Clear the passed-in registry and populate it with cached data
+            mcpToolRegistry.clear();
+            for (const [key, value] of cached.mcpToolRegistry.entries()) {
+              mcpToolRegistry.set(key, value);
+            }
+            logger.info(`[MCPInitializer][${context}] Restored ${mcpToolRegistry.size} tools to mcpToolRegistry from cache`);
+          } else {
+            // Fallback: If cached result doesn't have mcpToolRegistry, regenerate it from cached tools
+            logger.warn(`[MCPInitializer][${context}] Cached result missing mcpToolRegistry, regenerating from cached tools`);
+            mcpToolRegistry.clear();
+            
+            // Rebuild registry from cached tools (this handles old cache entries)
+            if (cached.mcpTools) {
+              for (const toolKey of Object.keys(cached.mcpTools)) {
+                // Extract server name from tool key (assuming format: toolname-servername or servername-toolname)
+                let serverName = 'unknown';
+                if (toolKey.includes('-')) {
+                  // Try to determine server name from tool key patterns
+                  const parts = toolKey.split('-');
+                  if (parts.length >= 2) {
+                    // Check if first part matches known server patterns
+                    const possibleServer = parts[0];
+                    if (['gmail', 'slack', 'google_calendar', 'trello', 'zendesk', 'notion', 'hubspot', 'google_drive', 'google_sheets'].includes(possibleServer)) {
+                      serverName = `pipedream-${possibleServer}`;
+                    } else {
+                      // Fallback: use last part as server
+                      serverName = parts[parts.length - 1];
+                    }
+                  }
+                }
+                
+                mcpToolRegistry.set(toolKey, {
+                  serverName,
+                  toolName: toolKey,
+                  appSlug: serverName.replace('pipedream-', ''),
+                });
+              }
+              logger.info(`[MCPInitializer][${context}] Regenerated ${mcpToolRegistry.size} tools in mcpToolRegistry from cached tools`);
+            }
+          }
         }
 
         return {
@@ -383,6 +431,13 @@ class MCPInitializer {
         const toolCountAfter = Object.keys(availableTools).length;
         toolCount = toolCountAfter - toolCountBefore;
 
+        // Debug: Log registry size after tool mapping
+        logger.info(`[MCPInitializer][${context}] MCP tool registry size after mapping: ${mcpToolRegistry?.size || 0}`);
+        if (mcpToolRegistry && mcpToolRegistry.size > 0) {
+          const registryKeys = Array.from(mcpToolRegistry.keys()).slice(0, 5); // Show first 5 keys
+          logger.info(`[MCPInitializer][${context}] Sample registry keys: ${registryKeys.join(', ')}`);
+        }
+
         // Store the MCP tools for caching
         // Since we know exactly which tools were added (the difference in count),
         // and we know they're all MCP tools, we can store them all
@@ -413,6 +468,7 @@ class MCPInitializer {
         serverCount,
         toolCount,
         mcpTools, // Store for caching
+        mcpToolRegistry, // Store the MCP tool registry for caching
         manifestTools, // Store cached manifest tools
         duration: Date.now() - startTime,
         cached: false,
@@ -434,6 +490,7 @@ class MCPInitializer {
         mcpManager: null,
         serverCount: 0,
         toolCount: 0,
+        mcpToolRegistry: new Map(), // Include empty registry for failed case
         manifestTools: [],
         duration: Date.now() - startTime,
         cached: false,

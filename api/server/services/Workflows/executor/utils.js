@@ -304,6 +304,16 @@ function createMockRequestForWorkflow(context, user, prompt, model, endpoint) {
   const { v4: uuidv4 } = require('uuid');
   const userMessageId = uuidv4();
 
+  const { logger } = require('~/config');
+  
+  // Debug: Log MCP context being passed
+  const mcpToolRegistry = context.mcp.mcpToolRegistry || new Map();
+  logger.info(`[createMockRequestForWorkflow] MCP context: availableTools=${Object.keys(context.mcp.availableTools || {}).length}, mcpToolRegistry=${mcpToolRegistry.size}`);
+  if (mcpToolRegistry.size > 0) {
+    const registryKeys = Array.from(mcpToolRegistry.keys()).slice(0, 5);
+    logger.info(`[createMockRequestForWorkflow] Sample registry keys: ${registryKeys.join(', ')}`);
+  }
+
   return {
     user: user,
     body: {
@@ -318,6 +328,8 @@ function createMockRequestForWorkflow(context, user, prompt, model, endpoint) {
     app: {
       locals: {
         availableTools: context.mcp.availableTools || {},
+        mcpToolRegistry: mcpToolRegistry, // Include MCP tool registry
+        fileStrategy: 'local', // Add default file strategy
       },
     },
   };
