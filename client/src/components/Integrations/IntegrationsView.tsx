@@ -547,27 +547,58 @@ export default function IntegrationsView() {
               
               {/* Content container */}
               <div className="relative z-10 flex items-center gap-2 sm:gap-3">
-                {/* Eve logo - replacing entire square container */}
-                <img 
-                  src="/assets/logo.svg" 
-                  alt="Eve Logo" 
-                  className="w-7 h-7 sm:w-10 sm:h-10 rounded-xl shadow-lg shadow-brand-blue/30 dark:shadow-indigo-400/30 group-hover:scale-110 group-hover:shadow-brand-blue/40 dark:group-hover:shadow-indigo-400/40 transition-all duration-300 flex-shrink-0"
-                />
+                {/* Eve logo with Pipedream attribution underneath */}
+                <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                  <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-xl shadow-lg shadow-brand-blue/30 dark:shadow-indigo-400/30 group-hover:scale-110 group-hover:shadow-brand-blue/40 dark:group-hover:shadow-indigo-400/40 transition-all duration-300 bg-brand-blue flex items-center justify-center">
+                    <img 
+                      src="/assets/logo.svg" 
+                      alt="Eve Logo" 
+                      className="w-full h-full object-contain"
+                      style={{ minHeight: '100%', minWidth: '100%' }}
+                      onLoad={(e) => {
+                        (e.target as HTMLImageElement).style.opacity = '1';
+                      }}
+                      onError={(e) => {
+                        // Fallback if logo fails to load
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        const parent = (e.target as HTMLImageElement).parentElement;
+                        if (parent) {
+                          parent.innerHTML = '<span class="text-white font-bold text-lg">E</span>';
+                        }
+                      }}
+                    />
+                  </div>
+                  
+                  {/* Pipedream attribution - Under Eve logo */}
+                  <div className="flex items-center gap-1">
+                    <span className="text-text-tertiary text-xs font-inter font-medium hidden sm:block">powered by</span>
+                    <img 
+                      src="/assets/pipedream.png" 
+                      alt="Pipedream" 
+                      className="w-3 h-3 sm:w-4 sm:h-4 rounded opacity-60 hover:opacity-100 transition-all duration-200 cursor-pointer hover:scale-110"
+                      title="Visit Pipedream.com"
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent badge scroll behavior
+                        window.open('https://pipedream.com', '_blank', 'noopener,noreferrer');
+                      }}
+                    />
+                  </div>
+                </div>
                 
                 {/* Text content with premium typography - Mobile optimized */}
                 <div className="flex flex-col min-w-0">
                   {/* Top line with numbers */}
                   <div className="flex items-center gap-1 whitespace-nowrap">
-                    <span className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-700 dark:from-indigo-300 dark:via-blue-200 dark:to-indigo-300 bg-clip-text text-transparent font-bold tracking-tight text-sm sm:text-base">
+                    <span className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-700 dark:from-indigo-300 dark:via-blue-200 dark:to-indigo-300 bg-clip-text text-transparent font-comfortaa font-bold tracking-tight text-sm sm:text-base">
                       2,700+
                     </span>
-                    <span className="text-text-primary font-medium text-sm sm:text-base">Apps &</span>
-                    <span className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-700 dark:from-indigo-300 dark:via-blue-200 dark:to-indigo-300 bg-clip-text text-transparent font-bold tracking-tight text-sm sm:text-base">
+                    <span className="text-text-primary font-inter font-medium text-sm sm:text-base">Apps &</span>
+                    <span className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-700 dark:from-indigo-300 dark:via-blue-200 dark:to-indigo-300 bg-clip-text text-transparent font-comfortaa font-bold tracking-tight text-sm sm:text-base">
                       10,000+
                     </span>
                   </div>
                   {/* Bottom line */}
-                  <div className="text-text-primary font-medium text-xs sm:text-base leading-tight">
+                  <div className="text-text-primary font-inter font-medium text-xs sm:text-base leading-tight">
                     Tools Available
                   </div>
                 </div>
@@ -622,18 +653,18 @@ export default function IntegrationsView() {
               </div>
             </div>
             
-            {/* Navigation Toggle - Enhanced coloring for All Apps button */}
+            {/* Navigation Toggle - Black/White for light/dark themes */}
             <div className="relative inline-flex items-center p-1 rounded-lg shadow-sm border border-border-light bg-surface-secondary/50 dark:bg-surface-secondary">
               <button
                 onClick={() => setSelectedCategory('all')}
                 className={`relative z-10 px-4 sm:px-6 py-2 sm:py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
                   selectedCategory === 'all' || selectedCategory !== 'my'
-                    ? 'border border-brand-blue/60 bg-white dark:bg-surface-primary shadow-sm font-semibold'
-                    : 'text-gray-600 dark:text-text-secondary hover:text-brand-blue dark:hover:text-text-primary bg-transparent border-none hover:bg-surface-hover/50'
+                    ? 'border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm font-semibold'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 bg-transparent border-none hover:bg-surface-hover/50'
                 }`}
               >
                 <span className="relative z-10 flex items-center gap-2">
-                  <span className={selectedCategory === 'all' || selectedCategory !== 'my' ? 'text-brand-blue dark:text-indigo-400 font-semibold' : ''}>
+                  <span className={selectedCategory === 'all' || selectedCategory !== 'my' ? 'text-gray-900 dark:text-gray-100 font-semibold' : ''}>
                     All Apps
                   </span>
                 </span>
@@ -642,18 +673,18 @@ export default function IntegrationsView() {
                 onClick={() => setSelectedCategory('my')}
                 className={`relative z-10 px-4 sm:px-6 py-2 sm:py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
                   selectedCategory === 'my'
-                    ? 'border border-brand-blue/60 bg-white dark:bg-surface-primary shadow-sm font-semibold'
-                    : 'text-gray-600 dark:text-text-secondary hover:text-brand-blue dark:hover:text-text-primary bg-transparent border-none hover:bg-surface-hover/50'
+                    ? 'border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm font-semibold'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 bg-transparent border-none hover:bg-surface-hover/50'
                 }`}
               >
                 <span className="relative z-10 flex items-center gap-2">
-                  <span className={selectedCategory === 'my' ? 'text-brand-blue dark:text-indigo-400 font-semibold' : ''}>
+                  <span className={selectedCategory === 'my' ? 'text-gray-900 dark:text-gray-100 font-semibold' : ''}>
                     My Apps
                   </span>
                   {userIntegrations.length > 0 && (
                     <span className={`inline-flex items-center justify-center w-5 h-5 text-xs font-medium rounded-full border ml-2 ${
                       selectedCategory === 'my' 
-                        ? 'text-brand-blue bg-blue-50 border-blue-200 dark:text-indigo-400 dark:bg-indigo-900/20 dark:border-indigo-400/50' 
+                        ? 'text-gray-900 bg-gray-100 border-gray-300 dark:text-gray-100 dark:bg-gray-700 dark:border-gray-600' 
                         : 'text-text-primary bg-surface-tertiary border-border-light'
                     }`}>
                       {formatCount(userIntegrations.length)}
