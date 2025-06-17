@@ -353,25 +353,24 @@ function ToolSelectDialog({
       {/* The backdrop, rendered as a fixed sibling to the panel container */}
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" />
       {/* Full-screen container to center the panel */}
-      <div className="fixed inset-0 flex items-center justify-center p-4">
+      <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4">
         <DialogPanel
-          className="relative w-full transform overflow-hidden rounded-xl bg-surface-secondary text-left shadow-2xl transition-all max-sm:h-full sm:mx-7 sm:my-8 sm:max-w-2xl lg:max-w-5xl xl:max-w-7xl border border-border-light"
-          style={{ minHeight: '680px' }}
+          className="relative w-full transform overflow-hidden rounded-xl bg-surface-secondary text-left shadow-2xl transition-all h-full max-h-[95vh] sm:max-h-[90vh] sm:mx-7 sm:my-8 sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl border border-border-light flex flex-col"
         >
           {/* Header */}
-          <div className="border-b border-border-light bg-surface-primary px-6 py-6">
+          <div className="border-b border-border-light bg-surface-primary px-4 py-4 sm:px-6 sm:py-6 flex-shrink-0">
             <div className="flex items-center justify-between">
-                          <div>
-              <DialogTitle className="text-xl font-bold text-text-primary">
+                          <div className="flex-1 min-w-0">
+              <DialogTitle className="text-lg sm:text-xl font-bold text-text-primary truncate">
                 {isAgentTools
                   ? localize('com_nav_tool_dialog_agents')
                   : localize('com_nav_tool_dialog')}
               </DialogTitle>
-              <Description className="text-sm text-text-secondary mt-1">
+              <Description className="text-sm text-text-secondary mt-1 hidden sm:block">
                 {localize('com_nav_tool_dialog_description')}
               </Description>
             </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-4">
                 {!isLoadingTools && filteredTools && filteredTools.length > 0 && (
                   <button
                     onClick={() => {
@@ -379,13 +378,14 @@ function ToolSelectDialog({
                       setIsOpen(false);
                       navigate('/d/integrations');
                     }}
-                    className="btn btn-primary btn-sm"
+                    className="btn btn-primary btn-sm text-xs sm:text-sm"
                     type="button"
                   >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="h-3 w-3 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
-                    Add Tools
+                    <span className="hidden sm:inline">Add Tools</span>
+                    <span className="sm:hidden">Add Tools</span>
                   </button>
                 )}
                 <button
@@ -399,25 +399,25 @@ function ToolSelectDialog({
                   aria-label="Close dialog"
                   type="button"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-4 w-4 sm:h-5 sm:w-5" />
                 </button>
               </div>
             </div>
           </div>
 
           {error && (
-            <div className="mx-6 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+            <div className="mx-4 mt-4 sm:mx-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 flex-shrink-0">
               <div className="flex items-center space-x-2">
                 <svg className="h-5 w-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                 </svg>
-                <span>{localize('com_nav_plugin_auth_error')} {errorMessage}</span>
+                <span className="text-sm">{localize('com_nav_plugin_auth_error')} {errorMessage}</span>
               </div>
             </div>
           )}
 
           {showPluginAuthForm && (
-            <div className="border-b border-border-light bg-surface-primary p-6">
+            <div className="border-b border-border-light bg-surface-primary p-4 sm:p-6 flex-shrink-0">
               <PluginAuthForm
                 plugin={selectedPlugin}
                 onSubmit={(installActionData: TPluginAction) => handleInstall(installActionData)}
@@ -427,27 +427,27 @@ function ToolSelectDialog({
           )}
 
           {/* Main Content */}
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-4 sm:p-6 overflow-y-auto min-h-0">
             {/* Search and Controls */}
-            <div className="mb-6 space-y-4">
+            <div className="mb-4 sm:mb-6 space-y-4">
               {/* Search Bar */}
               <div className="relative max-w-md mx-auto">
                 <div className="relative">
-                  <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-text-tertiary" />
+                  <Search className="absolute left-3 sm:left-4 top-1/2 h-4 w-4 sm:h-5 sm:w-5 -translate-y-1/2 text-text-tertiary" />
                   <input
                     type="text"
                     value={searchValue}
                     onChange={handleSearch}
                     placeholder={localize('com_nav_tool_search')}
-                    className="w-full h-12 pl-12 pr-12 text-base bg-surface-primary border border-border-light rounded-lg shadow-sm focus:border-[#0E1593] focus:ring-2 focus:ring-[#0E1593]/20 text-text-primary placeholder:text-text-tertiary transition-all duration-200"
+                    className="w-full h-10 sm:h-12 pl-10 sm:pl-12 pr-10 sm:pr-12 text-sm sm:text-base bg-surface-primary border border-border-light rounded-lg shadow-sm focus:border-[#0E1593] focus:ring-2 focus:ring-[#0E1593]/20 text-text-primary placeholder:text-text-tertiary transition-all duration-200"
                   />
                   {searchValue && (
                     <button
                       onClick={() => setSearchValue('')}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary transition-colors"
+                      className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary transition-colors"
                       aria-label="Clear search"
                     >
-                      <X className="h-5 w-5" />
+                      <X className="h-4 w-4 sm:h-5 sm:w-5" />
                     </button>
                   )}
                 </div>
@@ -455,71 +455,77 @@ function ToolSelectDialog({
 
               {/* Selection Controls */}
               {!isLoadingTools && (
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                  <div className="text-sm text-text-secondary font-medium">
+                <div className="flex flex-col gap-3 sm:gap-4">
+                  <div className="text-xs sm:text-sm text-text-secondary font-medium text-center">
                     {selectedToolsCount} of {totalFilteredTools} tools selected
-                    {selectedServers.size > 0 && ` from ${Array.from(selectedServers).map(serverName => {
-                      const server = mcpServers.find(s => s.name === serverName);
-                      return server?.displayName || serverName;
-                    }).join(', ')}`}
+                    {selectedServers.size > 0 && (
+                      <div className="mt-1">
+                        from {Array.from(selectedServers).map(serverName => {
+                          const server = mcpServers.find(s => s.name === serverName);
+                          return server?.displayName || serverName;
+                        }).join(', ')}
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={onSelectAll}
-                      disabled={selectedToolsCount === totalFilteredTools || totalFilteredTools === 0}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-[#0E1593] text-[#0E1593] hover:bg-[#0E1593]/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200"
-                    >
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Select All
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onDeselectAll}
-                      disabled={selectedToolsCount === 0}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-border-medium text-text-primary hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200"
-                    >
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                      Deselect All
-                    </button>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <button
+                        type="button"
+                        onClick={onSelectAll}
+                        disabled={selectedToolsCount === totalFilteredTools || totalFilteredTools === 0}
+                        className="inline-flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg border border-[#0E1593] text-[#0E1593] hover:bg-[#0E1593]/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200"
+                      >
+                        <svg className="h-3 w-3 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onDeselectAll}
+                        disabled={selectedToolsCount === 0}
+                        className="inline-flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg border border-border-medium text-text-primary hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200"
+                      >
+                        <svg className="h-3 w-3 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Deselect All
+                      </button>
+                    </div>
 
                     {/* MCP Server Dropdown */}
                     {mcpServers.length > 0 && (
-                      <div className="relative">
+                      <div className="relative w-full sm:w-auto">
                         <button
                           type="button"
                           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-border-medium text-text-primary hover:bg-surface-hover transition-all duration-200"
+                          className="w-full sm:w-auto inline-flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg border border-border-medium text-text-primary hover:bg-surface-hover transition-all duration-200"
                         >
                           Select Apps
-                          <ChevronDown className={`h-4 w-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                          <ChevronDown className={`h-3 w-3 sm:h-4 sm:w-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                         </button>
                         
                         {isDropdownOpen && (
-                          <div className="absolute right-0 mt-2 w-64 rounded-lg border border-border-medium bg-surface-primary shadow-lg z-50">
+                          <div className="absolute left-0 sm:right-0 mt-2 w-full sm:w-64 rounded-lg border border-border-medium bg-surface-primary shadow-lg z-50 max-h-48 overflow-y-auto">
                             <div className="p-2 space-y-1">
                               {mcpServers.map((server) => (
                                 <button
                                   key={server.name}
                                   onClick={() => handleServerSelection(server.name)}
-                                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors
+                                  className={`w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 text-xs sm:text-sm rounded-md transition-colors
                                     ${selectedServers.has(server.name)
                                       ? 'bg-[#0E1593]/10 text-[#0E1593]'
                                       : 'hover:bg-surface-hover text-text-primary'
                                     }`}
                                 >
                                   {server.icon ? (
-                                    <img src={server.icon} alt="" className="w-5 h-5 rounded" />
+                                    <img src={server.icon} alt="" className="w-4 h-4 sm:w-5 sm:h-5 rounded" />
                                   ) : (
-                                    <div className="w-5 h-5 rounded bg-surface-secondary" />
+                                    <div className="w-4 h-4 sm:w-5 sm:h-5 rounded bg-surface-secondary" />
                                   )}
-                                  {server.displayName}
+                                  <span className="truncate">{server.displayName}</span>
                                   {selectedServers.has(server.name) && (
-                                    <svg className="h-4 w-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="h-3 w-3 sm:h-4 sm:w-4 ml-auto flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                     </svg>
                                   )}
@@ -536,21 +542,21 @@ function ToolSelectDialog({
             </div>
 
                          {/* Tools Grid */}
-             <div className="min-h-[400px]">
+             <div className="min-h-[200px]">
                {isLoadingTools ? (
-                 <div className="flex flex-col items-center justify-center py-16 px-4">
+                 <div className="flex flex-col items-center justify-center py-8 sm:py-16 px-4">
                    <div className="flex items-center justify-center space-x-2">
-                     <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#0E1593] border-t-transparent"></div>
-                     <p className="text-lg text-text-secondary">Loading tools...</p>
+                     <div className="h-6 w-6 sm:h-8 sm:w-8 animate-spin rounded-full border-4 border-[#0E1593] border-t-transparent"></div>
+                     <p className="text-base sm:text-lg text-text-secondary">Loading tools...</p>
                    </div>
                  </div>
                ) : filteredTools && filteredTools.length === 0 ? (
-                 <div className="flex flex-col items-center justify-center py-16 px-4">
-                   <div className="w-16 h-16 bg-surface-tertiary rounded-full flex items-center justify-center mb-4">
-                     <Search className="w-8 h-8 text-text-tertiary" />
+                 <div className="flex flex-col items-center justify-center py-8 sm:py-16 px-4">
+                   <div className="w-12 h-12 sm:w-16 sm:h-16 bg-surface-tertiary rounded-full flex items-center justify-center mb-4">
+                     <Search className="w-6 h-6 sm:w-8 sm:h-8 text-text-tertiary" />
                    </div>
-                   <h3 className="text-lg font-medium text-text-primary mb-2">No tools found</h3>
-                   <p className="text-text-secondary text-center max-w-md mb-6">
+                   <h3 className="text-base sm:text-lg font-medium text-text-primary mb-2 text-center">No tools found</h3>
+                   <p className="text-sm sm:text-base text-text-secondary text-center max-w-md mb-4 sm:mb-6">
                      {searchValue 
                        ? 'Try adjusting your search criteria or browse all available tools.'
                        : 'No tools are currently available.'}
@@ -561,7 +567,7 @@ function ToolSelectDialog({
                        setIsOpen(false);
                        navigate('/d/integrations');
                      }}
-                     className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium rounded-lg bg-gradient-to-br from-[#0E1593] to-[#04062D] text-white border border-[#0E1593] hover:from-[#04062D] hover:to-[#0E0E0E] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 shadow-md"
+                     className="inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 text-sm font-medium rounded-lg bg-gradient-to-br from-[#0E1593] to-[#04062D] text-white border border-[#0E1593] hover:from-[#04062D] hover:to-[#0E0E0E] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 shadow-md"
                    >
                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -572,7 +578,7 @@ function ToolSelectDialog({
               ) : (
                 <div
                   ref={gridRef}
-                  className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                  className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
                 >
                   {filteredTools &&
                     filteredTools
@@ -592,7 +598,7 @@ function ToolSelectDialog({
 
             {/* Pagination */}
             {maxPage > 1 && (
-              <div className="mt-8">
+              <div className="mt-6 sm:mt-8">
                 <Pagination
                   currentPage={currentPage}
                   totalPages={maxPage}
@@ -600,7 +606,7 @@ function ToolSelectDialog({
                   itemsPerPage={itemsPerPage}
                   totalItems={filteredTools?.length || 0}
                   showItemsPerPage={false}
-                  className="border-t border-border-light pt-6"
+                  className="border-t border-border-light pt-4 sm:pt-6"
                 />
               </div>
             )}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, TestTube, Trash2, Eye } from 'lucide-react';
+import { Play, Pause, Trash2, Eye } from 'lucide-react';
 import { useSetRecoilState } from 'recoil';
 import type { TUserWorkflow } from 'librechat-data-provider';
 import { EModelEndpoint } from 'librechat-data-provider';
@@ -7,7 +7,6 @@ import { Button, TableCell, TableRow } from '~/components/ui';
 import {
   useDeleteWorkflowMutation,
   useToggleWorkflowMutation,
-  useTestWorkflowMutation,
 } from '~/data-provider';
 import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
@@ -26,7 +25,6 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
   const { navigateToConvo } = useNavigateToConvo();
   const toggleMutation = useToggleWorkflowMutation();
   const deleteMutation = useDeleteWorkflowMutation();
-  const testMutation = useTestWorkflowMutation();
   
   // Artifact state management
   const setArtifacts = useSetRecoilState(store.artifactsState);
@@ -72,23 +70,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
     });
   };
 
-  const handleTest = () => {
-    testMutation.mutate(workflow.id, {
-      onSuccess: () => {
-        showToast({
-          message: 'Workflow test successfully',
-          severity: NotificationSeverity.SUCCESS,
-        });
-      },
-      onError: (error: unknown) => {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        showToast({
-          message: `Failed to test workflow: ${errorMessage}`,
-          severity: NotificationSeverity.ERROR,
-        });
-      },
-    });
-  };
+
 
   const handleView = () => {
     try {
@@ -313,15 +295,6 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
               disabled={false}
             >
               <Eye className="h-3 w-3" />
-            </button>
-          </TooltipAnchor>
-          <TooltipAnchor description="Test workflow" side="top">
-            <button
-              onClick={handleTest}
-              className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-r from-brand-blue to-indigo-600 border border-brand-blue/60 shadow-sm transition-all hover:from-indigo-600 hover:to-blue-700 hover:shadow-md hover:border-brand-blue disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={false}
-            >
-              <TestTube className="h-3 w-3 text-white transition-colors" />
             </button>
           </TooltipAnchor>
           <TooltipAnchor description={workflow.isActive ? 'Deactivate workflow' : 'Activate workflow'} side="top">
