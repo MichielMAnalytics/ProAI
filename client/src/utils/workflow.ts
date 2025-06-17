@@ -6,51 +6,30 @@ export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
     // Parse the workflow data to validate it
     const workflowData = JSON.parse(content);
     
-    // Safely serialize the workflow data by properly escaping it
-    // Use a more robust approach to avoid template literal and quote conflicts
-    const safeWorkflowData = JSON.stringify(workflowData, (key, value) => {
-      // If the value is a string that contains code, ensure it's properly escaped
-      if (typeof value === 'string' && (value.includes('`') || value.includes('${') || value.includes('\n'))) {
-        // Replace problematic characters to make it safe for JSON embedding
-        return value
-          .replace(/\\/g, '\\\\')  // Escape backslashes first
-          .replace(/`/g, '\\`')    // Escape backticks
-          .replace(/\${/g, '\\${') // Escape template literal expressions
-          .replace(/"/g, '\\"')    // Escape double quotes
-          .replace(/\n/g, '\\n')   // Escape newlines
-          .replace(/\r/g, '\\r')   // Escape carriage returns
-          .replace(/\t/g, '\\t');  // Escape tabs
-      }
-      return value;
-    }, 2);
-    
-    // Safely serialize tools data with the same escaping logic
-    const safeToolsData = JSON.stringify(toolsData, (key, value) => {
-      // If the value is a string that contains problematic characters, escape them
-      if (typeof value === 'string' && (value.includes('`') || value.includes('${') || value.includes('\n') || value.includes('"'))) {
-        // Replace problematic characters to make it safe for JSON embedding
-        return value
-          .replace(/\\/g, '\\\\')  // Escape backslashes first
-          .replace(/`/g, '\\`')    // Escape backticks
-          .replace(/\${/g, '\\${') // Escape template literal expressions
-          .replace(/"/g, '\\"')    // Escape double quotes
-          .replace(/\n/g, '\\n')   // Escape newlines
-          .replace(/\r/g, '\\r')   // Escape carriage returns
-          .replace(/\t/g, '\\t');  // Escape tabs
-      }
-      return value;
-    }, 2);
+    // Use a more robust serialization approach that avoids template literal conflicts
+    // Instead of embedding JSON directly in template literals, use a safer approach
+    const safeWorkflowData = JSON.stringify(workflowData).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const safeToolsData = JSON.stringify(toolsData).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     
     return {
       'App.tsx': dedent`
         import React from 'react';
         import WorkflowVisualization from './components/ui/WorkflowVisualization';
 
-        // Workflow data safely embedded
-        const workflowData = ${safeWorkflowData};
+        // Workflow data safely embedded using encoded strings to avoid template literal conflicts
+        const workflowDataStr = "${safeWorkflowData}";
+        const toolsDataStr = "${safeToolsData}";
         
-        // Tools data safely embedded
-        const toolsData = ${safeToolsData};
+        // Parse the data at runtime with error handling
+        let workflowData, toolsData;
+        try {
+          workflowData = JSON.parse(workflowDataStr);
+          toolsData = JSON.parse(toolsDataStr);
+        } catch (error) {
+          console.error('Failed to parse workflow data:', error);
+          workflowData = { workflow: { id: '', name: 'Error', trigger: { type: 'manual', config: {} }, steps: [] }, nodes: [], edges: [], trigger: { type: 'manual', config: {} } };
+          toolsData = [];
+        }
 
         export default function App() {
           return (
@@ -449,11 +428,25 @@ export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
         const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data, toolsData }) => {
           const workflowData: WorkflowData = useMemo(() => {
             try {
-              return JSON.parse(data);
+              const parsed = JSON.parse(data);
+              // Validate that we have the required structure
+              if (!parsed || typeof parsed !== 'object') {
+                throw new Error('Invalid workflow data structure');
+              }
+              if (!parsed.workflow || !parsed.workflow.name) {
+                throw new Error('Missing workflow metadata');
+              }
+              return parsed;
             } catch (error) {
               console.error('Failed to parse workflow data:', error);
               return {
-                workflow: { id: '', name: 'Invalid Workflow', trigger: { type: 'manual', config: {} }, steps: [] },
+                workflow: { 
+                  id: 'error', 
+                  name: 'Error Loading Workflow', 
+                  description: 'Failed to load workflow data. Please check the workflow configuration.',
+                  trigger: { type: 'manual', config: {} }, 
+                  steps: [] 
+                },
                 nodes: [],
                 edges: [],
                 trigger: { type: 'manual', config: {} }
@@ -640,12 +633,23 @@ export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
             // Future: Could open a detail panel or edit modal
           }, []);
 
-          if (!workflowData.workflow?.name) {
+          // Enhanced error display for various failure cases
+          if (!workflowData.workflow?.name || workflowData.workflow.id === 'error') {
             return (
               <div className="flex items-center justify-center h-96 text-gray-500">
-                <div className="text-center">
-                  <div className="text-lg font-medium">Invalid Workflow Data</div>
-                  <div className="text-sm">Unable to parse workflow visualization data</div>
+                <div className="text-center max-w-md">
+                  <div className="text-lg font-medium mb-2">
+                    {workflowData.workflow?.name === 'Error Loading Workflow' ? 
+                      'Workflow Loading Error' : 
+                      'Invalid Workflow Data'
+                    }
+                  </div>
+                  <div className="text-sm mb-4">
+                    {workflowData.workflow?.description || 'Unable to parse workflow visualization data'}
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    Check the browser console for detailed error information
+                  </div>
                 </div>
               </div>
             );

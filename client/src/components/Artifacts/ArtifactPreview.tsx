@@ -8,6 +8,7 @@ import type { SandpackPreviewRef } from '@codesandbox/sandpack-react/unstyled';
 import type { TStartupConfig } from 'librechat-data-provider';
 import type { ArtifactFiles } from '~/common';
 import { sharedFiles, sharedOptions } from '~/utils/artifacts';
+import SandpackErrorBoundary from './SandpackErrorBoundary';
 
 export const ArtifactPreview = memo(function ({
   files,
@@ -44,11 +45,19 @@ export const ArtifactPreview = memo(function ({
 
   const options: typeof sharedOptions = useMemo(() => {
     if (!startupConfig) {
-      return sharedOptions;
+      return {
+        ...sharedOptions,
+        // Add timeout configuration for better reliability
+        bundlerTimeOut: 60000, // 60 seconds
+        autoReload: false,
+      };
     }
     const _options: typeof sharedOptions = {
       ...sharedOptions,
       bundlerURL: template === 'static' ? startupConfig.staticBundlerURL : startupConfig.bundlerURL,
+      // Add enhanced timeout configuration
+      bundlerTimeOut: 60000,
+      autoReload: false,
     };
 
     return _options;
@@ -59,21 +68,25 @@ export const ArtifactPreview = memo(function ({
   }
 
   return (
-    <SandpackProvider
-      files={{
-        ...artifactFiles,
-        ...sharedFiles,
-      }}
-      options={options}
-      {...sharedProps}
-      template={template}
-    >
-      <SandpackPreview
-        showOpenInCodeSandbox={false}
-        showRefreshButton={false}
-        tabIndex={0}
-        ref={previewRef}
-      />
-    </SandpackProvider>
+    <SandpackErrorBoundary>
+      <SandpackProvider
+        files={{
+          ...artifactFiles,
+          ...sharedFiles,
+        }}
+        options={options}
+        {...sharedProps}
+        template={template}
+      >
+        <SandpackPreview
+          showOpenInCodeSandbox={false}
+          showRefreshButton={false}
+          tabIndex={0}
+          ref={previewRef}
+          showNavigator={false}
+          showSandpackErrorOverlay={true}
+        />
+      </SandpackProvider>
+    </SandpackErrorBoundary>
   );
 });
