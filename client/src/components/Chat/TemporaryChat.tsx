@@ -2,9 +2,10 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { MessageCircleDashed } from 'lucide-react';
 import { useRecoilState, useRecoilCallback } from 'recoil';
+import { PermissionTypes, Permissions } from 'librechat-data-provider';
 import { TooltipAnchor } from '~/components/ui';
 import { useChatContext } from '~/Providers';
-import { useLocalize } from '~/hooks';
+import { useLocalize, useHasAccess } from '~/hooks';
 import { cn } from '~/utils';
 import store from '~/store';
 
@@ -12,6 +13,11 @@ export function TemporaryChat() {
   const localize = useLocalize();
   const [isTemporary, setIsTemporary] = useRecoilState(store.isTemporary);
   const { conversation, isSubmitting } = useChatContext();
+
+  const hasAccessToTemporaryChat = useHasAccess({
+    permissionType: PermissionTypes.TEMPORARY_CHAT,
+    permission: Permissions.USE,
+  });
 
   const temporaryBadge = {
     id: 'temporary',
@@ -27,6 +33,11 @@ export function TemporaryChat() {
     },
     [isTemporary],
   );
+
+  // Don't render if user doesn't have access to temporary chat
+  if (!hasAccessToTemporaryChat) {
+    return null;
+  }
 
   if (
     (Array.isArray(conversation?.messages) && conversation.messages.length >= 1) ||

@@ -84,6 +84,29 @@ function ControlCombobox({
     }
   }, [isCollapsed]);
 
+  // Calculate optimal dropdown width
+  const dropdownWidth = useMemo(() => {
+    if (isCollapsed) {
+      return '300px';
+    }
+
+    // Calculate content-based width by finding the longest label
+    const longestLabel = items.reduce((longest, item) => {
+      const currentLabel = item.label || '';
+      return currentLabel.length > longest.length ? currentLabel : longest;
+    }, '');
+    
+    // Estimate width based on content: approximately 8px per character + padding for icon + margins
+    const estimatedContentWidth = longestLabel.length * 8 + 60; // 60px for icon, padding, and margins
+    
+    // Use the larger of button width or content width, but cap at reasonable limits
+    const minWidth = Math.max(buttonWidth ?? 300, 300); // At least 300px or button width
+    const maxWidth = Math.min(500, window.innerWidth * 0.9); // Max 500px or 90% of viewport width
+    const optimalWidth = Math.max(minWidth, Math.min(estimatedContentWidth, maxWidth));
+    
+    return `${optimalWidth}px`;
+  }, [isCollapsed, items, buttonWidth]);
+
   const selectIconClassName = cn(
     'flex h-5 w-5 items-center justify-center overflow-hidden rounded-full',
     iconClassName,
@@ -135,7 +158,7 @@ function ControlCombobox({
         className={cn(
           'animate-popover z-50 overflow-hidden rounded-xl border border-border-light bg-surface-secondary shadow-lg',
         )}
-        style={{ width: isCollapsed ? '300px' : (buttonWidth ?? '300px') }}
+        style={{ width: dropdownWidth }}
       >
         <div className="py-1.5">
           <div className="relative">

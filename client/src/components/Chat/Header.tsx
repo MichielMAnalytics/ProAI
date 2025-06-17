@@ -39,6 +39,11 @@ export default function Header() {
     permission: Permissions.USE,
   });
 
+  const hasAccessToTemporaryChat = useHasAccess({
+    permissionType: PermissionTypes.TEMPORARY_CHAT,
+    permission: Permissions.USE,
+  });
+
   const hasAgentAccess = useHasAccess({
     permissionType: PermissionTypes.AGENTS,
     permission: Permissions.USE,
@@ -83,7 +88,7 @@ export default function Header() {
               <ExportAndShareMenu
                 isSharedButtonEnabled={startupConfig?.sharedLinksEnabled ?? false}
               />
-              <TemporaryChat />
+              {hasAccessToTemporaryChat === true && <TemporaryChat />}
             </>
           )}
         </div>
@@ -92,7 +97,7 @@ export default function Header() {
             <ExportAndShareMenu
               isSharedButtonEnabled={startupConfig?.sharedLinksEnabled ?? false}
             />
-            <TemporaryChat />
+            {hasAccessToTemporaryChat === true && <TemporaryChat />}
           </div>
         )}
       </div>
