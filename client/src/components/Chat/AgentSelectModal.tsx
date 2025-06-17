@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { useListAgentsQuery, useGetStartupConfig } from '~/data-provider';
+import { EModelEndpoint } from 'librechat-data-provider';
+import { useListAgentsQuery, useGetStartupConfig, useAvailableIntegrationsQuery, useAvailableToolsQuery } from '~/data-provider';
 import { useSelectAgent, useLocalize } from '~/hooks';
 import { processAgentOption } from '~/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '~/components/ui';
@@ -8,6 +9,69 @@ import { AlertCircle } from 'lucide-react';
 interface AgentSelectModalProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+// Compact MCP server icons component for agent cards
+function AgentMCPIcons({ mcpServers }: { mcpServers?: string[] }) {
+  const { data: availableIntegrations } = useAvailableIntegrationsQuery();
+  const { data: tools } = useAvailableToolsQuery(EModelEndpoint.agents);
+
+  if (!mcpServers || mcpServers.length === 0) {
+    return null;
+  }
+
+  const getMCPServerIcon = (serverName: string): string | undefined => {
+    // Method 1: Direct lookup by appSlug in available integrations
+    const integration = availableIntegrations?.find(int => int.appSlug === serverName);
+    if (integration?.appIcon) {
+      return integration.appIcon;
+    }
+    
+    // Method 2: Find tool by serverName or appSlug (clean tool names approach)
+    const serverTool = tools?.find(tool => 
+      tool.serverName === serverName || 
+      tool.appSlug === serverName ||
+      tool.serverName === `pipedream-${serverName}` ||
+      tool.appSlug === `pipedream-${serverName}`
+    );
+    
+    return serverTool?.icon;
+  };
+
+  const serverIcons = mcpServers.map(serverName => {
+    const icon = getMCPServerIcon(serverName);
+    return { serverName, icon };
+  }).filter(server => server.icon);
+
+  if (serverIcons.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      {serverIcons.slice(0, 3).map(({ serverName, icon }) => (
+        <div
+          key={serverName}
+          className="group relative"
+          title={serverName.charAt(0).toUpperCase() + serverName.slice(1)}
+        >
+          <img
+            src={icon}
+            alt={`${serverName} integration`}
+            className="h-5 w-5 rounded-sm object-cover transition-transform duration-200 group-hover:scale-110 border border-white/30 shadow-sm"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        </div>
+      ))}
+      {serverIcons.length > 3 && (
+        <div className="flex items-center justify-center h-5 w-5 rounded-sm bg-black/20 border border-white/30 text-white text-xs font-medium">
+          +{serverIcons.length - 3}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Custom component to render agent avatars without circular constraints
@@ -129,12 +193,14 @@ export default function AgentSelectModal({ isOpen, onClose }: AgentSelectModalPr
                       </div>
                     </div>
                     
-                    {/* Status/Type Badge - Top right corner */}
-                    <div className="absolute top-3 right-3">
-                      <div className="bg-blue-500/80 backdrop-blur-sm text-white text-xs font-medium px-2 py-1 rounded-full border border-blue-400/50">
-                        Agent
+                    {/* MCP Server Icons - Top right corner */}
+                    {agent.mcp_servers && agent.mcp_servers.length > 0 && (
+                      <div className="absolute top-3 right-3">
+                        <div className="bg-black/20 backdrop-blur-sm rounded-lg px-2 py-1 border border-white/30">
+                          <AgentMCPIcons mcpServers={agent.mcp_servers} />
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                   
                   {/* Description Section - Compact bottom section */}
