@@ -798,7 +798,6 @@ export function verifyTwoFactorTemp(
   return request.post(endpoints.verifyTwoFactorTemp(), payload);
 }
 
-<<<<<<< HEAD
 /* Integrations */
 
 export function getIntegrationsStatus(): Promise<t.TIntegrationsStatusResponse> {
@@ -939,7 +938,7 @@ export function getWorkflowExecutions(workflowId: string): Promise<t.TWorkflowEx
 export function getWorkflowExecution(workflowId: string, executionId: string): Promise<t.TWorkflowExecution> {
   return request.get(endpoints.workflowExecution(workflowId, executionId)).then((response: any) => response.execution);
 }
-=======
+
 /* Memories */
 export const getMemories = (): Promise<q.MemoriesResponse> => {
   return request.get(endpoints.memories());

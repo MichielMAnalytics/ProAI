@@ -46,7 +46,6 @@ export enum QueryKeys {
   health = 'health',
   userTerms = 'userTerms',
   banner = 'banner',
-<<<<<<< HEAD
   // Integrations
   integrationsStatus = 'integrationsStatus',
   availableIntegrations = 'availableIntegrations',
@@ -91,7 +90,6 @@ export enum MutationKeys {
   updateRole = 'updateRole',
   enableTwoFactor = 'enableTwoFactor',
   verifyTwoFactor = 'verifyTwoFactor',
-<<<<<<< HEAD
   // Integrations
   createConnectToken = 'createConnectToken',
   integrationCallback = 'integrationCallback',

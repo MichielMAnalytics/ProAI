@@ -11,7 +11,6 @@ import type {
   TAttachment,
 } from './schemas';
 import type { SettingDefinition } from './generate';
-import type { TMinimalFeedback } from './feedback';
 import type { Agent } from './types/assistants';
 export type TOpenAIMessage = OpenAI.Chat.ChatCompletionMessageParam;
 
@@ -613,7 +612,6 @@ export type TIntegrationsStatusResponse = {
   version: string;
 };
 
-<<<<<<< HEAD
 export type TAvailableIntegration = {
   _id?: string;
   appSlug: string;
@@ -914,19 +912,4 @@ export type TWorkflowExecution = {
   user: string;
   createdAt?: Date;
   updatedAt?: Date;
-=======
-export type TUpdateFeedbackResponse = {
-  messageId: string;
-  conversationId: string;
-  feedback?: TMinimalFeedback;
-};
-
-export type TBalanceResponse = {
-  tokenCredits: number;
-  // Automatic refill settings
-  autoRefillEnabled: boolean;
-  refillIntervalValue?: number;
-  refillIntervalUnit?: 'seconds' | 'minutes' | 'hours' | 'days' | 'weeks' | 'months';
-  lastRefill?: Date;
-  refillAmount?: number;
 };
