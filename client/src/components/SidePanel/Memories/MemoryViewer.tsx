@@ -252,6 +252,21 @@ export default function MemoryViewer() {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
       <div role="region" aria-label={localize('com_ui_memories')} className="mt-2 space-y-2">
+        {/* Memory Toggle Display */}
+        {hasOptOutAccess && (
+          <div className="flex items-center justify-end rounded-lg">
+            {/* Memory Toggle */}
+            <div className="flex items-center gap-2 text-xs">
+              <span>{localize('com_ui_use_memory')}</span>
+              <Switch
+                checked={referenceSavedMemories}
+                onCheckedChange={handleMemoryToggle}
+                aria-label={localize('com_ui_reference_saved_memories')}
+                disabled={updateMemoryPreferencesMutation.isLoading}
+              />
+            </div>
+          </div>
+        )}
         <div className="flex items-center gap-4">
           <Input
             placeholder={localize('com_ui_memories_filter')}
@@ -260,86 +275,22 @@ export default function MemoryViewer() {
             aria-label={localize('com_ui_memories_filter')}
           />
         </div>
-        {/* Memory Usage and Toggle Display */}
-        {(memData?.tokenLimit || hasOptOutAccess) && (
-          <div className="flex items-center justify-between rounded-lg">
-            {/* Usage Display */}
-            {memData?.tokenLimit && (
-              <div className="flex items-center gap-2">
-                <div className="relative size-10">
-                  <svg className="size-10 -rotate-90 transform">
-                    <circle
-                      cx="20"
-                      cy="20"
-                      r="16"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                      fill="none"
-                      className="text-gray-200 dark:text-gray-700"
-                    />
-                    <circle
-                      cx="20"
-                      cy="20"
-                      r="16"
-                      strokeWidth="3"
-                      fill="none"
-                      strokeDasharray={`${2 * Math.PI * 16}`}
-                      strokeDashoffset={`${2 * Math.PI * 16 * (1 - (memData.usagePercentage ?? 0) / 100)}`}
-                      className={`transition-all ${getProgressBarColor(memData.usagePercentage ?? 0)}`}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xs font-medium">{memData.usagePercentage}%</span>
-                  </div>
-                </div>
-                <div className="text-sm text-text-secondary">{localize('com_ui_usage')}</div>
-              </div>
-            )}
-
-            {/* Memory Toggle */}
-            {hasOptOutAccess && (
-              <div className="flex items-center gap-2 text-xs">
-                <span>{localize('com_ui_use_memory')}</span>
-                <Switch
-                  checked={referenceSavedMemories}
-                  onCheckedChange={handleMemoryToggle}
-                  aria-label={localize('com_ui_reference_saved_memories')}
-                  disabled={updateMemoryPreferencesMutation.isLoading}
-                />
-              </div>
-            )}
-          </div>
-        )}
-        {/* Create Memory Button */}
-        {hasCreateAccess && (
-          <div className="flex w-full justify-end">
-            <MemoryCreateDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-              <OGDialogTrigger asChild>
-                <Button variant="outline" className="w-full bg-transparent">
-                  <Plus className="size-4" aria-hidden />
-                  {localize('com_ui_create_memory')}
-                </Button>
-              </OGDialogTrigger>
-            </MemoryCreateDialog>
-          </div>
-        )}
         <div className="rounded-lg border border-border-light bg-transparent shadow-sm transition-colors">
           <Table className="w-full table-fixed">
             <TableHeader>
               <TableRow className="border-b border-border-light hover:bg-surface-secondary">
+                {hasUpdateAccess && (
+                  <TableHead className="w-[25%] bg-surface-secondary py-2 text-center text-xs font-medium text-text-secondary">
+                    <div className="px-1 sm:px-2">{localize('com_assistants_actions')}</div>
+                  </TableHead>
+                )}
                 <TableHead
                   className={`${
                     hasUpdateAccess ? 'w-[75%]' : 'w-[100%]'
-                  } bg-surface-secondary py-3 text-left text-sm font-medium text-text-secondary`}
+                  } bg-surface-secondary py-2 text-left text-xs font-medium text-text-secondary`}
                 >
-                  <div>{localize('com_ui_memory')}</div>
+                  <div className="px-2">{localize('com_ui_memory')}</div>
                 </TableHead>
-                {hasUpdateAccess && (
-                  <TableHead className="w-[25%] bg-surface-secondary py-3 text-center text-sm font-medium text-text-secondary">
-                    <div>{localize('com_assistants_actions')}</div>
-                  </TableHead>
-                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -349,14 +300,6 @@ export default function MemoryViewer() {
                     key={idx}
                     className="border-b border-border-light hover:bg-surface-secondary"
                   >
-                    <TableCell className={`${hasUpdateAccess ? 'w-[75%]' : 'w-[100%]'} px-4 py-4`}>
-                      <div
-                        className="overflow-hidden text-ellipsis whitespace-nowrap text-sm text-text-primary"
-                        title={memory.value}
-                      >
-                        {memory.value}
-                      </div>
-                    </TableCell>
                     {hasUpdateAccess && (
                       <TableCell className="w-[25%] px-4 py-4">
                         <div className="flex justify-center gap-2">
@@ -365,6 +308,14 @@ export default function MemoryViewer() {
                         </div>
                       </TableCell>
                     )}
+                    <TableCell className={`${hasUpdateAccess ? 'w-[75%]' : 'w-[100%]'} px-4 py-4`}>
+                      <div
+                        className="overflow-hidden text-ellipsis whitespace-nowrap text-sm text-text-primary"
+                        title={memory.value}
+                      >
+                        {memory.value}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))
               ) : (

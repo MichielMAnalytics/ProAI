@@ -68,7 +68,7 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
     ...(hasAnyPersonalizationFeature ? [{
       value: SettingsTabValues.PERSONALIZATION,
       icon: <PersonalizationIcon />,
-      label: 'com_nav_personalization',
+      label: 'Personalization' as TranslationKeys,
     }] : []),
     {
       value: SettingsTabValues.DATA,
@@ -246,7 +246,10 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
                     )}
                     {hasAnyPersonalizationFeature && (
                       <Tabs.Content value={SettingsTabValues.PERSONALIZATION}>
-                        <Personalization />
+                        <Personalization 
+                          hasMemoryOptOut={hasMemoryOptOut}
+                          hasAnyPersonalizationFeature={hasAnyPersonalizationFeature}
+                        />
                       </Tabs.Content>
                     )}
                     {settingsTabsConfig.data !== false && (
