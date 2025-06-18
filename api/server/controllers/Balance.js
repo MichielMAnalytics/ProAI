@@ -1,4 +1,4 @@
-const Balance = require('~/models/Balance');
+const { Balance } = require('~/db/models');
 const BalanceService = require('~/server/services/BalanceService');
 
 async function balanceController(req, res) {

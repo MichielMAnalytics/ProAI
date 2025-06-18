@@ -311,7 +311,7 @@ router.get('/notifications', setHeaders, async (req, res) => {
     
     // Manually verify the JWT token
     const jwt = require('jsonwebtoken');
-    const User = require('~/models/User');
+    const { User } = require('~/db/models');
     
     let decoded;
     try {

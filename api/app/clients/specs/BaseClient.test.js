@@ -1,7 +1,7 @@
 const { Constants } = require('librechat-data-provider');
 const { initializeFakeClient } = require('./FakeClient');
 
-jest.mock('~/lib/db/connectDb');
+jest.mock('~/db/connect');
 jest.mock('~/models', () => ({
   User: jest.fn(),
   Key: jest.fn(),
@@ -33,7 +33,9 @@ jest.mock('~/models', () => ({
 const { getConvo, saveConvo } = require('~/models');
 
 jest.mock('@librechat/agents', () => {
+  const { Providers } = jest.requireActual('@librechat/agents');
   return {
+    Providers,
     ChatOpenAI: jest.fn().mockImplementation(() => {
       return {};
     }),

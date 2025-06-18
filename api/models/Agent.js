@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
-const { agentSchema } = require('@librechat/data-schemas');
-const { SystemRoles, Tools } = require('librechat-data-provider');
+const crypto = require('node:crypto');
+const { logger } = require('@librechat/data-schemas');
+const { SystemRoles, Tools, actionDelimiter } = require('librechat-data-provider');
 const { GLOBAL_PROJECT_NAME, EPHEMERAL_AGENT_ID, mcp_delimiter } =
   require('librechat-data-provider').Constants;
 const { CONFIG_STORE, STARTUP_CONFIG } = require('librechat-data-provider').CacheKeys;
@@ -11,8 +12,8 @@ const {
   removeAgentFromAllProjects,
 } = require('./Project');
 const getLogStores = require('~/cache/getLogStores');
-
-const Agent = mongoose.model('agent', agentSchema);
+const { getActions } = require('./Action');
+const { Agent } = require('~/db/models');
 
 /**
  * Create an agent with the provided data.
@@ -431,7 +432,6 @@ const getListAgents = async (searchParameter) => {
   ).lean();
   
   const duplicatedOriginalIds = userDuplicates.map(agent => agent.originalAgentId);
-
   const agents = (
     await Agent.find(query, {
       id: 1,
@@ -567,7 +567,6 @@ const revertAgentVersion = async (searchParameter, versionIndex) => {
 };
 
 module.exports = {
-  Agent,
   getAgent,
   loadAgent,
   createAgent,

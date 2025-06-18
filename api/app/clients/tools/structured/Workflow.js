@@ -1121,7 +1121,7 @@ class WorkflowTool extends Tool {
     // Get user's timezone for schedule processing
     let userTimezone = 'UTC'; // Default fallback
     try {
-      const User = require('~/models/User');
+      const { User } = require('~/db/models');
       const user = await User.findById(userId).select('timezone');
       if (user && user.timezone) {
         userTimezone = user.timezone;

@@ -2,7 +2,7 @@ const { logger } = require('~/config');
 const { Constants } = require('librechat-data-provider');
 const { updateSchedulerExecution } = require('~/models/SchedulerExecution');
 const { loadAgent } = require('~/models/Agent');
-const User = require('~/models/User');
+const { User } = require('~/db/models');
 const {
   createMinimalMockResponse,
   updateRequestForEphemeralAgent,

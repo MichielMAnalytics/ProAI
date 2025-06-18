@@ -1,13 +1,7 @@
-const {
-  comparePassword,
-  deleteUserById,
-  generateToken,
-  getUserById,
-  updateUser,
-  createUser,
-  countUsers,
-  findUser,
-} = require('./userMethods');
+const mongoose = require('mongoose');
+const { createMethods } = require('@librechat/data-schemas');
+const methods = createMethods(mongoose);
+const { comparePassword } = require('./userMethods');
 const {
   findFileById,
   createFile,
@@ -26,18 +20,8 @@ const {
   deleteMessagesSince,
   deleteMessages,
 } = require('./Message');
-const {
-  createSession,
-  findSession,
-  updateExpiration,
-  deleteSession,
-  deleteAllUserSessions,
-  generateRefreshToken,
-  countActiveSessions,
-} = require('./Session');
 const { getConvoTitle, getConvo, saveConvo, deleteConvos } = require('./Conversation');
 const { getPreset, getPresets, savePreset, deletePresets } = require('./Preset');
-const { createToken, findToken, updateToken, deleteTokens } = require('./Token');
 const {
   createSchedulerTask,
   getSchedulerTaskById,
@@ -60,23 +44,13 @@ const {
   getRunningSchedulerExecutions,
   cleanupOldSchedulerExecutions,
 } = require('./SchedulerExecution');
-const Balance = require('./Balance');
-const User = require('./User');
-const Key = require('./Key');
 const UserIntegration = require('./UserIntegration');
 const AvailableIntegration = require('./AvailableIntegration');
 const AppComponents = require('./AppComponents');
 
 module.exports = {
+  ...methods,
   comparePassword,
-  deleteUserById,
-  generateToken,
-  getUserById,
-  updateUser,
-  createUser,
-  countUsers,
-  findUser,
-
   findFileById,
   createFile,
   updateFile,
@@ -103,19 +77,6 @@ module.exports = {
   savePreset,
   deletePresets,
 
-  createToken,
-  findToken,
-  updateToken,
-  deleteTokens,
-
-  createSession,
-  findSession,
-  updateExpiration,
-  deleteSession,
-  deleteAllUserSessions,
-  generateRefreshToken,
-  countActiveSessions,
-
   // Scheduler models
   createSchedulerTask,
   getSchedulerTaskById,
@@ -137,9 +98,6 @@ module.exports = {
   getRunningSchedulerExecutions,
   cleanupOldSchedulerExecutions,
 
-  User,
-  Key,
-  Balance,
   UserIntegration,
   AvailableIntegration,
   AppComponents,

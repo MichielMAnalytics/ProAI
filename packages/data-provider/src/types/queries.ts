@@ -120,3 +120,18 @@ export type TUserBalance = {
   refillIntervalUnit: 'seconds' | 'minutes' | 'hours' | 'days' | 'weeks' | 'months';
   lastRefill: string | null; // ISO string
 };
+
+/* Memories */
+export type TUserMemory = {
+  key: string;
+  value: string;
+  updated_at: string;
+  tokenCount?: number;
+};
+
+export type MemoriesResponse = {
+  memories: TUserMemory[];
+  totalTokens: number;
+  tokenLimit: number | null;
+  usagePercentage: number | null;
+};

@@ -64,6 +64,8 @@ export enum QueryKeys {
   workflow = 'workflow',
   workflowExecutions = 'workflowExecutions',
   workflowExecution = 'workflowExecution',
+  /* Memories */
+  memories = 'memories',
 }
 
 export enum MutationKeys {
@@ -97,4 +99,5 @@ export enum MutationKeys {
   deployTrigger = 'deployTrigger',
   connectMCPServer = 'connectMCPServer',
   disconnectMCPServer = 'disconnectMCPServer',
+  updateMemoryPreferences = 'updateMemoryPreferences',
 }
