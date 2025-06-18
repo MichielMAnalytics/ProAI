@@ -508,7 +508,7 @@ const resendVerificationEmail = async (req) => {
 async function autoSetUserTimezone(userId, detectedTimezone) {
   try {
     // Get current user to check if timezone is already set
-    const { getUserById } = require('~/models/userMethods');
+    const { getUserById } = require('~/models');
     const user = await getUserById(userId, 'timezone');
     
     // Only set timezone if user doesn't have one set

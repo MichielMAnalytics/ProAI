@@ -1,7 +1,6 @@
 const { logger } = require('~/config');
-const { Transaction, updateBalance } = require('~/models/Transaction');
-const Balance = require('~/models/Balance');
-const User = require('~/models/User');
+const { updateBalance } = require('~/models/Transaction');
+const { Balance, User, Transaction } = require('~/db/models');
 const { getBalanceConfig } = require('~/server/services/Config');
 
 /**

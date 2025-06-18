@@ -22,7 +22,6 @@ const {
 } = require('./Message');
 const { getConvoTitle, getConvo, saveConvo, deleteConvos } = require('./Conversation');
 const { getPreset, getPresets, savePreset, deletePresets } = require('./Preset');
-const { createToken, findToken, updateToken, deleteTokens } = require('./Token');
 const {
   createSchedulerTask,
   getSchedulerTaskById,
@@ -45,9 +44,6 @@ const {
   getRunningSchedulerExecutions,
   cleanupOldSchedulerExecutions,
 } = require('./SchedulerExecution');
-const Balance = require('./Balance');
-const User = require('./User');
-const Key = require('./Key');
 const UserIntegration = require('./UserIntegration');
 const AvailableIntegration = require('./AvailableIntegration');
 const AppComponents = require('./AppComponents');
@@ -81,11 +77,6 @@ module.exports = {
   savePreset,
   deletePresets,
 
-  createToken,
-  findToken,
-  updateToken,
-  deleteTokens,
-
   // Scheduler models
   createSchedulerTask,
   getSchedulerTaskById,
@@ -107,9 +98,6 @@ module.exports = {
   getRunningSchedulerExecutions,
   cleanupOldSchedulerExecutions,
 
-  User,
-  Key,
-  Balance,
   UserIntegration,
   AvailableIntegration,
   AppComponents,

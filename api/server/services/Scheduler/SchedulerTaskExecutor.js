@@ -5,7 +5,7 @@ const {
   updateSchedulerExecution 
 } = require('~/models/SchedulerExecution');
 const { updateSchedulerTask } = require('~/models/SchedulerTask');
-const User = require('~/models/User');
+const { User } = require('~/db/models');
 const { replaceSpecialVars } = require('librechat-data-provider');
 const { calculateNextRun } = require('./utils/cronUtils');
 const { createMockRequest, createMockResponse, createMinimalMockResponse } = require('./utils/mockUtils');

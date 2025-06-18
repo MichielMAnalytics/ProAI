@@ -1,4 +1,6 @@
-const { findToken, updateToken, createToken } = require('~/models');
+const { createMethods } = require('@librechat/data-schemas');
+const mongoose = require('mongoose');
+const { findToken, updateToken, createToken } = createMethods(mongoose);
 const { encryptV2 } = require('~/server/utils/crypto');
 
 /**
