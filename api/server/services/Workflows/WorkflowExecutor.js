@@ -26,14 +26,13 @@ const SchedulerClientFactory = require('~/server/services/Scheduler/SchedulerCli
  * - Error handling and retry logic
  * - Context management between steps
  * - Execution flow control (success/failure paths)
- * - Dedicated workflow execution conversation management
  * - Fresh agent creation for each step (no reuse)
  *
- * CONVERSATION MANAGEMENT:
- * - Creates a dedicated conversation for each workflow execution
- * - Names conversations: "Workflow execution [name] [timestamp]"
- * - Maintains proper message threading between steps
- * - Prevents creation of multiple conversations per execution
+ * EXECUTION TRACKING:
+ * - Uses ExecutionDashboard component for execution history viewing
+ * - Conversations are not saved (skipSaveConvo=true) during workflow execution
+ * - Execution details are tracked in the scheduler execution records
+ * - Step results and errors are captured in execution metadata
  *
  * AGENT ISOLATION:
  * - Each step gets a fresh agent instance
@@ -168,75 +167,9 @@ class WorkflowExecutor {
         abortController,
       });
 
-      // Get or create a dedicated conversation for workflow execution logging
+      // Generate a conversation ID for step execution context (won't be saved due to skipSaveConvo)
       const { v4: uuidv4 } = require('uuid');
-      let workflowExecutionConversationId;
-
-      // Check if workflow already has a dedicated conversation ID in metadata
-      const WorkflowService = require('./WorkflowService');
-      const workflowService = new WorkflowService();
-      const currentWorkflow = await workflowService.getWorkflowById(workflowId, userId);
-
-      if (
-        currentWorkflow &&
-        currentWorkflow.metadata &&
-        currentWorkflow.metadata.dedicatedConversationId
-      ) {
-        // Reuse existing conversation
-        workflowExecutionConversationId = currentWorkflow.metadata.dedicatedConversationId;
-        logger.info(
-          `[WorkflowExecutor] Reusing existing dedicated conversation: ${workflowExecutionConversationId} for workflow: ${workflow.name}`,
-        );
-      } else {
-        // Create new conversation for this workflow
-        workflowExecutionConversationId = uuidv4();
-
-        // Extract clean workflow name (remove "Workflow: " prefix if present)
-        const cleanWorkflowName = workflow.name.replace(/^Workflow:\s*/, '');
-        const workflowExecutionTitle = `[LOG] Workflow executions: ${cleanWorkflowName}`;
-
-        // Create the workflow execution conversation
-        const { saveConvo } = require('~/models/Conversation');
-        const mockReq = {
-          user: { id: userId },
-          body: {}, // Add body property to prevent saveConvo errors
-          app: { locals: {} },
-        };
-
-        await saveConvo(
-          mockReq,
-          {
-            conversationId: workflowExecutionConversationId,
-            title: workflowExecutionTitle,
-            endpoint: 'openAI',
-            model: 'gpt-4o-mini',
-            isArchived: false,
-          },
-          { context: 'WorkflowExecutor.executeWorkflow - dedicated execution conversation' },
-        );
-
-        // Store the conversation ID in workflow metadata for future reuse
-        try {
-          await workflowService.updateWorkflow(workflowId, userId, {
-            metadata: {
-              ...currentWorkflow?.metadata,
-              dedicatedConversationId: workflowExecutionConversationId,
-            },
-          });
-          logger.info(
-            `[WorkflowExecutor] Created and stored dedicated conversation: ${workflowExecutionConversationId} for workflow: ${workflow.name}`,
-          );
-        } catch (metadataError) {
-          logger.warn(
-            `[WorkflowExecutor] Failed to store conversation ID in workflow metadata: ${metadataError.message}`,
-          );
-          // Continue with execution even if metadata update fails
-        }
-
-        logger.info(
-          `[WorkflowExecutor] Created dedicated execution conversation: ${workflowExecutionConversationId} with title: ${workflowExecutionTitle}`,
-        );
-      }
+      let workflowExecutionConversationId = uuidv4(); // ID for context, but conversations won't be saved
 
       // Initialize execution context without workflow-level agent
       executionContext = {
@@ -246,8 +179,8 @@ class WorkflowExecutor {
           // Include full workflow object for context access
           ...workflow,
           // Override/add execution-specific properties
-          conversationId: workflowExecutionConversationId,
-          parentMessageId: null, // Start fresh in the execution conversation
+          conversationId: workflowExecutionConversationId, // Used for context but not saved
+          parentMessageId: null, // Start fresh for workflow execution
           // No workflow-level agent - each step will create its own
         },
         execution: {
@@ -395,7 +328,8 @@ class WorkflowExecutor {
         });
       }
 
-      // Update the parent message ID for the next step to maintain conversation threading
+      // Update the parent message ID for the next step to maintain context flow
+      // (messages won't be saved due to skipSaveConvo, but IDs help with context)
       if (stepResult && stepResult.responseMessageId) {
         context.workflow.parentMessageId = stepResult.responseMessageId;
         logger.debug(

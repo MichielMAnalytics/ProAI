@@ -215,7 +215,11 @@ async function createFreshAgent(workflow, step, context) {
     throw new Error('Failed to initialize agents client for fresh agent');
   }
 
-  logger.info(`[WorkflowAgentExecutor] AgentClient initialized successfully for step "${step.name}"`);
+  // Prevent conversation creation for workflow execution steps
+  // Results are tracked in ExecutionDashboard instead
+  client.skipSaveConvo = true;
+
+  logger.info(`[WorkflowAgentExecutor] AgentClient initialized successfully for step "${step.name}" (conversation saving disabled)`);
 
   return { 
     agent, 
