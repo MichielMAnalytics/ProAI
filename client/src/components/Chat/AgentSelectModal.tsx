@@ -1,6 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { EModelEndpoint } from 'librechat-data-provider';
-import { useListAgentsQuery, useGetStartupConfig, useAvailableIntegrationsQuery, useAvailableToolsQuery } from '~/data-provider';
+import { useListAgentsQuery, useGetStartupConfig, useAvailableIntegrationsQuery } from '~/data-provider';
 import { useSelectAgent, useLocalize } from '~/hooks';
 import { processAgentOption } from '~/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '~/components/ui';
@@ -14,28 +13,20 @@ interface AgentSelectModalProps {
 // Compact MCP server icons component for agent cards
 function AgentMCPIcons({ mcpServers }: { mcpServers?: string[] }) {
   const { data: availableIntegrations } = useAvailableIntegrationsQuery();
-  const { data: tools } = useAvailableToolsQuery(EModelEndpoint.agents);
 
   if (!mcpServers || mcpServers.length === 0) {
     return null;
   }
 
   const getMCPServerIcon = (serverName: string): string | undefined => {
-    // Method 1: Direct lookup by appSlug in available integrations
-    const integration = availableIntegrations?.find(int => int.appSlug === serverName);
-    if (integration?.appIcon) {
-      return integration.appIcon;
-    }
+    // Strip 'pipedream-' prefix if present to get the appSlug
+    const appSlug = serverName.startsWith('pipedream-') 
+      ? serverName.replace('pipedream-', '') 
+      : serverName;
     
-    // Method 2: Find tool by serverName or appSlug (clean tool names approach)
-    const serverTool = tools?.find(tool => 
-      tool.serverName === serverName || 
-      tool.appSlug === serverName ||
-      tool.serverName === `pipedream-${serverName}` ||
-      tool.appSlug === `pipedream-${serverName}`
-    );
-    
-    return serverTool?.icon;
+    // Find integration by appSlug and return appIcon
+    const integration = availableIntegrations?.find(int => int.appSlug === appSlug);
+    return integration?.appIcon;
   };
 
   const serverIcons = mcpServers.map(serverName => {
@@ -58,7 +49,7 @@ function AgentMCPIcons({ mcpServers }: { mcpServers?: string[] }) {
           <img
             src={icon}
             alt={`${serverName} integration`}
-            className="h-5 w-5 rounded-sm object-cover transition-transform duration-200 group-hover:scale-110 border border-white/30 shadow-sm"
+            className="h-5 w-5 rounded-sm object-cover transition-transform duration-200 group-hover:scale-110 shadow-sm bg-white/90 dark:bg-gray-100/90 p-0.5"
             onError={(e) => {
               e.currentTarget.style.display = 'none';
             }}
@@ -66,7 +57,7 @@ function AgentMCPIcons({ mcpServers }: { mcpServers?: string[] }) {
         </div>
       ))}
       {serverIcons.length > 3 && (
-        <div className="flex items-center justify-center h-5 w-5 rounded-sm bg-black/20 border border-white/30 text-white text-xs font-medium">
+        <div className="flex items-center justify-center h-5 w-5 rounded-sm bg-black/20 text-white text-xs font-medium">
           +{serverIcons.length - 3}
         </div>
       )}
@@ -182,11 +173,11 @@ export default function AgentSelectModal({ isOpen, onClose }: AgentSelectModalPr
                     <AgentAvatar agent={agent} />
                     
                     {/* Gradient Overlay for better text readability */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-60 group-hover:opacity-70 transition-opacity duration-300" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-60 transition-opacity duration-300" />
                     
                     {/* Name Tag - Positioned at bottom */}
                     <div className="absolute bottom-0 left-0 right-0 p-4">
-                      <div className="bg-white/20 dark:bg-black/30 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/30 dark:border-gray-600/30">
+                      <div className="bg-black/40 dark:bg-black/50 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10 dark:border-gray-600/10">
                         <h3 className="text-lg font-bold text-white text-center truncate group-hover:text-blue-200 transition-colors duration-300">
                           {agent.name || 'Unnamed Agent'}
                         </h3>
@@ -196,7 +187,7 @@ export default function AgentSelectModal({ isOpen, onClose }: AgentSelectModalPr
                     {/* MCP Server Icons - Top right corner */}
                     {agent.mcp_servers && agent.mcp_servers.length > 0 && (
                       <div className="absolute top-3 right-3">
-                        <div className="bg-black/20 backdrop-blur-sm rounded-lg px-2 py-1 border border-white/30">
+                        <div className="bg-black/20 backdrop-blur-sm rounded-lg px-2 py-1">
                           <AgentMCPIcons mcpServers={agent.mcp_servers} />
                         </div>
                       </div>

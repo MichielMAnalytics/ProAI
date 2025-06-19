@@ -21,7 +21,6 @@ const variantStyles = {
   default: {},
   button: {
     filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3)) contrast(1.1) brightness(1.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
   },
   'dark-bg': {
     filter: 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.3)) contrast(1.1)',
@@ -63,7 +62,7 @@ export default function AppIcon({
           className={cn(
             sizeClass,
             "rounded-sm object-contain filter drop-shadow-sm",
-            variant === 'button' && "min-w-4 min-h-4"
+            variant === 'button' && "min-w-4 min-h-4 bg-white/90 dark:bg-gray-100/90 p-0.5"
           )}
           style={{
             ...styles,

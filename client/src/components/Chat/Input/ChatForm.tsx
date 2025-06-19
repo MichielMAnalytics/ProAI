@@ -168,24 +168,28 @@ const MCPServerIcons = ({ mcpServers }: { mcpServers: string[] }) => {
 
   return (
     <>
-      <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex items-center gap-2">
-        {serverData.map(({ serverName, icon, integration }) => (
-          <button
-            key={serverName}
-            onClick={() => handleIconClick(integration, serverName)}
-            className="group relative p-1 rounded-md hover:bg-surface-hover transition-colors duration-200"
-            title={`${serverName.charAt(0).toUpperCase() + serverName.slice(1)} - Click for details`}
-          >
-            <img
-              src={icon}
-              alt={`${serverName} integration`}
-              className="h-5 w-5 rounded-sm object-cover transition-transform duration-200 group-hover:scale-110"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-          </button>
-        ))}
+      <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2">
+        <div className="bg-black/20 backdrop-blur-sm rounded-lg px-2 py-1">
+          <div className="flex items-center gap-2">
+            {serverData.map(({ serverName, icon, integration }) => (
+              <button
+                key={serverName}
+                onClick={() => handleIconClick(integration, serverName)}
+                className="group relative p-1 rounded-md hover:bg-surface-hover transition-colors duration-200"
+                title={`${serverName.charAt(0).toUpperCase() + serverName.slice(1)} - Click for details`}
+              >
+                <img
+                  src={icon}
+                  alt={`${serverName} integration`}
+                  className="h-5 w-5 rounded-sm object-cover transition-transform duration-200 group-hover:scale-110 bg-white/90 dark:bg-gray-100/90 p-0.5"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
       {selectedIntegration && (
         <AppDetailsModal
