@@ -11,8 +11,13 @@ const { getFullStepResult } = require('./utils');
  * @param {string} userId - User ID for the execution
  * @returns {Promise<Object>} Step result
  */
-async function executeMCPAgentActionStep(step, context, userId) {
+async function executeMCPAgentActionStep(step, context, userId, abortSignal) {
   logger.info(`[WorkflowStepExecutor] Executing MCP agent action step: "${step.name}"`);
+
+  // Check if execution has been cancelled
+  if (abortSignal?.aborted) {
+    throw new Error('Execution was cancelled by user');
+  }
 
   // Check if MCP tools are available
   if (!context.mcp?.available || context.mcp.toolCount === 0) {
@@ -27,7 +32,7 @@ async function executeMCPAgentActionStep(step, context, userId) {
   const taskPrompt = createTaskPromptForStep(step, context);
 
   // Execute using fresh agent with MCP tools
-  const result = await executeStepWithAgent(step, taskPrompt, context, userId);
+  const result = await executeStepWithAgent(step, taskPrompt, context, userId, abortSignal);
 
   return {
     type: 'mcp_agent_action',
@@ -45,9 +50,14 @@ async function executeMCPAgentActionStep(step, context, userId) {
  * @param {Object} context - Execution context
  * @returns {Promise<Object>} Step execution result
  */
-async function executeStep(workflow, execution, step, context) {
+async function executeStep(workflow, execution, step, context, abortSignal) {
   // Dynamically import SchedulerService to avoid circular dependencies
   const SchedulerService = require('~/server/services/Scheduler/SchedulerService');
+
+  // Check if execution has been cancelled
+  if (abortSignal?.aborted) {
+    throw new Error('Execution was cancelled by user');
+  }
 
   // Validate step type - only mcp_agent_action is supported
   if (step.type !== 'mcp_agent_action') {
@@ -88,8 +98,13 @@ async function executeStep(workflow, execution, step, context) {
   await updateSchedulerExecution(execution.id, execution.user, stepExecutionData);
 
   try {
+    // Check if execution has been cancelled before executing step
+    if (abortSignal?.aborted) {
+      throw new Error('Execution was cancelled by user');
+    }
+
     // Execute the MCP agent action step
-    const result = await executeMCPAgentActionStep(step, context, execution.user);
+    const result = await executeMCPAgentActionStep(step, context, execution.user, abortSignal);
 
     // Update step execution with success
     await updateSchedulerExecution(execution.id, execution.user, {

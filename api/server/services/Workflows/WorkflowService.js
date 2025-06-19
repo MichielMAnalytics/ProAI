@@ -543,9 +543,9 @@ class WorkflowService {
         throw new Error(`Workflow ${workflowId} not found`);
       }
 
-      // Try to stop execution via WorkflowExecutor
+      // Try to stop execution via WorkflowExecutor singleton
       const WorkflowExecutor = require('~/server/services/Workflows/WorkflowExecutor');
-      const executor = new WorkflowExecutor();
+      const executor = WorkflowExecutor.getInstance();
       
       // Find and stop any running executions for this workflow
       const stopped = await executor.stopWorkflowExecutions(workflowId, userId);

@@ -32,6 +32,8 @@ export default function Artifacts() {
   const [isVisible, setIsVisible] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [hasReceivedStopNotification, setHasReceivedStopNotification] = useState(false);
   const [copiedStepId, setCopiedStepId] = useState<string | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
   const setArtifactsVisible = useSetRecoilState(store.artifactsVisibility);
@@ -127,7 +129,28 @@ export default function Artifacts() {
     },
     onTestComplete: (testWorkflowId, success, result) => {
       if (testWorkflowId === workflowId) {
+        console.log('[Artifacts] onTestComplete called:', { testWorkflowId, success, result });
+        
+        // Check if this is the immediate stop notification
+        if (result?.error === 'Execution stopped by user' && isCancelling && !hasReceivedStopNotification) {
+          console.log('[Artifacts] This is the immediate stop notification - keeping cancelling state');
+          setHasReceivedStopNotification(true);
+          setIsTesting(false);
+          // Remove from testing workflows state but keep cancelling state
+          setTestingWorkflows(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(testWorkflowId);
+            return newSet;
+          });
+          return; // Don't process further, wait for actual completion
+        }
+        
+        // This is either a normal completion or the final completion after cancellation
+        console.log('[Artifacts] This is final completion - clearing all states');
         setIsTesting(false);
+        setIsCancelling(false);
+        setHasReceivedStopNotification(false);
+        
         // Remove from testing workflows state
         setTestingWorkflows(prev => {
           const newSet = new Set(prev);
@@ -144,11 +167,12 @@ export default function Artifacts() {
   const resultData = workflowId ? getExecutionResult(workflowId) : null;
   
   // Determine if we should show the result overlay
-  const showingResult = !!(resultData && !isTesting && !(workflowId && isWorkflowTestingFromHook(workflowId)));
+  const showingResult = !!(resultData && !isTesting && !isCancelling && !(workflowId && isWorkflowTestingFromHook(workflowId)));
   
   // Debug logging
   console.log('[Artifacts] Workflow ID:', workflowId);
   console.log('[Artifacts] Is testing:', isTesting);
+  console.log('[Artifacts] Is cancelling:', isCancelling);
   console.log('[Artifacts] Is workflow testing:', workflowId && isWorkflowTestingFromHook(workflowId));
   console.log('[Artifacts] Current step:', currentStep);
   console.log('[Artifacts] Showing result:', showingResult);
@@ -215,19 +239,26 @@ export default function Artifacts() {
     
     // If workflow is currently testing, stop it
     if (isWorkflowTesting) {
+      // Set cancelling state immediately
+      console.log('[Artifacts] Setting cancelling state to true');
+      setIsCancelling(true);
+      setHasReceivedStopNotification(false); // Reset flag when starting to cancel
+      
       stopMutation.mutate(workflowId, {
         onSuccess: () => {
-          showToast({
-            message: 'Workflow test stopped successfully',
-            severity: NotificationSeverity.SUCCESS,
-          });
-          // Remove from testing workflows state
+          // Remove the toast message - user will see cancelling state and final result
+          // Force clear all testing states immediately
           setTestingWorkflows(prev => {
             const newSet = new Set(prev);
             newSet.delete(workflowId);
             return newSet;
           });
           setIsTesting(false);
+          // Don't clear isCancelling here - let it clear when test actually completes
+          // Clear any result data
+          if (workflowId) {
+            clearExecutionResult(workflowId);
+          }
         },
         onError: (error: unknown) => {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -235,6 +266,15 @@ export default function Artifacts() {
             message: `Failed to stop workflow test: ${errorMessage}`,
             severity: NotificationSeverity.ERROR,
           });
+          // Also clear testing states on error to prevent stuck state
+          setTestingWorkflows(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(workflowId);
+            return newSet;
+          });
+          setIsTesting(false);
+          console.log('[Artifacts] Error handler - clearing cancelling state');
+          setIsCancelling(false);
         },
       });
       return;
@@ -242,6 +282,7 @@ export default function Artifacts() {
     
     // Otherwise, start testing
     setIsTesting(true);
+    setHasReceivedStopNotification(false); // Reset flag for new test
     // Add to testing workflows state
     setTestingWorkflows(prev => new Set(prev).add(workflowId));
     
@@ -362,7 +403,7 @@ export default function Artifacts() {
                         : 'bg-gradient-to-r from-brand-blue to-indigo-600 border border-brand-blue/60 hover:from-indigo-600 hover:to-blue-700 hover:border-brand-blue'
                     }`}
                     onClick={handleTestWorkflow}
-                    disabled={(testMutation.isLoading || stopMutation.isLoading) && !isWorkflowTesting}
+                    disabled={!isWorkflowTesting ? testMutation.isLoading : stopMutation.isLoading}
                   >
                     {isWorkflowTesting ? (
                       <Square className="h-4 w-4 text-white" />
@@ -427,14 +468,18 @@ export default function Artifacts() {
             />
             
             {/* Testing Overlay - Show for both button-initiated and agent-initiated tests */}
-            {(isTesting || (workflowId && isWorkflowTestingFromHook(workflowId)) || showingResult) && (
+            {(isTesting || isCancelling || (workflowId && isWorkflowTestingFromHook(workflowId)) || showingResult) && (
               <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/20 backdrop-blur-sm">
                 <div className="absolute inset-0 bg-gray-900/50"></div>
                 
-                {/* Scanner Line Animation - Only show when testing */}
-                {(isTesting || (workflowId && isWorkflowTestingFromHook(workflowId))) && !showingResult && (
+                {/* Scanner Line Animation - Only show when testing or cancelling */}
+                {(isTesting || isCancelling || (workflowId && isWorkflowTestingFromHook(workflowId))) && !showingResult && (
                   <div className="absolute inset-0 overflow-hidden">
-                    <div className="scanner-line absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-blue-400 to-transparent opacity-80 shadow-lg shadow-blue-400/50"></div>
+                    <div className={`scanner-line absolute left-0 right-0 h-1 opacity-80 shadow-lg ${
+                      isCancelling 
+                        ? 'bg-gradient-to-r from-transparent via-red-400 to-transparent shadow-red-400/50'
+                        : 'bg-gradient-to-r from-transparent via-blue-400 to-transparent shadow-blue-400/50'
+                    }`}></div>
                   </div>
                 )}
                 
@@ -457,7 +502,8 @@ export default function Artifacts() {
                         </div>
                       )}
                       <span className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100">
-                        Test {resultData.success ? 'Completed' : 'Failed'}
+                        Test {resultData.success ? 'Completed' : 
+                          (resultData.error === 'Execution was cancelled by user' ? 'Cancelled' : 'Failed')}
                       </span>
                     </div>
                     
@@ -576,12 +622,14 @@ export default function Artifacts() {
                       ) : (
                         <div className="text-center">
                           <div className="font-medium text-red-600 dark:text-red-400 mb-4">
-                            ❌ Workflow execution failed
+                            {resultData.error === 'Execution was cancelled by user' 
+                              ? 'Workflow execution cancelled' 
+                              : 'Workflow execution failed'}
                           </div>
                           {resultData.error && (
                             <div className="text-left bg-red-50 dark:bg-red-900/20 p-3 sm:p-4 rounded-lg border border-red-200 dark:border-red-700">
                               <div className="text-xs font-semibold text-red-600 dark:text-red-400 mb-2 uppercase tracking-wide">
-                                Error Details
+                                {resultData.error === 'Execution was cancelled by user' ? 'Cancellation Details' : 'Error Details'}
                               </div>
                               <div className="text-xs sm:text-sm text-red-700 dark:text-red-300 leading-relaxed">
                                 {resultData.error}
@@ -602,7 +650,7 @@ export default function Artifacts() {
                   // Show testing status with live step updates
                   <div className="relative z-10 flex flex-col items-center space-y-4 sm:space-y-6 rounded-xl bg-white/95 px-4 sm:px-8 py-4 sm:py-6 backdrop-blur-sm dark:bg-gray-800/95 max-w-[90vw] sm:max-w-lg mx-2 sm:mx-4 shadow-2xl border border-white/20">
                     {/* Live step progress */}
-                    {currentStep ? (
+                    {currentStep && !isCancelling ? (
                       <div className="w-full space-y-3 sm:space-y-4">
                         {/* Step header */}
                         <div className="text-center pb-3 border-b border-gray-200/50 dark:border-gray-600/50">
@@ -636,16 +684,28 @@ export default function Artifacts() {
                     ) : (
                       <div className="flex flex-col items-center space-y-4">
                         <div className="text-center">
-                          <span className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100 block break-words">
-                            {workflowId && isWorkflowTestingFromHook(workflowId) && !isTesting 
-                              ? 'Agent initiated test...'
-                              : 'Initializing workflow test...'
+                          <span className={`text-lg sm:text-xl font-semibold block break-words ${
+                            isCancelling 
+                              ? 'text-red-600 dark:text-red-400' 
+                              : 'text-gray-900 dark:text-gray-100'
+                          }`}>
+                            {isCancelling 
+                              ? 'Cancelling workflow execution...'
+                              : workflowId && isWorkflowTestingFromHook(workflowId) && !isTesting 
+                                ? 'Agent initiated test...'
+                                : 'Initializing workflow test...'
                             }
                           </span>
                           <div className="flex items-center justify-center space-x-1 mt-2">
-                            <div className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                            <div className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                            <div className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-bounce"></div>
+                            <div className={`h-1.5 w-1.5 rounded-full animate-bounce [animation-delay:-0.3s] ${
+                              isCancelling ? 'bg-red-500' : 'bg-blue-500'
+                            }`}></div>
+                            <div className={`h-1.5 w-1.5 rounded-full animate-bounce [animation-delay:-0.15s] ${
+                              isCancelling ? 'bg-red-500' : 'bg-blue-500'
+                            }`}></div>
+                            <div className={`h-1.5 w-1.5 rounded-full animate-bounce ${
+                              isCancelling ? 'bg-red-500' : 'bg-blue-500'
+                            }`}></div>
                           </div>
                         </div>
                       </div>

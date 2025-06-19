@@ -21,8 +21,13 @@ const {
  * @param {string} userId - User ID
  * @returns {Promise<Object>} Execution result
  */
-async function executeStepWithAgent(step, prompt, context, userId) {
+async function executeStepWithAgent(step, prompt, context, userId, abortSignal) {
   logger.info(`[WorkflowAgentExecutor] Executing step "${step.name}" with fresh agent`);
+
+  // Check if execution has been cancelled
+  if (abortSignal?.aborted) {
+    throw new Error('Execution was cancelled by user');
+  }
 
   try {
     // Always create a fresh agent for each step to prevent context bleeding
@@ -42,12 +47,22 @@ async function executeStepWithAgent(step, prompt, context, userId) {
       } tools using ${endpointName}/${configuredModel}`,
     );
 
+    // Check if execution has been cancelled before sending message
+    if (abortSignal?.aborted) {
+      throw new Error('Execution was cancelled by user');
+    }
+
     // Execute the step using the fresh agent
     const response = await client.sendMessage(prompt, {
       user: userId,
       conversationId: context.workflow?.conversationId,
       parentMessageId: context.workflow?.parentMessageId,
+      abortSignal, // Pass abort signal to the client
       onProgress: (data) => {
+        // Check for cancellation during progress
+        if (abortSignal?.aborted) {
+          throw new Error('Execution was cancelled by user');
+        }
         logger.debug(
           `[WorkflowAgentExecutor] Agent progress for step "${step.name}":`,
           data?.text?.substring(0, 100),

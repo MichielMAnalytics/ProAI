@@ -470,9 +470,9 @@ class SchedulerTaskExecutor {
         }
       };
 
-      // Use WorkflowExecutor directly to avoid circular dependency
+      // Use WorkflowExecutor singleton to maintain execution state
       const WorkflowExecutor = require('~/server/services/Workflows/WorkflowExecutor');
-      const workflowExecutor = new WorkflowExecutor();
+      const workflowExecutor = WorkflowExecutor.getInstance();
 
       // Execute the workflow using WorkflowExecutor
       const workflowResult = await workflowExecutor.executeWorkflow(

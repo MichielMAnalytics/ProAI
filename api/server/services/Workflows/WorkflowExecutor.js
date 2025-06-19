@@ -39,11 +39,33 @@ const SchedulerClientFactory = require('~/server/services/Scheduler/SchedulerCli
  * - Each step gets a fresh agent instance
  * - No agent reuse across steps to prevent context bleeding
  * - All steps are 'mcp_agent_action' type
+ *
+ * SINGLETON PATTERN:
+ * - Maintains shared state for running executions across instances
+ * - Ensures proper execution tracking and stop functionality
  */
 class WorkflowExecutor {
   constructor() {
+    // Use singleton pattern to maintain shared state
+    if (WorkflowExecutor.instance) {
+      return WorkflowExecutor.instance;
+    }
+    
     this.runningExecutions = new Map(); // Track running executions
     this.mcpInitialized = new Map(); // Track MCP initialization per user
+    
+    WorkflowExecutor.instance = this;
+  }
+
+  /**
+   * Get singleton instance
+   * @returns {WorkflowExecutor} The singleton instance
+   */
+  static getInstance() {
+    if (!WorkflowExecutor.instance) {
+      WorkflowExecutor.instance = new WorkflowExecutor();
+    }
+    return WorkflowExecutor.instance;
   }
 
   /**
@@ -134,12 +156,16 @@ class WorkflowExecutor {
         `[WorkflowExecutor] MCP ready for workflow ${workflowId}: ${mcpResult.toolCount} tools available`,
       );
 
-      // Track this execution
+      // Create cancellation controller for this execution
+      const abortController = new AbortController();
+      
+      // Track this execution with cancellation support
       this.runningExecutions.set(executionId, {
         workflowId,
         startTime: new Date(),
         status: 'running',
         mcpResult,
+        abortController,
       });
 
       // Get or create a dedicated conversation for workflow execution logging
@@ -296,6 +322,18 @@ class WorkflowExecutor {
     const accumulatedStepResults = [];
 
     while (currentStep) {
+      // Check if execution has been cancelled
+      const executionData = this.runningExecutions.get(execution.id);
+      if (!executionData) {
+        logger.info(`[WorkflowExecutor] Execution ${execution.id} was stopped, terminating workflow`);
+        throw new Error('Execution was cancelled by user');
+      }
+      
+      if (executionData.abortController && executionData.abortController.signal.aborted) {
+        logger.info(`[WorkflowExecutor] Execution ${execution.id} was aborted, terminating workflow`);
+        throw new Error('Execution was cancelled by user');
+      }
+
       const step = workflow.steps.find((s) => s.id === currentStep);
       if (!step) {
         throw new Error(`Step not found: ${currentStep}`);
@@ -304,7 +342,7 @@ class WorkflowExecutor {
       logger.info(`[WorkflowExecutor] Executing step: ${step.name} (${step.type})`);
 
       // Execute the current step (each step gets a fresh agent)
-      const stepResult = await executeStep(workflow, execution, step, context);
+      const stepResult = await executeStep(workflow, execution, step, context, executionData.abortController?.signal);
 
       // Update the parent message ID for the next step to maintain conversation threading
       if (stepResult && stepResult.responseMessageId) {
@@ -392,6 +430,12 @@ class WorkflowExecutor {
     for (const [executionId, data] of this.runningExecutions.entries()) {
       if (data.workflowId === workflowId) {
         logger.info(`[WorkflowExecutor] Stopping execution ${executionId} for workflow ${workflowId}`);
+        
+        // Signal cancellation to abort the execution
+        if (data.abortController) {
+          data.abortController.abort('Execution stopped by user');
+          logger.info(`[WorkflowExecutor] Sent abort signal to execution ${executionId}`);
+        }
         
         // Remove from running executions
         this.runningExecutions.delete(executionId);
