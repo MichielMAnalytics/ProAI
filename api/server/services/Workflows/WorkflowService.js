@@ -458,8 +458,9 @@ class WorkflowService {
         const WorkflowExecutor = require('~/server/services/Workflows/WorkflowExecutor');
         const executor = new WorkflowExecutor();
         
-        // Execute workflow using WorkflowExecutor
-        const result = await executor.executeWorkflow(workflow, { id: executionId, user: userId }, context);
+        // Execute workflow using WorkflowExecutor with isTest flag in context
+        const executionContext = { ...context, isTest };
+        const result = await executor.executeWorkflow(workflow, { id: executionId, user: userId }, executionContext);
         
         // Update execution status
         await updateSchedulerExecution(execution.id, userId, {

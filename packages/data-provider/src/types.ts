@@ -832,6 +832,20 @@ export type TSchedulerExecution = {
   user: string;
   createdAt?: Date | { $date: string };
   updatedAt?: Date | { $date: string };
+  metadata?: {
+    isTest?: boolean;
+    workflowName?: string;
+    steps?: Array<{
+      id: string;
+      name: string;
+      type: string;
+      status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+      startTime?: Date | { $date: string };
+      endTime?: Date | { $date: string };
+      output?: string;
+      error?: string;
+    }>;
+  };
 };
 
 export type TWorkflowStep = {

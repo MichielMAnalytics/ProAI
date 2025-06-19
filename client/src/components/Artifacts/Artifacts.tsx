@@ -171,6 +171,23 @@ export default function Artifacts() {
   // Determine if we should show the result overlay
   const showingResult = !!(resultData && !isTesting && !isCancelling && !(workflowId && isWorkflowTestingFromHook(workflowId)));
   
+  // Status helper functions
+  const getStatusColor = (isActive: boolean, isDraft: boolean) => {
+    if (isActive) {
+      return 'bg-green-100 text-green-700'; // Active workflows are always green
+    }
+    if (isDraft) {
+      return 'bg-orange-100 text-orange-700'; // Inactive drafts are orange
+    }
+    return 'bg-gray-100 text-gray-600'; // Inactive non-drafts are gray
+  };
+
+  const getStatusText = (isActive: boolean, isDraft: boolean) => {
+    if (isActive) return 'active';
+    if (isDraft) return 'draft';
+    return 'inactive';
+  };
+
   // Debug logging
   console.log('[Artifacts] Workflow ID:', workflowId);
   console.log('[Artifacts] Is testing:', isTesting);
@@ -446,13 +463,23 @@ export default function Artifacts() {
                     <Trash2 className="h-4 w-4 text-white" />
                   </button>
                 </TooltipAnchor>
+                
+                {/* Status Badge */}
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium flex-shrink-0 font-inter ${getStatusColor(
+                    isWorkflowActive || false,
+                    isDraft || false,
+                  )}`}
+                >
+                  {getStatusText(isWorkflowActive || false, isDraft || false)}
+                </span>
               </div>
             )}
             
             {/* Right: View toggle for workflows, close button for others */}
             {isWorkflowArtifact ? (
               <div className="flex items-center gap-1">
-                <TooltipAnchor description={viewMode === 'visualization' ? 'Switch to execution dashboard' : 'Switch to visualization'} side="bottom">
+                <TooltipAnchor description="Visualization view" side="bottom">
                   <button 
                     className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md transition-colors hover:bg-surface-hover ${
                       viewMode === 'visualization' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:text-text-primary'
@@ -462,7 +489,7 @@ export default function Artifacts() {
                     <FileText className="h-4 w-4" />
                   </button>
                 </TooltipAnchor>
-                <TooltipAnchor description={viewMode === 'dashboard' ? 'Switch to visualization' : 'Switch to execution dashboard'} side="bottom">
+                <TooltipAnchor description="Execution dashboard" side="bottom">
                   <button 
                     className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md transition-colors hover:bg-surface-hover ${
                       viewMode === 'dashboard' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:text-text-primary'
@@ -470,14 +497,6 @@ export default function Artifacts() {
                     onClick={() => setViewMode('dashboard')}
                   >
                     <BarChart3 className="h-4 w-4" />
-                  </button>
-                </TooltipAnchor>
-                <TooltipAnchor description="Close artifacts" side="bottom">
-                  <button 
-                    className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary ml-1" 
-                    onClick={closeArtifacts}
-                  >
-                    <X className="h-4 w-4" />
                   </button>
                 </TooltipAnchor>
               </div>
@@ -783,8 +802,6 @@ export default function Artifacts() {
                   />
                 </button>
               </TooltipAnchor>
-              <CopyCodeButton content={currentArtifact.content ?? ''} />
-              <DownloadArtifact artifact={currentArtifact} />
             </div>
           </div>
         </div>

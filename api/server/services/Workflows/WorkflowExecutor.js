@@ -265,12 +265,28 @@ class WorkflowExecutor {
         variables: {},
       };
 
-      // Update execution record with serializable context
+      // Extract workflow name for metadata
+      const workflowName = workflow.name?.replace(/^Workflow:\s*/, '') || 'Unnamed Workflow';
+      
+      // Initialize metadata with isTest flag and workflow info
+      const executionMetadata = {
+        isTest: context.isTest || false,
+        workflowName,
+        steps: workflow.steps?.map(step => ({
+          id: step.id,
+          name: step.name,
+          type: step.type,
+          status: 'pending'
+        })) || []
+      };
+
+      // Update execution record with serializable context and metadata
       const serializableContext = createSerializableContext(executionContext);
       await updateSchedulerExecution(executionId, execution.user, {
         status: 'running',
         startTime: new Date(),
         context: serializableContext,
+        metadata: executionMetadata,
       });
 
       // Find the first step (usually the one without any incoming connections)
@@ -280,7 +296,7 @@ class WorkflowExecutor {
       }
 
       // Execute steps starting from the first step
-      const result = await this.executeStepChain(workflow, execution, firstStep.id, executionContext);
+      const result = await this.executeStepChain(workflow, execution, firstStep.id, executionContext, executionMetadata);
 
       // Clean up tracking
       this.runningExecutions.delete(executionId);
@@ -314,9 +330,10 @@ class WorkflowExecutor {
    * @param {Object} execution - The execution record
    * @param {string} currentStepId - Current step ID to execute
    * @param {Object} context - Execution context
+   * @param {Object} metadata - Execution metadata with step tracking
    * @returns {Promise<Object>} Execution result
    */
-  async executeStepChain(workflow, execution, currentStepId, context) {
+  async executeStepChain(workflow, execution, currentStepId, context, metadata) {
     let currentStep = currentStepId;
     const executionResult = { success: true, error: null };
     const accumulatedStepResults = [];
@@ -341,8 +358,42 @@ class WorkflowExecutor {
 
       logger.info(`[WorkflowExecutor] Executing step: ${step.name} (${step.type})`);
 
+      // Update step status to running in metadata
+      const stepMetadata = metadata.steps.find(s => s.id === step.id);
+      if (stepMetadata) {
+        stepMetadata.status = 'running';
+        stepMetadata.startTime = new Date();
+        
+        // Update execution with current step status
+        await updateSchedulerExecution(execution.id, execution.user, {
+          metadata: { ...metadata },
+        });
+      }
+
       // Execute the current step (each step gets a fresh agent)
       const stepResult = await executeStep(workflow, execution, step, context, executionData.abortController?.signal);
+
+      // Update step status and results in metadata
+      if (stepMetadata) {
+        stepMetadata.status = stepResult.success ? 'completed' : 'failed';
+        stepMetadata.endTime = new Date();
+        
+        // Capture step output and error
+        if (stepResult.result && typeof stepResult.result === 'string') {
+          stepMetadata.output = stepResult.result;
+        } else if (stepResult.result && typeof stepResult.result === 'object') {
+          stepMetadata.output = JSON.stringify(stepResult.result, null, 2);
+        }
+        
+        if (stepResult.error) {
+          stepMetadata.error = stepResult.error;
+        }
+        
+        // Update execution with step results
+        await updateSchedulerExecution(execution.id, execution.user, {
+          metadata: { ...metadata },
+        });
+      }
 
       // Update the parent message ID for the next step to maintain conversation threading
       if (stepResult && stepResult.responseMessageId) {

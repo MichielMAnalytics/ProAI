@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Clock, CheckCircle, XCircle, AlertCircle, RefreshCw, Calendar, User, Play } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, AlertCircle, RefreshCw, Calendar, User, Play, ChevronDown, ChevronRight } from 'lucide-react';
 import { useSchedulerExecutionsQuery } from '~/data-provider';
 import type { TSchedulerExecution } from 'librechat-data-provider';
 
@@ -16,6 +16,19 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
     enabled: !!taskId,
     refetchInterval: 30000, // Refetch every 30 seconds to get latest executions
   });
+
+  // Track expanded executions for step details
+  const [expandedExecutions, setExpandedExecutions] = useState<Set<string>>(new Set());
+
+  const toggleExecutionExpansion = (executionId: string) => {
+    const newExpanded = new Set(expandedExecutions);
+    if (newExpanded.has(executionId)) {
+      newExpanded.delete(executionId);
+    } else {
+      newExpanded.add(executionId);
+    }
+    setExpandedExecutions(newExpanded);
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -124,27 +137,11 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
       {/* Header */}
       <div className="border-b border-border-medium bg-surface-primary-alt p-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Play className="h-5 w-5 text-text-secondary" />
+          <div className="flex items-center">
             <h2 className="text-lg font-semibold text-text-primary">Execution History</h2>
           </div>
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => refetch()}
-              className="flex items-center space-x-1 px-2 py-1 text-xs bg-surface-secondary hover:bg-surface-hover rounded-md border border-border-medium transition-colors"
-              disabled={loading}
-            >
-              <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
-            </button>
-            <div className="text-sm text-text-secondary">
-              {executions.length} execution{executions.length !== 1 ? 's' : ''}
-              {executions.length > 0 && (
-                <span className="ml-2 text-xs text-gray-400">
-                  (Querying task_id: {taskId})
-                </span>
-              )}
-            </div>
+          <div className="text-sm text-text-secondary">
+            {executions.length} execution{executions.length !== 1 ? 's' : ''}
           </div>
         </div>
       </div>
@@ -164,52 +161,163 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
             {executions.map((execution) => (
               <div
                 key={execution.id}
-                className="bg-surface-secondary border border-border-medium rounded-lg p-4 hover:bg-surface-hover transition-colors"
+                className="bg-surface-secondary border border-border-medium rounded-lg p-3 hover:bg-surface-hover transition-colors overflow-hidden"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-3 flex-1">
-                    {getStatusIcon(execution.status)}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(execution.status)}`}>
+                <div className="flex flex-col">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      {getStatusIcon(execution.status)}
+                      <div className="flex items-center space-x-2">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${getStatusColor(
+                            execution.status,
+                          )}`}
+                        >
                           {getStatusText(execution.status)}
                         </span>
-                        <span className="text-xs text-text-secondary">
+                        <span className="hidden text-xs text-text-secondary sm:block">
                           {formatDate(execution.start_time)}
                         </span>
                       </div>
-                      
-                      <div className="flex items-center space-x-4 text-xs text-text-secondary mb-2">
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="h-3 w-3" />
-                          <span>Duration: {calculateDuration(execution.start_time, execution.end_time)}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <User className="h-3 w-3" />
-                          <span>{execution.user}</span>
-                        </div>
+                    </div>
+
+                    <div className="flex flex-shrink-0 items-center space-x-4 text-xs text-text-secondary">
+                      <div className="hidden items-center space-x-1 md:flex">
+                        <Calendar className="h-3 w-3" />
+                        <span>
+                          Duration: {calculateDuration(execution.start_time, execution.end_time)}
+                        </span>
                       </div>
-
-                      {execution.output && (
-                        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded p-2 mt-2">
-                          <div className="text-xs font-medium text-green-600 dark:text-green-400 mb-1">Output:</div>
-                          <div className="text-xs text-green-700 dark:text-green-300 font-mono">
-                            {execution.output}
-                          </div>
-                        </div>
-                      )}
-
-                      {execution.error && (
-                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded p-2 mt-2">
-                          <div className="text-xs font-medium text-red-600 dark:text-red-400 mb-1">
-                            {execution.status === 'cancelled' ? 'Cancellation Details:' : 'Error Details:'}
-                          </div>
-                          <div className="text-xs text-red-700 dark:text-red-300 font-mono">
-                            {execution.error}
-                          </div>
+                      {execution.metadata?.isTest && (
+                        <div className="flex items-center space-x-1">
+                          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                            Test Run
+                          </span>
                         </div>
                       )}
                     </div>
+                  </div>
+                  <div className="mt-2 flex-1 px-5">
+                    <div className="mb-2 block text-xs text-text-secondary sm:hidden">
+                      {formatDate(execution.start_time)}
+                    </div>
+                    <div className="mb-2 flex items-center space-x-1 text-xs text-text-secondary md:hidden">
+                      <Calendar className="h-3 w-3" />
+                      <span>
+                        Duration: {calculateDuration(execution.start_time, execution.end_time)}
+                      </span>
+                    </div>
+
+                    {execution.output && (
+                      <div className="mt-2 rounded border border-green-200 bg-green-50 p-2 dark:border-green-700 dark:bg-green-900/20">
+                        <div className="mb-1 text-xs font-medium text-green-600 dark:text-green-400">
+                          Output:
+                        </div>
+                        <div className="font-mono text-xs text-green-700 dark:text-green-300 break-all whitespace-pre-wrap overflow-hidden">
+                          {execution.output}
+                        </div>
+                      </div>
+                    )}
+
+                    {execution.error && (
+                      <div className="mt-2 rounded border border-red-200 bg-red-50 p-2 dark:border-red-700 dark:bg-red-900/20">
+                        <div className="mb-1 text-xs font-medium text-red-600 dark:text-red-400">
+                          {execution.status === 'cancelled'
+                            ? 'Cancellation Details:'
+                            : 'Error Details:'}
+                        </div>
+                        <div className="font-mono text-xs text-red-700 dark:text-red-300">
+                          {execution.error}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Step Details Toggle */}
+                    {execution.metadata?.steps && execution.metadata.steps.length > 0 && (
+                      <div className="mt-3 border-t border-border-light pt-2">
+                        <button
+                          onClick={() => toggleExecutionExpansion(execution.id)}
+                          className="flex items-center space-x-1 text-xs text-text-secondary transition-colors hover:text-text-primary"
+                        >
+                          {expandedExecutions.has(execution.id) ? (
+                            <ChevronDown className="h-3 w-3" />
+                          ) : (
+                            <ChevronRight className="h-3 w-3" />
+                          )}
+                          <span>
+                            {execution.metadata.steps.length} step
+                            {execution.metadata.steps.length !== 1 ? 's' : ''}
+                          </span>
+                        </button>
+
+                        {/* Step Details */}
+                        {expandedExecutions.has(execution.id) && (
+                          <div className="mt-2 space-y-2">
+                            {execution.metadata.steps.map((step, index) => (
+                              <div
+                                key={step.id}
+                                className="rounded border border-border-light bg-surface-primary p-2 overflow-hidden"
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex flex-1 items-start space-x-2">
+                                    <span className="min-w-[20px] font-mono text-xs text-text-secondary">
+                                      {index + 1}.
+                                    </span>
+                                    <div className="flex-1 pr-7">
+                                      <div className="mb-1 flex items-center space-x-2">
+                                        {getStatusIcon(step.status)}
+                                        <span className="text-xs font-medium text-text-primary">
+                                          {step.name}
+                                        </span>
+                                        <span
+                                          className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${getStatusColor(
+                                            step.status,
+                                          )}`}
+                                        >
+                                          {getStatusText(step.status)}
+                                        </span>
+                                      </div>
+
+                                      <div className="mb-1 text-xs text-text-secondary">
+                                        Type: <span className="font-mono">{step.type}</span>
+                                        {step.startTime && step.endTime && (
+                                          <span className="ml-3">
+                                            Duration:{' '}
+                                            {calculateDuration(step.startTime, step.endTime)}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {step.output && (
+                                        <div className="mt-1 rounded border border-green-200 bg-green-50 p-1.5 dark:border-green-700 dark:bg-green-900/20">
+                                          <div className="mb-0.5 text-xs font-medium text-green-600 dark:text-green-400">
+                                            Output:
+                                          </div>
+                                          <div className="whitespace-pre-wrap font-mono text-xs text-green-700 dark:text-green-300 break-all overflow-hidden">
+                                            {step.output}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {step.error && (
+                                        <div className="mt-1 rounded border border-red-200 bg-red-50 p-1.5 dark:border-red-700 dark:bg-red-900/20">
+                                          <div className="mb-0.5 text-xs font-medium text-red-600 dark:text-red-400">
+                                            Error:
+                                          </div>
+                                          <div className="whitespace-pre-wrap font-mono text-xs text-red-700 dark:text-red-300 break-all overflow-hidden">
+                                            {step.error}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

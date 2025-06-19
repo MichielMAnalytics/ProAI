@@ -5,10 +5,24 @@ export interface ISchedulerExecution extends Document {
   task_id: string;
   start_time: Date;
   end_time?: Date;
-  status: 'running' | 'completed' | 'failed';
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
   output?: string;
   error?: string;
   user: Types.ObjectId;
+  metadata?: {
+    isTest?: boolean;
+    workflowName?: string;
+    steps?: Array<{
+      id: string;
+      name: string;
+      type: string;
+      status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+      startTime?: Date;
+      endTime?: Date;
+      output?: string;
+      error?: string;
+    }>;
+  };
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -34,7 +48,7 @@ const schedulerExecutionSchema: Schema<ISchedulerExecution> = new Schema(
     status: {
       type: String,
       required: true,
-      enum: ['running', 'completed', 'failed'],
+      enum: ['running', 'completed', 'failed', 'cancelled'],
       default: 'running',
     },
     output: {
@@ -47,6 +61,10 @@ const schedulerExecutionSchema: Schema<ISchedulerExecution> = new Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+    },
+    metadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: undefined,
     },
   },
   { 
