@@ -508,10 +508,10 @@ class WorkflowTool extends Tool {
           const tool = availableTools[toolKey];
           if (tool && typeof tool === 'object' && tool.function) {
             // Check if this is an MCP tool by looking at the tool registry
-            const isMCPTool = req.app.locals.mcpToolRegistry && req.app.locals.mcpToolRegistry.has(toolKey);
+            const isMCPTool = this.req?.app?.locals?.mcpToolRegistry && this.req.app.locals.mcpToolRegistry.has(toolKey);
             
             if (isMCPTool) {
-              const mcpInfo = req.app.locals.mcpToolRegistry.get(toolKey);
+              const mcpInfo = this.req.app.locals.mcpToolRegistry.get(toolKey);
               
               mcpTools.push({
                 name: tool.function.name,

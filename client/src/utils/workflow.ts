@@ -460,7 +460,11 @@ export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
               return { type: 'emoji', value: '🤖' };
             }
             
-            const tool = toolsData.find(t => t.name === toolName || t.pluginKey === toolName);
+            // Case-insensitive matching to handle uppercase/lowercase mismatches
+            const tool = toolsData.find(t => 
+              t.name?.toLowerCase() === toolName.toLowerCase() || 
+              t.pluginKey?.toLowerCase() === toolName.toLowerCase()
+            );
             if (tool?.icon) {
               return { type: 'image', value: tool.icon, name: tool.name };
             }
