@@ -310,6 +310,10 @@ export const schedulerTasks = () => '/api/scheduler/tasks';
 export const schedulerTask = (taskId: string) => `/api/scheduler/tasks/${taskId}`;
 export const schedulerTaskAction = (taskId: string, action: string) => `/api/scheduler/tasks/${taskId}/${action}`;
 
+/* Scheduler Executions */
+export const schedulerExecutions = (taskId?: string) => taskId ? `/api/scheduler/tasks/${taskId}/executions` : '/api/scheduler/executions';
+export const schedulerExecution = (executionId: string) => `/api/scheduler/executions/${executionId}`;
+
 /* Workflow endpoints */
 export const workflows = () => '/api/workflows';
 export const workflow = (workflowId: string) => `/api/workflows/${workflowId}`;

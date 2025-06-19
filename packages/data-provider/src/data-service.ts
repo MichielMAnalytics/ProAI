@@ -897,6 +897,15 @@ export function toggleSchedulerTask(taskId: string, enabled: boolean): Promise<t
   return request.post(endpoints.schedulerTaskAction(taskId, action)).then((response: any) => response.task);
 }
 
+/* Scheduler Executions */
+export function getSchedulerExecutions(taskId?: string): Promise<t.TSchedulerExecution[]> {
+  return request.get(endpoints.schedulerExecutions(taskId)).then((response: any) => response.executions || []);
+}
+
+export function getSchedulerExecution(executionId: string): Promise<t.TSchedulerExecution> {
+  return request.get(endpoints.schedulerExecution(executionId)).then((response: any) => response.execution);
+}
+
 /* Workflows */
 export function getWorkflows(): Promise<t.TUserWorkflow[]> {
   return request.get(endpoints.workflows()).then((response: any) => response.workflows || []);

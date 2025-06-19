@@ -820,6 +820,20 @@ export type TSchedulerTask = {
   updatedAt?: Date | { $date: string };
 };
 
+// Scheduler Execution types
+export type TSchedulerExecution = {
+  id: string;
+  task_id: string;
+  start_time: Date | { $date: string };
+  end_time?: Date | { $date: string };
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  output?: string;
+  error?: string;
+  user: string;
+  createdAt?: Date | { $date: string };
+  updatedAt?: Date | { $date: string };
+};
+
 export type TWorkflowStep = {
   id: string;
   name: string;

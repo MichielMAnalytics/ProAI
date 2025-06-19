@@ -720,6 +720,34 @@ export const useToggleSchedulerTaskMutation = (
   });
 };
 
+// Scheduler Executions
+export const useSchedulerExecutionsQuery = (
+  taskId?: string,
+  options?: UseQueryOptions<t.TSchedulerExecution[]>
+) =>
+  useQuery<t.TSchedulerExecution[]>({
+    queryKey: [QueryKeys.schedulerExecutions, taskId],
+    queryFn: () => dataService.getSchedulerExecutions(taskId),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    ...options,
+  });
+
+export const useSchedulerExecutionQuery = (
+  executionId: string,
+  options?: UseQueryOptions<t.TSchedulerExecution>
+) =>
+  useQuery<t.TSchedulerExecution>({
+    queryKey: [QueryKeys.schedulerExecution, executionId],
+    queryFn: () => dataService.getSchedulerExecution(executionId),
+    enabled: !!executionId,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    ...options,
+  });
+
 // Workflows
 export const useWorkflowsQuery = (options?: UseQueryOptions<t.TUserWorkflow[]>) =>
   useQuery<t.TUserWorkflow[]>({

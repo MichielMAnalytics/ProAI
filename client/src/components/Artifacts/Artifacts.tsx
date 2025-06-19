@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRecoilState, useSetRecoilState } from 'recoil';
 import * as Tabs from '@radix-ui/react-tabs';
-import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, RefreshCw, X, Play, Pause, TestTube, Trash2, Plus, Search, RotateCcw, Eye, Copy, Check, Square } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, RefreshCw, X, Play, Pause, TestTube, Trash2, Plus, Search, RotateCcw, Eye, Copy, Check, Square, BarChart3, FileText } from 'lucide-react';
 import type { SandpackPreviewRef, CodeEditorRef } from '@codesandbox/sandpack-react';
 import useArtifacts from '~/hooks/Artifacts/useArtifacts';
 import DownloadArtifact from './DownloadArtifact';
 import { useEditorContext } from '~/Providers';
 import useLocalize from '~/hooks/useLocalize';
 import ArtifactTabs from './ArtifactTabs';
+import ExecutionDashboard from './ExecutionDashboard';
 import { CopyCodeButton } from './Code';
 import store from '~/store';
 import {
@@ -34,6 +35,7 @@ export default function Artifacts() {
   const [isTesting, setIsTesting] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [hasReceivedStopNotification, setHasReceivedStopNotification] = useState(false);
+  const [viewMode, setViewMode] = useState<'visualization' | 'dashboard'>('visualization');
   const [copiedStepId, setCopiedStepId] = useState<string | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
   const setArtifactsVisible = useSetRecoilState(store.artifactsVisibility);
@@ -447,28 +449,65 @@ export default function Artifacts() {
               </div>
             )}
             
-            {/* Right: Close button */}
-            <TooltipAnchor description="Close artifacts" side="bottom">
-              <button 
-                className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary" 
-                onClick={closeArtifacts}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </TooltipAnchor>
+            {/* Right: View toggle for workflows, close button for others */}
+            {isWorkflowArtifact ? (
+              <div className="flex items-center gap-1">
+                <TooltipAnchor description={viewMode === 'visualization' ? 'Switch to execution dashboard' : 'Switch to visualization'} side="bottom">
+                  <button 
+                    className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md transition-colors hover:bg-surface-hover ${
+                      viewMode === 'visualization' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                    onClick={() => setViewMode('visualization')}
+                  >
+                    <FileText className="h-4 w-4" />
+                  </button>
+                </TooltipAnchor>
+                <TooltipAnchor description={viewMode === 'dashboard' ? 'Switch to visualization' : 'Switch to execution dashboard'} side="bottom">
+                  <button 
+                    className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md transition-colors hover:bg-surface-hover ${
+                      viewMode === 'dashboard' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                    onClick={() => setViewMode('dashboard')}
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                  </button>
+                </TooltipAnchor>
+                <TooltipAnchor description="Close artifacts" side="bottom">
+                  <button 
+                    className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary ml-1" 
+                    onClick={closeArtifacts}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </TooltipAnchor>
+              </div>
+            ) : (
+              <TooltipAnchor description="Close artifacts" side="bottom">
+                <button 
+                  className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary" 
+                  onClick={closeArtifacts}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </TooltipAnchor>
+            )}
           </div>
           {/* Content */}
           <div className="flex-1 overflow-hidden relative">
-            <ArtifactTabs
-              isMermaid={isMermaid}
-              artifact={currentArtifact}
-              isSubmitting={isSubmitting}
-              editorRef={editorRef as React.MutableRefObject<CodeEditorRef>}
-              previewRef={previewRef as React.MutableRefObject<SandpackPreviewRef>}
-            />
+            {isWorkflowArtifact && viewMode === 'dashboard' ? (
+              <ExecutionDashboard workflowId={workflowId || ''} />
+            ) : (
+              <ArtifactTabs
+                isMermaid={isMermaid}
+                artifact={currentArtifact}
+                isSubmitting={isSubmitting}
+                editorRef={editorRef as React.MutableRefObject<CodeEditorRef>}
+                previewRef={previewRef as React.MutableRefObject<SandpackPreviewRef>}
+              />
+            )}
             
-            {/* Testing Overlay - Show for both button-initiated and agent-initiated tests */}
-            {(isTesting || isCancelling || (workflowId && isWorkflowTestingFromHook(workflowId)) || showingResult) && (
+            {/* Testing Overlay - Show for both button-initiated and agent-initiated tests, only in visualization mode */}
+            {viewMode === 'visualization' && (isTesting || isCancelling || (workflowId && isWorkflowTestingFromHook(workflowId)) || showingResult) && (
               <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/20 backdrop-blur-sm">
                 <div className="absolute inset-0 bg-gray-900/50"></div>
                 

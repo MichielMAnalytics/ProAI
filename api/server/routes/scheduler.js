@@ -15,6 +15,11 @@ const {
   enableSchedulerTask,
   disableSchedulerTask
 } = require('~/models/SchedulerTask');
+const {
+  getSchedulerExecutionsByTask,
+  getSchedulerExecutionsByUser,
+  getSchedulerExecutionById
+} = require('~/models/SchedulerExecution');
 
 const router = express.Router();
 
@@ -461,6 +466,83 @@ router.get('/status', requireJwtAuth, async (req, res) => {
     res.json({
       success: true,
       status
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * Get scheduler executions - either all executions for user or executions for a specific task
+ * @route GET /scheduler/executions
+ * @route GET /scheduler/tasks/:taskId/executions
+ * @returns {object} Array of scheduler executions
+ */
+router.get('/executions', requireJwtAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const limit = parseInt(req.query.limit) || 50;
+    
+    const executions = await getSchedulerExecutionsByUser(userId, limit);
+    
+    res.json({
+      success: true,
+      executions
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+router.get('/tasks/:taskId/executions', requireJwtAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { taskId } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
+    
+    const executions = await getSchedulerExecutionsByTask(taskId, userId, limit);
+    
+    res.json({
+      success: true,
+      executions
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * Get a specific scheduler execution by ID
+ * @route GET /scheduler/executions/:executionId
+ * @param {string} executionId - The execution ID
+ * @returns {object} Scheduler execution details
+ */
+router.get('/executions/:executionId', requireJwtAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { executionId } = req.params;
+    
+    const execution = await getSchedulerExecutionById(executionId, userId);
+    
+    if (!execution) {
+      return res.status(404).json({
+        success: false,
+        error: 'Execution not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      execution
     });
   } catch (error) {
     res.status(500).json({ 

@@ -1,0 +1,224 @@
+import React, { useState } from 'react';
+import { Clock, CheckCircle, XCircle, AlertCircle, RefreshCw, Calendar, User, Play } from 'lucide-react';
+import { useSchedulerExecutionsQuery } from '~/data-provider';
+import type { TSchedulerExecution } from 'librechat-data-provider';
+
+interface ExecutionDashboardProps {
+  workflowId: string;
+}
+
+const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) => {
+  // Transform workflowId to match scheduler task_id format
+  const taskId = workflowId ? `workflow_${workflowId.replace('workflow_', '')}` : '';
+  
+  // Use the real API query
+  const { data: executions = [], isLoading: loading, error, refetch } = useSchedulerExecutionsQuery(taskId, {
+    enabled: !!taskId,
+    refetchInterval: 30000, // Refetch every 30 seconds to get latest executions
+  });
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'failed':
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      case 'cancelled':
+        return <AlertCircle className="h-4 w-4 text-orange-500" />;
+      case 'running':
+        return <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />;
+      default:
+        return <Clock className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'completed': return 'Completed';
+      case 'failed': return 'Failed';
+      case 'cancelled': return 'Cancelled';
+      case 'running': return 'Running';
+      default: return 'Unknown';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20';
+      case 'failed': return 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20';
+      case 'cancelled': return 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20';
+      case 'running': return 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20';
+      default: return 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20';
+    }
+  };
+
+  const formatDate = (date: Date | { $date: string } | string) => {
+    let dateObj: Date;
+    if (typeof date === 'string') {
+      dateObj = new Date(date);
+    } else if (date && typeof date === 'object' && '$date' in date) {
+      dateObj = new Date(date.$date);
+    } else {
+      dateObj = date as Date;
+    }
+    return dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const calculateDuration = (startTime: Date | { $date: string } | string, endTime?: Date | { $date: string } | string) => {
+    let start: Date;
+    let end: Date;
+    
+    if (typeof startTime === 'string') {
+      start = new Date(startTime);
+    } else if (startTime && typeof startTime === 'object' && '$date' in startTime) {
+      start = new Date(startTime.$date);
+    } else {
+      start = startTime as Date;
+    }
+    
+    if (endTime) {
+      if (typeof endTime === 'string') {
+        end = new Date(endTime);
+      } else if (endTime && typeof endTime === 'object' && '$date' in endTime) {
+        end = new Date(endTime.$date);
+      } else {
+        end = endTime as Date;
+      }
+    } else {
+      end = new Date();
+    }
+    
+    const duration = Math.floor((end.getTime() - start.getTime()) / 1000);
+    
+    if (duration < 60) return `${duration}s`;
+    if (duration < 3600) return `${Math.floor(duration / 60)}m ${duration % 60}s`;
+    return `${Math.floor(duration / 3600)}h ${Math.floor((duration % 3600) / 60)}m`;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="flex flex-col items-center space-y-4">
+          <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
+          <span className="text-sm text-gray-600 dark:text-gray-400">Loading execution history...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <XCircle className="h-8 w-8 text-red-500 mx-auto mb-2" />
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {error instanceof Error ? error.message : 'Failed to load execution history'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full flex flex-col bg-surface-primary">
+      {/* Header */}
+      <div className="border-b border-border-medium bg-surface-primary-alt p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Play className="h-5 w-5 text-text-secondary" />
+            <h2 className="text-lg font-semibold text-text-primary">Execution History</h2>
+          </div>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => refetch()}
+              className="flex items-center space-x-1 px-2 py-1 text-xs bg-surface-secondary hover:bg-surface-hover rounded-md border border-border-medium transition-colors"
+              disabled={loading}
+            >
+              <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
+            <div className="text-sm text-text-secondary">
+              {executions.length} execution{executions.length !== 1 ? 's' : ''}
+              {executions.length > 0 && (
+                <span className="ml-2 text-xs text-gray-400">
+                  (Querying task_id: {taskId})
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Executions List */}
+      <div className="flex-1 overflow-auto p-4">
+        {executions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <Clock className="h-12 w-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-600 dark:text-gray-400 mb-2">No executions yet</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-500">
+              Run the workflow to see execution history here.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {executions.map((execution) => (
+              <div
+                key={execution.id}
+                className="bg-surface-secondary border border-border-medium rounded-lg p-4 hover:bg-surface-hover transition-colors"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start space-x-3 flex-1">
+                    {getStatusIcon(execution.status)}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(execution.status)}`}>
+                          {getStatusText(execution.status)}
+                        </span>
+                        <span className="text-xs text-text-secondary">
+                          {formatDate(execution.start_time)}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center space-x-4 text-xs text-text-secondary mb-2">
+                        <div className="flex items-center space-x-1">
+                          <Calendar className="h-3 w-3" />
+                          <span>Duration: {calculateDuration(execution.start_time, execution.end_time)}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <User className="h-3 w-3" />
+                          <span>{execution.user}</span>
+                        </div>
+                      </div>
+
+                      {execution.output && (
+                        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded p-2 mt-2">
+                          <div className="text-xs font-medium text-green-600 dark:text-green-400 mb-1">Output:</div>
+                          <div className="text-xs text-green-700 dark:text-green-300 font-mono">
+                            {execution.output}
+                          </div>
+                        </div>
+                      )}
+
+                      {execution.error && (
+                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded p-2 mt-2">
+                          <div className="text-xs font-medium text-red-600 dark:text-red-400 mb-1">
+                            {execution.status === 'cancelled' ? 'Cancellation Details:' : 'Error Details:'}
+                          </div>
+                          <div className="text-xs text-red-700 dark:text-red-300 font-mono">
+                            {execution.error}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ExecutionDashboard;
