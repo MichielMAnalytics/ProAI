@@ -95,6 +95,9 @@ function ChatView({ index = 0 }: { index?: number }) {
     
     // Check if we're on an agent endpoint and need to select an agent
     if (isAgentsEndpoint(endpoint)) {
+      // Don't show modal if agentsMap is not loaded yet to prevent flash
+      if (!agentsMap) return false;
+      
       const { isAgent } = getEntity({
         endpoint,
         agentsMap,
@@ -104,7 +107,7 @@ function ChatView({ index = 0 }: { index?: number }) {
       });
       
       // Show modal if it's an agent endpoint but no valid agent is selected
-      return isAgent && (!currentAgentId || !agentsMap?.[currentAgentId]);
+      return isAgent && (!currentAgentId || !agentsMap[currentAgentId]);
     }
     
     return false;
