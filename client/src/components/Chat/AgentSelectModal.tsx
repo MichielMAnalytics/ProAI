@@ -49,7 +49,7 @@ function AgentMCPIcons({ mcpServers }: { mcpServers?: string[] }) {
           <img
             src={icon}
             alt={`${serverName} integration`}
-            className="h-5 w-5 rounded-sm object-cover transition-transform duration-200 group-hover:scale-110 shadow-sm bg-white/90 dark:bg-gray-100/90 p-0.5"
+            className="h-4 w-4 rounded-sm object-cover bg-white/90 dark:bg-gray-100/90 p-0.5"
             onError={(e) => {
               e.currentTarget.style.display = 'none';
             }}
@@ -57,7 +57,7 @@ function AgentMCPIcons({ mcpServers }: { mcpServers?: string[] }) {
         </div>
       ))}
       {serverIcons.length > 3 && (
-        <div className="flex items-center justify-center h-5 w-5 rounded-sm bg-black/20 text-white text-xs font-medium">
+        <div className="flex items-center justify-center h-4 w-4 rounded-sm bg-black/20 text-white text-xs font-medium">
           +{serverIcons.length - 3}
         </div>
       )}
@@ -79,13 +79,13 @@ function AgentAvatar({ agent }: { agent: any }) {
   if (imageError || !isValidURL) {
     // Fallback to agent name initial when no image
     return (
-      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 transition-all duration-300 group-hover:scale-105">
-        <div className="text-white font-bold text-6xl">
+      <div className="absolute inset-3 flex items-center justify-center bg-gradient-to-br from-[#0E1593] to-[#04062D] rounded-xl shadow-inner">
+        <div className="text-white font-bold text-4xl drop-shadow-lg">
           {agent.name?.charAt(0)?.toUpperCase() || 'A'}
         </div>
         {imageError && iconURL && (
-          <div className="absolute top-4 right-4 flex items-center justify-center w-8 h-8 rounded-full bg-red-500 border-2 border-white">
-            <AlertCircle size={20} className="text-white" />
+          <div className="absolute top-2 right-2 flex items-center justify-center w-6 h-6 rounded-full bg-red-500 border border-white">
+            <AlertCircle size={16} className="text-white" />
           </div>
         )}
       </div>
@@ -96,7 +96,7 @@ function AgentAvatar({ agent }: { agent: any }) {
     <img
       src={iconURL}
       alt={agent.name || 'Agent Avatar'}
-      className="absolute inset-0 w-full h-full object-contain transition-all duration-300 group-hover:scale-105"
+      className="absolute inset-3 w-[calc(100%-24px)] h-[calc(100%-24px)] object-contain rounded-xl"
       onError={handleImageError}
       loading="lazy"
       decoding="async"
@@ -132,79 +132,104 @@ export default function AgentSelectModal({ isOpen, onClose }: AgentSelectModalPr
 
   return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
-      <DialogContent className="max-w-7xl max-h-[95vh] overflow-hidden bg-white/95 backdrop-blur-sm dark:bg-gray-900/95 border shadow-2xl flex flex-col" showCloseButton={false}>
-        <DialogHeader className="pb-6 flex-shrink-0">
-          <DialogTitle className="text-2xl font-bold text-center text-gray-900 dark:text-gray-100">
-            {localize('com_endpoint_agent_placeholder')}
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden bg-[--surface-primary] dark:bg-[--surface-primary] border-2 border-[--brand-border] shadow-2xl flex flex-col" showCloseButton={false}>
+        <DialogHeader className="pb-6 flex-shrink-0 relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0E1593] to-[#04062D] opacity-5 rounded-t-lg"></div>
+          <DialogTitle className="text-2xl font-bold font-display text-center text-[--text-primary] relative z-10">
+            The Agent Collection
           </DialogTitle>
-          <p className="text-sm text-gray-600 dark:text-gray-400 text-center mt-2">
-            Choose an agent to start your conversation
+          <p className="text-sm text-[--text-secondary] text-center relative z-10 font-medium">
+            Individual knowledge work is often. Pick your agent and get started.
           </p>
         </DialogHeader>
         
-        <div className="flex-1 overflow-y-auto px-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 hover:scrollbar-thumb-gray-400 dark:hover:scrollbar-thumb-gray-500">
+        <div className="flex-1 overflow-y-auto px-4 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[#0E1593]/20 dark:scrollbar-thumb-[#0E1593]/40">
           {agents.length === 0 ? (
             <div className="flex items-center justify-center py-16">
               <div className="text-center">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-[#0E1593]/10 to-[#04062D]/10 flex items-center justify-center shadow-lg border border-[--brand-border]">
+                  <svg className="w-8 h-8 text-[#0E1593]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                 </div>
-                <p className="text-lg font-medium text-gray-500 dark:text-gray-400 mb-2">
-                  No agents available
+                <p className="text-lg font-semibold text-[--text-primary] mb-2">
+                  No Agents Available
                 </p>
-                <p className="text-sm text-gray-400 dark:text-gray-500">
-                  Contact your administrator to create agents
+                <p className="text-sm text-[--text-secondary]">
+                  Contact your administrator to add premium AI agents
                 </p>
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12 pb-8 px-4 pt-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-4">
               {agents.map((agent) => (
                 <div
                   key={agent.id}
-                  className="group cursor-pointer rounded-2xl overflow-hidden bg-white dark:bg-gray-800 shadow-lg transition-all duration-300 hover:shadow-2xl hover:scale-[1.03] border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:z-10 relative"
+                  className="group cursor-pointer transform transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1"
                   onClick={() => handleSelectAgent(agent.id || '')}
                 >
-                  {/* Image Container - Takes up most of the card */}
-                  <div className="relative h-80 w-full overflow-hidden bg-gray-100 dark:bg-gray-800">
-                    {/* Agent Image/Icon - fills entire container */}
-                    <AgentAvatar agent={agent} />
+                  {/* Premium EVE Brand Package Container */}
+                  <div className="relative bg-[--surface-primary] dark:bg-[--surface-secondary] rounded-2xl shadow-lg border-2 border-[--brand-border] hover:border-[#0E1593]/30 overflow-hidden transition-all duration-300 flex flex-col h-full">
                     
-                    {/* Gradient Overlay for better text readability */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-60 transition-opacity duration-300" />
-                    
-                    {/* Name Tag - Positioned at bottom */}
-                    <div className="absolute bottom-0 left-0 right-0 p-4">
-                      <div className="bg-black/40 dark:bg-black/50 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10 dark:border-gray-600/10">
-                        <h3 className="text-lg font-bold text-white text-center truncate group-hover:text-blue-200 transition-colors duration-300">
-                          {agent.name || 'Unnamed Agent'}
-                        </h3>
-                      </div>
-                    </div>
-                    
-                    {/* MCP Server Icons - Top right corner */}
+                    {/* MCP Integration Icons */}
                     {agent.mcp_servers && agent.mcp_servers.length > 0 && (
-                      <div className="absolute top-3 right-3">
-                        <div className="bg-black/20 backdrop-blur-sm rounded-lg px-2 py-1">
+                      <div className="absolute top-3 right-3 z-20">
+                        <div className="bg-white/95 dark:bg-[--surface-tertiary]/95 backdrop-blur-sm rounded-lg px-2 py-1.5 shadow-md border border-[--brand-border]">
                           <AgentMCPIcons mcpServers={agent.mcp_servers} />
                         </div>
                       </div>
                     )}
-                  </div>
-                  
-                  {/* Description Section - Compact bottom section */}
-                  {agent.description && (
-                    <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
-                      <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 leading-relaxed text-center group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-300">
-                        {agent.description}
-                      </p>
+
+                    {/* Premium Display Window */}
+                    <div className="relative h-48 bg-gradient-to-br from-[--surface-secondary] to-[--surface-tertiary] border-2 border-[--brand-border] m-3 rounded-xl overflow-hidden shadow-inner">
+                      {/* EVE Brand Inner Glow */}
+                      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-[#0E1593]/5 to-[#0E1593]/10 pointer-events-none"></div>
+                      <div className="absolute inset-0 bg-gradient-to-bl from-transparent via-transparent to-black/5 pointer-events-none"></div>
+                      
+                      {/* Agent Image/Avatar */}
+                      <AgentAvatar agent={agent} />
+                      
+                      {/* Premium Glass Effect */}
+                      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/15 opacity-60 pointer-events-none rounded-xl"></div>
                     </div>
-                  )}
-                  
-                  {/* Hover Effect Indicator */}
-                  <div className="absolute inset-0 ring-0 ring-blue-500/20 rounded-2xl transition-all duration-300 group-hover:ring-4 pointer-events-none" />
+
+                    {/* Professional Information Panel */}
+                    <div className="p-4 bg-[--surface-primary] dark:bg-[--surface-secondary] border-t border-[--brand-border] flex-1 flex flex-col">
+                      
+                      {/* Agent Name - Fixed Height */}
+                      <div className="h-12 mb-3 flex items-start">
+                        <h3 className="font-bold font-display text-[--text-primary] text-base leading-tight" title={agent.name || 'Unnamed Agent'}>
+                          {agent.name || 'Unnamed Agent'}
+                        </h3>
+                      </div>
+
+                      {/* Agent Description - Flexible Height */}
+                      <div className="flex-1 mb-4">
+                        {agent.description ? (
+                          <p className="text-xs text-[--text-secondary] line-clamp-3 leading-relaxed bg-[--surface-secondary] p-3 rounded-lg border border-[--brand-border] h-full flex items-start">
+                            {agent.description}
+                          </p>
+                        ) : (
+                          <div className="text-xs text-[--text-secondary] bg-[--surface-secondary] p-3 rounded-lg border border-[--brand-border] h-full flex items-center justify-center">
+                            No description available
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Action Button - Fixed Position */}
+                      <div className="mt-auto">
+                        <button className="w-full bg-gradient-to-r from-[#0E1593] to-[#04062D] text-white px-6 py-3 rounded-xl text-sm font-bold shadow-lg group-hover:from-[#04062D] group-hover:to-[#0E0E0E] transition-all duration-300 border border-white/10">
+                          Choose Agent
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* EVE Brand Reflection Effect */}
+                    <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-[#0E1593]/3 to-[#0E1593]/8 pointer-events-none rounded-2xl opacity-40"></div>
+                    
+                    {/* Premium Hover Glow */}
+                    <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-lg shadow-[#0E1593]/20 pointer-events-none"></div>
+                  </div>
                 </div>
               ))}
             </div>
