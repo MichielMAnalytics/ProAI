@@ -165,6 +165,7 @@ const getAgentHandler = async (req, res) => {
         version: agent.version,
         mcp_servers: agent.mcp_servers,
         default_prompts: agent.default_prompts,
+        tools: agent.tools,
       });
     }
     return res.status(200).json(agent);

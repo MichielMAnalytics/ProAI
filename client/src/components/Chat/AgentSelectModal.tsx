@@ -10,6 +10,24 @@ interface AgentSelectModalProps {
   onClose: () => void;
 }
 
+// Tools count component for agent cards
+function AgentToolsCount({ tools }: { tools?: string[] }) {
+  if (!tools || tools.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="bg-white/95 dark:bg-[--surface-tertiary]/95 backdrop-blur-sm rounded-lg px-2 py-1.5 shadow-md border border-[--brand-border]">
+      <div className="flex items-center gap-1.5">
+        <svg className="w-3 h-3 text-[#0E1593]" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M6.672 1.911a1 1 0 10-1.932.518l.259.966a1 1 0 001.932-.518l-.26-.966zM2.429 4.74a1 1 0 10-.517 1.932l.966.259a1 1 0 00.517-1.932l-.966-.26zm8.814-.569a1 1 0 00-1.415-1.414l-.707.707a1 1 0 101.415 1.415l.707-.708zm-7.071 7.072l.707-.707A1 1 0 003.465 9.12l-.708.707a1 1 0 001.415 1.415zm3.2-5.171a1 1 0 00-1.3 1.3l4 10a1 1 0 001.823.075l1.38-2.759 3.018 3.02a1 1 0 001.414-1.415l-3.019-3.02 2.76-1.379a1 1 0 00-.076-1.822l-10-4z"/>
+        </svg>
+        <span className="text-xs font-medium text-[#0E1593]">{tools.length}</span>
+      </div>
+    </div>
+  );
+}
+
 // Compact MCP server icons component for agent cards
 function AgentMCPIcons({ mcpServers }: { mcpServers?: string[] }) {
   const { data: availableIntegrations } = useAvailableIntegrationsQuery();
@@ -110,13 +128,16 @@ export default function AgentSelectModal({ isOpen, onClose }: AgentSelectModalPr
   const { data: startupConfig } = useGetStartupConfig();
 
   const { data: agents = [] } = useListAgentsQuery(undefined, {
-    select: (res) =>
-      res.data.map((agent) =>
-        processAgentOption({
+    select: (res) => {
+      console.log('Raw agent data from API:', res.data);
+      return res.data.map((agent) => {
+        console.log('Processing agent:', agent.name, 'tools:', agent.tools);
+        return processAgentOption({
           agent,
           instanceProjectId: startupConfig?.instanceProjectId,
-        }),
-      ),
+        });
+      });
+    },
   });
 
   const handleSelectAgent = useCallback(
@@ -139,7 +160,7 @@ export default function AgentSelectModal({ isOpen, onClose }: AgentSelectModalPr
             The Agent Collection
           </DialogTitle>
           <p className="text-sm text-[--text-secondary] text-center relative z-10 font-medium">
-            Individual knowledge work is often. Pick your agent and get started.
+            Individual knowledge work is over. Pick your agent and be productive.
           </p>
         </DialogHeader>
         
@@ -171,6 +192,13 @@ export default function AgentSelectModal({ isOpen, onClose }: AgentSelectModalPr
                   {/* Premium EVE Brand Package Container */}
                   <div className="relative bg-[--surface-primary] dark:bg-[--surface-secondary] rounded-2xl shadow-lg border-2 border-[--brand-border] hover:border-[#0E1593]/30 overflow-hidden transition-all duration-300 flex flex-col h-full">
                     
+                    {/* Tools Count */}
+                    {agent.tools && agent.tools.length > 0 && (
+                      <div className="absolute top-3 left-3 z-20">
+                        <AgentToolsCount tools={agent.tools} />
+                      </div>
+                    )}
+
                     {/* MCP Integration Icons */}
                     {agent.mcp_servers && agent.mcp_servers.length > 0 && (
                       <div className="absolute top-3 right-3 z-20">

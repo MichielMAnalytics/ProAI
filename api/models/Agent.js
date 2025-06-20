@@ -444,6 +444,7 @@ const getListAgents = async (searchParameter) => {
       isCollaborative: 1,
       originalAgentId: 1,
       mcp_servers: 1,
+      tools: 1,
     }).lean()
   )
   .filter((agent) => {
