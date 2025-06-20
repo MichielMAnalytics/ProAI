@@ -26,11 +26,19 @@ import store from '~/store';
 
 function LoadingSpinner() {
   return (
-    <div className="relative flex-1 overflow-hidden overflow-y-auto">
-      <div className="relative flex h-full items-center justify-center">
+    <>
+      {/* Maintain flex layout for the component structure */}
+      <div className="flex flex-1 items-center justify-center">
+        {/* Invisible placeholder to maintain layout */}
+      </div>
+      {/* Portal-like fixed spinner that ignores all layout changes */}
+      <div 
+        className="fixed inset-0 flex items-center justify-center z-[100] pointer-events-none"
+        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+      >
         <Spinner className="text-text-primary" />
       </div>
-    </div>
+    </>
   );
 }
 

@@ -123,7 +123,12 @@ export default function ChatRoute() {
 
   if (endpointsQuery.isLoading || modelsQuery.isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center" aria-live="polite" role="status">
+      <div 
+        className="fixed inset-0 flex items-center justify-center z-[100]" 
+        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+        aria-live="polite" 
+        role="status"
+      >
         <Spinner className="text-text-primary" />
       </div>
     );

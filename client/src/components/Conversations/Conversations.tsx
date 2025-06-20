@@ -22,7 +22,7 @@ const LoadingSpinner = memo(() => {
   const localize = useLocalize();
 
   return (
-    <div className="mx-auto mt-2 flex items-center justify-center gap-2">
+    <div className="flex items-center justify-center gap-2 py-4">
       <Spinner className="text-text-primary" />
       <span className="animate-pulse text-text-primary">{localize('com_ui_loading')}</span>
     </div>
