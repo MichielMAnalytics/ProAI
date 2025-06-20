@@ -1062,7 +1062,7 @@ pre {
   --tw-prose-links: #0066cc;
   --tw-prose-bold: #111827;
   --tw-prose-counters: #6b7280;
-  --tw-prose-bullets: #d1d5db;
+  --tw-prose-bullets: #6b7280;
   --tw-prose-hr: #e5e7eb;
   --tw-prose-quotes: #111827;
   --tw-prose-quote-borders: #e5e7eb;
@@ -1078,7 +1078,7 @@ pre {
   --tw-prose-invert-links: #fff;
   --tw-prose-invert-bold: #fff;
   --tw-prose-invert-counters: #9ca3af;
-  --tw-prose-invert-bullets: #4b5563;
+  --tw-prose-invert-bullets: #9ca3af;
   --tw-prose-invert-hr: #374151;
   --tw-prose-invert-quotes: #f3f4f6;
   --tw-prose-invert-quote-borders: #374151;
@@ -2736,4 +2736,34 @@ button, .btn {
   51%, 100% {
     opacity: 0;
   }
+}
+
+/* Ensure lists in prose containers display bullet points */
+.prose ul:not([class~='not-prose']) {
+  list-style-type: disc;
+  margin-left: 1.5rem;
+}
+
+.prose ol:not([class~='not-prose']) {
+  list-style-type: decimal;
+  margin-left: 1.5rem;
+}
+
+.prose ul:not([class~='not-prose']) li::marker,
+.prose ol:not([class~='not-prose']) li::marker {
+  color: var(--tw-prose-bullets);
+}
+
+/* Additional specificity for nested lists */
+.prose ul li,
+.prose ol li {
+  list-style-position: outside;
+  margin-left: 0;
+  padding-left: 0;
+}
+
+/* Ensure dark mode bullet visibility */
+.dark .prose ul:not([class~='not-prose']) li::marker,
+.dark .prose ol:not([class~='not-prose']) li::marker {
+  color: var(--tw-prose-invert-bullets);
 }
