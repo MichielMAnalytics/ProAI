@@ -3,6 +3,8 @@ const { Constants } = require('librechat-data-provider');
 const { updateSchedulerExecution } = require('~/models/SchedulerExecution');
 const { loadAgent } = require('~/models/Agent');
 const { User } = require('~/db/models');
+const { getBufferString } = require('@langchain/core/messages');
+const { HumanMessage } = require('@langchain/core/messages');
 const {
   createMinimalMockResponse,
   updateRequestForEphemeralAgent,
@@ -16,6 +18,117 @@ const {
   executeStep,
 } = require('./executor');
 const SchedulerClientFactory = require('~/server/services/Scheduler/SchedulerClientFactory');
+
+/**
+ * Extract meaningful content from step result object for display
+ * @param {Object} result - Step result object
+ * @returns {string|null} Meaningful content or null if not found
+ */
+function extractMeaningfulContent(result) {
+  if (!result || typeof result !== 'object') {
+    return null;
+  }
+
+  // Handle LibreChat agent response objects with content array
+  if (result.content && Array.isArray(result.content)) {
+    // Extract text content from agent response content array
+    const textParts = result.content
+      .filter(part => part.type === 'text' && part.text && part.text.trim())
+      .map(part => part.text.trim());
+    
+    if (textParts.length > 0) {
+      return textParts.join('\n').trim();
+    }
+  }
+
+  // Check for direct text field
+  if (result.text && typeof result.text === 'string' && result.text.trim()) {
+    return result.text.trim();
+  }
+
+  // Handle nested agent response objects (common in LibreChat)
+  if (result.agentResponse) {
+    if (typeof result.agentResponse === 'string') {
+      return result.agentResponse;
+    }
+    if (typeof result.agentResponse === 'object') {
+      // Try to extract text from nested agent response content
+      if (result.agentResponse.content && Array.isArray(result.agentResponse.content)) {
+        const textParts = result.agentResponse.content
+          .filter(part => part.type === 'text' && part.text && part.text.trim())
+          .map(part => part.text.trim());
+        
+        if (textParts.length > 0) {
+          return textParts.join('\n').trim();
+        }
+      }
+      
+      // Check for direct text in agent response
+      if (result.agentResponse.text && typeof result.agentResponse.text === 'string' && result.agentResponse.text.trim()) {
+        return result.agentResponse.text.trim();
+      }
+      
+      // Check for message content in agent response
+      if (result.agentResponse.content && typeof result.agentResponse.content === 'string') {
+      return result.agentResponse.content;
+      }
+    }
+  }
+
+  // Check for tool results
+  if (result.toolResults && Array.isArray(result.toolResults)) {
+    const meaningfulResults = result.toolResults
+      .map(tool => {
+        if (tool.result && typeof tool.result === 'string') {
+          return `Tool "${tool.name || 'unknown'}": ${tool.result}`;
+        }
+        if (tool.result && typeof tool.result === 'object') {
+          // Try to extract meaningful data from tool result
+          if (tool.result.data || tool.result.message || tool.result.content) {
+            const content = tool.result.data || tool.result.message || tool.result.content;
+            return `Tool "${tool.name || 'unknown'}": ${typeof content === 'string' ? content : JSON.stringify(content)}`;
+          }
+        }
+        return null;
+      })
+      .filter(Boolean);
+    
+    if (meaningfulResults.length > 0) {
+      return meaningfulResults.join('\n');
+    }
+  }
+
+  // Check for direct content fields
+  if (result.content && typeof result.content === 'string') {
+    return result.content;
+  }
+
+  if (result.message && typeof result.message === 'string') {
+    return result.message;
+  }
+
+  if (result.data) {
+    if (typeof result.data === 'string') {
+      return result.data;
+    }
+    if (typeof result.data === 'object') {
+      // Try to extract summary information from data objects
+      if (Array.isArray(result.data)) {
+        return `Retrieved ${result.data.length} items`;
+      }
+      if (result.data.summary || result.data.description) {
+        return result.data.summary || result.data.description;
+      }
+    }
+  }
+
+  // Check for successful execution indicators
+  if (result.success && result.type) {
+    return `Successfully executed ${result.type} operation`;
+  }
+
+  return null;
+}
 
 /**
  * WorkflowExecutor - Handles the execution of workflows
@@ -138,6 +251,7 @@ class WorkflowExecutor {
     const executionId = execution.id;
     const userId = execution.user;
     let executionContext = null; // Initialize here to ensure it's in scope for error handling
+    let stepMessages = []; // Initialize here to ensure it's in scope for error handling
 
     try {
       logger.info(`[WorkflowExecutor] Starting workflow execution: ${workflowId}`);
@@ -229,7 +343,7 @@ class WorkflowExecutor {
       }
 
       // Execute steps starting from the first step
-      const result = await this.executeStepChain(workflow, execution, firstStep.id, executionContext, executionMetadata);
+      const result = await this.executeStepChain(workflow, execution, firstStep.id, executionContext, executionMetadata, stepMessages);
 
       // Clean up tracking
       this.runningExecutions.delete(executionId);
@@ -242,11 +356,19 @@ class WorkflowExecutor {
 
       logger.error(`[WorkflowExecutor] Workflow execution failed: ${workflowId}`, error);
 
+      // Create error summary with any partial results
+      let errorOutput = `Workflow failed: ${error.message}`;
+      if (executionContext && stepMessages && stepMessages.length > 0) {
+        const partialSummary = getBufferString(stepMessages);
+        errorOutput = `${errorOutput}\n\nPartial results before failure:\n${partialSummary}`;
+      }
+
       // Update execution status
       await updateSchedulerExecution(executionId, execution.user, {
         status: 'failed',
         endTime: new Date(),
         error: error.message,
+        output: errorOutput,
       });
 
       return {
@@ -264,9 +386,10 @@ class WorkflowExecutor {
    * @param {string} currentStepId - Current step ID to execute
    * @param {Object} context - Execution context
    * @param {Object} metadata - Execution metadata with step tracking
+   * @param {Array} stepMessages - Array to accumulate step outputs as messages
    * @returns {Promise<Object>} Execution result
    */
-  async executeStepChain(workflow, execution, currentStepId, context, metadata) {
+  async executeStepChain(workflow, execution, currentStepId, context, metadata, stepMessages) {
     let currentStep = currentStepId;
     const executionResult = { success: true, error: null };
     const accumulatedStepResults = [];
@@ -303,18 +426,73 @@ class WorkflowExecutor {
         });
       }
 
+      // Create input for the current step using buffer string approach
+      let stepInput = context;
+      if (stepMessages.length > 0) {
+        // Convert accumulated step messages into a buffer string for the next step
+        const bufferString = getBufferString(stepMessages);
+        
+        // Add the buffer string as context for the current step
+        stepInput = {
+          ...context,
+          previousStepsOutput: bufferString,
+          steps: context.steps // Keep the structured step results for metadata
+        };
+        
+        logger.debug(
+          `[WorkflowExecutor] Passing accumulated output to step ${step.name}: ${bufferString.substring(0, 200)}...`,
+        );
+      }
+
       // Execute the current step (each step gets a fresh agent)
-      const stepResult = await executeStep(workflow, execution, step, context, executionData.abortController?.signal);
+      const stepResult = await executeStep(workflow, execution, step, stepInput, executionData.abortController?.signal);
+
+      // Add step result to messages array for next step and capture meaningful output
+      let meaningfulOutput = '';
+      if (stepResult.success && stepResult.result) {
+        // First, try to extract meaningful content for both buffer and display
+        meaningfulOutput = extractMeaningfulContent(stepResult.result);
+        
+        // If we found meaningful content, use it for the buffer string
+        if (meaningfulOutput) {
+          // Create a HumanMessage with the meaningful content for the next step
+          stepMessages.push(new HumanMessage(`Step "${step.name}" result: ${meaningfulOutput}`));
+          
+          logger.debug(
+            `[WorkflowExecutor] Added meaningful step result to message chain: ${meaningfulOutput.substring(0, 200)}...`,
+          );
+        } else {
+          // Fallback to raw result if no meaningful content can be extracted
+          let resultText = '';
+        if (typeof stepResult.result === 'string') {
+          resultText = stepResult.result;
+            meaningfulOutput = resultText;
+          } else {
+            resultText = JSON.stringify(stepResult.result, null, 2);
+            meaningfulOutput = resultText;
+        }
+        
+          // Create a HumanMessage with the fallback result for the next step
+        stepMessages.push(new HumanMessage(`Step "${step.name}" result: ${resultText}`));
+        
+        logger.debug(
+            `[WorkflowExecutor] Added fallback step result to message chain: ${resultText.substring(0, 200)}...`,
+        );
+        }
+      }
 
       // Update step status and results in metadata
       if (stepMetadata) {
         stepMetadata.status = stepResult.success ? 'completed' : 'failed';
         stepMetadata.endTime = new Date();
         
-        // Capture step output and error
-        if (stepResult.result && typeof stepResult.result === 'string') {
+        // Store meaningful output instead of technical metadata
+        if (meaningfulOutput) {
+          stepMetadata.output = meaningfulOutput;
+        } else if (stepResult.result && typeof stepResult.result === 'string') {
           stepMetadata.output = stepResult.result;
         } else if (stepResult.result && typeof stepResult.result === 'object') {
+          // Fallback to technical metadata if no meaningful content can be extracted
           stepMetadata.output = JSON.stringify(stepResult.result, null, 2);
         }
         
@@ -377,6 +555,26 @@ class WorkflowExecutor {
     }
 
     executionResult.result = accumulatedStepResults;
+    
+    // Create a final summary using the buffer string approach
+    if (stepMessages.length > 0) {
+      const finalSummary = getBufferString(stepMessages);
+      executionResult.finalOutput = finalSummary;
+      
+      // Update execution record with final summary
+      await updateSchedulerExecution(execution.id, execution.user, {
+        status: executionResult.success ? 'completed' : 'failed',
+        endTime: new Date(),
+        output: finalSummary, // Store the final buffer string as overall output
+      });
+    } else {
+      // Update execution record without buffer string
+      await updateSchedulerExecution(execution.id, execution.user, {
+        status: executionResult.success ? 'completed' : 'failed',
+        endTime: new Date(),
+      });
+    }
+    
     return executionResult;
   }
 

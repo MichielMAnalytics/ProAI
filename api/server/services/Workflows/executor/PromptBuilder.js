@@ -512,7 +512,7 @@ function generateGenericToolGuidance(toolName, stepName, stepObjective, context)
  */
 function generateContextUsageInstructions(step, context) {
   const stepName = step.name.toLowerCase();
-  const hasPreviousSteps = context.steps && Object.keys(context.steps).length > 0;
+  const hasPreviousSteps = (context.steps && Object.keys(context.steps).length > 0) || context.previousStepsOutput;
   const hasConfiguredParameters = step.config?.parameters && Object.keys(step.config.parameters).length > 0;
   
   if (!hasPreviousSteps && !hasConfiguredParameters) {
@@ -576,6 +576,16 @@ function generateContextUsageInstructions(step, context) {
  * @returns {string} A formatted string of previous step results.
  */
 function formatPreviousStepResults(context) {
+  // Check if we have accumulated output from previous steps using the buffer string approach
+  if (context.previousStepsOutput) {
+    let resultsSection = '-- ACCUMULATED OUTPUT FROM PREVIOUS STEPS --\n\n';
+    resultsSection += 'Use the following accumulated output from previous steps to perform your task. This contains the actual results and data from completed workflow steps.\n\n';
+    resultsSection += context.previousStepsOutput;
+    resultsSection += '\n\n';
+    return resultsSection;
+  }
+
+  // Fallback to the original structured approach if no buffer string is available
   if (!context.steps || Object.keys(context.steps).length === 0) {
     return 'No data from previous steps is available.';
   }

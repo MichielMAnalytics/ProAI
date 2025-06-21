@@ -24,6 +24,117 @@ import { useWorkflowNotifications } from '~/hooks/useWorkflowNotifications';
 import { Button } from '~/components/ui';
 import { TooltipAnchor } from '~/components/ui/Tooltip';
 
+/**
+ * Extract meaningful content from step result object for display
+ * @param result - Step result object
+ * @returns Meaningful content or null if not found
+ */
+function extractMeaningfulContent(result: any): string | null {
+  if (!result || typeof result !== 'object') {
+    return null;
+  }
+
+  // Handle LibreChat agent response objects with content array
+  if (result.content && Array.isArray(result.content)) {
+    // Extract text content from agent response content array
+    const textParts = result.content
+      .filter((part: any) => part.type === 'text' && part.text && part.text.trim())
+      .map((part: any) => part.text.trim());
+    
+    if (textParts.length > 0) {
+      return textParts.join('\n').trim();
+    }
+  }
+
+  // Check for direct text field
+  if (result.text && typeof result.text === 'string' && result.text.trim()) {
+    return result.text.trim();
+  }
+
+  // Handle nested agent response objects (common in LibreChat)
+  if (result.agentResponse) {
+    if (typeof result.agentResponse === 'string') {
+      return result.agentResponse;
+    }
+    if (typeof result.agentResponse === 'object') {
+      // Try to extract text from nested agent response content
+      if (result.agentResponse.content && Array.isArray(result.agentResponse.content)) {
+        const textParts = result.agentResponse.content
+          .filter((part: any) => part.type === 'text' && part.text && part.text.trim())
+          .map((part: any) => part.text.trim());
+        
+        if (textParts.length > 0) {
+          return textParts.join('\n').trim();
+        }
+      }
+      
+      // Check for direct text in agent response
+      if (result.agentResponse.text && typeof result.agentResponse.text === 'string' && result.agentResponse.text.trim()) {
+        return result.agentResponse.text.trim();
+      }
+      
+      // Check for message content in agent response
+      if (result.agentResponse.content && typeof result.agentResponse.content === 'string') {
+        return result.agentResponse.content;
+      }
+    }
+  }
+
+  // Check for tool results
+  if (result.toolResults && Array.isArray(result.toolResults)) {
+    const meaningfulResults = result.toolResults
+      .map((tool: any) => {
+        if (tool.result && typeof tool.result === 'string') {
+          return `Tool "${tool.name || 'unknown'}": ${tool.result}`;
+        }
+        if (tool.result && typeof tool.result === 'object') {
+          // Try to extract meaningful data from tool result
+          if (tool.result.data || tool.result.message || tool.result.content) {
+            const content = tool.result.data || tool.result.message || tool.result.content;
+            return `Tool "${tool.name || 'unknown'}": ${typeof content === 'string' ? content : JSON.stringify(content)}`;
+          }
+        }
+        return null;
+      })
+      .filter(Boolean);
+    
+    if (meaningfulResults.length > 0) {
+      return meaningfulResults.join('\n');
+    }
+  }
+
+  // Check for direct content fields
+  if (result.content && typeof result.content === 'string') {
+    return result.content;
+  }
+
+  if (result.message && typeof result.message === 'string') {
+    return result.message;
+  }
+
+  if (result.data) {
+    if (typeof result.data === 'string') {
+      return result.data;
+    }
+    if (typeof result.data === 'object') {
+      // Try to extract summary information from data objects
+      if (Array.isArray(result.data)) {
+        return `Retrieved ${result.data.length} items`;
+      }
+      if (result.data.summary || result.data.description) {
+        return result.data.summary || result.data.description;
+      }
+    }
+  }
+
+  // Check for successful execution indicators
+  if (result.success && result.type) {
+    return `Successfully executed ${result.type} operation`;
+  }
+
+  return null;
+}
+
 export default function Artifacts() {
   const localize = useLocalize();
   const { isMutating } = useEditorContext();
@@ -372,6 +483,16 @@ export default function Artifacts() {
     if (step.status === 'completed' && step.result) {
       const result = step.result;
       
+      // Try to extract meaningful content first
+      const meaningfulContent = extractMeaningfulContent(result);
+      if (meaningfulContent) {
+        // Truncate for summary display
+        const truncated = meaningfulContent.length > 100 
+          ? meaningfulContent.substring(0, 100) + '...'
+          : meaningfulContent;
+        return truncated;
+      }
+      
       // Check if it's an MCP agent action
       if (result.type === 'mcp_agent_action') {
         return `Tool: ${result.stepName}, Status: ${result.status || 'success'}`;
@@ -600,12 +721,28 @@ export default function Artifacts() {
                                         {/* Copy button */}
                                         {(step.result || step.output) && (
                                           <button
-                                            onClick={() => handleCopyStepOutput(
-                                              stepId, 
-                                              typeof (step.result || step.output) === 'string' 
-                                                ? (step.result || step.output)
-                                                : JSON.stringify(step.result || step.output, null, 2)
-                                            )}
+                                            onClick={() => {
+                                              const resultToCopy = step.result || step.output;
+                                              let copyContent: string;
+                                              
+                                              // Try to extract meaningful content first
+                                              if (step.result) {
+                                                const meaningfulContent = extractMeaningfulContent(step.result);
+                                                if (meaningfulContent) {
+                                                  copyContent = meaningfulContent;
+                                                } else {
+                                                  copyContent = typeof resultToCopy === 'string' 
+                                                    ? resultToCopy
+                                                    : JSON.stringify(resultToCopy, null, 2);
+                                                }
+                                              } else {
+                                                copyContent = typeof resultToCopy === 'string' 
+                                                  ? resultToCopy
+                                                  : JSON.stringify(resultToCopy, null, 2);
+                                              }
+                                              
+                                              handleCopyStepOutput(stepId, copyContent);
+                                            }}
                                             className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
                                             title="Copy output"
                                           >
@@ -641,7 +778,15 @@ export default function Artifacts() {
                                               <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Result:</div>
                                               <div className="bg-white dark:bg-gray-900 rounded p-2 sm:p-3 border border-gray-200 dark:border-gray-600">
                                                 <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-32 sm:max-h-64 overflow-y-auto">
-                                                  {typeof step.result === 'string' ? step.result : JSON.stringify(step.result, null, 2)}
+                                                  {(() => {
+                                                    // First try to extract meaningful content
+                                                    const meaningfulContent = extractMeaningfulContent(step.result);
+                                                    if (meaningfulContent) {
+                                                      return meaningfulContent;
+                                                    }
+                                                    // Fallback to raw display
+                                                    return typeof step.result === 'string' ? step.result : JSON.stringify(step.result, null, 2);
+                                                  })()}
                                                 </pre>
                                               </div>
                                             </div>
@@ -652,7 +797,17 @@ export default function Artifacts() {
                                               <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Output:</div>
                                               <div className="bg-white dark:bg-gray-900 rounded p-2 sm:p-3 border border-gray-200 dark:border-gray-600">
                                                 <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-32 sm:max-h-64 overflow-y-auto">
-                                                  {typeof step.output === 'string' ? step.output : JSON.stringify(step.output, null, 2)}
+                                                  {(() => {
+                                                    // For output, if it's an object, try to extract meaningful content
+                                                    if (typeof step.output === 'object') {
+                                                      const meaningfulContent = extractMeaningfulContent(step.output);
+                                                      if (meaningfulContent) {
+                                                        return meaningfulContent;
+                                                      }
+                                                    }
+                                                    // Fallback to raw display
+                                                    return typeof step.output === 'string' ? step.output : JSON.stringify(step.output, null, 2);
+                                                  })()}
                                                 </pre>
                                               </div>
                                             </div>
