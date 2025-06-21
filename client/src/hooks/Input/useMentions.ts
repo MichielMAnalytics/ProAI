@@ -157,7 +157,7 @@ export default function useMentions({
     });
 
     const mentions = [
-      ...(modelSpecs.length > 0 ? modelSpecs : []).map((modelSpec) => ({
+      ...(interfaceConfig.modelSelect === true && modelSpecs.length > 0 ? modelSpecs : []).map((modelSpec) => ({
         value: modelSpec.name,
         label: modelSpec.label,
         description: modelSpec.description,
@@ -183,7 +183,7 @@ export default function useMentions({
           size: 20,
         }),
       })),
-      ...(interfaceConfig.modelSelect === true ? (agentsList ?? []) : []),
+      ...(interfaceConfig.agents === true ? (agentsList ?? []) : []),
       ...(endpointsConfig?.[EModelEndpoint.assistants] &&
       includeAssistants &&
       interfaceConfig.modelSelect === true
