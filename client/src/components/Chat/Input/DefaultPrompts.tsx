@@ -3,14 +3,16 @@ import { useRecoilValue } from 'recoil';
 import { useMCPConnection } from '~/hooks/useMCPConnection';
 import { useGetAgentByIdQuery } from '~/data-provider';
 import { Constants, isAgentsEndpoint } from 'librechat-data-provider';
+import { TooltipAnchor } from '~/components/ui/Tooltip';
 import store from '~/store';
 
 interface DefaultPromptsProps {
   conversation: any;
   onPromptSelect: (prompt: string) => void;
+  isCompact?: boolean;
 }
 
-export default function DefaultPrompts({ conversation, onPromptSelect }: DefaultPromptsProps) {
+export default function DefaultPrompts({ conversation, onPromptSelect, isCompact = false }: DefaultPromptsProps) {
   const { areAllMCPServersConnected } = useMCPConnection();
   
   // Check if there's any submission happening
@@ -60,31 +62,46 @@ export default function DefaultPrompts({ conversation, onPromptSelect }: Default
   };
 
   return (
-    <div className="mx-auto flex w-full flex-row gap-3 px-3 sm:px-2">
+    <div className={isCompact ? "w-full" : "mx-auto flex w-full flex-row gap-3 px-3 sm:px-2"}>
       <div className="relative flex h-full flex-1 items-stretch md:flex-col">
-        <div className="mb-4 mt-2">
-          <h3 className="mb-3 text-center text-lg font-medium text-text-primary">
-            Get started with these suggestions
-          </h3>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {defaultPrompts.slice(0, 6).map((prompt, index) => (
-              <button
-                key={index}
-                onClick={() => handlePromptClick(prompt)}
-                className="group relative flex flex-col rounded-xl border border-border-light bg-surface-secondary p-4 text-left transition-all duration-200 hover:border-green-400 hover:bg-surface-hover hover:shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-              >
-                {prompt.toLowerCase().includes('workflow') && (
-                  <div className="absolute -top-1 -right-1 z-10 bg-blue-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full shadow-sm">
-                    Beta
+        <div className={isCompact ? "mb-2" : "mb-4 mt-2"}>
+          {!isCompact && (
+            <h3 className="mb-3 text-center text-lg font-medium text-text-primary">
+              Get started with these suggestions
+            </h3>
+          )}
+          <div className={isCompact 
+            ? "grid grid-cols-3 gap-2 w-full" 
+            : "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+          }>
+            {defaultPrompts.slice(0, isCompact ? 3 : 6).map((prompt, index) => (
+              <TooltipAnchor key={index} description={prompt} side="top">
+                <button
+                  onClick={() => handlePromptClick(prompt)}
+                  className={isCompact 
+                    ? "group relative flex flex-col rounded-lg border border-border-light bg-surface-secondary px-2 py-2 text-left transition-all duration-200 hover:border-green-400 hover:bg-surface-hover hover:shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 h-[58px]"
+                    : "group relative flex flex-col rounded-xl border border-border-light bg-surface-secondary px-3 py-3 text-left transition-all duration-200 hover:border-green-400 hover:bg-surface-hover hover:shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 h-[100px]"
+                  }
+                >
+                  {prompt.toLowerCase().includes('workflow') && (
+                    <div className="absolute -top-1 -right-1 z-10 bg-blue-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full shadow-sm">
+                      Beta
+                    </div>
+                  )}
+                  <div className="flex-1 flex items-center">
+                    <p className={isCompact 
+                      ? "text-xs text-text-primary line-clamp-2" 
+                      : "text-sm text-text-primary line-clamp-3"
+                    }>
+                      {prompt}
+                    </p>
                   </div>
-                )}
-                <div className="flex-1">
-                  <p className="text-sm text-text-primary line-clamp-3">
-                    {prompt}
-                  </p>
-                </div>
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-green-500/5 to-blue-500/5 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-              </button>
+                  <div className={isCompact
+                    ? "absolute inset-0 rounded-lg bg-gradient-to-r from-green-500/5 to-blue-500/5 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                    : "absolute inset-0 rounded-xl bg-gradient-to-r from-green-500/5 to-blue-500/5 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                  } />
+                </button>
+              </TooltipAnchor>
             ))}
           </div>
         </div>

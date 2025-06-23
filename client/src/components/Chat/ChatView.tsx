@@ -219,6 +219,19 @@ function ChatView({ index = 0 }: { index?: number }) {
                     )}
                   >
                     <div className="relative">
+                      {/* Show DefaultPrompts above ChatForm when conversation has started */}
+                      {!isMcpChecking && mcpConnectionsComplete && chatHelpers.conversation && 
+                        !isLandingPage && agentData?.default_prompts && agentData.default_prompts.length > 0 && (
+                        <div className="mx-auto flex w-full max-w-3xl xl:max-w-4xl justify-center gap-3 sm:px-2 mb-0.5">
+                          <div className="relative flex h-full flex-1 items-stretch md:flex-col">
+                            <DefaultPrompts
+                              conversation={chatHelpers.conversation}
+                              onPromptSelect={handlePromptSelect}
+                              isCompact={true}
+                            />
+                          </div>
+                        </div>
+                      )}
                       <ChatForm
                         index={index}
                         isMcpChecking={isMcpChecking}
