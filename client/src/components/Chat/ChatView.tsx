@@ -237,6 +237,7 @@ function ChatView({ index = 0 }: { index?: number }) {
                         isMcpChecking={isMcpChecking}
                         disabled={isMcpChecking || !mcpConnectionsComplete || shouldShowAgentModal}
                         mcpServers={agentData?.mcp_servers || []}
+                        toolKeys={agentData?.tools || []}
                       />
                       {/* Show MCP connections required component integrated with the chat form */}
                       {!isMcpChecking && !mcpConnectionsComplete && chatHelpers.conversation && agentData && (

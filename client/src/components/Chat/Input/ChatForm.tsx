@@ -34,17 +34,20 @@ import EditBadges from './EditBadges';
 import BadgeRow from './BadgeRow';
 import Mention from './Mention';
 import AppDetailsModal from '../../Integrations/AppDetailsModal';
+import ToolDetailsModal from '../../Tools/ToolDetailsModal';
 import store from '~/store';
 import type { TAvailableIntegration } from 'librechat-data-provider';
 
-const MCPServerIcons = ({ mcpServers }: { mcpServers: string[] }) => {
+const MCPServerIcons = ({ mcpServers, toolKeys }: { mcpServers: string[]; toolKeys?: string[] }) => {
   const { data: availableIntegrations } = useAvailableIntegrationsQuery();
   const { data: tools } = useAvailableToolsQuery(EModelEndpoint.agents);
   const { data: userIntegrations } = useUserIntegrationsQuery();
   const [selectedIntegration, setSelectedIntegration] = useState<TAvailableIntegration | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedTool, setSelectedTool] = useState<{ id: string; name: string; icon?: string; description?: string } | null>(null);
+  const [isAppModalOpen, setIsAppModalOpen] = useState(false);
+  const [isToolModalOpen, setIsToolModalOpen] = useState(false);
 
-  if (!mcpServers || mcpServers.length === 0) {
+  if ((!mcpServers || mcpServers.length === 0) && (!toolKeys || toolKeys.length === 0)) {
     return null;
   }
 
@@ -95,41 +98,94 @@ const MCPServerIcons = ({ mcpServers }: { mcpServers: string[] }) => {
     return { icon: undefined, integration: undefined };
   };
 
-  const serverData = mcpServers.map(serverName => {
-    const { icon, integration } = getMCPServerData(serverName);
-    return { serverName, icon, integration };
-  }).filter(server => server.icon);
-
-  if (serverData.length === 0) {
-    return null;
-  }
-
-  const getConnectionStatus = (integration: TAvailableIntegration) => {
-    const userIntegration = userIntegrations?.find(ui => ui.appSlug === integration.appSlug);
+  const getToolData = (toolKey: string): { icon?: string; name: string; description?: string } => {
+    // Find the tool in the available tools data
+    const tool = tools?.find(t => t.pluginKey === toolKey);
+    if (tool) {
+      return {
+        icon: tool.icon,
+        name: tool.name,
+        description: tool.description
+      };
+    }
+    
     return {
-      isConnected: !!userIntegration,
-      userIntegration
+      name: toolKey.charAt(0).toUpperCase() + toolKey.slice(1).replace(/_/g, ' ')
     };
   };
 
-  const handleIconClick = (integration: TAvailableIntegration | undefined, serverName: string) => {
-    if (integration) {
-      setSelectedIntegration(integration);
-      setIsModalOpen(true);
-    } else {
+  // Combine MCP servers and standalone tools data
+  const allItems: Array<{
+    id: string;
+    type: 'mcp' | 'tool';
+    name: string;
+    icon?: string;
+    integration?: TAvailableIntegration;
+    description?: string;
+  }> = [];
+
+  // Add MCP servers (one icon per server)
+  if (mcpServers && mcpServers.length > 0) {
+    mcpServers.forEach(serverName => {
+      const { icon, integration } = getMCPServerData(serverName);
+      if (icon) {
+        allItems.push({
+          id: serverName,
+          type: 'mcp',
+          name: serverName,
+          icon,
+          integration
+        });
+      }
+    });
+  }
+
+  // Add standalone tools (tools that are NOT part of MCP servers)
+  if (toolKeys && toolKeys.length > 0) {
+    toolKeys.forEach(toolKey => {
+      const { icon, name, description } = getToolData(toolKey);
+      if (icon) {
+        // Check if this tool belongs to an MCP server
+        const tool = tools?.find(t => t.pluginKey === toolKey);
+        const isStandaloneTool = !tool?.serverName && !tool?.appSlug;
+        
+        // Only add if it's a standalone tool (not part of an MCP server)
+        if (isStandaloneTool) {
+          allItems.push({
+            id: toolKey,
+            type: 'tool',
+            name,
+            icon,
+            description
+          });
+        }
+      }
+    });
+  }
+
+  if (allItems.length === 0) {
+    return null;
+  }
+
+
+  const handleIconClick = (item: typeof allItems[0]) => {
+    if (item.type === 'mcp' && item.integration) {
+      setSelectedIntegration(item.integration);
+      setIsAppModalOpen(true);
+    } else if (item.type === 'mcp') {
       // If no integration found, create a fallback from server tool data
-      const { icon } = getMCPServerData(serverName);
-      const strippedServerName = serverName.startsWith('pipedream-') 
-        ? serverName.replace('pipedream-', '') 
-        : serverName;
+      const { icon } = getMCPServerData(item.id);
+      const strippedServerName = item.id.startsWith('pipedream-') 
+        ? item.id.replace('pipedream-', '') 
+        : item.id;
       
       const serverTool = tools?.find(tool => 
-        tool.serverName === serverName || 
-        tool.appSlug === serverName ||
+        tool.serverName === item.id || 
+        tool.appSlug === item.id ||
         tool.serverName === strippedServerName ||
         tool.appSlug === strippedServerName ||
-        tool.serverName === `pipedream-${serverName}` ||
-        tool.appSlug === `pipedream-${serverName}` ||
+        tool.serverName === `pipedream-${item.id}` ||
+        tool.appSlug === `pipedream-${item.id}` ||
         tool.serverName === `pipedream-${strippedServerName}` ||
         tool.appSlug === `pipedream-${strippedServerName}`
       );
@@ -148,21 +204,35 @@ const MCPServerIcons = ({ mcpServers }: { mcpServers: string[] }) => {
         };
         
         setSelectedIntegration(fallbackIntegration);
-        setIsModalOpen(true);
+        setIsAppModalOpen(true);
       }
+    } else if (item.type === 'tool') {
+      // For standalone tools, use the simple tool modal
+      setSelectedTool({
+        id: item.id,
+        name: item.name,
+        icon: item.icon,
+        description: item.description
+      });
+      setIsToolModalOpen(true);
     }
   };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
+  const handleCloseAppModal = () => {
+    setIsAppModalOpen(false);
     setSelectedIntegration(null);
   };
 
-  const handleConnect = (integration: TAvailableIntegration) => {
+  const handleCloseToolModal = () => {
+    setIsToolModalOpen(false);
+    setSelectedTool(null);
+  };
+
+  const handleConnect = () => {
     // This will be handled by the modal's internal logic
   };
 
-  const handleDisconnect = (userIntegration: any) => {
+  const handleDisconnect = () => {
     // This will be handled by the modal's internal logic
   };
 
@@ -171,16 +241,16 @@ const MCPServerIcons = ({ mcpServers }: { mcpServers: string[] }) => {
       <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2">
         <div className="bg-black/20 backdrop-blur-sm rounded-lg px-2 py-1">
           <div className="flex items-center gap-2">
-            {serverData.map(({ serverName, icon, integration }) => (
+            {allItems.map((item) => (
               <button
-                key={serverName}
-                onClick={() => handleIconClick(integration, serverName)}
+                key={item.id}
+                onClick={() => handleIconClick(item)}
                 className="group relative p-1 rounded-md hover:bg-surface-hover transition-colors duration-200"
-                title={`${serverName.charAt(0).toUpperCase() + serverName.slice(1)} - Click for details`}
+                title={`${item.name} - Click for details`}
               >
                 <img
-                  src={icon}
-                  alt={`${serverName} integration`}
+                  src={item.icon}
+                  alt={`${item.name} ${item.type === 'tool' ? 'tool' : 'integration'}`}
                   className="h-5 w-5 rounded-sm object-cover transition-transform duration-200 group-hover:scale-110 bg-white/90 dark:bg-gray-100/90 p-0.5"
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
@@ -193,13 +263,20 @@ const MCPServerIcons = ({ mcpServers }: { mcpServers: string[] }) => {
       </div>
       {selectedIntegration && (
         <AppDetailsModal
-          isOpen={isModalOpen}
-          onClose={handleCloseModal}
+          isOpen={isAppModalOpen}
+          onClose={handleCloseAppModal}
           integration={selectedIntegration}
-          isConnected={getConnectionStatus(selectedIntegration).isConnected}
-          userIntegration={getConnectionStatus(selectedIntegration).userIntegration}
+          isConnected={!!userIntegrations?.find(ui => ui.appSlug === selectedIntegration.appSlug)}
+          userIntegration={userIntegrations?.find(ui => ui.appSlug === selectedIntegration.appSlug)}
           onConnect={handleConnect}
           onDisconnect={handleDisconnect}
+        />
+      )}
+      {selectedTool && (
+        <ToolDetailsModal
+          isOpen={isToolModalOpen}
+          onClose={handleCloseToolModal}
+          tool={selectedTool}
         />
       )}
     </>
@@ -212,11 +289,13 @@ const ChatForm = memo(
     disabled = false,
     isMcpChecking = false,
     mcpServers = [],
+    toolKeys = [],
   }: {
     index?: number;
     disabled?: boolean;
     isMcpChecking?: boolean;
     mcpServers?: string[];
+    toolKeys?: string[];
   }) => {
     const submitButtonRef = useRef<HTMLButtonElement>(null);
     const textAreaRef = useRef<HTMLTextAreaElement>(null);
@@ -521,7 +600,7 @@ const ChatForm = memo(
                 </div>
               </div>
               {TextToSpeech && automaticPlayback && <StreamAudio index={index} />}
-              <MCPServerIcons mcpServers={mcpServers} />
+              <MCPServerIcons mcpServers={mcpServers} toolKeys={toolKeys} />
             </div>
           </div>
         </div>
