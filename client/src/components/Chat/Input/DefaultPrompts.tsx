@@ -84,7 +84,10 @@ export default function DefaultPrompts({ conversation, onPromptSelect, isCompact
                   }
                 >
                   {prompt.toLowerCase().includes('workflow') && (
-                    <div className="absolute -top-1 -right-1 z-10 bg-blue-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full shadow-sm">
+                    <div className={isCompact 
+                      ? "absolute -top-2 -right-1 z-10 bg-blue-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full shadow-sm"
+                      : "absolute -top-1 -right-1 z-10 bg-blue-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full shadow-sm"
+                    }>
                       Beta
                     </div>
                   )}
