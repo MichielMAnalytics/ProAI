@@ -17,6 +17,7 @@ import { useLocalize, usePluginDialogHelpers } from '~/hooks';
 import { useAvailableToolsQuery } from '~/data-provider';
 import { Pagination } from '~/components/ui';
 import ToolItem from './ToolItem';
+import DisconnectedToolItem from './DisconnectedToolItem';
 
 function ToolSelectDialog({
   isOpen,
@@ -250,11 +251,27 @@ function ToolSelectDialog({
   const [selectedServers, setSelectedServers] = useState<Set<string>>(new Set());
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
+  // Get disconnected tools - tools that are selected but no longer available
+  const disconnectedTools = useMemo(() => {
+    const currentTools = getValues(toolsFormKey) || [];
+    const availableToolKeys = new Set(tools?.map(t => t.pluginKey) || []);
+    
+    return currentTools
+      .filter(toolKey => !availableToolKeys.has(toolKey))
+      .map(toolKey => ({
+        pluginKey: toolKey,
+        name: toolKey.charAt(0).toUpperCase() + toolKey.slice(1).replace(/_/g, ' '),
+        description: 'This tool is no longer available. Please reconnect the required MCP server.',
+        icon: undefined,
+        isDisconnected: true
+      }));
+  }, [tools, getValues, toolsFormKey]);
+
   // Filter tools by selected servers and search value
   const filteredTools = useMemo(() => {
-    if (!tools) return [];
+    if (!tools) return disconnectedTools;
     
-    return tools.filter((tool) => {
+    const connectedTools = tools.filter((tool) => {
       const matchesSearch = tool.name.toLowerCase().includes(searchValue.toLowerCase());
       
       if (selectedServers.size > 0) {
@@ -265,7 +282,14 @@ function ToolSelectDialog({
       
       return matchesSearch;
     });
-  }, [tools, searchValue, selectedServers]);
+
+    // Add disconnected tools that match search
+    const filteredDisconnectedTools = disconnectedTools.filter(tool => 
+      tool.name.toLowerCase().includes(searchValue.toLowerCase())
+    );
+
+    return [...connectedTools, ...filteredDisconnectedTools];
+  }, [tools, searchValue, selectedServers, disconnectedTools]);
 
   // Handle server selection and automatically select all tools from that server
   const handleServerSelection = (serverName: string) => {
@@ -458,6 +482,11 @@ function ToolSelectDialog({
                 <div className="flex flex-col gap-3 sm:gap-4">
                   <div className="text-xs sm:text-sm text-text-secondary font-medium text-center">
                     {selectedToolsCount} of {totalFilteredTools} tools selected
+                    {disconnectedTools.length > 0 && (
+                      <div className="mt-1 text-orange-600 dark:text-orange-400 text-xs">
+                        ⚠️ {disconnectedTools.length} disconnected tool{disconnectedTools.length !== 1 ? 's' : ''} require{disconnectedTools.length === 1 ? 's' : ''} MCP server connection
+                      </div>
+                    )}
                     {selectedServers.size > 0 && (
                       <div className="mt-1">
                         from {Array.from(selectedServers).map(serverName => {
@@ -583,15 +612,27 @@ function ToolSelectDialog({
                   {filteredTools &&
                     filteredTools
                       .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                      .map((tool, index) => (
-                        <ToolItem
-                          key={index}
-                          tool={tool}
-                          isInstalled={getValues(toolsFormKey).includes(tool.pluginKey)}
-                          onAddTool={() => onAddTool(tool.pluginKey)}
-                          onRemoveTool={() => onRemoveTool(tool.pluginKey)}
-                        />
-                      ))}
+                      .map((tool, index) => {
+                        if (tool.isDisconnected) {
+                          return (
+                            <DisconnectedToolItem
+                              key={`disconnected-${tool.pluginKey}-${index}`}
+                              tool={tool}
+                              onRemoveTool={() => onRemoveTool(tool.pluginKey)}
+                            />
+                          );
+                        }
+                        
+                        return (
+                          <ToolItem
+                            key={index}
+                            tool={tool}
+                            isInstalled={getValues(toolsFormKey).includes(tool.pluginKey)}
+                            onAddTool={() => onAddTool(tool.pluginKey)}
+                            onRemoveTool={() => onRemoveTool(tool.pluginKey)}
+                          />
+                        );
+                      })}
                 </div>
               )}
             </div>

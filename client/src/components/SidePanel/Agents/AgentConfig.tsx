@@ -341,9 +341,9 @@ export default function AgentConfig({
                   ${actionsEnabled === true && agentPanelConfig.actions !== false ? localize('com_assistants_actions') : ''}`}
               </label>
               {(() => {
-                const validToolsCount = agentPanelConfig.tools !== false ? tools?.filter(tool => allTools.find(t => t.pluginKey === tool)).length ?? 0 : 0;
+                const allToolsCount = agentPanelConfig.tools !== false ? tools?.length ?? 0 : 0;
                 const validActionsCount = agentPanelConfig.actions !== false ? actions?.filter((action) => action.agent_id === agent_id).length ?? 0 : 0;
-                const totalCount = validToolsCount + validActionsCount;
+                const totalCount = allToolsCount + validActionsCount;
                 
                 return totalCount > 0 ? (
                   <span className="rounded-full bg-surface-tertiary px-2 py-1 text-xs text-text-secondary">
@@ -355,9 +355,9 @@ export default function AgentConfig({
             <div className="space-y-2">
               {/* Tools and Actions Container with Scrolling */}
               {(() => {
-                const validTools = agentPanelConfig.tools !== false ? tools?.filter(tool => allTools.find(t => t.pluginKey === tool)) ?? [] : [];
+                const allAgentTools = agentPanelConfig.tools !== false ? tools ?? [] : [];
                 const validActions = agentPanelConfig.actions !== false ? actions?.filter((action) => action.agent_id === agent_id) ?? [] : [];
-                const hasItems = validTools.length > 0 || validActions.length > 0;
+                const hasItems = allAgentTools.length > 0 || validActions.length > 0;
                 
                 if (!hasItems) {
                   return (
@@ -387,7 +387,7 @@ export default function AgentConfig({
                   <div 
                     className={cn(
                       "space-y-2 rounded-lg border border-border-light bg-surface-primary p-2",
-                      (validTools.length + validActions.length) > 4
+                      (allAgentTools.length + validActions.length) > 4
                         ? "max-h-60 overflow-y-auto"
                         : ""
                     )}
@@ -396,7 +396,7 @@ export default function AgentConfig({
                       scrollbarColor: 'rgb(156 163 175) transparent',
                     }}
                   >
-                    {agentPanelConfig.tools !== false && validTools.map((func, i) => (
+                    {agentPanelConfig.tools !== false && allAgentTools.map((func, i) => (
                       <AgentTool
                         key={`${func}-${i}-${agent_id}`}
                         tool={func}

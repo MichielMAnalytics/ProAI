@@ -198,12 +198,7 @@ async function smartMCPCacheInvalidation(userId: string, operation: string, doc?
           );
           
           if (result.success) {
-            // Note: result.toolsRemoved will be 0 because MCPInitializer doesn't track tools
-            // The actual tool cleanup happens in the targeted cleanup service
-            logger.info(`[UserIntegration] ✅ INCREMENTAL DELETE successful: Disconnected server '${doc.mcpServerConfig.serverName}' for user ${userId} (tools cleaned up separately by targeted cleanup)`);
-            
-            // The disconnectSingleMCPServer already handles targeted cleanup of tools from agents
-            // via cleanupToolsForDisconnectedServer, so no additional cleanup is needed
+            logger.info(`[UserIntegration] ✅ INCREMENTAL DELETE successful: Disconnected server '${doc.mcpServerConfig.serverName}' for user ${userId}`);
             
             return; // Skip full cache clearing
           } else {
@@ -220,24 +215,6 @@ async function smartMCPCacheInvalidation(userId: string, operation: string, doc?
       
       const MCPInitializer = require('~/server/services/MCPInitializer');
       MCPInitializer.clearUserCache(userId);
-      
-      // If this is a delete operation, also cleanup orphaned MCP tools from agents
-      if (operation === 'delete') {
-        try {
-          const UserMCPService = require('~/server/services/UserMCPService');
-          const cleanupResult = await UserMCPService.cleanupOrphanedMCPTools(userId);
-          
-          logger.info(`[UserIntegration] ✅ CLEANED UP orphaned MCP tools for user ${userId}:`, {
-            agentsProcessed: cleanupResult.agentsProcessed,
-            agentsUpdated: cleanupResult.agentsUpdated,
-            toolsRemoved: cleanupResult.toolsRemoved
-          });
-        } catch (cleanupError: unknown) {
-          const errorMessage = cleanupError instanceof Error ? cleanupError.message : 'Unknown error';
-          logger.warn(`[UserIntegration] Failed to cleanup orphaned MCP tools for user ${userId}: ${errorMessage}`);
-          // Don't fail the entire operation if cleanup fails
-        }
-      }
       
       // Log the cache clear for debugging
       logger.info(`[UserIntegration] ✅ CLEARED MCP cache via MCPInitializer for user ${userId} after ${operation}`);

@@ -749,8 +749,7 @@ class MCPInitializer {
 
       logger.info(`[MCPInitializer][${context}] Successfully disconnected server '${serverName}' for user ${userId}`);
 
-      // Note: Cache updates for tool removal are handled by the controller after cleanup
-      // to ensure we have the accurate tool count. Only update manifest tools here.
+      // Note: Only update manifest tools cache here. Tool cleanup is no longer performed automatically.
 
       // Update manifest tools cache incrementally
       logger.info(`[MCPInitializer][${context}] Updating manifest tools cache after disconnecting server '${serverName}'`);
@@ -771,8 +770,8 @@ class MCPInitializer {
       return {
         success: true,
         serverName,
-        toolsRemoved: 0, // Tools are removed by the targeted cleanup, not here
-        removedToolKeys: [], // Tool removal is handled by UserMCPService.cleanupToolsForDisconnectedServer
+        toolsRemoved: 0, // Tool cleanup is no longer performed automatically
+        removedToolKeys: [], // Tool removal is no longer performed automatically
         duration: Date.now() - startTime,
       };
 
