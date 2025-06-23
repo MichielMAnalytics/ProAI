@@ -2460,6 +2460,54 @@ button, .btn {
   animation: shimmer 4s linear infinite;
 }
 
+/* Typing Indicator Animation */
+@-webkit-keyframes pulseSize {
+  0%,
+  to {
+    -webkit-transform: scaleX(1);
+    transform: scaleX(1);
+  }
+  50% {
+    -webkit-transform: scale3d(1.25, 1.25, 1);
+    transform: scale3d(1.25, 1.25, 1);
+  }
+}
+
+@keyframes pulseSize {
+  0%,
+  to {
+    -webkit-transform: scaleX(1);
+    transform: scaleX(1);
+  }
+  50% {
+    -webkit-transform: scale3d(1.25, 1.25, 1);
+    transform: scale3d(1.25, 1.25, 1);
+  }
+}
+
+.submitting .result-thinking:empty:last-child:after {
+  -webkit-font-smoothing: subpixel-antialiased;
+  -webkit-animation: pulseSize 1.25s ease-in-out infinite;
+  animation: pulseSize 1.25s ease-in-out infinite;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  background-color: #0d0d0d;
+  background-color: var(--text-primary);
+  border-radius: 50%;
+  box-sizing: border-box;
+  content: ' ';
+  display: block;
+  height: 12px;
+  position: absolute;
+  top: -11px;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-transform-origin: center;
+  transform-origin: center;
+  width: 12px;
+  will-change: transform;
+}
+
 .custom-style-2 {
   padding: 12px;
 }
