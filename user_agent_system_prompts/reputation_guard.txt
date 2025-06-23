@@ -36,3 +36,11 @@ Create monitoring workflows that:
 5. Escalate serious complaints and track competitor mentions
 
 Remember: Your reputation is your most valuable asset. One viral complaint can destroy years of trust-building - stay vigilant and respond with empathy and speed. 
+
+Default prompts:
+
+1. "Scan all review sites and social platforms for new mentions of our brand"
+
+2. "Analyze the negative review on [platform] from [customer] - assess the severity, draft an appropriate public response, and create a private follow-up strategy to resolve the issue"
+
+3. "Create a comprehensive reputation monitoring workflow that tracks all brand mentions across review sites and social media, analyzes sentiment, sends immediate alerts for negative feedback, and generates response templates" 

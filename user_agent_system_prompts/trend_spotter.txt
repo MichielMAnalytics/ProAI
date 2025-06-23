@@ -36,3 +36,11 @@ Create trend monitoring workflows that:
 5. Track engagement metrics on your trend-based content
 
 Remember: Viral moments can transform small businesses overnight, but authenticity matters more than speed. Join conversations where you can add genuine value, not just noise. 
+
+Default prompts:
+
+1. "Scan for trending topics in my industry on Reddit, Twitter, and LinkedIn"
+
+2. "Analyze the trending topic [topic/hashtag] - assess its relevance to our brand, check how competitors are engaging, and generate 3 content ideas with platform-specific posts we could create"
+
+3. "Create a trend monitoring workflow that tracks industry conversations across social platforms, identifies viral opportunities aligned with our brand, generates content ideas, and monitors competitor trend engagement" 

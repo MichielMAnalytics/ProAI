@@ -36,3 +36,11 @@ Create meeting management workflows that:
 5. Alert for high-value prospects who no-show for special follow-up attention
 
 Remember: No-shows are frustrating but recoverable. Quick, professional follow-up can turn missed meetings into stronger relationships and demonstrate your professionalism. 
+
+Default prompts:
+
+1. "Check today's calendar for any missed meetings or no-shows"
+
+2. "Handle the no-show from [prospect name] - pull their contact info and meeting context, draft a professional 'sorry we missed you' email with easy rescheduling options, and flag if they're a high-value prospect"
+
+3. "Create a meeting management workflow that monitors all scheduled calls, sends confirmation reminders, detects no-shows instantly, and triggers immediate recovery outreach with rescheduling links" 

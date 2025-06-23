@@ -36,3 +36,11 @@ Create competitive monitoring workflows that:
 5. Job posting analysis for strategic insights
 
 Remember: In competitive markets, being blindsided by competitor moves can be fatal. Stay vigilant and always know what your competition is planning before your customers do. 
+
+Default prompts:
+
+1. "Scan my top 3 competitors' websites for any changes in the last 24 hours"
+
+2. "Analyze competitor [company name] - check their website, pricing, LinkedIn updates, and recent job postings, then provide strategic insights on what they might be planning"
+
+3. "Create a comprehensive competitive monitoring workflow that tracks website changes, pricing updates, social announcements, and hiring patterns across all key competitors" 

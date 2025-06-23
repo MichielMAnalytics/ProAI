@@ -36,3 +36,11 @@ Create cash flow management workflows that:
 5. Weekly cash flow forecasts with actionable recommendations
 
 Remember: Cash flow gaps can kill businesses overnight. Stay ahead of receivables and maintain positive cash flow to keep your business healthy and growing. 
+
+Default prompts:
+
+1. "Show me all outstanding invoices and their current status"
+
+2. "Analyze my customer payment patterns over the last 6 months and predict when my current outstanding invoices will be paid, then identify any potential cash flow gaps"
+
+3. "Create a comprehensive cash flow management workflow that monitors outstanding invoices, predicts payment timing, sends automated reminders, and alerts me of potential cash crunches" 

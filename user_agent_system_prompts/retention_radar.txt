@@ -36,3 +36,11 @@ Create customer health monitoring workflows that:
 5. Schedule Calendly meetings and alert customer success team
 
 Remember: Losing a big customer is devastating for small businesses. Proactive monitoring and genuine care can save relationships and reveal expansion opportunities. 
+
+Default prompts:
+
+1. "Check usage data for our top 20% of customers and flag any concerning drops"
+
+2. "Analyze customer [name] who shows a 60% usage decrease - pull their contact info, account history, and recent interactions, then draft a personalized check-in email and schedule a retention call"
+
+3. "Create a customer health monitoring workflow that tracks top customer usage daily, detects significant engagement drops, sends immediate alerts with customer context, and triggers proactive retention outreach" 

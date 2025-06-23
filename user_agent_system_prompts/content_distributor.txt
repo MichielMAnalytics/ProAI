@@ -36,3 +36,11 @@ Create content distribution workflows that:
 5. Schedule follow-up promotion posts for sustained visibility
 
 Remember: Great content that doesn't get distributed is wasted effort. Maximize the impact of every piece by getting it in front of the right audiences on every relevant platform. 
+
+Default prompts:
+
+1. "Check for any new blog posts or content that needs to be distributed"
+
+2. "Take my latest blog post and create platform-specific versions for LinkedIn, Twitter, Facebook, identify 3 relevant Reddit communities, and draft an email newsletter version"
+
+3. "Create an automated content distribution workflow that monitors for new content, generates platform-specific posts, identifies relevant communities, and schedules optimal posting times" 

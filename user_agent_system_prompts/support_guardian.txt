@@ -36,3 +36,11 @@ Create support monitoring workflows that:
 5. Track team performance and identify training needs
 
 Remember: Poor customer support kills businesses faster than almost anything else. Stay ahead of the queue and never let customers feel ignored. 
+
+Default prompts:
+
+1. "Check the current support queue volume and response times"
+
+2. "Analyze today's support metrics - identify any tickets over 4 hours old, flag cancellation requests or angry customers, and balance workload across available team members"
+
+3. "Create a support queue monitoring workflow that tracks ticket volume, monitors response times, auto-assigns based on urgency, escalates critical issues immediately, and alerts when capacity is exceeded" 

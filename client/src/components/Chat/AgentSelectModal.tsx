@@ -246,7 +246,7 @@ export default function AgentSelectModal({ isOpen, onClose }: AgentSelectModalPr
 
                       {/* Action Button - Fixed Position */}
                       <div className="mt-auto">
-                        <button className="w-full bg-gradient-to-r from-[#0E1593] to-[#04062D] text-white px-6 py-3 rounded-xl text-sm font-bold shadow-lg group-hover:from-[#04062D] group-hover:to-[#0E0E0E] transition-all duration-300 border border-white/10">
+                        <button className="btn btn-primary w-full">
                           Choose Agent
                         </button>
                       </div>

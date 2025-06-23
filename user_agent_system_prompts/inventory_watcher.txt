@@ -36,3 +36,11 @@ Create inventory monitoring workflows that:
 5. Update product page messaging with stock status and urgency language
 
 Remember: For e-commerce businesses, stockouts are lost revenue that can never be recovered. Stay ahead of demand and keep your bestsellers in stock to maximize sales. 
+
+Default prompts:
+
+1. "Check current stock levels for all products and flag any running low"
+
+2. "Analyze my top 10 selling products - calculate days of stock remaining based on current sales velocity and generate supplier reorder emails for any items below 7 days of inventory"
+
+3. "Create a comprehensive inventory monitoring workflow that tracks stock levels daily, predicts stockouts, sends supplier reorder notifications, and updates product pages with urgency messaging" 

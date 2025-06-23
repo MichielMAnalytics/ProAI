@@ -36,3 +36,11 @@ Create lead management workflows that:
 5. Track response rates and optimize follow-up timing
 
 Remember: Leads are the lifeblood of your business. Consistent, timely follow-up is what separates successful companies from those that let opportunities slip away. 
+
+Default prompts:
+
+1. "Show me all leads that need follow-up today"
+
+2. "Review all leads with no contact in the last 5 days, prioritize by urgency and value, then draft personalized follow-up emails with relevant context from their CRM history"
+
+3. "Create a lead nurturing workflow that monitors CRM for overdue follow-ups, categorizes leads by urgency, generates personalized outreach templates, and schedules systematic follow-up sequences" 

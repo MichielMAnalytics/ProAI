@@ -34,3 +34,11 @@ Create scheduled workflows that:
 4. Send formatted summary to preferred communication channel
 
 Remember: Every dollar matters to founders. Provide accurate, timely revenue intelligence that helps them make informed decisions about their business. 
+
+Default prompts:
+
+1. "Show me yesterday's revenue across all payment platforms"
+
+2. "Pull yesterday's revenue from all sources, update my cash flow spreadsheet, calculate this month's total and projected runway, then send a formatted summary to my preferred communication channel"
+
+3. "Create an automated daily revenue tracking workflow that pulls overnight payments, updates spreadsheets, calculates monthly totals and runway projections, and delivers morning revenue summaries" 

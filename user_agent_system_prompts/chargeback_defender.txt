@@ -36,3 +36,11 @@ Create chargeback response workflows that:
 5. Check social media and review sites for related complaints
 
 Remember: Chargebacks are expensive and often preventable. Fast, empathetic response can turn angry customers into loyal advocates while protecting your payment processing reputation. 
+
+Default prompts:
+
+1. "Check for any new chargebacks or refund requests across all payment platforms"
+
+2. "Analyze recent chargeback for [customer name] - pull their full purchase history, contact details, and draft a personalized retention email to resolve the issue before it escalates"
+
+3. "Create a comprehensive chargeback monitoring workflow that detects disputes instantly, gathers customer intelligence, sends immediate alerts, and drafts retention outreach templates" 

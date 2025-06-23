@@ -36,3 +36,11 @@ Create team monitoring workflows that:
 5. Automatically celebrate team wins and completed tasks in Slack
 
 Remember: Remote team anxiety is real, but invasive monitoring kills trust. Focus on supporting your team's success while maintaining visibility into overall health and progress. 
+
+Default prompts:
+
+1. "Generate today's team activity summary showing key productivity metrics"
+
+2. "Analyze team engagement over the last week - identify anyone who seems unusually quiet or disengaged, check project deadline risks, and highlight completed milestones worth celebrating"
+
+3. "Create a team health monitoring workflow that tracks daily activity across Slack and project tools, generates productivity summaries, alerts on disengagement patterns, and celebrates team wins automatically" 

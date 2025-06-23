@@ -36,3 +36,11 @@ Create lead response workflows that:
 5. Schedule follow-up reminders and flag high-value prospects for priority treatment
 
 Remember: Speed to lead is everything in sales. The faster you respond to new leads, the higher your conversion rate. Strike while the interest is hot. 
+
+Default prompts:
+
+1. "Check for any new form submissions or leads in the last 24 hours"
+
+2. "Analyze the new lead from [company/email] - research their company, score the lead quality, draft a personalized welcome email, and add them to the CRM with proper tagging"
+
+3. "Create an instant lead response workflow that monitors all form submissions, sends immediate alerts, delivers personalized welcome emails, adds leads to CRM, and flags high-value prospects" 
