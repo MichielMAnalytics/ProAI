@@ -18,6 +18,7 @@ import { useAvailableToolsQuery } from '~/data-provider';
 import { Pagination } from '~/components/ui';
 import ToolItem from './ToolItem';
 import DisconnectedToolItem from './DisconnectedToolItem';
+import MCPServerCard from './MCPServerCard';
 
 function ToolSelectDialog({
   isOpen,
@@ -150,13 +151,10 @@ function ToolSelectDialog({
   };
 
   const onSelectAll = () => {
-    if (!filteredTools) return;
-    
-    // Clear selected servers since we're selecting all tools
-    setSelectedServers(new Set());
+    if (!tools) return;
     
     const currentTools = getValues(toolsFormKey);
-    const toolsToAdd = filteredTools.filter(tool => !currentTools.includes(tool.pluginKey));
+    const toolsToAdd = tools.filter(tool => !currentTools.includes(tool.pluginKey));
     
     // Add tools that don't require authentication first
     const toolsWithoutAuth = toolsToAdd.filter(tool => {
@@ -169,87 +167,27 @@ function ToolSelectDialog({
       setValue(toolsFormKey, newTools);
       updateMCPServers(); // Update MCP servers after selecting all
     }
-    
-    // Handle tools that require authentication
-    const toolsWithAuth = toolsToAdd.filter(tool => {
-      const { authConfig, authenticated = false } = tool;
-      return authConfig && authConfig.length > 0 && !authenticated;
-    });
-    
-    // For now, just skip tools that require authentication
-    if (toolsWithAuth.length > 0) {
-      console.log(`${toolsWithAuth.length} tools require authentication and were skipped`);
-    }
   };
 
   const onDeselectAll = () => {
-    if (!filteredTools) return;
-    
-    // Clear selected servers since we're deselecting all tools
-    setSelectedServers(new Set());
-    
     const currentTools = getValues(toolsFormKey);
-    const toolsToRemove = filteredTools
-      .filter(tool => currentTools.includes(tool.pluginKey))
-      .map(tool => tool.pluginKey);
+    if (currentTools.length === 0) return;
     
-    if (toolsToRemove.length > 0) {
-      // Remove all filtered tools from the current selection
-      const remainingTools = currentTools.filter((tool: string) => !toolsToRemove.includes(tool));
-      setValue(toolsFormKey, remainingTools);
-      updateMCPServers(); // Update MCP servers after deselecting all
-      
-      // Call uninstall for each tool that needs it
-      toolsToRemove.forEach(pluginKey => {
-        updateUserPlugins.mutate(
-          { pluginKey, action: 'uninstall', auth: undefined, isEntityTool: true },
-          {
-            onError: (error: unknown) => {
-              handleInstallError(error as TError);
-            },
+    setValue(toolsFormKey, []);
+    setValue('mcp_servers', []);
+    
+    // Call uninstall for each tool that needs it
+    currentTools.forEach((pluginKey: string) => {
+      updateUserPlugins.mutate(
+        { pluginKey, action: 'uninstall', auth: undefined, isEntityTool: true },
+        {
+          onError: (error: unknown) => {
+            handleInstallError(error as TError);
           },
-        );
-      });
-    }
-  };
-
-  // Group tools by MCP server and get server metadata
-  const mcpServers = useMemo(() => {
-    if (!tools) return [];
-    
-    const serverMap = new Map<string, { name: string; displayName: string; icon?: string }>();
-    tools.forEach((tool) => {
-      // Check if this is an MCP tool by looking for serverName or appSlug
-      if (tool.serverName || tool.appSlug) {
-        const serverName = tool.serverName || tool.appSlug;
-        if (serverName && !serverMap.has(serverName)) {
-          // Remove 'pipedream-' prefix and format properly
-          let displayName = serverName.startsWith('pipedream-') 
-            ? serverName.replace('pipedream-', '')
-            : serverName;
-          
-          // Replace underscores with spaces and capitalize each word
-          displayName = displayName
-            .replace(/_/g, ' ')
-            .split(' ')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ');
-          
-          serverMap.set(serverName, { 
-            name: serverName,
-            displayName,
-            icon: tool.icon // Store the icon from the first tool of this server
-          });
-        }
-      }
+        },
+      );
     });
-    
-    return Array.from(serverMap.values());
-  }, [tools]);
-
-  // State for selected servers (multiple)
-  const [selectedServers, setSelectedServers] = useState<Set<string>>(new Set());
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  };
 
   // Get disconnected tools - tools that are selected but no longer available
   const disconnectedTools = useMemo(() => {
@@ -267,85 +205,121 @@ function ToolSelectDialog({
       }));
   }, [tools, getValues, toolsFormKey]);
 
-  // Filter tools by selected servers and search value
-  const filteredTools = useMemo(() => {
-    if (!tools) return disconnectedTools;
+  // Group tools by MCP server and get server metadata with tools
+  const mcpServersWithTools = useMemo(() => {
+    if (!tools) return [];
     
-    const connectedTools = tools.filter((tool) => {
-      const matchesSearch = tool.name.toLowerCase().includes(searchValue.toLowerCase());
-      
-      if (selectedServers.size > 0) {
+    const serverMap = new Map<string, {
+      name: string;
+      displayName: string;
+      icon?: string;
+      tools: typeof tools;
+      isDisconnected?: boolean;
+    }>();
+    
+    // Add connected servers with their tools
+    tools.forEach((tool) => {
+      if (tool.serverName || tool.appSlug) {
         const serverName = tool.serverName || tool.appSlug;
-        if (!serverName) return false;
-        return matchesSearch && selectedServers.has(serverName);
+        if (serverName) {
+          if (!serverMap.has(serverName)) {
+            let displayName = serverName.startsWith('pipedream-') 
+              ? serverName.replace('pipedream-', '')
+              : serverName;
+            
+            displayName = displayName
+              .replace(/_/g, ' ')
+              .split(' ')
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(' ');
+            
+            serverMap.set(serverName, {
+              name: serverName,
+              displayName,
+              icon: tool.icon,
+              tools: [],
+              isDisconnected: false
+            });
+          }
+          serverMap.get(serverName)!.tools.push(tool);
+        }
       }
+    });
+    
+    // Add disconnected servers from disconnected tools
+    const currentTools = getValues(toolsFormKey) || [];
+    const disconnectedServerTools = new Map<string, string[]>();
+    
+    disconnectedTools.forEach(tool => {
+      // Try to guess server name from tool name (this is a fallback)
+      const toolKey = tool.pluginKey;
+      const serverGuess = toolKey.split('_')[0]; // Basic heuristic
       
-      return matchesSearch;
+      if (!disconnectedServerTools.has(serverGuess)) {
+        disconnectedServerTools.set(serverGuess, []);
+      }
+      disconnectedServerTools.get(serverGuess)!.push(toolKey);
     });
-
-    // Add disconnected tools that match search
-    const filteredDisconnectedTools = disconnectedTools.filter(tool => 
-      tool.name.toLowerCase().includes(searchValue.toLowerCase())
+    
+    disconnectedServerTools.forEach((toolKeys, serverName) => {
+      if (!serverMap.has(serverName)) {
+        const displayName = serverName
+          .replace(/_/g, ' ')
+          .split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+        
+        serverMap.set(serverName, {
+          name: serverName,
+          displayName,
+          tools: toolKeys.map(toolKey => {
+            const disconnectedTool = disconnectedTools.find(t => t.pluginKey === toolKey);
+            return disconnectedTool || {
+              pluginKey: toolKey,
+              name: toolKey.charAt(0).toUpperCase() + toolKey.slice(1).replace(/_/g, ' '),
+              description: 'Disconnected tool',
+              isDisconnected: true
+            };
+          }),
+          isDisconnected: true
+        });
+      }
+    });
+    
+    return Array.from(serverMap.values()).filter(server => 
+      server.displayName.toLowerCase().includes(searchValue.toLowerCase())
     );
+  }, [tools, disconnectedTools, getValues, toolsFormKey, searchValue]);
 
-    return [...connectedTools, ...filteredDisconnectedTools];
-  }, [tools, searchValue, selectedServers, disconnectedTools]);
+  // State for standalone tools (non-MCP tools)
+  const standaloneTools = useMemo(() => {
+    if (!tools) return [];
+    return tools.filter(tool => !tool.serverName && !tool.appSlug)
+      .filter(tool => tool.name.toLowerCase().includes(searchValue.toLowerCase()));
+  }, [tools, searchValue]);
 
-  // Handle server selection and automatically select all tools from that server
-  const handleServerSelection = (serverName: string) => {
-    const newSelectedServers = new Set(selectedServers);
-    
-    if (newSelectedServers.has(serverName)) {
-      newSelectedServers.delete(serverName);
-    } else {
-      newSelectedServers.add(serverName);
-    }
-    
-    setSelectedServers(newSelectedServers);
-
-    // Get all tools from the selected servers
-    const serverTools = tools?.filter(tool => {
-      const toolServer = tool.serverName || tool.appSlug;
-      if (!toolServer) return false;
-      return newSelectedServers.has(toolServer);
-    }) || [];
-
-    // Update selected tools
-    const currentTools = new Set(getValues(toolsFormKey));
-    serverTools.forEach(tool => {
-      if (!tool.authConfig || tool.authenticated) {
-        currentTools.add(tool.pluginKey);
-      }
+  // Filter disconnected standalone tools
+  const filteredDisconnectedStandaloneTools = useMemo(() => {
+    return disconnectedTools.filter(tool => {
+      // Only include tools that don't seem to belong to an MCP server
+      const toolKey = tool.pluginKey;
+      const hasServerIndicator = mcpServersWithTools.some(server => 
+        toolKey.toLowerCase().includes(server.name.toLowerCase())
+      );
+      return !hasServerIndicator && tool.name.toLowerCase().includes(searchValue.toLowerCase());
     });
-    
-    setValue(toolsFormKey, Array.from(currentTools));
-    updateMCPServers(); // Update MCP servers after server selection
-  };
+  }, [disconnectedTools, mcpServersWithTools, searchValue]);
 
-  const selectedToolsCount = filteredTools?.filter(tool => 
-    getValues(toolsFormKey).includes(tool.pluginKey)
-  ).length || 0;
-  
-  const totalFilteredTools = filteredTools?.length || 0;
+  // Calculate total available tools and selected tools
+  const totalAvailableTools = useMemo(() => {
+    const mcpToolCount = mcpServersWithTools.reduce((acc, server) => acc + server.tools.length, 0);
+    const standaloneToolCount = standaloneTools.length;
+    const disconnectedStandaloneCount = filteredDisconnectedStandaloneTools.length;
+    return mcpToolCount + standaloneToolCount + disconnectedStandaloneCount;
+  }, [mcpServersWithTools, standaloneTools, filteredDisconnectedStandaloneTools]);
 
-  useEffect(() => {
-    if (filteredTools) {
-      setMaxPage(Math.ceil(filteredTools.length / itemsPerPage));
-      if (searchChanged) {
-        setCurrentPage(1);
-        setSearchChanged(false);
-      }
-    }
-  }, [
-    tools,
-    itemsPerPage,
-    searchValue,
-    filteredTools,
-    searchChanged,
-    setMaxPage,
-    setCurrentPage,
-    setSearchChanged,
-  ]);
+  const selectedToolsCount = getValues(toolsFormKey)?.length || 0;
+
 
   // Initialize MCP servers when tools data is loaded
   useEffect(() => {
@@ -354,13 +328,6 @@ function ToolSelectDialog({
     }
   }, [tools]);
 
-  // Initialize selectedServers from existing mcp_servers field
-  useEffect(() => {
-    const currentMcpServers = getValues('mcp_servers') || [];
-    if (currentMcpServers.length > 0) {
-      setSelectedServers(new Set(currentMcpServers));
-    }
-  }, [getValues, isOpen]); // Re-run when dialog opens
 
   return (
     <Dialog
@@ -395,7 +362,7 @@ function ToolSelectDialog({
               </Description>
             </div>
               <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-4">
-                {!isLoadingTools && filteredTools && filteredTools.length > 0 && (
+                {!isLoadingTools && (mcpServersWithTools.length > 0 || standaloneTools.length > 0) && (
                   <button
                     onClick={() => {
                       updateMCPServers(); // Ensure MCP servers are updated before navigating
@@ -481,176 +448,138 @@ function ToolSelectDialog({
               {!isLoadingTools && (
                 <div className="flex flex-col gap-3 sm:gap-4">
                   <div className="text-xs sm:text-sm text-text-secondary font-medium text-center">
-                    {selectedToolsCount} of {totalFilteredTools} tools selected
+                    {selectedToolsCount} of {totalAvailableTools} tools selected
                     {disconnectedTools.length > 0 && (
                       <div className="mt-1 text-orange-600 dark:text-orange-400 text-xs">
                         ⚠️ {disconnectedTools.length} disconnected tool{disconnectedTools.length !== 1 ? 's' : ''} require{disconnectedTools.length === 1 ? 's' : ''} MCP server connection
                       </div>
                     )}
-                    {selectedServers.size > 0 && (
-                      <div className="mt-1">
-                        from {Array.from(selectedServers).map(serverName => {
-                          const server = mcpServers.find(s => s.name === serverName);
-                          return server?.displayName || serverName;
-                        }).join(', ')}
-                      </div>
-                    )}
                   </div>
-                  <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
-                    <div className="flex items-center gap-2 sm:gap-3">
-                      <button
-                        type="button"
-                        onClick={onSelectAll}
-                        disabled={selectedToolsCount === totalFilteredTools || totalFilteredTools === 0}
-                        className="inline-flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg border border-[#0E1593] text-[#0E1593] hover:bg-[#0E1593]/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200"
-                      >
-                        <svg className="h-3 w-3 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Select All
-                      </button>
-                      <button
-                        type="button"
-                        onClick={onDeselectAll}
-                        disabled={selectedToolsCount === 0}
-                        className="inline-flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg border border-border-medium text-text-primary hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200"
-                      >
-                        <svg className="h-3 w-3 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        Deselect All
-                      </button>
-                    </div>
-
-                    {/* MCP Server Dropdown */}
-                    {mcpServers.length > 0 && (
-                      <div className="relative w-full sm:w-auto">
-                        <button
-                          type="button"
-                          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                          className="w-full sm:w-auto inline-flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg border border-border-medium text-text-primary hover:bg-surface-hover transition-all duration-200"
-                        >
-                          Select Apps
-                          <ChevronDown className={`h-3 w-3 sm:h-4 sm:w-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-                        </button>
-                        
-                        {isDropdownOpen && (
-                          <div className="absolute left-0 sm:right-0 mt-2 w-full sm:w-64 rounded-lg border border-border-medium bg-surface-primary shadow-lg z-50 max-h-48 overflow-y-auto">
-                            <div className="p-2 space-y-1">
-                              {mcpServers.map((server) => (
-                                <button
-                                  key={server.name}
-                                  onClick={() => handleServerSelection(server.name)}
-                                  className={`w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 text-xs sm:text-sm rounded-md transition-colors
-                                    ${selectedServers.has(server.name)
-                                      ? 'bg-[#0E1593]/10 text-[#0E1593]'
-                                      : 'hover:bg-surface-hover text-text-primary'
-                                    }`}
-                                >
-                                  {server.icon ? (
-                                    <img src={server.icon} alt="" className="w-4 h-4 sm:w-5 sm:h-5 rounded" />
-                                  ) : (
-                                    <div className="w-4 h-4 sm:w-5 sm:h-5 rounded bg-surface-secondary" />
-                                  )}
-                                  <span className="truncate">{server.displayName}</span>
-                                  {selectedServers.has(server.name) && (
-                                    <svg className="h-3 w-3 sm:h-4 sm:w-4 ml-auto flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                  <div className="flex items-center justify-center gap-2 sm:gap-3">
+                    <button
+                      type="button"
+                      onClick={onSelectAll}
+                      disabled={selectedToolsCount === totalAvailableTools || totalAvailableTools === 0}
+                      className="inline-flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg border border-[#0E1593] text-[#0E1593] hover:bg-[#0E1593]/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200"
+                    >
+                      <svg className="h-3 w-3 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onDeselectAll}
+                      disabled={selectedToolsCount === 0}
+                      className="inline-flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg border border-border-medium text-text-primary hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200"
+                    >
+                      <svg className="h-3 w-3 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Deselect All
+                    </button>
                   </div>
                 </div>
               )}
             </div>
 
-                         {/* Tools Grid */}
-             <div className="min-h-[200px]">
-               {isLoadingTools ? (
-                 <div className="flex flex-col items-center justify-center py-8 sm:py-16 px-4">
-                   <div className="flex items-center justify-center space-x-2">
-                     <div className="h-6 w-6 sm:h-8 sm:w-8 animate-spin rounded-full border-4 border-[#0E1593] border-t-transparent"></div>
-                     <p className="text-base sm:text-lg text-text-secondary">Loading tools...</p>
-                   </div>
-                 </div>
-               ) : filteredTools && filteredTools.length === 0 ? (
-                 <div className="flex flex-col items-center justify-center py-8 sm:py-16 px-4">
-                   <div className="w-12 h-12 sm:w-16 sm:h-16 bg-surface-tertiary rounded-full flex items-center justify-center mb-4">
-                     <Search className="w-6 h-6 sm:w-8 sm:h-8 text-text-tertiary" />
-                   </div>
-                   <h3 className="text-base sm:text-lg font-medium text-text-primary mb-2 text-center">No tools found</h3>
-                   <p className="text-sm sm:text-base text-text-secondary text-center max-w-md mb-4 sm:mb-6">
-                     {searchValue 
-                       ? 'Try adjusting your search criteria or browse all available tools.'
-                       : 'No tools are currently available.'}
-                   </p>
-                   <button
-                     onClick={() => {
-                       updateMCPServers(); // Ensure MCP servers are updated before navigating
-                       setIsOpen(false);
-                       navigate('/d/integrations');
-                     }}
-                     className="inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 text-sm font-medium rounded-lg bg-gradient-to-br from-[#0E1593] to-[#04062D] text-white border border-[#0E1593] hover:from-[#04062D] hover:to-[#0E0E0E] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 shadow-md"
-                   >
-                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                     </svg>
-                     Connect Tools
-                   </button>
-                 </div>
+            {/* Tools Content */}
+            <div className="min-h-[200px] space-y-6">
+              {isLoadingTools ? (
+                <div className="flex flex-col items-center justify-center py-8 sm:py-16 px-4">
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="h-6 w-6 sm:h-8 sm:w-8 animate-spin rounded-full border-4 border-[#0E1593] border-t-transparent"></div>
+                    <p className="text-base sm:text-lg text-text-secondary">Loading tools...</p>
+                  </div>
+                </div>
+              ) : mcpServersWithTools.length === 0 && standaloneTools.length === 0 && filteredDisconnectedStandaloneTools.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 sm:py-16 px-4">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-surface-tertiary rounded-full flex items-center justify-center mb-4">
+                    <Search className="w-6 h-6 sm:w-8 sm:h-8 text-text-tertiary" />
+                  </div>
+                  <h3 className="text-base sm:text-lg font-medium text-text-primary mb-2 text-center">No tools found</h3>
+                  <p className="text-sm sm:text-base text-text-secondary text-center max-w-md mb-4 sm:mb-6">
+                    {searchValue 
+                      ? 'Try adjusting your search criteria or browse all available tools.'
+                      : 'No tools are currently available.'}
+                  </p>
+                  <button
+                    onClick={() => {
+                      updateMCPServers();
+                      setIsOpen(false);
+                      navigate('/d/integrations');
+                    }}
+                    className="inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 text-sm font-medium rounded-lg bg-gradient-to-br from-[#0E1593] to-[#04062D] text-white border border-[#0E1593] hover:from-[#04062D] hover:to-[#0E0E0E] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 shadow-md"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Connect Tools
+                  </button>
+                </div>
               ) : (
-                <div
-                  ref={gridRef}
-                  className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-                >
-                  {filteredTools &&
-                    filteredTools
-                      .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                      .map((tool, index) => {
-                        if (tool.isDisconnected) {
-                          return (
-                            <DisconnectedToolItem
-                              key={`disconnected-${tool.pluginKey}-${index}`}
-                              tool={tool}
-                              onRemoveTool={() => onRemoveTool(tool.pluginKey)}
-                            />
-                          );
-                        }
-                        
-                        return (
+                <>
+                  {/* MCP Server Cards */}
+                  {mcpServersWithTools.length > 0 && (
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-semibold text-text-primary border-b border-border-light pb-2">
+                        MCP Servers ({mcpServersWithTools.length})
+                      </h4>
+                      <div className="space-y-3">
+                        {mcpServersWithTools.map((server) => (
+                          <MCPServerCard
+                            key={server.name}
+                            server={server}
+                            toolsFormKey={toolsFormKey}
+                            onInstallError={handleInstallError}
+                            updateMCPServers={updateMCPServers}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Standalone Tools */}
+                  {standaloneTools.length > 0 && (
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-semibold text-text-primary border-b border-border-light pb-2">
+                        Standalone Tools ({standaloneTools.length})
+                      </h4>
+                      <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        {standaloneTools.map((tool, index) => (
                           <ToolItem
-                            key={index}
+                            key={tool.pluginKey}
                             tool={tool}
                             isInstalled={getValues(toolsFormKey).includes(tool.pluginKey)}
                             onAddTool={() => onAddTool(tool.pluginKey)}
                             onRemoveTool={() => onRemoveTool(tool.pluginKey)}
                           />
-                        );
-                      })}
-                </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Disconnected Standalone Tools */}
+                  {filteredDisconnectedStandaloneTools.length > 0 && (
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-semibold text-orange-700 dark:text-orange-300 border-b border-orange-300 dark:border-orange-600/50 pb-2">
+                        Disconnected Tools ({filteredDisconnectedStandaloneTools.length})
+                      </h4>
+                      <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        {filteredDisconnectedStandaloneTools.map((tool, index) => (
+                          <DisconnectedToolItem
+                            key={`disconnected-${tool.pluginKey}-${index}`}
+                            tool={tool}
+                            onRemoveTool={() => onRemoveTool(tool.pluginKey)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
-            {/* Pagination */}
-            {maxPage > 1 && (
-              <div className="mt-6 sm:mt-8">
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={maxPage}
-                  onPageChange={handleChangePage}
-                  itemsPerPage={itemsPerPage}
-                  totalItems={filteredTools?.length || 0}
-                  showItemsPerPage={false}
-                  className="border-t border-border-light pt-4 sm:pt-6"
-                />
-              </div>
-            )}
           </div>
         </DialogPanel>
       </div>
