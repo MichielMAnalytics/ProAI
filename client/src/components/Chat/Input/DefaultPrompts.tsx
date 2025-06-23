@@ -73,6 +73,11 @@ export default function DefaultPrompts({ conversation, onPromptSelect }: Default
                 onClick={() => handlePromptClick(prompt)}
                 className="group relative flex flex-col rounded-xl border border-border-light bg-surface-secondary p-4 text-left transition-all duration-200 hover:border-green-400 hover:bg-surface-hover hover:shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
               >
+                {prompt.toLowerCase().includes('workflow') && (
+                  <div className="absolute -top-1 -right-1 z-10 bg-blue-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full shadow-sm">
+                    Beta
+                  </div>
+                )}
                 <div className="flex-1">
                   <p className="text-sm text-text-primary line-clamp-3">
                     {prompt}
