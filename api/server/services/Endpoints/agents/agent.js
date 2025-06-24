@@ -19,6 +19,7 @@ const { getConvoFiles } = require('~/models/Conversation');
 const { getToolFilesByIds } = require('~/models/File');
 const { getModelMaxTokens } = require('~/utils');
 const { getFiles } = require('~/models/File');
+const { logger } = require('~/config');
 
 const providerConfigMap = {
   [Providers.XAI]: initCustom,
@@ -158,11 +159,26 @@ const initializeAgent = async ({
   }
 
   if (agent.instructions && agent.instructions !== '') {
+    // Filter tools to only include those that are actually connected/available
+    const connectedTools = tools ? tools.map(tool => tool.name).filter(name => name) : [];
+    
+    // Log for debugging
+    logger.info(`[initializeAgent] Agent ${agent.id} tools comparison:`, {
+      designedTools: agent.tools,
+      connectedTools: connectedTools,
+      loadedToolsCount: tools ? tools.length : 0,
+      userId: req.user?.id,
+      userName: req.user?.name,
+      toolsIsNull: tools === null,
+      toolsIsUndefined: tools === undefined,
+      toolsType: typeof tools
+    });
+
     agent.instructions = replaceSpecialVars({
       text: agent.instructions,
       user: req.user,
       mcp_servers: agent.mcp_servers,
-      tools: agent.tools,
+      tools: connectedTools, // Use connected tools instead of designed tools
       timezone: req.user?.timezone,
     });
   }
