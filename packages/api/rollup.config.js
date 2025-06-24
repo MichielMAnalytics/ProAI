@@ -42,6 +42,14 @@ const cjsBuild = {
   external: [...Object.keys(pkg.dependencies || {}), ...Object.keys(pkg.devDependencies || {})],
   preserveSymlinks: true,
   plugins,
+  onwarn(warning, warn) {
+    // Suppress circular dependency warnings from external packages
+    if (warning.code === 'CIRCULAR_DEPENDENCY' && 
+        warning.message.includes('node_modules')) {
+      return;
+    }
+    warn(warning);
+  },
 };
 
 export default cjsBuild;
