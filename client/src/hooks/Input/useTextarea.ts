@@ -170,7 +170,7 @@ export default function useTextarea({
     !isAssistant;
   // && (conversationId?.length ?? 0) > 6; // also ensures that we don't show the wrong placeholder
 
-  // Get the MCP placeholder text for typing effect
+  // Get the MCP placeholder text for typing effect - but only show if explicitly required
   const mcpPlaceholderText = mcpConnectionsRequired === true ? localize('com_endpoint_config_mcp_placeholder') : '';
   const { displayText: typedMcpText, isTyping, showCursor } = useTypingEffect(mcpPlaceholderText, 30);
 

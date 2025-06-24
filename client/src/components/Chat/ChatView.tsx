@@ -235,7 +235,7 @@ function ChatView({ index = 0 }: { index?: number }) {
                       <ChatForm
                         index={index}
                         isMcpChecking={isMcpChecking}
-                        disabled={isMcpChecking || !mcpConnectionsComplete || shouldShowAgentModal}
+                        disabled={isMcpChecking || shouldShowAgentModal}
                         mcpServers={agentData?.mcp_servers || []}
                         toolKeys={agentData?.tools || []}
                       />

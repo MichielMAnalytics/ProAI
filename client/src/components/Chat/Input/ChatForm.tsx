@@ -411,7 +411,7 @@ const ChatForm = memo(
       setIsScrollable,
       disabled: disableInputs,
       isMcpChecking: isMcpChecking,
-      mcpConnectionsRequired: disabled,
+      mcpConnectionsRequired: false,
     });
 
     useQueryParams({ textAreaRef });
