@@ -336,6 +336,32 @@ const disconnectMCPServer = async (req, res) => {
     );
 
     if (result.success) {
+      // Clean up tools from registries after successful disconnection
+      try {
+        const cleanupResult = await UserMCPService.cleanupToolsForDisconnectedServer(
+          userId,
+          serverName,
+          [], // Let it discover tools from registry
+          req.app.locals.mcpToolRegistry
+        );
+        
+        // Remove tools from availableTools and mcpToolRegistry
+        if (cleanupResult.removedToolKeys && cleanupResult.removedToolKeys.length > 0) {
+          const MCPInitializer = require('~/server/services/MCPInitializer');
+          MCPInitializer.updateAppLevelCaches(
+            req.app,
+            userId,
+            serverName,
+            {}, // No tools to add
+            cleanupResult.removedToolKeys // Tools to remove
+          );
+        }
+        
+        logger.info(`UserMCPController: Cleaned up ${cleanupResult.toolsRemoved} tools for disconnected server '${serverName}'`);
+      } catch (cleanupError) {
+        logger.warn(`UserMCPController: Failed to cleanup tools for disconnected server '${serverName}':`, cleanupError.message);
+        // Don't fail the disconnect operation if cleanup fails
+      }
 
       res.json({
         success: true,

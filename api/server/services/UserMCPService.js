@@ -318,8 +318,90 @@ class UserMCPService {
   }
 
 
+  /**
+   * Clean up tools from registries for a specific disconnected server
+   * 
+   * @param {string} userId - The user ID
+   * @param {string} disconnectedServerName - The server that was disconnected
+   * @param {string[]} toolsToRemove - Array of tool names to remove from registries (if empty, will be discovered from registry)
+   * @param {Map} mcpToolRegistry - Optional MCP tool registry for discovering tools
+   * @returns {Promise<Object>} Cleanup result with statistics
+   */
+  async cleanupToolsForDisconnectedServer(userId, disconnectedServerName, toolsToRemove = [], mcpToolRegistry = null) {
+    return UserMCPService.cleanupToolsForDisconnectedServer(userId, disconnectedServerName, toolsToRemove, mcpToolRegistry);
+  }
 
+  /**
+   * Static method: Clean up tools from registries for a specific disconnected server
+   * 
+   * @param {string} userId - The user ID
+   * @param {string} disconnectedServerName - The server that was disconnected
+   * @param {string[]} toolsToRemove - Array of tool names to remove from registries (if empty, will be discovered from registry)
+   * @param {Map} mcpToolRegistry - Optional MCP tool registry for discovering tools
+   * @returns {Promise<Object>} Cleanup result with statistics
+   */
+  static async cleanupToolsForDisconnectedServer(userId, disconnectedServerName, toolsToRemove = [], mcpToolRegistry = null) {
+    if (!userId || !disconnectedServerName) {
+      return {
+        toolsRemoved: 0,
+        disconnectedServer: disconnectedServerName,
+        removedToolKeys: [],
+      };
+    }
 
+    try {
+      // If no tools are specified, discover them from the MCP tool registry
+      if (!Array.isArray(toolsToRemove) || toolsToRemove.length === 0) {
+        logger.info(`UserMCPService: Discovering tools to remove for server '${disconnectedServerName}' from MCP tool registry`);
+        
+        try {
+          // Use the provided MCP tool registry to discover tools
+          if (mcpToolRegistry && mcpToolRegistry.size > 0) {
+            const discoveredTools = [];
+            for (const [toolName, toolInfo] of mcpToolRegistry.entries()) {
+              if (toolInfo && toolInfo.serverName === disconnectedServerName) {
+                discoveredTools.push(toolName);
+              }
+            }
+            toolsToRemove = discoveredTools;
+            logger.info(`UserMCPService: Discovered ${toolsToRemove.length} tools for server '${disconnectedServerName}': [${toolsToRemove.join(', ')}]`);
+          } else {
+            logger.warn(`UserMCPService: No MCP tool registry provided to discover tools for server '${disconnectedServerName}'`);
+          }
+        } catch (discoveryError) {
+          logger.warn(`UserMCPService: Failed to discover tools for server '${disconnectedServerName}':`, discoveryError.message);
+        }
+        
+        if (toolsToRemove.length === 0) {
+          logger.info(`UserMCPService: No tools found for cleanup for server '${disconnectedServerName}'`);
+          return {
+            toolsRemoved: 0,
+            disconnectedServer: disconnectedServerName,
+            removedToolKeys: [],
+          };
+        }
+      }
+
+      logger.info(`UserMCPService: Starting registry cleanup for disconnected server '${disconnectedServerName}' for user ${userId}`);
+      logger.info(`UserMCPService: Tools to remove from registries: [${toolsToRemove.join(', ')}]`);
+
+      const result = {
+        toolsRemoved: toolsToRemove.length,
+        disconnectedServer: disconnectedServerName,
+        removedToolKeys: toolsToRemove,
+      };
+
+      logger.info(`UserMCPService: Registry cleanup completed for user ${userId}:`, {
+        toolsRemoved: result.toolsRemoved,
+        disconnectedServer: disconnectedServerName,
+      });
+
+      return result;
+    } catch (error) {
+      logger.error(`UserMCPService: Failed to cleanup tools for disconnected server '${disconnectedServerName}' for user ${userId}:`, error);
+      throw error;
+    }
+  }
 
   /**
    * Check if user has any MCP servers configured

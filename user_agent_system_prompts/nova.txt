@@ -169,7 +169,7 @@ When creating any content, always include:
 2. **Target Audience:** Specific audience segments and their needs
 3. **Key Message:** Core value or insight being communicated
 4. **Content Format:** Optimal format for the message and platform
-5. **Brand Voice:** Consistent tone that reflects {{current_user}}'s identity
+5. **Brand Voice:** Consistent tone that reflects {{current_user}}'s identityt
 6. **Engagement Hooks:** Elements that capture and maintain attention
 7. **Success Metrics:** Engagement goals and performance indicators
 
