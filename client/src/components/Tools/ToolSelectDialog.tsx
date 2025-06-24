@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Search, X, ChevronDown } from 'lucide-react';
+import { useEffect, useMemo } from 'react';
+import { Search, X } from 'lucide-react';
 import { Dialog, DialogPanel, DialogTitle, Description } from '@headlessui/react';
 import { useFormContext } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -15,8 +15,6 @@ import type { TPluginStoreDialogProps } from '~/common/types';
 import { PluginAuthForm } from '~/components/Plugins/Store';
 import { useLocalize, usePluginDialogHelpers } from '~/hooks';
 import { useAvailableToolsQuery } from '~/data-provider';
-import { Pagination } from '~/components/ui';
-import ToolItem from './ToolItem';
 import AppCard from './AppCard';
 
 function ToolSelectDialog({
@@ -30,23 +28,18 @@ function ToolSelectDialog({
 }) {
   const navigate = useNavigate();
   const localize = useLocalize();
-  const { getValues, setValue } = useFormContext();
+  const { getValues, setValue, watch } = useFormContext();
   const { data: tools, isLoading: isLoadingTools } = useAvailableToolsQuery(endpoint);
   const isAgentTools = isAgentsEndpoint(endpoint);
+  
+  // Watch form values for reactive updates
+  const watchedTools = watch(toolsFormKey);
+  const watchedMcpServers = watch('mcp_servers');
 
   const {
-    maxPage,
-    setMaxPage,
-    currentPage,
-    setCurrentPage,
-    itemsPerPage,
-    searchChanged,
-    setSearchChanged,
     searchValue,
     setSearchValue,
-    gridRef,
     handleSearch,
-    handleChangePage,
     error,
     setError,
     errorMessage,
@@ -126,7 +119,7 @@ function ToolSelectDialog({
   // Update mcp_servers when tools are modified
   const updateMCPServers = () => {
     const currentTools = getValues(toolsFormKey);
-    const mcpServers = new Set<string>();
+    const currentMcpServers = new Set(getValues('mcp_servers') || []);
     
     currentTools.forEach((toolName: string) => {
       const tool = tools?.find(t => t.pluginKey === toolName);
@@ -140,13 +133,23 @@ function ToolSelectDialog({
             : tool.serverName;
         }
         if (appSlug) {
-          mcpServers.add(appSlug);
+          currentMcpServers.add(appSlug);
+        }
+      } else if (!tool) {
+        // This is a disconnected tool - try to infer its server from the tool name
+        const toolLower = toolName.toLowerCase();
+        
+        // Extract service name from tool name (e.g., "linkedin-search-org" -> "linkedin")
+        const serviceName = toolLower.split('-')[0];
+        if (serviceName) {
+          // Add the inferred server to preserve it for grouping
+          currentMcpServers.add(`pipedream-${serviceName}`);
         }
       }
     });
     
     // Update the mcp_servers field in the form
-    setValue('mcp_servers', Array.from(mcpServers));
+    setValue('mcp_servers', Array.from(currentMcpServers));
   };
 
   const onSelectAll = () => {
@@ -188,31 +191,14 @@ function ToolSelectDialog({
     });
   };
 
-  // Get disconnected tools - tools that are selected but no longer available
-  const disconnectedTools = useMemo(() => {
-    const currentTools = getValues(toolsFormKey) || [];
-    const availableToolKeys = new Set(tools?.map(t => t.pluginKey) || []);
-    
-    const disconnected = currentTools
-      .filter((toolKey: string) => !availableToolKeys.has(toolKey))
-      .map((toolKey: string) => ({
-        pluginKey: toolKey,
-        name: toolKey.charAt(0).toUpperCase() + toolKey.slice(1).replace(/_/g, ' '),
-        description: 'This tool is no longer available. Please reconnect the required MCP server.',
-        icon: undefined,
-        isDisconnected: true
-      }));
-    
-    if (disconnected.length > 0) {
-      console.log(`[ToolSelectDialog] Found ${disconnected.length} disconnected tools:`, disconnected.map(t => t.pluginKey));
-    }
-    
-    return disconnected;
-  }, [tools, getValues, toolsFormKey]);
 
   // Group tools by MCP server and get server metadata with tools
   const mcpServersWithTools = useMemo(() => {
     if (!tools) return [];
+    
+    // Force reactive updates when form values change
+    const currentMcpServers = getValues('mcp_servers') || [];
+    const currentSelectedTools = getValues(toolsFormKey) || [];
     
     const serverMap = new Map<string, {
       name: string;
@@ -222,11 +208,13 @@ function ToolSelectDialog({
       isDisconnected?: boolean;
     }>();
     
-    // Add connected servers with their tools
+    // First, process connected servers (tools that are available in the tools array)
+    const connectedServerNames = new Set<string>();
     tools.forEach((tool) => {
       if (tool.serverName || tool.appSlug) {
         const serverName = tool.serverName || tool.appSlug;
         if (serverName) {
+          connectedServerNames.add(serverName);
           if (!serverMap.has(serverName)) {
             let displayName = serverName.startsWith('pipedream-') 
               ? serverName.replace('pipedream-', '')
@@ -251,29 +239,45 @@ function ToolSelectDialog({
       }
     });
     
-    // Add disconnected servers using the mcp_servers array from the agent document
-    const currentMcpServers = getValues('mcp_servers') || [];
-    const currentSelectedTools = getValues(toolsFormKey) || [];
-    
-    // Track which disconnected tools have been assigned to servers
-    const assignedDisconnectedTools = new Set<string>();
+    // Then, process disconnected servers from the mcp_servers form field
+    // These are servers that exist in the form but are not in the connected tools
+    console.log(`[ToolSelectDialog] Processing MCP servers:`, currentMcpServers);
+    console.log(`[ToolSelectDialog] Connected servers:`, Array.from(connectedServerNames));
+    console.log(`[ToolSelectDialog] Selected tools:`, currentSelectedTools);
     
     currentMcpServers.forEach((mcpServerName: string) => {
-      // Check if this MCP server is already in the connected servers
-      if (!serverMap.has(mcpServerName)) {
-        // This is a disconnected server, find its tools from the selected tools
-        const serverToolsFromSelected = currentSelectedTools.filter((toolKey: string) => {
-          // Check if this tool likely belongs to this server
-          const toolLower = toolKey.toLowerCase();
-          const serverLower = mcpServerName.toLowerCase().replace('pipedream-', '');
+      if (!connectedServerNames.has(mcpServerName)) {
+        console.log(`[ToolSelectDialog] Processing disconnected server: ${mcpServerName}`);
+        
+        // This is a disconnected server
+        // Find tools that are selected but belong to this server
+        const disconnectedToolsForServer = currentSelectedTools.filter((toolKey: string) => {
+          // First check if this tool is in the available tools (if so, it's not disconnected)
+          const availableTool = tools.find(t => t.pluginKey === toolKey);
+          if (availableTool) return false;
           
-          // Match tools that start with the server name or contain it
-          return toolLower.startsWith(serverLower) || 
-                 toolLower.includes(serverLower) ||
-                 (mcpServerName.includes('pipedream-') && toolLower.startsWith(mcpServerName.replace('pipedream-', '')));
+          // Then check if this tool likely belongs to this server based on naming patterns
+          const toolLower = toolKey.toLowerCase();
+          const serverLower = mcpServerName.toLowerCase();
+          const serverWithoutPrefix = serverLower.replace('pipedream-', '');
+          
+          // Check if this tool belongs to the current MCP server
+          // For "pipedream-linkedin" server, match tools like "linkedin-search-organization"
+          // For "gmail" server, match tools like "gmail-send" 
+          const matches = serverWithoutPrefix && toolLower.startsWith(serverWithoutPrefix + '-');
+          
+          if (matches) {
+            console.log(`[ToolSelectDialog] ✅ Matched tool "${toolKey}" to server "${mcpServerName}" (prefix: "${serverWithoutPrefix}")`);
+          } else {
+            console.log(`[ToolSelectDialog] ❌ Tool "${toolKey}" did not match server "${mcpServerName}" (prefix: "${serverWithoutPrefix}")`);
+          }
+          
+          return matches;
         });
         
-        if (serverToolsFromSelected.length > 0) {
+        console.log(`[ToolSelectDialog] Found ${disconnectedToolsForServer.length} tools for server ${mcpServerName}:`, disconnectedToolsForServer);
+        
+        if (disconnectedToolsForServer.length > 0) {
           let displayName = mcpServerName.startsWith('pipedream-') 
             ? mcpServerName.replace('pipedream-', '')
             : mcpServerName;
@@ -284,48 +288,148 @@ function ToolSelectDialog({
             .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
             .join(' ');
           
+          console.log(`[ToolSelectDialog] Creating disconnected server "${displayName}" for ${disconnectedToolsForServer.length} tools`);
+          
+          const disconnectedToolObjects = disconnectedToolsForServer.map((toolKey: string) => ({
+            pluginKey: toolKey,
+            name: toolKey.charAt(0).toUpperCase() + toolKey.slice(1)
+              .replace(/_/g, ' ')
+              .replace(/-/g, ' ')
+              .split(' ')
+              .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(' '),
+            description: `This tool requires the ${displayName} MCP server to be connected. Please reconnect the server in the integrations page.`,
+            isDisconnected: true,
+            icon: undefined
+          }));
+          
           serverMap.set(mcpServerName, {
             name: mcpServerName,
             displayName,
-            tools: serverToolsFromSelected.map((toolKey: string) => {
-              const disconnectedTool = disconnectedTools.find((t: any) => t.pluginKey === toolKey);
-              if (disconnectedTool) {
-                assignedDisconnectedTools.add(toolKey);
-              }
-              return disconnectedTool || {
-                pluginKey: toolKey,
-                name: toolKey.charAt(0).toUpperCase() + toolKey.slice(1).replace(/_/g, ' ').replace(/-/g, ' '),
-                description: 'This tool is no longer available. Please reconnect the required MCP server.',
-                isDisconnected: true
-              };
-            }),
-            isDisconnected: true
+            tools: disconnectedToolObjects,
+            isDisconnected: true,
+            icon: undefined
           });
         }
       }
     });
     
-    // Add any remaining disconnected tools that couldn't be mapped to servers
-    // Create a fallback "Disconnected Tools" server for them
-    const unmappedDisconnectedTools = disconnectedTools.filter(
-      (tool: any) => !assignedDisconnectedTools.has(tool.pluginKey)
+    // Handle any remaining disconnected tools that couldn't be mapped to a specific server
+    const availableToolKeys = new Set(tools.map(t => t.pluginKey));
+    const mappedDisconnectedTools = new Set<string>();
+    
+    // Collect all tools that have been mapped to disconnected servers
+    Array.from(serverMap.values())
+      .filter(server => server.isDisconnected)
+      .forEach(server => {
+        server.tools.forEach((tool: any) => {
+          if (tool.pluginKey) {
+            mappedDisconnectedTools.add(tool.pluginKey);
+          }
+        });
+      });
+    
+    // Find truly orphaned disconnected tools
+    const orphanedTools = currentSelectedTools.filter((toolKey: string) => 
+      !availableToolKeys.has(toolKey) && !mappedDisconnectedTools.has(toolKey)
     );
     
-    if (unmappedDisconnectedTools.length > 0) {
-      console.log(`[ToolSelectDialog] Creating fallback "Disconnected Tools" server for ${unmappedDisconnectedTools.length} unmapped tools:`, unmappedDisconnectedTools.map(t => t.pluginKey));
-      serverMap.set('__disconnected_tools__', {
-        name: '__disconnected_tools__',
-        displayName: 'Disconnected Tools',
-        icon: undefined, // AppCard will show the AlertTriangle icon for disconnected servers
-        tools: unmappedDisconnectedTools,
+    console.log(`[ToolSelectDialog] Orphaned tools that couldn't be mapped to servers:`, orphanedTools);
+    
+    // Try to group orphaned tools by likely server names based on prefixes
+    const serverGroups = new Map<string, string[]>();
+    
+    orphanedTools.forEach((toolKey: string) => {
+      let serverName: string | null = null;
+      
+      // Try to extract server name from tool name patterns
+      const toolLower = toolKey.toLowerCase();
+      
+      // Common patterns: serverName_toolName, serverName-toolName, serverNameToolName
+      const patterns = [
+        // Pattern 1: prefix_suffix
+        /^([a-z]+(?:[_-][a-z]+)*)_/,
+        // Pattern 2: prefix-suffix  
+        /^([a-z]+(?:[_-][a-z]+)*)-/,
+        // Pattern 3: camelCase - extract first part
+        /^([a-z]+)(?=[A-Z])/,
+        // Pattern 4: all lowercase with common service names
+        /^(github|gitlab|slack|discord|notion|airtable|hubspot|salesforce|pipedream)/
+      ];
+      
+      for (const pattern of patterns) {
+        const match = toolLower.match(pattern);
+        if (match && match[1]) {
+          serverName = match[1];
+          break;
+        }
+      }
+      
+      // Fallback: use first part of tool name
+      if (!serverName) {
+        const parts = toolKey.split(/[_-]/);
+        if (parts.length > 1 && parts[0]) {
+          serverName = parts[0].toLowerCase();
+        }
+      }
+      
+      if (serverName) {
+        if (!serverGroups.has(serverName)) {
+          serverGroups.set(serverName, []);
+        }
+        serverGroups.get(serverName)!.push(toolKey);
+      } else {
+        // If we can't determine a server name, group under a generic category
+        if (!serverGroups.has('unknown')) {
+          serverGroups.set('unknown', []);
+        }
+        serverGroups.get('unknown')!.push(toolKey);
+      }
+    });
+    
+    // Create servers for each group
+    serverGroups.forEach((toolKeys, inferredServerName) => {
+      const displayName = inferredServerName === 'unknown' 
+        ? 'Disconnected Tools'
+        : inferredServerName
+            .replace(/_/g, ' ')
+            .replace(/-/g, ' ')
+            .split(' ')
+            .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+      
+      console.log(`[ToolSelectDialog] Creating inferred server "${displayName}" for tools:`, toolKeys);
+      
+      const toolObjects = toolKeys.map((toolKey: string) => ({
+        pluginKey: toolKey,
+        name: toolKey.charAt(0).toUpperCase() + toolKey.slice(1)
+          .replace(/_/g, ' ')
+          .replace(/-/g, ' ')
+          .split(' ')
+          .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' '),
+        description: inferredServerName === 'unknown'
+          ? 'This tool is no longer available. The MCP server may have been disconnected or removed.'
+          : `This tool requires the ${displayName} MCP server to be connected. Please reconnect the server in the integrations page.`,
+        isDisconnected: true,
+        icon: undefined
+      }));
+      
+      const serverKey = inferredServerName === 'unknown' ? '__disconnected_tools__' : `__inferred_${inferredServerName}__`;
+      
+      serverMap.set(serverKey, {
+        name: serverKey,
+        displayName,
+        icon: undefined,
+        tools: toolObjects,
         isDisconnected: true
       });
-    }
+    });
     
     return Array.from(serverMap.values()).filter(server => 
       server.displayName.toLowerCase().includes(searchValue.toLowerCase())
     );
-  }, [tools, disconnectedTools, getValues, toolsFormKey, searchValue]);
+  }, [tools, getValues, toolsFormKey, searchValue, watchedTools, watchedMcpServers]);
 
   // State for standalone tools (non-MCP tools)
   const standaloneTools = useMemo(() => {
@@ -334,13 +438,14 @@ function ToolSelectDialog({
       .filter(tool => tool.name.toLowerCase().includes(searchValue.toLowerCase()));
   }, [tools, searchValue]);
 
-  // Create unified Apps array
-  const allApps = useMemo(() => {
-    const apps: any[] = [];
+  // Separate connected and disconnected apps
+  const { connectedApps, disconnectedApps } = useMemo(() => {
+    const connected: any[] = [];
+    const disconnected: any[] = [];
     
-    // Add MCP servers (both connected and disconnected) as multi-tool apps
+    // Add MCP servers as multi-tool apps
     mcpServersWithTools.forEach(server => {
-      apps.push({
+      const app = {
         id: server.name,
         name: server.name,
         displayName: server.displayName,
@@ -348,12 +453,18 @@ function ToolSelectDialog({
         tools: server.tools,
         isDisconnected: server.isDisconnected,
         isSingleTool: false
-      });
+      };
+      
+      if (server.isDisconnected) {
+        disconnected.push(app);
+      } else {
+        connected.push(app);
+      }
     });
     
-    // Add standalone tools as single-tool apps
+    // Add standalone tools as single-tool apps (these are always connected)
     standaloneTools.forEach(tool => {
-      apps.push({
+      connected.push({
         id: tool.pluginKey,
         name: tool.pluginKey,
         displayName: tool.name,
@@ -364,16 +475,24 @@ function ToolSelectDialog({
       });
     });
     
-    return apps.filter(app => 
-      app.displayName.toLowerCase().includes(searchValue.toLowerCase())
-    );
+    // Filter by search value
+    const searchLower = searchValue.toLowerCase();
+    return {
+      connectedApps: connected.filter(app => 
+        app.displayName.toLowerCase().includes(searchLower)
+      ),
+      disconnectedApps: disconnected.filter(app => 
+        app.displayName.toLowerCase().includes(searchLower)
+      )
+    };
   }, [mcpServersWithTools, standaloneTools, searchValue]);
+
 
 
   // Calculate total available tools and selected tools
   const totalAvailableTools = useMemo(() => {
-    return allApps.reduce((acc, app) => acc + app.tools.length, 0);
-  }, [allApps]);
+    return connectedApps.reduce((acc, app) => acc + app.tools.length, 0);
+  }, [connectedApps]);
 
   const selectedToolsCount = getValues(toolsFormKey)?.length || 0;
 
@@ -392,9 +511,7 @@ function ToolSelectDialog({
       onClose={() => {
         updateMCPServers(); // Ensure MCP servers are updated when dialog closes
         setIsOpen(false);
-        setCurrentPage(1);
         setSearchValue('');
-        // Don't reset selectedServers here - let it be managed by the useEffect
       }}
       className="relative z-[102]"
     >
@@ -419,7 +536,7 @@ function ToolSelectDialog({
               </Description>
             </div>
               <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-4">
-                {!isLoadingTools && allApps.length > 0 && (
+                {!isLoadingTools && (connectedApps.length > 0 || disconnectedApps.length > 0) && (
                   <button
                     onClick={() => {
                       updateMCPServers(); // Ensure MCP servers are updated before navigating
@@ -440,7 +557,6 @@ function ToolSelectDialog({
                   onClick={() => {
                     updateMCPServers(); // Ensure MCP servers are updated when dialog closes
                     setIsOpen(false);
-                    setCurrentPage(1);
                     setSearchValue('');
                   }}
                   className="rounded-lg p-2 text-text-tertiary hover:bg-surface-hover hover:text-text-primary transition-all duration-200"
@@ -505,10 +621,10 @@ function ToolSelectDialog({
               {!isLoadingTools && (
                 <div className="flex flex-col gap-3 sm:gap-4">
                   <div className="text-xs sm:text-sm text-text-secondary font-medium text-center">
-                    {selectedToolsCount} of {totalAvailableTools} tools selected
-                    {disconnectedTools.length > 0 && (
+                    {selectedToolsCount} of {totalAvailableTools} connected tools selected
+                    {disconnectedApps.length > 0 && (
                       <div className="mt-1 text-orange-600 dark:text-orange-400 text-xs">
-                        ⚠️ {disconnectedTools.length} disconnected tool{disconnectedTools.length !== 1 ? 's' : ''} require{disconnectedTools.length === 1 ? 's' : ''} MCP server connection
+                        ⚠️ {disconnectedApps.reduce((acc, app) => acc + app.tools.length, 0)} disconnected tool{disconnectedApps.reduce((acc, app) => acc + app.tools.length, 0) !== 1 ? 's' : ''} require{disconnectedApps.reduce((acc, app) => acc + app.tools.length, 0) === 1 ? 's' : ''} reconnecting.
                       </div>
                     )}
                   </div>
@@ -517,7 +633,7 @@ function ToolSelectDialog({
                       type="button"
                       onClick={onSelectAll}
                       disabled={selectedToolsCount === totalAvailableTools || totalAvailableTools === 0}
-                      className="inline-flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg border border-[#0E1593] text-[#0E1593] hover:bg-[#0E1593]/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200"
+                      className="inline-flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg border border-[#0E1593] text-[#0E1593] dark:text-white hover:bg-[#0E1593]/10 dark:hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200"
                     >
                       <svg className="h-3 w-3 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -549,7 +665,7 @@ function ToolSelectDialog({
                     <p className="text-base sm:text-lg text-text-secondary">Loading tools...</p>
                   </div>
                 </div>
-              ) : allApps.length === 0 ? (
+              ) : connectedApps.length === 0 && disconnectedApps.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 sm:py-16 px-4">
                   <div className="w-12 h-12 sm:w-16 sm:h-16 bg-surface-tertiary rounded-full flex items-center justify-center mb-4">
                     <Search className="w-6 h-6 sm:w-8 sm:h-8 text-text-tertiary" />
@@ -576,25 +692,83 @@ function ToolSelectDialog({
                 </div>
               ) : (
                 <>
-                  {/* Apps */}
-                  <div className="space-y-4">
-                    <h4 className="text-sm font-semibold text-text-primary border-b border-border-light pb-2">
-                      Apps ({allApps.length})
-                    </h4>
-                    <div className="space-y-3">
-                      {allApps.map((app) => (
-                        <AppCard
-                          key={app.id}
-                          app={app}
-                          toolsFormKey={toolsFormKey}
-                          onInstallError={handleInstallError}
-                          updateMCPServers={updateMCPServers}
-                          onAddTool={onAddTool}
-                          onRemoveTool={onRemoveTool}
-                        />
-                      ))}
+                  {/* Disconnected Apps Section */}
+                  {disconnectedApps.length > 0 && (
+                    <div className="space-y-4 mb-6">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-semibold text-text-primary border-b border-border-light pb-2 flex-1">
+                          Disconnected Apps ({disconnectedApps.length})
+                        </h4>
+                      </div>
+
+
+
+
+                      <div className="space-y-3">
+                        {disconnectedApps.map((app) => (
+                          <AppCard
+                            key={app.id}
+                            app={app}
+                            toolsFormKey={toolsFormKey}
+                            onInstallError={handleInstallError}
+                            updateMCPServers={updateMCPServers}
+                            onAddTool={onAddTool}
+                            onRemoveTool={onRemoveTool}
+                          />
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Connected Apps Section */}
+                  {connectedApps.length > 0 && (
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-semibold text-text-primary border-b border-border-light pb-2">
+                        Apps ({connectedApps.length})
+                      </h4>
+                      <div className="space-y-3">
+                        {connectedApps.map((app) => (
+                          <AppCard
+                            key={app.id}
+                            app={app}
+                            toolsFormKey={toolsFormKey}
+                            onInstallError={handleInstallError}
+                            updateMCPServers={updateMCPServers}
+                            onAddTool={onAddTool}
+                            onRemoveTool={onRemoveTool}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Show message if no apps at all */}
+                  {connectedApps.length === 0 && disconnectedApps.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-8 sm:py-16 px-4">
+                      <div className="w-12 h-12 sm:w-16 sm:h-16 bg-surface-tertiary rounded-full flex items-center justify-center mb-4">
+                        <Search className="w-6 h-6 sm:w-8 sm:h-8 text-text-tertiary" />
+                      </div>
+                      <h3 className="text-base sm:text-lg font-medium text-text-primary mb-2 text-center">No apps found</h3>
+                      <p className="text-sm sm:text-base text-text-secondary text-center max-w-md mb-4 sm:mb-6">
+                        {searchValue 
+                          ? 'Try adjusting your search criteria or browse all available apps.'
+                          : 'No apps are currently available.'}
+                      </p>
+                      <button
+                        onClick={() => {
+                          updateMCPServers();
+                          setIsOpen(false);
+                          navigate('/d/integrations');
+                        }}
+                        className="inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 text-sm font-medium rounded-lg bg-gradient-to-br from-[#0E1593] to-[#04062D] text-white border border-[#0E1593] hover:from-[#04062D] hover:to-[#0E0E0E] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 shadow-md"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        Connect Apps
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
             </div>

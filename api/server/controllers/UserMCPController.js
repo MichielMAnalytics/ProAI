@@ -173,55 +173,6 @@ const refreshUserMCP = async (req, res) => {
   }
 };
 
-/**
- * Clean up orphaned MCP tools from user's agents
- * @route POST /api/agents/cleanup-orphaned-mcp-tools
- * @access Private
- */
-const cleanupOrphanedMCPTools = async (req, res) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({
-        error: 'User authentication required',
-      });
-    }
-
-    logger.info(`UserMCPController: Cleaning up orphaned MCP tools for user ${userId}`);
-
-    // Check if user-specific MCP is enabled
-    const config = req.app.locals;
-    const addUserSpecificMcp = config.addUserSpecificMcpFromDb;
-    
-    if (!addUserSpecificMcp) {
-      return res.json({
-        success: true,
-        message: 'User-specific MCP is disabled',
-        agentsProcessed: 0,
-        agentsUpdated: 0,
-        toolsRemoved: 0,
-      });
-    }
-
-    // Clean up orphaned MCP tools
-    const cleanupResult = await UserMCPService.cleanupOrphanedMCPTools(
-      userId, 
-      req.app.locals.mcpToolRegistry
-    );
-
-    res.json({
-      success: true,
-      message: `Cleaned up orphaned MCP tools from ${cleanupResult.agentsUpdated} agents`,
-      ...cleanupResult,
-    });
-  } catch (error) {
-    logger.error(`UserMCPController: Error cleaning up orphaned MCP tools for user ${req.user?.id}:`, error.message);
-    res.status(500).json({
-      error: 'Failed to clean up orphaned MCP tools',
-      message: error.message,
-    });
-  }
-};
 
 /**
  * Get status of user MCP servers
@@ -414,7 +365,6 @@ module.exports = {
   initializeUserMCP,
   refreshUserMCP,
   getUserMCPStatus,
-  cleanupOrphanedMCPTools,
   connectMCPServer,
   disconnectMCPServer,
 }; 

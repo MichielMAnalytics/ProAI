@@ -2,8 +2,12 @@ import { useState, useMemo } from 'react';
 import { ChevronDown, AlertTriangle, Check, X } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
 import { useUpdateUserPluginsMutation } from 'librechat-data-provider/react-query';
-import type { TPlugin, TPluginAction, TError } from 'librechat-data-provider';
+import type { TPlugin, TPluginAction, TError, TAvailableIntegration } from 'librechat-data-provider';
 import { cn } from '~/utils';
+import { useMCPConnection } from '~/hooks';
+import { useAvailableIntegrationsQuery, useUserIntegrationsQuery } from '~/data-provider';
+import { TrashIcon } from '~/components/svg';
+import AppDetailsModal from '../Integrations/AppDetailsModal';
 
 interface AppCardProps {
   app: {
@@ -31,8 +35,25 @@ export default function AppCard({
   onRemoveTool
 }: AppCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [selectedIntegration, setSelectedIntegration] = useState<TAvailableIntegration | null>(null);
+  const [isAppModalOpen, setIsAppModalOpen] = useState(false);
   const { getValues, setValue } = useFormContext();
   const updateUserPlugins = useUpdateUserPluginsMutation();
+  
+  // Queries for integration data
+  const { data: availableIntegrations } = useAvailableIntegrationsQuery();
+  const { data: userIntegrations } = useUserIntegrationsQuery();
+  
+  // MCP connection hook
+  const { handleConnect } = useMCPConnection({
+    onConnectionSuccess: () => {
+      console.log(`Successfully connected to ${app.displayName}`);
+      setIsAppModalOpen(false);
+    },
+    onConnectionError: (error) => {
+      console.error(`Failed to connect to ${app.displayName}:`, error);
+    },
+  });
   
   const currentTools = getValues(toolsFormKey) || [];
   
@@ -99,6 +120,86 @@ export default function AppCard({
       onAddTool(tool.pluginKey);
     }
   };
+
+  // Helper function to get integration data for disconnected apps
+  const getIntegrationForApp = () => {
+    if (!app.isDisconnected || !availableIntegrations) return null;
+    
+    // Convert app name to appSlug for integration lookup
+    // Server names like "pipedream-gmail" should match availableIntegrations with appSlug "gmail"
+    const appSlug = app.name.startsWith('pipedream-') ? app.name.replace('pipedream-', '') : app.name;
+    const integration = availableIntegrations.find(ai => ai.appSlug === appSlug);
+    
+    if (integration) {
+      return integration;
+    }
+    
+    // If no direct match, create a fallback integration object
+    return {
+      appSlug,
+      appName: app.displayName,
+      appDescription: `${app.displayName} integration`,
+      appIcon: app.icon,
+      authType: 'oauth' as const,
+      appCategories: [],
+      appUrl: '',
+      isActive: true,
+    };
+  };
+
+  const handleConnectClick = () => {
+    const integration = getIntegrationForApp();
+    if (integration) {
+      setSelectedIntegration(integration);
+      setIsAppModalOpen(true);
+    }
+  };
+
+  const handleCloseAppModal = () => {
+    setIsAppModalOpen(false);
+    setSelectedIntegration(null);
+  };
+
+  const handleDeleteServer = () => {
+    if (!app.isDisconnected) return;
+    
+    // Remove ALL tools from this disconnected server (not just selected ones)
+    const currentToolsList = getValues(toolsFormKey) || [];
+    const toolsToRemove = app.tools.map(tool => tool.pluginKey).filter(Boolean);
+    
+    // Filter out all tools that belong to this server
+    const updatedTools = currentToolsList.filter((toolKey: string) => 
+      !toolsToRemove.includes(toolKey)
+    );
+    
+    // Update the tools array
+    setValue(toolsFormKey, updatedTools);
+    
+    // Also manually remove the server from mcp_servers array
+    const currentMcpServers = getValues('mcp_servers') || [];
+    const updatedMcpServers = currentMcpServers.filter((serverName: string) => {
+      // Remove server name with and without 'pipedream-' prefix to handle both formats
+      const serverNameClean = app.name.startsWith('pipedream-') 
+        ? app.name.replace('pipedream-', '') 
+        : app.name;
+      const serverNameWithPrefix = app.name.startsWith('pipedream-') 
+        ? app.name 
+        : `pipedream-${app.name}`;
+        
+      return serverName !== app.name && 
+             serverName !== serverNameClean && 
+             serverName !== serverNameWithPrefix;
+    });
+    
+    setValue('mcp_servers', updatedMcpServers);
+    
+    // Update MCP servers to refresh the UI (but won't re-add the server since we removed it manually)
+    updateMCPServers();
+  };
+
+  const isConnected = selectedIntegration 
+    ? !!userIntegrations?.find(ui => ui.appSlug === selectedIntegration.appSlug)
+    : false;
   
   const getSelectionStatus = () => {
     if (app.isSingleTool) {
@@ -150,9 +251,6 @@ export default function AppCard({
                   : "text-text-primary"
               )}>
                 {app.displayName}
-                {app.isDisconnected && (
-                  <span className="text-xs font-normal ml-2">(Disconnected)</span>
-                )}
               </h3>
               <p className={cn(
                 "text-xs mt-1",
@@ -170,6 +268,27 @@ export default function AppCard({
           
           {/* App Actions */}
           <div className="flex items-center gap-2">
+            {/* Connect and Delete Buttons (only for disconnected apps) */}
+            {app.isDisconnected && (
+              <>
+                <button
+                  onClick={handleConnectClick}
+                  className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium rounded-xl bg-orange-600 hover:bg-orange-700 text-white transition-all duration-200"
+                  aria-label={`Connect ${app.displayName}`}
+                >
+                  Connect
+                </button>
+                <button
+                  onClick={handleDeleteServer}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 hover:bg-red-100 dark:hover:bg-red-900/20 text-text-tertiary hover:text-red-600 dark:hover:text-red-400"
+                  aria-label={`Delete ${app.displayName} server`}
+                  title={`Remove ${app.displayName} server and all its tools`}
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </button>
+              </>
+            )}
+            
             {/* Selection Toggle Button */}
             {!app.isDisconnected && (
               <button
@@ -196,16 +315,11 @@ export default function AppCard({
               </button>
             )}
             
-            {/* Expand Button (only for multi-tool apps) */}
-            {!app.isSingleTool && (
+            {/* Expand Button (only for multi-tool apps and not disconnected) */}
+            {!app.isSingleTool && !app.isDisconnected && (
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className={cn(
-                  "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200",
-                  app.isDisconnected
-                    ? "hover:bg-orange-200 dark:hover:bg-orange-800/30 text-orange-600 dark:text-orange-400"
-                    : "hover:bg-surface-hover text-text-secondary hover:text-text-primary"
-                )}
+                className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 hover:bg-surface-hover text-text-secondary hover:text-text-primary"
                 aria-label={isExpanded ? "Collapse tools" : "Expand tools"}
               >
                 <ChevronDown className={cn(
@@ -218,8 +332,8 @@ export default function AppCard({
         </div>
       </div>
       
-      {/* Tools List (only for multi-tool apps when expanded) */}
-      {!app.isSingleTool && isExpanded && (
+      {/* Tools List (only for multi-tool apps when expanded and not disconnected) */}
+      {!app.isSingleTool && !app.isDisconnected && isExpanded && (
         <div className={cn(
           "border-t px-4 pb-4",
           app.isDisconnected 
@@ -292,6 +406,25 @@ export default function AppCard({
             })}
           </div>
         </div>
+      )}
+      
+      {/* App Details Modal */}
+      {selectedIntegration && (
+        <AppDetailsModal
+          isOpen={isAppModalOpen}
+          onClose={handleCloseAppModal}
+          integration={selectedIntegration}
+          isConnected={isConnected}
+          userIntegration={userIntegrations?.find(ui => ui.appSlug === selectedIntegration.appSlug)}
+          onConnect={() => {
+            if (selectedIntegration) {
+              handleConnect({ appSlug: selectedIntegration.appSlug });
+            }
+          }}
+          onDisconnect={() => {
+            // Handle disconnect if needed
+          }}
+        />
       )}
     </div>
   );

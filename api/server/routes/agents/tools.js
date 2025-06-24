@@ -6,7 +6,6 @@ const {
   initializeUserMCP, 
   refreshUserMCP, 
   getUserMCPStatus,
-  cleanupOrphanedMCPTools,
   connectMCPServer,
   disconnectMCPServer,
 } = require('~/server/controllers/UserMCPController');
@@ -65,12 +64,7 @@ router.post('/initialize-user-mcp', requireJwtAuth, initializeUserMCP);
  */
 router.post('/refresh-user-mcp', requireJwtAuth, refreshUserMCP);
 
-/**
- * Clean up orphaned MCP tools from user's agents
- * @route POST /agents/tools/cleanup-orphaned-mcp-tools
- * @returns {Object} 200 - application/json
- */
-router.post('/cleanup-orphaned-mcp-tools', requireJwtAuth, cleanupOrphanedMCPTools);
+
 
 /**
  * Connect a specific MCP server
