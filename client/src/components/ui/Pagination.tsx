@@ -13,7 +13,7 @@ interface PaginationProps {
   className?: string;
 }
 
-const ITEMS_PER_PAGE_OPTIONS = [12, 24, 48, 96];
+const ITEMS_PER_PAGE_OPTIONS = [6, 12, 24, 48, 96];
 
 export function Pagination({
   currentPage,

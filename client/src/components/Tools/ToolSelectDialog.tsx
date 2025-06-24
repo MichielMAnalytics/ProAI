@@ -509,6 +509,13 @@ function ToolSelectDialog({
 
   const selectedToolsCount = getValues(toolsFormKey)?.length || 0;
 
+  // Calculate connected selected tools (exclude disconnected tools from count)
+  const connectedSelectedToolsCount = useMemo(() => {
+    const allSelectedTools = getValues(toolsFormKey) || [];
+    const availableToolKeys = new Set(tools?.map(t => t.pluginKey) || []);
+    return allSelectedTools.filter((toolKey: string) => availableToolKeys.has(toolKey)).length;
+  }, [getValues, toolsFormKey, tools, watchedTools]);
+
   // Reset to first page when search changes
   useEffect(() => {
     setCurrentPage(1);
@@ -567,7 +574,7 @@ function ToolSelectDialog({
       {/* Full-screen container to center the panel */}
       <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4">
         <DialogPanel
-          className="relative w-full transform overflow-hidden rounded-xl bg-surface-secondary text-left shadow-2xl transition-all h-full max-h-[95vh] sm:max-h-[90vh] sm:mx-7 sm:my-8 sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl border border-border-light flex flex-col"
+          className="relative w-full transform overflow-hidden rounded-xl bg-surface-secondary text-left shadow-2xl transition-all max-h-[90vh] sm:max-h-[85vh] sm:mx-7 sm:my-8 sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl border border-border-light flex flex-col"
         >
           {/* Header */}
           <div className="border-b border-border-light bg-surface-primary px-4 py-4 sm:px-6 sm:py-6 flex-shrink-0">
@@ -638,9 +645,9 @@ function ToolSelectDialog({
           )}
 
           {/* Main Content */}
-          <div className="flex-1 p-4 sm:p-6 overflow-y-auto min-h-0">
+          <div className="flex-1 p-4 sm:p-5 overflow-y-auto min-h-0">
             {/* Search and Controls */}
-            <div className="mb-4 sm:mb-6 space-y-4">
+            <div className="mb-4 sm:mb-5 space-y-4">
               {/* Search Bar */}
               <div className="relative max-w-md mx-auto">
                 <div className="relative">
@@ -668,7 +675,7 @@ function ToolSelectDialog({
               {!isLoadingTools && (
                 <div className="flex flex-col gap-3 sm:gap-4">
                   <div className="text-xs sm:text-sm text-text-secondary font-medium text-center">
-                    {selectedToolsCount} of {totalAvailableTools} connected tools selected
+                    {connectedSelectedToolsCount} of {totalAvailableTools} connected tools selected
                     {disconnectedApps.length > 0 && (
                       <div className="mt-1 text-orange-600 dark:text-orange-400 text-xs">
                         ⚠️ {disconnectedApps.reduce((acc, app) => acc + app.tools.length, 0)} disconnected tool{disconnectedApps.reduce((acc, app) => acc + app.tools.length, 0) !== 1 ? 's' : ''} require{disconnectedApps.reduce((acc, app) => acc + app.tools.length, 0) === 1 ? 's' : ''} reconnecting.
@@ -679,8 +686,8 @@ function ToolSelectDialog({
                     <button
                       type="button"
                       onClick={onSelectAll}
-                      disabled={selectedToolsCount === totalAvailableTools || totalAvailableTools === 0}
-                      className="inline-flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg border border-[#0E1593] text-[#0E1593] dark:text-white hover:bg-[#0E1593]/10 dark:hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200"
+                      disabled={connectedSelectedToolsCount === totalAvailableTools || totalAvailableTools === 0}
+                      className="inline-flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg border border-border-medium text-text-primary hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent transition-all duration-200"
                     >
                       <svg className="h-3 w-3 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -704,7 +711,7 @@ function ToolSelectDialog({
             </div>
 
             {/* Tools Content */}
-            <div className="min-h-[200px] space-y-6">
+            <div className="space-y-6">
               {isLoadingTools ? (
                 <div className="flex flex-col items-center justify-center py-8 sm:py-16 px-4">
                   <div className="flex items-center justify-center space-x-2">
@@ -787,7 +794,7 @@ function ToolSelectDialog({
 
                   {/* Pagination Controls - Only for connected apps */}
                   {showPagination && (
-                    <div className="mt-6 sm:mt-8">
+                    <div className="mt-4 sm:mt-6">
                       <Pagination
                         currentPage={currentPage}
                         itemsPerPage={itemsPerPage}
