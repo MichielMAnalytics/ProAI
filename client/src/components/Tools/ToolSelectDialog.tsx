@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { Dialog, DialogPanel, DialogTitle, Description } from '@headlessui/react';
 import { useFormContext } from 'react-hook-form';
@@ -15,6 +15,7 @@ import type { TPluginStoreDialogProps } from '~/common/types';
 import { PluginAuthForm } from '~/components/Plugins/Store';
 import { useLocalize, usePluginDialogHelpers } from '~/hooks';
 import { useAvailableToolsQuery } from '~/data-provider';
+import { Pagination } from '~/components/ui';
 import AppCard from './AppCard';
 
 function ToolSelectDialog({
@@ -32,9 +33,21 @@ function ToolSelectDialog({
   const { data: tools, isLoading: isLoadingTools } = useAvailableToolsQuery(endpoint);
   const isAgentTools = isAgentsEndpoint(endpoint);
   
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(6);
+  
   // Watch form values for reactive updates
   const watchedTools = watch(toolsFormKey);
   const watchedMcpServers = watch('mcp_servers');
+
+  // Helper function to format numbers with suffixes (only for very large numbers)
+  const formatCount = (count: number): string => {
+    if (count < 1000) return count.toString();
+    if (count < 10000) return `${(count / 1000).toFixed(1)}K+`.replace('.0', '');
+    if (count < 100000) return `${Math.floor(count / 1000)}K+`;
+    return `${Math.floor(count / 1000)}K+`;
+  };
 
   const {
     searchValue,
@@ -496,6 +509,10 @@ function ToolSelectDialog({
 
   const selectedToolsCount = getValues(toolsFormKey)?.length || 0;
 
+  // Reset to first page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchValue, itemsPerPage]);
 
   // Initialize MCP servers when tools data is loaded
   useEffect(() => {
@@ -503,6 +520,36 @@ function ToolSelectDialog({
       updateMCPServers();
     }
   }, [tools]);
+
+  // Calculate pagination for connected apps only
+  const connectedAppsPagination = useMemo(() => {
+    const totalItems = connectedApps.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedItems = connectedApps.slice(startIndex, endIndex);
+    
+    return {
+      items: paginatedItems,
+      totalItems,
+      totalPages,
+      currentPage,
+      itemsPerPage
+    };
+  }, [connectedApps, currentPage, itemsPerPage]);
+
+  // Determine which pagination to show - only paginate connected apps since disconnected apps are usually few
+  const showPagination = useMemo(() => {
+    return connectedApps.length > itemsPerPage;
+  }, [connectedApps.length, itemsPerPage]);
+
+  // Show all disconnected apps (no pagination) and paginated connected apps
+  const currentPageApps = useMemo(() => {
+    return {
+      disconnected: disconnectedApps, // Show all disconnected apps
+      connected: connectedAppsPagination.items // Show paginated connected apps
+    };
+  }, [disconnectedApps, connectedAppsPagination.items]);
 
 
   return (
@@ -693,19 +740,15 @@ function ToolSelectDialog({
               ) : (
                 <>
                   {/* Disconnected Apps Section */}
-                  {disconnectedApps.length > 0 && (
+                  {currentPageApps.disconnected.length > 0 && (
                     <div className="space-y-4 mb-6">
                       <div className="flex items-center gap-2">
                         <h4 className="text-sm font-semibold text-text-primary border-b border-border-light pb-2 flex-1">
-                          Disconnected Apps ({disconnectedApps.length})
+                          Disconnected Apps ({formatCount(disconnectedApps.length)})
                         </h4>
                       </div>
-
-
-
-
-                      <div className="space-y-3">
-                        {disconnectedApps.map((app) => (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
+                        {currentPageApps.disconnected.map((app) => (
                           <AppCard
                             key={app.id}
                             app={app}
@@ -721,13 +764,13 @@ function ToolSelectDialog({
                   )}
 
                   {/* Connected Apps Section */}
-                  {connectedApps.length > 0 && (
+                  {currentPageApps.connected.length > 0 && (
                     <div className="space-y-4">
                       <h4 className="text-sm font-semibold text-text-primary border-b border-border-light pb-2">
-                        Apps ({connectedApps.length})
+                        Apps ({formatCount(connectedApps.length)})
                       </h4>
-                      <div className="space-y-3">
-                        {connectedApps.map((app) => (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
+                        {currentPageApps.connected.map((app) => (
                           <AppCard
                             key={app.id}
                             app={app}
@@ -739,6 +782,21 @@ function ToolSelectDialog({
                           />
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {/* Pagination Controls - Only for connected apps */}
+                  {showPagination && (
+                    <div className="mt-6 sm:mt-8">
+                      <Pagination
+                        currentPage={currentPage}
+                        itemsPerPage={itemsPerPage}
+                        totalItems={connectedApps.length}
+                        totalPages={connectedAppsPagination.totalPages}
+                        onPageChange={(newPage) => setCurrentPage(newPage)}
+                        onItemsPerPageChange={(newItemsPerPage) => setItemsPerPage(newItemsPerPage)}
+                        showItemsPerPage={true}
+                      />
                     </div>
                   )}
 

@@ -34,6 +34,50 @@ export default function AppCard({
   onAddTool,
   onRemoveTool
 }: AppCardProps) {
+  // Format tool name: replace dashes with spaces and capitalize each word
+  const formatToolName = (name: string) => {
+    return name
+      .replace(/-/g, ' ')
+      .replace(/_/g, ' ')
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+  // Clean tool description
+  const cleanToolDescription = (description: string) => {
+    if (!description) return 'No description available';
+    return description
+      .replace(/\[See the docs?\]/gi, '')
+      .replace(/\[See the docs here\]/gi, '')
+      .replace(/\[See the documentation\]/gi, '')
+      .replace(/See the docs?/gi, '')
+      .replace(/See the documentation/gi, '')
+      .replace(/IMPORTANT:[\s\S]*?format:\s*string/gi, '')
+      .replace(/\s*for more information/gi, '')
+      .replace(/\s*-\s*cc:[\s\S]*?format:\s*string/gi, '')
+      .replace(/\s*-\s*bcc:[\s\S]*?format:\s*string/gi, '')
+      .replace(/\s*-\s*attachment[\s\S]*?format:\s*string/gi, '')
+      // Remove everything from 'safetySettings' onwards (including the word itself)
+      .replace(/\s*-?\s*safetySettings[\s\S]*/gi, '')
+      .replace(/\s*-?\s*safety_settings[\s\S]*/gi, '')
+      // Remove everything from 'mediaPaths' onwards  
+      .replace(/\s*-?\s*mediaPaths[\s\S]*/gi, '')
+      .replace(/\s*-?\s*media_paths[\s\S]*/gi, '')
+      // Remove other technical parameter patterns
+      .replace(/\s*-?\s*Return JSON in this format[\s\S]*/gi, '')
+      .replace(/\s*-?\s*format:\s*string[\s\S]*/gi, '')
+      .replace(/https:\/\/[^\s)]+/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Convert markdown links to plain text
+      .replace(/\(\s*\)/g, '')
+      .replace(/\[\s*\]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      // Replace trailing comma with period
+      .replace(/,\s*$/, '.')
+      // Remove patterns like '. .' (period space period)
+      .replace(/\.\s*\.\s*$/, '.');
+  };
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedIntegration, setSelectedIntegration] = useState<TAvailableIntegration | null>(null);
   const [isAppModalOpen, setIsAppModalOpen] = useState(false);
@@ -294,7 +338,7 @@ export default function AppCard({
               <button
                 onClick={handleAppToggle}
                 className={cn(
-                  "w-8 h-8 rounded-lg border-2 flex items-center justify-center transition-all duration-200",
+                  "w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all duration-200",
                   selectionStatus === 'all'
                     ? "bg-[#0E1593] border-[#0E1593] text-white"
                     : selectionStatus === 'some'
@@ -308,25 +352,29 @@ export default function AppCard({
                 }
               >
                 {selectionStatus === 'all' ? (
-                  <Check className="w-4 h-4" />
+                  <Check className="w-3 h-3" />
                 ) : selectionStatus === 'some' ? (
-                  <div className="w-2 h-2 bg-[#0E1593] rounded-sm" />
+                  <div className="w-1.5 h-1.5 bg-[#0E1593] rounded-sm" />
                 ) : null}
               </button>
             )}
             
-            {/* Expand Button (only for multi-tool apps and not disconnected) */}
-            {!app.isSingleTool && !app.isDisconnected && (
-              <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 hover:bg-surface-hover text-text-secondary hover:text-text-primary"
-                aria-label={isExpanded ? "Collapse tools" : "Expand tools"}
-              >
-                <ChevronDown className={cn(
-                  "w-4 h-4 transition-transform duration-200",
-                  isExpanded ? "rotate-180" : ""
-                )} />
-              </button>
+            {/* Expand Button or Spacer */}
+            {!app.isDisconnected && (
+              !app.isSingleTool ? (
+                <button
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 hover:bg-surface-hover text-text-secondary hover:text-text-primary"
+                  aria-label={isExpanded ? "Collapse tools" : "Expand tools"}
+                >
+                  <ChevronDown className={cn(
+                    "w-4 h-4 transition-transform duration-200",
+                    isExpanded ? "rotate-180" : ""
+                  )} />
+                </button>
+              ) : (
+                <div className="w-8 h-8" /> // Spacer to maintain consistent alignment
+              )
             )}
           </div>
         </div>
@@ -368,16 +416,19 @@ export default function AppCard({
                           ? "text-orange-700 dark:text-orange-300"
                           : "text-text-primary"
                       )}>
-                        {tool.name}
+                        {formatToolName(tool.name)}
                       </p>
                       {tool.description && (
-                        <p className={cn(
-                          "text-xs truncate mt-0.5",
-                          isDisconnected 
-                            ? "text-orange-600 dark:text-orange-400"
-                            : "text-text-secondary"
-                        )}>
-                          {tool.description}
+                        <p 
+                          className={cn(
+                            "text-xs truncate mt-0.5",
+                            isDisconnected 
+                              ? "text-orange-600 dark:text-orange-400"
+                              : "text-text-secondary"
+                          )}
+                          title={cleanToolDescription(tool.description)}
+                        >
+                          {cleanToolDescription(tool.description)}
                         </p>
                       )}
                     </div>
@@ -386,7 +437,7 @@ export default function AppCard({
                   <button
                     onClick={() => handleToolToggle(tool)}
                     className={cn(
-                      "w-6 h-6 rounded border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0",
+                      "w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0",
                       isDisconnected
                         ? "border-orange-400 hover:bg-orange-200 dark:hover:bg-orange-800/30"
                         : isSelected
