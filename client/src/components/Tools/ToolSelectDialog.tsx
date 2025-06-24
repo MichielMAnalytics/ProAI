@@ -17,8 +17,7 @@ import { useLocalize, usePluginDialogHelpers } from '~/hooks';
 import { useAvailableToolsQuery } from '~/data-provider';
 import { Pagination } from '~/components/ui';
 import ToolItem from './ToolItem';
-import DisconnectedToolItem from './DisconnectedToolItem';
-import MCPServerCard from './MCPServerCard';
+import AppCard from './AppCard';
 
 function ToolSelectDialog({
   isOpen,
@@ -194,15 +193,21 @@ function ToolSelectDialog({
     const currentTools = getValues(toolsFormKey) || [];
     const availableToolKeys = new Set(tools?.map(t => t.pluginKey) || []);
     
-    return currentTools
-      .filter(toolKey => !availableToolKeys.has(toolKey))
-      .map(toolKey => ({
+    const disconnected = currentTools
+      .filter((toolKey: string) => !availableToolKeys.has(toolKey))
+      .map((toolKey: string) => ({
         pluginKey: toolKey,
         name: toolKey.charAt(0).toUpperCase() + toolKey.slice(1).replace(/_/g, ' '),
         description: 'This tool is no longer available. Please reconnect the required MCP server.',
         icon: undefined,
         isDisconnected: true
       }));
+    
+    if (disconnected.length > 0) {
+      console.log(`[ToolSelectDialog] Found ${disconnected.length} disconnected tools:`, disconnected.map(t => t.pluginKey));
+    }
+    
+    return disconnected;
   }, [tools, getValues, toolsFormKey]);
 
   // Group tools by MCP server and get server metadata with tools
@@ -246,45 +251,76 @@ function ToolSelectDialog({
       }
     });
     
-    // Add disconnected servers from disconnected tools
-    const currentTools = getValues(toolsFormKey) || [];
-    const disconnectedServerTools = new Map<string, string[]>();
+    // Add disconnected servers using the mcp_servers array from the agent document
+    const currentMcpServers = getValues('mcp_servers') || [];
+    const currentSelectedTools = getValues(toolsFormKey) || [];
     
-    disconnectedTools.forEach(tool => {
-      // Try to guess server name from tool name (this is a fallback)
-      const toolKey = tool.pluginKey;
-      const serverGuess = toolKey.split('_')[0]; // Basic heuristic
-      
-      if (!disconnectedServerTools.has(serverGuess)) {
-        disconnectedServerTools.set(serverGuess, []);
-      }
-      disconnectedServerTools.get(serverGuess)!.push(toolKey);
-    });
+    // Track which disconnected tools have been assigned to servers
+    const assignedDisconnectedTools = new Set<string>();
     
-    disconnectedServerTools.forEach((toolKeys, serverName) => {
-      if (!serverMap.has(serverName)) {
-        const displayName = serverName
-          .replace(/_/g, ' ')
-          .split(' ')
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-          .join(' ');
-        
-        serverMap.set(serverName, {
-          name: serverName,
-          displayName,
-          tools: toolKeys.map(toolKey => {
-            const disconnectedTool = disconnectedTools.find(t => t.pluginKey === toolKey);
-            return disconnectedTool || {
-              pluginKey: toolKey,
-              name: toolKey.charAt(0).toUpperCase() + toolKey.slice(1).replace(/_/g, ' '),
-              description: 'Disconnected tool',
-              isDisconnected: true
-            };
-          }),
-          isDisconnected: true
+    currentMcpServers.forEach((mcpServerName: string) => {
+      // Check if this MCP server is already in the connected servers
+      if (!serverMap.has(mcpServerName)) {
+        // This is a disconnected server, find its tools from the selected tools
+        const serverToolsFromSelected = currentSelectedTools.filter((toolKey: string) => {
+          // Check if this tool likely belongs to this server
+          const toolLower = toolKey.toLowerCase();
+          const serverLower = mcpServerName.toLowerCase().replace('pipedream-', '');
+          
+          // Match tools that start with the server name or contain it
+          return toolLower.startsWith(serverLower) || 
+                 toolLower.includes(serverLower) ||
+                 (mcpServerName.includes('pipedream-') && toolLower.startsWith(mcpServerName.replace('pipedream-', '')));
         });
+        
+        if (serverToolsFromSelected.length > 0) {
+          let displayName = mcpServerName.startsWith('pipedream-') 
+            ? mcpServerName.replace('pipedream-', '')
+            : mcpServerName;
+          
+          displayName = displayName
+            .replace(/_/g, ' ')
+            .split(' ')
+            .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+          
+          serverMap.set(mcpServerName, {
+            name: mcpServerName,
+            displayName,
+            tools: serverToolsFromSelected.map((toolKey: string) => {
+              const disconnectedTool = disconnectedTools.find((t: any) => t.pluginKey === toolKey);
+              if (disconnectedTool) {
+                assignedDisconnectedTools.add(toolKey);
+              }
+              return disconnectedTool || {
+                pluginKey: toolKey,
+                name: toolKey.charAt(0).toUpperCase() + toolKey.slice(1).replace(/_/g, ' ').replace(/-/g, ' '),
+                description: 'This tool is no longer available. Please reconnect the required MCP server.',
+                isDisconnected: true
+              };
+            }),
+            isDisconnected: true
+          });
+        }
       }
     });
+    
+    // Add any remaining disconnected tools that couldn't be mapped to servers
+    // Create a fallback "Disconnected Tools" server for them
+    const unmappedDisconnectedTools = disconnectedTools.filter(
+      (tool: any) => !assignedDisconnectedTools.has(tool.pluginKey)
+    );
+    
+    if (unmappedDisconnectedTools.length > 0) {
+      console.log(`[ToolSelectDialog] Creating fallback "Disconnected Tools" server for ${unmappedDisconnectedTools.length} unmapped tools:`, unmappedDisconnectedTools.map(t => t.pluginKey));
+      serverMap.set('__disconnected_tools__', {
+        name: '__disconnected_tools__',
+        displayName: 'Disconnected Tools',
+        icon: undefined, // AppCard will show the AlertTriangle icon for disconnected servers
+        tools: unmappedDisconnectedTools,
+        isDisconnected: true
+      });
+    }
     
     return Array.from(serverMap.values()).filter(server => 
       server.displayName.toLowerCase().includes(searchValue.toLowerCase())
@@ -298,25 +334,46 @@ function ToolSelectDialog({
       .filter(tool => tool.name.toLowerCase().includes(searchValue.toLowerCase()));
   }, [tools, searchValue]);
 
-  // Filter disconnected standalone tools
-  const filteredDisconnectedStandaloneTools = useMemo(() => {
-    return disconnectedTools.filter(tool => {
-      // Only include tools that don't seem to belong to an MCP server
-      const toolKey = tool.pluginKey;
-      const hasServerIndicator = mcpServersWithTools.some(server => 
-        toolKey.toLowerCase().includes(server.name.toLowerCase())
-      );
-      return !hasServerIndicator && tool.name.toLowerCase().includes(searchValue.toLowerCase());
+  // Create unified Apps array
+  const allApps = useMemo(() => {
+    const apps: any[] = [];
+    
+    // Add MCP servers (both connected and disconnected) as multi-tool apps
+    mcpServersWithTools.forEach(server => {
+      apps.push({
+        id: server.name,
+        name: server.name,
+        displayName: server.displayName,
+        icon: server.icon,
+        tools: server.tools,
+        isDisconnected: server.isDisconnected,
+        isSingleTool: false
+      });
     });
-  }, [disconnectedTools, mcpServersWithTools, searchValue]);
+    
+    // Add standalone tools as single-tool apps
+    standaloneTools.forEach(tool => {
+      apps.push({
+        id: tool.pluginKey,
+        name: tool.pluginKey,
+        displayName: tool.name,
+        icon: tool.icon,
+        tools: [tool],
+        isDisconnected: false,
+        isSingleTool: true
+      });
+    });
+    
+    return apps.filter(app => 
+      app.displayName.toLowerCase().includes(searchValue.toLowerCase())
+    );
+  }, [mcpServersWithTools, standaloneTools, searchValue]);
+
 
   // Calculate total available tools and selected tools
   const totalAvailableTools = useMemo(() => {
-    const mcpToolCount = mcpServersWithTools.reduce((acc, server) => acc + server.tools.length, 0);
-    const standaloneToolCount = standaloneTools.length;
-    const disconnectedStandaloneCount = filteredDisconnectedStandaloneTools.length;
-    return mcpToolCount + standaloneToolCount + disconnectedStandaloneCount;
-  }, [mcpServersWithTools, standaloneTools, filteredDisconnectedStandaloneTools]);
+    return allApps.reduce((acc, app) => acc + app.tools.length, 0);
+  }, [allApps]);
 
   const selectedToolsCount = getValues(toolsFormKey)?.length || 0;
 
@@ -362,7 +419,7 @@ function ToolSelectDialog({
               </Description>
             </div>
               <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-4">
-                {!isLoadingTools && (mcpServersWithTools.length > 0 || standaloneTools.length > 0) && (
+                {!isLoadingTools && allApps.length > 0 && (
                   <button
                     onClick={() => {
                       updateMCPServers(); // Ensure MCP servers are updated before navigating
@@ -492,7 +549,7 @@ function ToolSelectDialog({
                     <p className="text-base sm:text-lg text-text-secondary">Loading tools...</p>
                   </div>
                 </div>
-              ) : mcpServersWithTools.length === 0 && standaloneTools.length === 0 && filteredDisconnectedStandaloneTools.length === 0 ? (
+              ) : allApps.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 sm:py-16 px-4">
                   <div className="w-12 h-12 sm:w-16 sm:h-16 bg-surface-tertiary rounded-full flex items-center justify-center mb-4">
                     <Search className="w-6 h-6 sm:w-8 sm:h-8 text-text-tertiary" />
@@ -519,63 +576,25 @@ function ToolSelectDialog({
                 </div>
               ) : (
                 <>
-                  {/* MCP Server Cards */}
-                  {mcpServersWithTools.length > 0 && (
-                    <div className="space-y-4">
-                      <h4 className="text-sm font-semibold text-text-primary border-b border-border-light pb-2">
-                        MCP Servers ({mcpServersWithTools.length})
-                      </h4>
-                      <div className="space-y-3">
-                        {mcpServersWithTools.map((server) => (
-                          <MCPServerCard
-                            key={server.name}
-                            server={server}
-                            toolsFormKey={toolsFormKey}
-                            onInstallError={handleInstallError}
-                            updateMCPServers={updateMCPServers}
-                          />
-                        ))}
-                      </div>
+                  {/* Apps */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-semibold text-text-primary border-b border-border-light pb-2">
+                      Apps ({allApps.length})
+                    </h4>
+                    <div className="space-y-3">
+                      {allApps.map((app) => (
+                        <AppCard
+                          key={app.id}
+                          app={app}
+                          toolsFormKey={toolsFormKey}
+                          onInstallError={handleInstallError}
+                          updateMCPServers={updateMCPServers}
+                          onAddTool={onAddTool}
+                          onRemoveTool={onRemoveTool}
+                        />
+                      ))}
                     </div>
-                  )}
-                  
-                  {/* Standalone Tools */}
-                  {standaloneTools.length > 0 && (
-                    <div className="space-y-4">
-                      <h4 className="text-sm font-semibold text-text-primary border-b border-border-light pb-2">
-                        Standalone Tools ({standaloneTools.length})
-                      </h4>
-                      <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {standaloneTools.map((tool, index) => (
-                          <ToolItem
-                            key={tool.pluginKey}
-                            tool={tool}
-                            isInstalled={getValues(toolsFormKey).includes(tool.pluginKey)}
-                            onAddTool={() => onAddTool(tool.pluginKey)}
-                            onRemoveTool={() => onRemoveTool(tool.pluginKey)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Disconnected Standalone Tools */}
-                  {filteredDisconnectedStandaloneTools.length > 0 && (
-                    <div className="space-y-4">
-                      <h4 className="text-sm font-semibold text-orange-700 dark:text-orange-300 border-b border-orange-300 dark:border-orange-600/50 pb-2">
-                        Disconnected Tools ({filteredDisconnectedStandaloneTools.length})
-                      </h4>
-                      <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {filteredDisconnectedStandaloneTools.map((tool, index) => (
-                          <DisconnectedToolItem
-                            key={`disconnected-${tool.pluginKey}-${index}`}
-                            tool={tool}
-                            onRemoveTool={() => onRemoveTool(tool.pluginKey)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </>
               )}
             </div>
