@@ -21,7 +21,7 @@ import { useAvailableIntegrationsQuery, useAvailableToolsQuery, useUserIntegrati
 import { mainTextareaId, BadgeItem } from '~/common';
 import AttachFileChat from './Files/AttachFileChat';
 import FileFormChat from './Files/FileFormChat';
-import { TextareaAutosize } from '~/components';
+import { TextareaAutosize, TooltipAnchor } from '~/components';
 import { cn, removeFocusRings } from '~/utils';
 import TextareaHeader from './TextareaHeader';
 import PromptsCommand from './PromptsCommand';
@@ -250,20 +250,22 @@ const MCPServerIcons = ({ mcpServers, toolKeys }: { mcpServers: string[]; toolKe
         <div className="bg-black/20 backdrop-blur-sm rounded-lg px-2 py-1">
           <div className="flex items-center gap-2">
             {allItems.map((item) => (
-              <button
+              <TooltipAnchor
                 key={item.id}
-                onClick={() => handleIconClick(item)}
+                description={item.isConnected ? `${item.name} - Connected` : 'App not connected. Click on it to connect.'}
+                side="top"
+                role="button"
                 className={cn(
                   "group relative p-1 rounded-md transition-all duration-200",
                   item.isConnected 
                     ? "hover:bg-surface-hover" 
                     : "hover:bg-orange-100/20 dark:hover:bg-orange-900/20"
                 )}
-                title={`${item.name} - ${item.isConnected ? 'Connected' : 'Not connected'} - Click for details`}
+                onClick={() => handleIconClick(item)}
               >
                 {/* Connection status indicator */}
                 {!item.isConnected && (
-                  <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-orange-500 border border-white dark:border-gray-800 animate-pulse" />
+                  <div className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-orange-500 border border-white dark:border-gray-800 animate-pulse" />
                 )}
                 <img
                   src={item.icon}
@@ -278,7 +280,7 @@ const MCPServerIcons = ({ mcpServers, toolKeys }: { mcpServers: string[]; toolKe
                     e.currentTarget.style.display = 'none';
                   }}
                 />
-              </button>
+              </TooltipAnchor>
             ))}
           </div>
         </div>

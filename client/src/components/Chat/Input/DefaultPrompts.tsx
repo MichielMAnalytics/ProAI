@@ -42,9 +42,9 @@ export default function DefaultPrompts({ conversation, onPromptSelect, isCompact
       return false;
     }
 
-    // Must have connected all required MCP servers
-    const mcpServers = agentData.mcp_servers || [];
-    if (mcpServers.length > 0 && !areAllMCPServersConnected(mcpServers)) {
+    // Hide if conversation has more than 5 messages
+    const messageCount = conversation?.messages?.length || 0;
+    if (messageCount > 5) {
       return false;
     }
 
