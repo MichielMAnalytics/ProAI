@@ -10,7 +10,6 @@ import { useChatHelpers, useAddedResponse, useSSE, useMCPConnection } from '~/ho
 import { useAgentsMapContext } from '~/Providers/AgentsMapContext';
 import { mainTextareaId } from '~/common';
 import ConversationStarters from './Input/ConversationStarters';
-import MCPConnectionsRequired from './Input/MCPConnectionsRequired';
 import DefaultPrompts from './Input/DefaultPrompts';
 import AgentSelectModal from './AgentSelectModal';
 import { useGetMessagesByConvoId, useGetAgentByIdQuery } from '~/data-provider';
@@ -49,7 +48,6 @@ function ChatView({ index = 0 }: { index?: number }) {
   const centerFormOnLanding = useRecoilValue(store.centerFormOnLanding);
   
   const [isMcpChecking, setIsMcpChecking] = useState(false);
-  const [mcpConnectionsComplete, setMCPConnectionsComplete] = useState(true);
   const [showAgentSelectModal, setShowAgentSelectModal] = useState(false);
 
   const fileMap = useFileMapContext();
@@ -130,7 +128,7 @@ function ChatView({ index = 0 }: { index?: number }) {
     }
   }, [shouldShowAgentModal, showAgentSelectModal]);
 
-  // Consolidated useEffect for handling MCP connection checks
+  // Simplified useEffect for handling MCP connection checks - we don't need to show connect buttons anymore
   useEffect(() => {
     const { conversation } = chatHelpers;
     if (!conversation) {
@@ -148,26 +146,16 @@ function ChatView({ index = 0 }: { index?: number }) {
         return; // Wait for the agent data to be fetched
       }
 
-      // Agent data has been fetched (or failed)
-      if (agentData) {
-        const mcpServers = agentData.mcp_servers || [];
-        const allConnected = areAllMCPServersConnected(mcpServers);
-        setMCPConnectionsComplete(allConnected);
-      } else {
-        // Default to complete if agent data fails to load, to prevent UI lock
-        setMCPConnectionsComplete(true);
-      }
-      setIsMcpChecking(false); // Finished checking
+      // Agent data has been fetched (or failed), finished checking
+      setIsMcpChecking(false);
     } else {
       // Not an agent endpoint, or no agent is selected, so reset to default state
       setIsMcpChecking(false);
-      setMCPConnectionsComplete(true);
     }
   }, [
     chatHelpers.conversation,
     isAgentLoading,
     agentData,
-    areAllMCPServersConnected,
   ]);
 
   let content: JSX.Element | null | undefined;
@@ -220,7 +208,7 @@ function ChatView({ index = 0 }: { index?: number }) {
                   >
                     <div className="relative">
                       {/* Show DefaultPrompts above ChatForm when conversation has started */}
-                      {!isMcpChecking && mcpConnectionsComplete && chatHelpers.conversation && 
+                      {!isMcpChecking && chatHelpers.conversation && 
                         !isLandingPage && agentData?.default_prompts && agentData.default_prompts.length > 0 && (
                         <div className="mx-auto flex w-full max-w-3xl xl:max-w-4xl justify-center gap-3 sm:px-2 mb-0.5">
                           <div className="relative flex h-full flex-1 items-stretch md:flex-col">
@@ -235,22 +223,13 @@ function ChatView({ index = 0 }: { index?: number }) {
                       <ChatForm
                         index={index}
                         isMcpChecking={isMcpChecking}
-                        disabled={isMcpChecking || shouldShowAgentModal}
+                        disabled={shouldShowAgentModal}
                         mcpServers={agentData?.mcp_servers || []}
                         toolKeys={agentData?.tools || []}
                       />
-                      {/* Show MCP connections required component integrated with the chat form */}
-                      {!isMcpChecking && !mcpConnectionsComplete && chatHelpers.conversation && agentData && (
-                        <div className="mx-auto flex w-full max-w-3xl xl:max-w-4xl justify-center px-3 sm:px-2 -mt-6 mb-8">
-                          <MCPConnectionsRequired
-                            mcpServers={agentData?.mcp_servers || []}
-                            onAllConnected={() => setMCPConnectionsComplete(true)}
-                          />
-                        </div>
-                      )}
                     </div>
-                    {/* Show DefaultPrompts for new conversations with agents that have default prompts and connected integrations */}
-                    {!isMcpChecking && mcpConnectionsComplete && chatHelpers.conversation && 
+                    {/* Show DefaultPrompts for new conversations with agents that have default prompts */}
+                    {!isMcpChecking && chatHelpers.conversation && 
                       isLandingPage && (
                       <DefaultPrompts
                         conversation={chatHelpers.conversation}

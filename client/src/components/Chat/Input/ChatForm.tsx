@@ -37,11 +37,13 @@ import AppDetailsModal from '../../Integrations/AppDetailsModal';
 import ToolDetailsModal from '../../Tools/ToolDetailsModal';
 import store from '~/store';
 import type { TAvailableIntegration } from 'librechat-data-provider';
+import { useMCPConnection } from '~/hooks/useMCPConnection';
 
 const MCPServerIcons = ({ mcpServers, toolKeys }: { mcpServers: string[]; toolKeys?: string[] }) => {
   const { data: availableIntegrations } = useAvailableIntegrationsQuery();
   const { data: tools } = useAvailableToolsQuery(EModelEndpoint.agents);
   const { data: userIntegrations } = useUserIntegrationsQuery();
+  const { isIntegrationConnected } = useMCPConnection();
   const [selectedIntegration, setSelectedIntegration] = useState<TAvailableIntegration | null>(null);
   const [selectedTool, setSelectedTool] = useState<{ id: string; name: string; icon?: string; description?: string } | null>(null);
   const [isAppModalOpen, setIsAppModalOpen] = useState(false);
@@ -51,11 +53,12 @@ const MCPServerIcons = ({ mcpServers, toolKeys }: { mcpServers: string[]; toolKe
     return null;
   }
 
-  const getMCPServerData = (serverName: string): { icon?: string; integration?: TAvailableIntegration } => {
+  const getMCPServerData = (serverName: string): { icon?: string; integration?: TAvailableIntegration; isConnected: boolean } => {
     // First, try direct match with the server name
     let integration = availableIntegrations?.find(int => int.appSlug === serverName);
     if (integration?.appIcon) {
-      return { icon: integration.appIcon, integration };
+      const isConnected = isIntegrationConnected(integration.appSlug);
+      return { icon: integration.appIcon, integration, isConnected };
     }
     
     // If no direct match, try stripping "pipedream-" prefix if it exists
@@ -66,7 +69,8 @@ const MCPServerIcons = ({ mcpServers, toolKeys }: { mcpServers: string[]; toolKe
     if (strippedServerName !== serverName) {
       integration = availableIntegrations?.find(int => int.appSlug === strippedServerName);
       if (integration?.appIcon) {
-        return { icon: integration.appIcon, integration };
+        const isConnected = isIntegrationConnected(integration.appSlug);
+        return { icon: integration.appIcon, integration, isConnected };
       }
     }
     
@@ -92,10 +96,11 @@ const MCPServerIcons = ({ mcpServers, toolKeys }: { mcpServers: string[]; toolKe
         int.appSlug === serverName
       );
       
-      return { icon: serverTool.icon, integration };
+      const isConnected = integration ? isIntegrationConnected(integration.appSlug) : false;
+      return { icon: serverTool.icon, integration, isConnected };
     }
     
-    return { icon: undefined, integration: undefined };
+    return { icon: undefined, integration: undefined, isConnected: false };
   };
 
   const getToolData = (toolKey: string): { icon?: string; name: string; description?: string } => {
@@ -122,19 +127,21 @@ const MCPServerIcons = ({ mcpServers, toolKeys }: { mcpServers: string[]; toolKe
     icon?: string;
     integration?: TAvailableIntegration;
     description?: string;
+    isConnected: boolean;
   }> = [];
 
   // Add MCP servers (one icon per server)
   if (mcpServers && mcpServers.length > 0) {
     mcpServers.forEach(serverName => {
-      const { icon, integration } = getMCPServerData(serverName);
+      const { icon, integration, isConnected } = getMCPServerData(serverName);
       if (icon) {
         allItems.push({
           id: serverName,
           type: 'mcp',
           name: serverName,
           icon,
-          integration
+          integration,
+          isConnected
         });
       }
     });
@@ -156,7 +163,8 @@ const MCPServerIcons = ({ mcpServers, toolKeys }: { mcpServers: string[]; toolKe
             type: 'tool',
             name,
             icon,
-            description
+            description,
+            isConnected: true // Standalone tools are always "connected"
           });
         }
       }
@@ -245,13 +253,27 @@ const MCPServerIcons = ({ mcpServers, toolKeys }: { mcpServers: string[]; toolKe
               <button
                 key={item.id}
                 onClick={() => handleIconClick(item)}
-                className="group relative p-1 rounded-md hover:bg-surface-hover transition-colors duration-200"
-                title={`${item.name} - Click for details`}
+                className={cn(
+                  "group relative p-1 rounded-md transition-all duration-200",
+                  item.isConnected 
+                    ? "hover:bg-surface-hover" 
+                    : "hover:bg-orange-100/20 dark:hover:bg-orange-900/20"
+                )}
+                title={`${item.name} - ${item.isConnected ? 'Connected' : 'Not connected'} - Click for details`}
               >
+                {/* Connection status indicator */}
+                {!item.isConnected && (
+                  <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-orange-500 border border-white dark:border-gray-800 animate-pulse" />
+                )}
                 <img
                   src={item.icon}
                   alt={`${item.name} ${item.type === 'tool' ? 'tool' : 'integration'}`}
-                  className="h-5 w-5 rounded-sm object-cover transition-transform duration-200 group-hover:scale-110 bg-white/90 dark:bg-gray-100/90 p-0.5"
+                  className={cn(
+                    "h-5 w-5 rounded-sm object-cover transition-all duration-200 group-hover:scale-110 p-0.5",
+                    item.isConnected 
+                      ? "bg-white/90 dark:bg-gray-100/90" 
+                      : "bg-orange-100/90 dark:bg-orange-900/90 ring-1 ring-orange-400/50"
+                  )}
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
                   }}
@@ -411,7 +433,6 @@ const ChatForm = memo(
       setIsScrollable,
       disabled: disableInputs,
       isMcpChecking: isMcpChecking,
-      mcpConnectionsRequired: false,
     });
 
     useQueryParams({ textAreaRef });

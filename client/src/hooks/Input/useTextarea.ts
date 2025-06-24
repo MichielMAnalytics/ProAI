@@ -1,5 +1,5 @@
 import debounce from 'lodash/debounce';
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useRecoilValue, useRecoilState } from 'recoil';
 import type { TEndpointOption } from 'librechat-data-provider';
 import type { KeyboardEvent } from 'react';
@@ -22,125 +22,18 @@ import store from '~/store';
 
 type KeyEvent = KeyboardEvent<HTMLTextAreaElement>;
 
-// Custom hook for typing effect
-function useTypingEffect(text: string, baseSpeed: number = 80) {
-  const [displayText, setDisplayText] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [showCursor, setShowCursor] = useState(true);
-
-  // Blinking cursor effect
-  useEffect(() => {
-    const cursorInterval = setInterval(() => {
-      setShowCursor(prev => !prev);
-    }, 500);
-
-    return () => clearInterval(cursorInterval);
-  }, []);
-
-  useEffect(() => {
-    if (!text) {
-      setDisplayText('');
-      setIsTyping(false);
-      return;
-    }
-
-    let timeouts: NodeJS.Timeout[] = [];
-    
-    // Start by showing the full text immediately
-    setDisplayText(text);
-    setIsTyping(false);
-
-    const backspaceEffect = (currentText: string, callback: () => void) => {
-      if (currentText.length === 0) {
-        callback();
-        return;
-      }
-
-      setIsTyping(true);
-      let textLength = currentText.length;
-
-      const deleteNextCharacter = () => {
-        if (textLength > 0) {
-          textLength--;
-          setDisplayText(currentText.substring(0, textLength));
-          
-          // Backspace speed - faster than typing
-          const backspaceSpeed = baseSpeed * 0.3;
-          const timeout = setTimeout(deleteNextCharacter, backspaceSpeed + Math.random() * 10);
-          timeouts.push(timeout);
-        } else {
-          setIsTyping(false);
-          const pauseTimeout = setTimeout(callback, 300);
-          timeouts.push(pauseTimeout);
-        }
-      };
-
-      deleteNextCharacter();
-    };
-
-    const startTypingCycle = () => {
-      setIsTyping(true);
-      setDisplayText('');
-      let currentIndex = 0;
-
-      const typeNextCharacter = () => {
-        if (currentIndex < text.length) {
-          setDisplayText(text.substring(0, currentIndex + 1));
-          currentIndex++;
-          
-          // Variable speed for more natural typing
-          const char = text[currentIndex - 1];
-          let speed = baseSpeed;
-          if (char === ' ') speed = baseSpeed * 0.5; // Faster for spaces
-          if (char === '.' || char === ',' || char === '!') speed = baseSpeed * 1.5; // Slower for punctuation
-          
-          const timeout = setTimeout(typeNextCharacter, speed + Math.random() * 20);
-          timeouts.push(timeout);
-        } else {
-          // Finished typing, show complete text for 3 seconds
-          setIsTyping(false);
-          const showTimeout = setTimeout(() => {
-            // Use backspace effect before restarting
-            backspaceEffect(text, startTypingCycle);
-          }, 3000);
-          timeouts.push(showTimeout);
-        }
-      };
-
-      // Start typing immediately
-      typeNextCharacter();
-    };
-
-    // After showing full text for 3 seconds, start the backspace and typing cycle
-    const initialTimeout = setTimeout(() => {
-      backspaceEffect(text, startTypingCycle);
-    }, 3000);
-    timeouts.push(initialTimeout);
-
-    return () => {
-      // Clear all timeouts on cleanup
-      timeouts.forEach(timeout => clearTimeout(timeout));
-      setIsTyping(false);
-    };
-  }, [text, baseSpeed]);
-
-  return { displayText, isTyping, showCursor };
-}
-
 export default function useTextarea({
   textAreaRef,
   submitButtonRef,
   setIsScrollable,
   disabled = false,
   isMcpChecking = false,
-  mcpConnectionsRequired = false,
 }: {
   textAreaRef: React.RefObject<HTMLTextAreaElement>;
   submitButtonRef: React.RefObject<HTMLButtonElement>;
   setIsScrollable: React.Dispatch<React.SetStateAction<boolean>>;
   disabled?: boolean;
   isMcpChecking?: boolean;
-  mcpConnectionsRequired?: boolean;
 }) {
   const localize = useLocalize();
   const getSender = useGetSender();
@@ -168,11 +61,6 @@ export default function useTextarea({
   const isNotAppendable =
     (((latestMessage?.unfinished ?? false) && !isSubmitting) || (latestMessage?.error ?? false)) &&
     !isAssistant;
-  // && (conversationId?.length ?? 0) > 6; // also ensures that we don't show the wrong placeholder
-
-  // Get the MCP placeholder text for typing effect - but only show if explicitly required
-  const mcpPlaceholderText = mcpConnectionsRequired === true ? localize('com_endpoint_config_mcp_placeholder') : '';
-  const { displayText: typedMcpText, isTyping, showCursor } = useTypingEffect(mcpPlaceholderText, 30);
 
   useEffect(() => {
     const prompt = activePrompt ?? '';
@@ -192,11 +80,6 @@ export default function useTextarea({
     const getPlaceholderText = () => {
       if (isMcpChecking) {
         return localize('com_ui_checking_connections');
-      }
-
-      if (mcpConnectionsRequired) {
-        // Use typed text with a blinking pipe cursor
-        return typedMcpText + (showCursor ? '|' : '');
       }
       
       if (disabled) {
@@ -244,9 +127,7 @@ export default function useTextarea({
       }
     };
 
-    // Use shorter debounce for typing effect, longer for others
-    const debounceTime = mcpConnectionsRequired ? 20 : 80;
-    const debouncedSetPlaceholder = debounce(setPlaceholder, debounceTime);
+    const debouncedSetPlaceholder = debounce(setPlaceholder, 80);
     debouncedSetPlaceholder();
 
     return () => debouncedSetPlaceholder.cancel();
@@ -263,9 +144,6 @@ export default function useTextarea({
     conversation,
     latestMessage,
     isNotAppendable,
-    mcpConnectionsRequired,
-    typedMcpText,
-    showCursor,
     isMcpChecking,
   ]);
 
