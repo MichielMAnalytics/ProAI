@@ -9,6 +9,7 @@ import { TrashIcon } from '~/components/svg';
 import { AlertTriangle } from 'lucide-react';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
+import { formatToolName } from '~/utils/textProcessing';
 
 export default function AgentTool({
   tool,
@@ -28,16 +29,9 @@ export default function AgentTool({
   // Extract tool key from both string tools and MCP tool objects
   const toolKey = typeof tool === 'string' ? tool : tool.tool;
   const currentTool = allTools.find((t) => t.pluginKey === toolKey);
-
-  // Format tool name: replace dashes with spaces and capitalize each word
-  const formatToolName = (name: string) => {
-    return name
-      .replace(/-/g, ' ')
-      .replace(/_/g, ' ')
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  };
+  
+  // Check if this is a global MCP tool
+  const isGlobalTool = typeof tool === 'object' && tool.type === 'global';
 
   const removeTool = (tool: string) => {
     if (tool) {
@@ -83,17 +77,25 @@ export default function AgentTool({
       >
         <div className="flex min-w-0 grow items-center">
           {isDisconnected ? (
-            <div className="ml-2 flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full">
+            <div className="ml-2 flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full relative">
               <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-orange-100 dark:bg-orange-800/50">
                 <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
               </div>
+              {/* Global indicator */}
+              {isGlobalTool && (
+                <div className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-blue-500 border border-white dark:border-gray-800" />
+              )}
             </div>
           ) : currentTool.icon ? (
-            <div className="ml-2 flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full">
+            <div className="ml-2 flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full relative">
               <div
                 className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-center bg-no-repeat dark:bg-white/20"
                 style={{ backgroundImage: `url(${currentTool.icon})`, backgroundSize: 'cover' }}
               />
+              {/* Global indicator */}
+              {isGlobalTool && (
+                <div className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-blue-500 border border-white dark:border-gray-800" />
+              )}
             </div>
           ) : null}
           <div className="min-w-0 flex-1 px-3 py-2">

@@ -87,7 +87,7 @@ function ToolSelectDialog({
         const mcpTool = {
           tool: pluginAction.pluginKey,
           server: toolMetadata.serverName,
-          type: 'user' as const // MCP tools are always user-specific for now
+          type: toolMetadata.isGlobal ? 'global' as const : 'user' as const
         };
         fns.push(mcpTool);
       } else {
@@ -178,7 +178,7 @@ function ToolSelectDialog({
           return {
             tool: tool.pluginKey,
             server: tool.serverName,
-            type: 'user' as const
+            type: tool.isGlobal ? 'global' as const : 'user' as const
           };
         } else {
           // For regular tools, use string
@@ -229,6 +229,7 @@ function ToolSelectDialog({
       icon?: string;
       tools: typeof tools;
       isDisconnected?: boolean;
+      isGlobal?: boolean;
     }>();
     
     // First, process available/connected tools and group by server
@@ -253,10 +254,16 @@ function ToolSelectDialog({
               displayName,
               icon: tool.icon,
               tools: [],
-              isDisconnected: false
+              isDisconnected: false,
+              isGlobal: false // Will be updated as we add tools
             });
           }
-          serverMap.get(serverName)!.tools.push(tool);
+          const server = serverMap.get(serverName)!;
+          server.tools.push(tool);
+          // Update isGlobal if any tool in this server is global
+          if (tool.isGlobal) {
+            server.isGlobal = true;
+          }
         }
       }
     });
@@ -383,7 +390,8 @@ function ToolSelectDialog({
         icon: server.icon,
         tools: server.tools,
         isDisconnected: server.isDisconnected || false,
-        isSingleTool: false
+        isSingleTool: false,
+        isGlobal: server.isGlobal || false
       };
       
       if (server.isDisconnected) {

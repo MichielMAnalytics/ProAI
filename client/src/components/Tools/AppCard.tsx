@@ -19,6 +19,7 @@ interface AppCardProps {
     tools: any[];
     isDisconnected?: boolean;
     isSingleTool?: boolean;
+    isGlobal?: boolean;
   };
   toolsFormKey: string;
   onInstallError: (error: TError) => void;
@@ -220,7 +221,7 @@ export default function AppCard({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             {/* App Icon */}
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0 relative">
               {app.isDisconnected ? (
                 <div className="w-10 h-10 rounded-lg bg-orange-100 dark:bg-orange-800/50 flex items-center justify-center">
                   <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
@@ -235,6 +236,10 @@ export default function AppCard({
                 <div className="w-10 h-10 rounded-lg bg-surface-tertiary flex items-center justify-center">
                   <div className="w-6 h-6 rounded bg-surface-quaternary" />
                 </div>
+              )}
+              {/* Global indicator */}
+              {app.isGlobal && (
+                <div className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-blue-500 border border-white dark:border-gray-800" />
               )}
             </div>
             

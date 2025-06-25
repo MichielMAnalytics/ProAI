@@ -202,6 +202,11 @@ const MCPServerIcons = ({ agentTools }: { agentTools: Array<string | { tool: str
 
 
   const handleIconClick = (item: typeof allItems[0]) => {
+    // Don't open modal for global MCP servers
+    if (item.isGlobal) {
+      return;
+    }
+    
     if (item.type === 'mcp' && item.integration) {
       setSelectedIntegration(item.integration);
       setIsAppModalOpen(true);
@@ -288,11 +293,11 @@ const MCPServerIcons = ({ agentTools }: { agentTools: Array<string | { tool: str
                 role="button"
                 className={cn(
                   "group relative p-1 rounded-md transition-all duration-200",
-                  item.isConnected 
-                    ? item.isGlobal 
-                      ? "hover:bg-blue-100/20 dark:hover:bg-blue-900/20" 
-                      : "hover:bg-surface-hover" 
-                    : "hover:bg-orange-100/20 dark:hover:bg-orange-900/20"
+                  item.isGlobal 
+                    ? "cursor-default" // Global servers are not clickable
+                    : item.isConnected 
+                      ? "cursor-pointer hover:bg-surface-hover" 
+                      : "cursor-pointer hover:bg-orange-100/20 dark:hover:bg-orange-900/20"
                 )}
                 onClick={() => handleIconClick(item)}
               >
