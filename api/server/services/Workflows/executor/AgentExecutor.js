@@ -85,7 +85,14 @@ async function executeStepWithAgent(step, prompt, context, userId, abortSignal) 
       agentResponse: responseText,
       toolsUsed: agent.tools || [],
       mcpToolsCount:
-        agent.tools?.filter((tool) => tool.includes(Constants.mcp_delimiter)).length || 0,
+        agent.tools?.filter((tool) => {
+          // Handle enhanced tool format (objects with MCP metadata)
+          if (typeof tool === 'object' && tool.tool) {
+            return tool.tool.includes(Constants.mcp_delimiter);
+          }
+          // Handle regular tool format (strings)
+          return typeof tool === 'string' && tool.includes(Constants.mcp_delimiter);
+        }).length || 0,
       modelUsed: configuredModel,
       endpointUsed: endpointName,
       timestamp: new Date().toISOString(),

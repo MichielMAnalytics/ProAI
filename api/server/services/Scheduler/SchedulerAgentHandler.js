@@ -188,7 +188,14 @@ class SchedulerAgentHandler {
     });
     
     // Log MCP tools specifically
-    const mcpTools = agent.tools?.filter(tool => tool.includes(Constants.mcp_delimiter)) || [];
+    const mcpTools = agent.tools?.filter(tool => {
+      // Handle enhanced tool format (objects with MCP metadata)
+      if (typeof tool === 'object' && tool.tool) {
+        return tool.tool.includes(Constants.mcp_delimiter);
+      }
+      // Handle regular tool format (strings)
+      return typeof tool === 'string' && tool.includes(Constants.mcp_delimiter);
+    }) || [];
     logger.info(`[SchedulerAgentHandler] Ephemeral agent MCP tools analysis:`, {
       mcpToolsCount: mcpTools.length,
       mcpTools: mcpTools,

@@ -104,7 +104,21 @@ router.post('/:agent_id', async (req, res) => {
     const { tools: _tools = [] } = agent;
 
     const tools = _tools
-      .filter((tool) => !(tool && (tool.includes(domain) || tool.includes(action_id))))
+      .filter((tool) => {
+        if (!tool) return true;
+        
+        // Handle enhanced tool format (objects with MCP metadata)
+        if (typeof tool === 'object' && tool.tool) {
+          return !(tool.tool.includes(domain) || tool.tool.includes(action_id));
+        }
+        
+        // Handle regular tool format (strings)
+        if (typeof tool === 'string') {
+          return !(tool.includes(domain) || tool.includes(action_id));
+        }
+        
+        return true;
+      })
       .concat(functions.map((tool) => `${tool.function.name}${actionDelimiter}${domain}`));
 
     const updatedAgent = await updateAgent(agentQuery, { tools, actions }, req.user.id);
@@ -170,7 +184,21 @@ router.delete('/:agent_id/:action_id', async (req, res) => {
       return res.status(400).json({ message: 'No domain provided' });
     }
 
-    const updatedTools = tools.filter((tool) => !(tool && tool.includes(domain)));
+    const updatedTools = tools.filter((tool) => {
+      if (!tool) return true;
+      
+      // Handle enhanced tool format (objects with MCP metadata)
+      if (typeof tool === 'object' && tool.tool) {
+        return !tool.tool.includes(domain);
+      }
+      
+      // Handle regular tool format (strings)
+      if (typeof tool === 'string') {
+        return !tool.includes(domain);
+      }
+      
+      return true;
+    });
 
     await updateAgent(agentQuery, { tools: updatedTools, actions: updatedActions }, req.user.id);
     // If admin, can delete any action, otherwise only user's actions
