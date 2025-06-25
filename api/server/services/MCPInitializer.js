@@ -404,25 +404,7 @@ class MCPInitializer {
       // Enhanced logging for global MCP servers
       const globalMCPServers = mcpManager.getAllConnections();
       const globalServerCount = globalMCPServers.size;
-      logger.info(`[MCPInitializer][${context}] Global MCP servers available: ${globalServerCount} (${Array.from(globalMCPServers.keys()).join(', ')})`);
-      
-      // Check if Perplexity is in global servers
-      if (globalMCPServers.has('Perplexity')) {
-        const perplexityConnection = globalMCPServers.get('Perplexity');
-        const isConnected = await perplexityConnection.isConnected();
-        logger.info(`[MCPInitializer][${context}] Global Perplexity MCP server status: ${isConnected ? 'CONNECTED' : 'DISCONNECTED'}`);
-        
-        if (isConnected) {
-          try {
-            const tools = await perplexityConnection.fetchTools();
-            logger.info(`[MCPInitializer][${context}] Global Perplexity MCP server tools: ${tools.map(t => t.name).join(', ')}`);
-          } catch (error) {
-            logger.warn(`[MCPInitializer][${context}] Failed to fetch tools from global Perplexity server:`, error.message);
-          }
-        }
-      } else {
-        logger.warn(`[MCPInitializer][${context}] Global Perplexity MCP server NOT FOUND in global connections`);
-      }
+      logger.info(`[MCPInitializer][${context}] Global MCP servers available: ${globalServerCount} (${Array.from(globalMCPServers.keys()).join(', ')})`)
 
       let toolCount = 0;
       const mcpTools = {}; // Store tools for caching

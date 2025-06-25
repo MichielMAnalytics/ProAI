@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import { useListAgentsQuery, useGetStartupConfig, useAvailableIntegrationsQuery } from '~/data-provider';
 import { useSelectAgent, useLocalize } from '~/hooks';
 import { processAgentOption } from '~/utils';
@@ -29,10 +29,28 @@ function AgentToolsCount({ tools }: { tools?: string[] }) {
 }
 
 // Compact MCP server icons component for agent cards
-function AgentMCPIcons({ mcpServers }: { mcpServers?: string[] }) {
+function AgentMCPIcons({ tools }: { tools?: Array<string | { tool: string; server: string; type: 'global' | 'user' }> }) {
   const { data: availableIntegrations } = useAvailableIntegrationsQuery();
 
-  if (!mcpServers || mcpServers.length === 0) {
+  // Extract MCP servers from the enhanced tools structure
+  const mcpServers = useMemo(() => {
+    if (!tools) return [];
+    
+    const serverSet = new Set<string>();
+    tools.forEach(tool => {
+      if (typeof tool === 'object' && tool.server) {
+        // Remove pipedream- prefix for display consistency
+        const serverName = tool.server.startsWith('pipedream-') 
+          ? tool.server.replace('pipedream-', '') 
+          : tool.server;
+        serverSet.add(serverName);
+      }
+    });
+    
+    return Array.from(serverSet);
+  }, [tools]);
+
+  if (mcpServers.length === 0) {
     return null;
   }
 
@@ -177,7 +195,7 @@ export default function AgentSelectModal({ isOpen, onClose }: AgentSelectModalPr
                   No Agents Available
                 </p>
                 <p className="text-sm text-[--text-secondary]">
-                  Contact your administrator to add premium AI agents
+                  Contact your administrator to add AI agents
                 </p>
               </div>
             </div>
@@ -200,10 +218,10 @@ export default function AgentSelectModal({ isOpen, onClose }: AgentSelectModalPr
                     )}
 
                     {/* MCP Integration Icons */}
-                    {agent.mcp_servers && agent.mcp_servers.length > 0 && (
+                    {agent.tools && (
                       <div className="absolute top-3 right-3 z-20">
                         <div className="bg-white/95 dark:bg-[--surface-tertiary]/95 backdrop-blur-sm rounded-lg px-2 py-1.5 shadow-md border border-[--brand-border]">
-                          <AgentMCPIcons mcpServers={agent.mcp_servers} />
+                          <AgentMCPIcons tools={agent.tools} />
                         </div>
                       </div>
                     )}

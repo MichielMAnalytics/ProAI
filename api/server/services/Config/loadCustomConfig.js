@@ -74,11 +74,6 @@ async function loadCustomConfig() {
   if (customConfig.mcpServers) {
     logger.info(`[loadCustomConfig] Found MCP servers in config: ${Object.keys(customConfig.mcpServers).join(', ')}`);
     logger.info(`[loadCustomConfig] MCP servers configuration:`, JSON.stringify(customConfig.mcpServers, null, 2));
-    
-    // Check specifically for Perplexity server
-    if (customConfig.mcpServers.Perplexity) {
-      logger.info(`[loadCustomConfig] Perplexity MCP server configuration found:`, JSON.stringify(customConfig.mcpServers.Perplexity, null, 2));
-    }
   } else {
     logger.info(`[loadCustomConfig] No MCP servers found in configuration`);
   }

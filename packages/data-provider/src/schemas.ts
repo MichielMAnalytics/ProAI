@@ -180,7 +180,6 @@ export const defaultAgentFormValues = {
   artifacts: ArtifactModes.DEFAULT,
   isCollaborative: false,
   recursion_limit: undefined,
-  mcp_servers: [],
   [Tools.execute_code]: false,
   [Tools.file_search]: false,
   [Tools.web_search]: true,
@@ -431,6 +430,7 @@ export const tPluginSchema = z.object({
   toolkit: z.boolean().optional(),
   serverName: z.string().optional(),
   appSlug: z.string().optional(),
+  isGlobal: z.boolean().optional(),
 });
 
 export type TPlugin = z.infer<typeof tPluginSchema>;

@@ -33,34 +33,68 @@ const systemTools = {
 };
 
 /**
- * Extract MCP server app slugs from an array of tools
- * Since tools now use clean names, we need to check against available MCP tools
- * @param {string[]} tools - Array of tool names
+ * Transform tools array to include MCP tool objects with server metadata
+ * @param {Array<string>} tools - Array of tool names from input
  * @param {Object} availableTools - Available tools registry
  * @param {Map} mcpToolRegistry - MCP tool registry for server information
- * @returns {string[]} Array of unique MCP server app slugs
+ * @returns {Array<string | Object>} Array of tool names and MCP tool objects
  */
-const extractMCPServerSlugs = (tools, availableTools = {}, mcpToolRegistry = null) => {
+const enhanceToolsWithMCPMetadata = (tools, availableTools = {}, mcpToolRegistry = null) => {
   if (!Array.isArray(tools)) {
     return [];
   }
 
-  const mcpSlugs = new Set();
+  const enhancedTools = [];
   
   for (const tool of tools) {
     if (typeof tool === 'string') {
       // Check if this tool is an MCP tool by looking it up in the registry
       if (mcpToolRegistry && mcpToolRegistry.has(tool)) {
         const mcpInfo = mcpToolRegistry.get(tool);
-        if (mcpInfo && mcpInfo.appSlug) {
-          mcpSlugs.add(mcpInfo.appSlug);
+        if (mcpInfo) {
+          // Create enhanced MCP tool object
+          enhancedTools.push({
+            tool: tool,
+            server: mcpInfo.serverName || 'unknown',
+            type: mcpInfo.isGlobal ? 'global' : 'user'
+          });
+        } else {
+          // Fallback to regular tool if no MCP info found
+          enhancedTools.push(tool);
         }
+      } else {
+        // Regular tool (system tool or manifest tool)
+        enhancedTools.push(tool);
       }
     }
   }
   
-  return Array.from(mcpSlugs);
+  return enhancedTools;
 };
+
+/**
+ * Filter out MCP tools from enhanced tools array for agent duplication security
+ * @param {Array<string | Object>} tools - Enhanced tools array
+ * @returns {Array<string>} Array of non-MCP tools only
+ */
+const filterOutMCPTools = (tools) => {
+  if (!Array.isArray(tools)) {
+    return [];
+  }
+
+  const nonMCPTools = [];
+  
+  for (const tool of tools) {
+    if (typeof tool === 'string') {
+      // Keep regular/system tools
+      nonMCPTools.push(tool);
+    }
+    // Skip MCP tool objects (they have tool/server/type properties)
+  }
+  
+  return nonMCPTools;
+};
+
 
 /**
  * Creates an Agent.
@@ -75,17 +109,22 @@ const createAgentHandler = async (req, res) => {
     const { tools = [], provider, name, description, instructions, model, ...agentData } = req.body;
     const { id: userId } = req.user;
 
-    agentData.tools = [];
-
+    // Handle tools - preserve MCP tool objects and validate strings
+    const validTools = [];
     for (const tool of tools) {
-      if (req.app.locals.availableTools[tool]) {
-        agentData.tools.push(tool);
-      }
-
-      if (systemTools[tool]) {
-        agentData.tools.push(tool);
+      if (typeof tool === 'string') {
+        // Validate string tools against available tools and system tools
+        if (req.app.locals.availableTools[tool] || systemTools[tool]) {
+          validTools.push(tool);
+        }
+      } else if (typeof tool === 'object' && tool.tool && tool.server && tool.type) {
+        // Preserve MCP tool objects as they come from the frontend
+        validTools.push(tool);
       }
     }
+
+    // Store the validated tools directly (MCP objects are already enhanced)
+    agentData.tools = validTools;
 
     Object.assign(agentData, {
       author: userId,
@@ -94,7 +133,6 @@ const createAgentHandler = async (req, res) => {
       instructions,
       provider,
       model,
-      mcp_servers: req.body.mcp_servers || extractMCPServerSlugs(agentData.tools, req.app.locals.availableTools, req.app.locals.mcpToolRegistry),
     });
 
     agentData.id = `agent_${nanoid()}`;
@@ -163,7 +201,6 @@ const getAgentHandler = async (req, res) => {
         projectIds: agent.projectIds,
         isCollaborative: agent.isCollaborative,
         version: agent.version,
-        mcp_servers: agent.mcp_servers,
         default_prompts: agent.default_prompts,
         tools: agent.tools,
       });
@@ -189,9 +226,23 @@ const updateAgentHandler = async (req, res) => {
     const id = req.params.id;
     const { projectIds, removeProjectIds, ...updateData } = req.body;
     
-    // Extract MCP server slugs if tools are being updated
+    // Handle tools update - preserve MCP tool objects and validate strings
     if (updateData.tools) {
-      updateData.mcp_servers = req.body.mcp_servers || extractMCPServerSlugs(updateData.tools, req.app.locals.availableTools, req.app.locals.mcpToolRegistry);
+      const validTools = [];
+      for (const tool of updateData.tools) {
+        if (typeof tool === 'string') {
+          // Validate string tools against available tools and system tools
+          if (req.app.locals.availableTools[tool] || systemTools[tool]) {
+            validTools.push(tool);
+          }
+        } else if (typeof tool === 'object' && tool.tool && tool.server && tool.type) {
+          // Preserve MCP tool objects as they come from the frontend
+          validTools.push(tool);
+        }
+      }
+      
+      // Store the validated tools directly (MCP objects are already enhanced)
+      updateData.tools = validTools;
     }
     
     const isAdmin = req.user.role === SystemRoles.ADMIN;
@@ -250,7 +301,7 @@ const updateAgentHandler = async (req, res) => {
         originalAgentId: id,
         projectIds: [], // Clear project associations - duplicated agents should be private
         isCollaborative: false, // Make the private copy non-collaborative
-        mcp_servers: [], // Clear MCP servers for duplicated agents - users need to connect their own integrations
+        tools: filterOutMCPTools(originalAgent.tools), // Clear MCP tools for duplicated agents - users need to connect their own integrations
       });
 
       // Handle actions duplication if the original agent has actions
@@ -431,7 +482,7 @@ const duplicateAgentHandler = async (req, res) => {
       author: userId,
       originalAgentId: id,
       projectIds: [], // Clear project associations - duplicated agents should be private
-      mcp_servers: [], // Clear MCP servers for duplicated agents - users need to connect their own integrations
+      tools: filterOutMCPTools(cloneData.tools), // Clear MCP tools for duplicated agents - users need to connect their own integrations
     });
 
     const newActionsList = [];
@@ -479,10 +530,25 @@ const duplicateAgentHandler = async (req, res) => {
     newAgentData.actions = agentActions;
     const newAgent = await createAgent(newAgentData);
 
+    // Extract MCP servers from the enhanced tools for frontend compatibility
+    const mcpServersNeeded = [];
+    if (Array.isArray(newAgentData.tools)) {
+      for (const tool of newAgentData.tools) {
+        if (typeof tool === 'object' && tool.server && tool.type) {
+          const appSlug = tool.server.startsWith('pipedream-') 
+            ? tool.server.replace('pipedream-', '') 
+            : tool.server;
+          if (!mcpServersNeeded.includes(appSlug)) {
+            mcpServersNeeded.push(appSlug);
+          }
+        }
+      }
+    }
+
     return res.status(201).json({
       agent: newAgent,
       actions: newActionsList,
-      mcp_servers_needed: newAgentData.mcp_servers,
+      mcp_servers_needed: mcpServersNeeded,
     });
   } catch (error) {
     logger.error('[/Agents/:id/duplicate] Error duplicating Agent:', error);

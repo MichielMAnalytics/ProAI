@@ -50,6 +50,12 @@ export type FunctionTool = {
   };
 };
 
+export type MCPTool = {
+  tool: string;
+  server: string;
+  type: 'global' | 'user';
+};
+
 /**
  * A set of resources that are used by the assistant's tools. The resources are
  * specific to the type of tool. For example, the `code_interpreter` tool requires
@@ -92,7 +98,7 @@ export type Assistant = {
   model: string;
   name: string | null;
   object: string;
-  tools?: FunctionTool[];
+  tools?: Array<FunctionTool | MCPTool | string>;
   tool_resources?: ToolResources;
 };
 
@@ -106,7 +112,7 @@ export type AssistantCreateParams = {
   conversation_starters?: string[];
   metadata?: Metadata | null;
   name?: string | null;
-  tools?: Array<FunctionTool | string>;
+  tools?: Array<FunctionTool | MCPTool | string>;
   endpoint: AssistantsEndpoint;
   version: number | string;
   append_current_datetime?: boolean;
@@ -120,7 +126,7 @@ export type AssistantUpdateParams = {
   conversation_starters?: string[] | null;
   metadata?: Metadata | null;
   name?: string | null;
-  tools?: Array<FunctionTool | string>;
+  tools?: Array<FunctionTool | MCPTool | string>;
   tool_resources?: ToolResources;
   endpoint: AssistantsEndpoint;
   append_current_datetime?: boolean;
@@ -211,7 +217,7 @@ export type Agent = {
   avatar: AgentAvatar | null;
   instructions: string | null;
   additional_instructions?: string | null;
-  tools?: string[];
+  tools?: Array<MCPTool | string>;
   projectIds?: string[];
   tool_kwargs?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
@@ -229,7 +235,6 @@ export type Agent = {
   recursion_limit?: number;
   version?: number;
   originalAgentId?: string;
-  mcp_servers?: string[];
 };
 
 export type TAgentsMap = Record<string, Agent | undefined>;
@@ -240,11 +245,10 @@ export type AgentCreateParams = {
   avatar?: AgentAvatar | null;
   file_ids?: string[];
   instructions?: string | null;
-  tools?: Array<FunctionTool | string>;
+  tools?: Array<FunctionTool | MCPTool | string>;
   provider: AgentProvider;
   model: string | null;
   model_parameters: AgentModelParameters;
-  mcp_servers?: string[];
 } & Pick<
   Agent,
   'agent_ids' | 'end_after_tools' | 'hide_sequential_outputs' | 'artifacts' | 'recursion_limit'
@@ -256,7 +260,7 @@ export type AgentUpdateParams = {
   avatar?: AgentAvatar | null;
   file_ids?: string[];
   instructions?: string | null;
-  tools?: Array<FunctionTool | string>;
+  tools?: Array<FunctionTool | MCPTool | string>;
   tool_resources?: ToolResources;
   provider?: AgentProvider;
   model?: string | null;
@@ -265,7 +269,6 @@ export type AgentUpdateParams = {
   removeProjectIds?: string[];
   isCollaborative?: boolean;
   originalAgentId?: string;
-  mcp_servers?: string[];
   default_prompts?: string[];
 } & Pick<
   Agent,

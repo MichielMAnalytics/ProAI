@@ -177,7 +177,6 @@ const initializeAgent = async ({
     agent.instructions = replaceSpecialVars({
       text: agent.instructions,
       user: req.user,
-      mcp_servers: agent.mcp_servers,
       tools: connectedTools, // Use connected tools instead of designed tools
       timezone: req.user?.timezone,
     });

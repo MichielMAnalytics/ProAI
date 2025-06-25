@@ -59,16 +59,23 @@ export default function AppCard({
   
   const currentTools = getValues(toolsFormKey) || [];
   
+  // Helper function to extract tool keys from enhanced tools structure
+  const getCurrentToolKeys = useMemo(() => {
+    return currentTools.map((tool: string | any) => 
+      typeof tool === 'string' ? tool : tool.tool || tool
+    ).filter((key: any) => typeof key === 'string');
+  }, [currentTools]);
+  
   // For single tool apps, check if the tool is selected
-  const isSingleToolSelected = app.isSingleTool && currentTools.includes(app.tools[0]?.pluginKey);
+  const isSingleToolSelected = app.isSingleTool && getCurrentToolKeys.includes(app.tools[0]?.pluginKey);
   
   // For multi-tool apps, calculate selected tools
   const selectedTools = useMemo(() => {
     if (app.isSingleTool) return [];
     return app.tools.filter(tool => 
-      currentTools.includes(tool.pluginKey)
+      getCurrentToolKeys.includes(tool.pluginKey)
     );
-  }, [app.tools, currentTools, app.isSingleTool]);
+  }, [app.tools, getCurrentToolKeys, app.isSingleTool]);
   
   const allToolsSelected = !app.isSingleTool && selectedTools.length === app.tools.length;
   const someToolsSelected = !app.isSingleTool && selectedTools.length > 0;
@@ -96,7 +103,7 @@ export default function AppCard({
       } else {
         // Select all tools from this app that don't require auth
         app.tools.forEach(tool => {
-          if (!currentTools.includes(tool.pluginKey)) {
+          if (!getCurrentToolKeys.includes(tool.pluginKey)) {
             const { authConfig, authenticated = false } = tool;
             if (!authConfig || authConfig.length === 0 || authenticated) {
               onAddTool(tool.pluginKey);
@@ -114,7 +121,7 @@ export default function AppCard({
       return;
     }
     
-    const isSelected = currentTools.includes(tool.pluginKey);
+    const isSelected = getCurrentToolKeys.includes(tool.pluginKey);
     
     if (isSelected) {
       onRemoveTool(tool.pluginKey);
@@ -169,31 +176,18 @@ export default function AppCard({
     const currentToolsList = getValues(toolsFormKey) || [];
     const toolsToRemove = app.tools.map(tool => tool.pluginKey).filter(Boolean);
     
-    // Filter out all tools that belong to this server
-    const updatedTools = currentToolsList.filter((toolKey: string) => 
-      !toolsToRemove.includes(toolKey)
-    );
+    // Filter out all tools that belong to this server (handle both strings and objects)
+    const updatedTools = currentToolsList.filter((tool: string | any) => {
+      // Handle both string tools and MCP tool objects
+      const toolKey = typeof tool === 'string' ? tool : tool.tool || tool;
+      return !toolsToRemove.includes(toolKey);
+    });
     
     // Update the tools array
     setValue(toolsFormKey, updatedTools);
     
-    // Also manually remove the server from mcp_servers array
-    const currentMcpServers = getValues('mcp_servers') || [];
-    const updatedMcpServers = currentMcpServers.filter((serverName: string) => {
-      // Remove server name with and without 'pipedream-' prefix to handle both formats
-      const serverNameClean = app.name.startsWith('pipedream-') 
-        ? app.name.replace('pipedream-', '') 
-        : app.name;
-      const serverNameWithPrefix = app.name.startsWith('pipedream-') 
-        ? app.name 
-        : `pipedream-${app.name}`;
-        
-      return serverName !== app.name && 
-             serverName !== serverNameClean && 
-             serverName !== serverNameWithPrefix;
-    });
-    
-    setValue('mcp_servers', updatedMcpServers);
+    // Note: MCP server metadata is now handled within the enhanced tools structure
+    // No need to manually maintain a separate mcp_servers field
     
     // Update MCP servers to refresh the UI (but won't re-add the server since we removed it manually)
     updateMCPServers();

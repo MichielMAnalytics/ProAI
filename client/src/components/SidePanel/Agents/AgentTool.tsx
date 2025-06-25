@@ -15,7 +15,7 @@ export default function AgentTool({
   allTools,
   agent_id = '',
 }: {
-  tool: string;
+  tool: string | { tool: string; server: string; type: 'global' | 'user' };
   allTools: TPlugin[];
   agent_id?: string;
 }) {
@@ -24,7 +24,10 @@ export default function AgentTool({
   const { showToast } = useToastContext();
   const updateUserPlugins = useUpdateUserPluginsMutation();
   const { getValues, setValue } = useFormContext();
-  const currentTool = allTools.find((t) => t.pluginKey === tool);
+  
+  // Extract tool key from both string tools and MCP tool objects
+  const toolKey = typeof tool === 'string' ? tool : tool.tool;
+  const currentTool = allTools.find((t) => t.pluginKey === toolKey);
 
   // Format tool name: replace dashes with spaces and capitalize each word
   const formatToolName = (name: string) => {
@@ -45,7 +48,11 @@ export default function AgentTool({
             showToast({ message: `Error while deleting the tool: ${error}`, status: 'error' });
           },
           onSuccess: () => {
-            const tools = getValues('tools').filter((fn: string) => fn !== tool);
+            const tools = getValues('tools').filter((fn: string | any) => {
+              // Handle both string tools and MCP tool objects
+              const fnKey = typeof fn === 'string' ? fn : fn.tool || fn;
+              return fnKey !== tool;
+            });
             setValue('tools', tools);
             showToast({ message: 'Tool deleted successfully', status: 'success' });
           },
@@ -57,7 +64,7 @@ export default function AgentTool({
   // Handle disconnected tools
   const isDisconnected = !currentTool;
   const toolName = isDisconnected 
-    ? formatToolName(tool) 
+    ? formatToolName(toolKey) 
     : formatToolName(currentTool.name);
   const isNameTooLong = toolName && toolName.length > 30;
 
@@ -140,7 +147,7 @@ export default function AgentTool({
           </Label>
         }
         selection={{
-          selectHandler: () => removeTool(isDisconnected ? tool : currentTool.pluginKey),
+          selectHandler: () => removeTool(isDisconnected ? toolKey : currentTool.pluginKey),
           selectClasses:
             'bg-red-700 dark:bg-red-600 hover:bg-red-800 dark:hover:bg-red-800 transition-colors duration-200 text-white',
           selectText: localize('com_ui_delete'),

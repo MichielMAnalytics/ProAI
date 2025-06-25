@@ -553,19 +553,38 @@ async function loadAgentTools({ req, res, agent, tool_resources, openAIApiKey })
   // logger.info(`[loadAgentTools] Agent ${agent.id} has the following tools: ${JSON.stringify(agent.tools)}`);
   
   let includesWebSearch = false;
-  const _agentTools = agent.tools?.filter((tool) => {
-    if (tool === Tools.file_search) {
-      return checkCapability(AgentCapabilities.file_search);
-    } else if (tool === Tools.execute_code) {
-      return checkCapability(AgentCapabilities.execute_code);
-    } else if (tool === Tools.web_search) {
-      includesWebSearch = checkCapability(AgentCapabilities.web_search);
-      return includesWebSearch;
-    } else if (!areToolsEnabled && !tool.includes(actionDelimiter)) {
-      return false;
+  const _agentTools = agent.tools?.reduce((acc, tool) => {
+    // Handle enhanced tool format (objects with MCP metadata)
+    if (typeof tool === 'object' && tool.tool) {
+      // For MCP tools, extract the tool name and check if tools are enabled
+      if (areToolsEnabled) {
+        acc.push(tool.tool);
+      }
+      return acc;
     }
-    return true;
-  });
+    
+    // Handle regular tool format (strings)
+    const toolName = tool;
+    if (toolName === Tools.file_search) {
+      if (checkCapability(AgentCapabilities.file_search)) {
+        acc.push(toolName);
+      }
+    } else if (toolName === Tools.execute_code) {
+      if (checkCapability(AgentCapabilities.execute_code)) {
+        acc.push(toolName);
+      }
+    } else if (toolName === Tools.web_search) {
+      includesWebSearch = checkCapability(AgentCapabilities.web_search);
+      if (includesWebSearch) {
+        acc.push(toolName);
+      }
+    } else if (!areToolsEnabled && !toolName.includes(actionDelimiter)) {
+      // Skip if tools not enabled and not an action
+    } else {
+      acc.push(toolName);
+    }
+    return acc;
+  }, []);
 
   // logger.info(`[loadAgentTools] Filtered agent tools for ${agent.id}: ${JSON.stringify(_agentTools)}`);
   

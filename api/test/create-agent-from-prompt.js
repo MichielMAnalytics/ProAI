@@ -205,7 +205,6 @@ async function createAgentFromPrompt(filename, userId = '6831a77a46d7304e714d824
         conversation_starters: options.conversation_starters || [],
         default_prompts: options.default_prompts || defaultPrompts || [],
         projectIds: options.projectIds || [],
-        mcp_servers: options.mcp_servers || [],
         model_parameters: options.model_parameters || {},
         end_after_tools: options.end_after_tools || false,
         hide_sequential_outputs: options.hide_sequential_outputs || false
@@ -237,7 +236,6 @@ async function createAgentFromPrompt(filename, userId = '6831a77a46d7304e714d824
         conversation_starters: options.conversation_starters || [],
         default_prompts: options.default_prompts || defaultPrompts || [],
         projectIds: options.projectIds || [],
-        mcp_servers: options.mcp_servers || [],
         model_parameters: options.model_parameters || {},
         end_after_tools: options.end_after_tools || false,
         hide_sequential_outputs: options.hide_sequential_outputs || false
@@ -277,7 +275,6 @@ if (require.main === module) {
     console.log('  --provider       - AI provider (default: "openAI")');
     console.log('  --model          - Model name (default: "gpt-4.1-mini")');
     console.log('  --tools          - Array of tool names');
-    console.log('  --mcp_servers    - Array of MCP server names');
     console.log('');
     console.log('Examples:');
     console.log('  node create-agent-from-prompt.js burn_monitor.txt');

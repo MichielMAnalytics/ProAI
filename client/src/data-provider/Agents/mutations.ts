@@ -283,7 +283,11 @@ export const useDeleteAgentAction = (
               if (agent.id === variables.agent_id) {
                 return {
                   ...agent,
-                  tools: agent.tools?.filter((tool) => !tool.includes(domain ?? '')),
+                  tools: agent.tools?.filter((tool) => {
+                    // Handle both string tools and MCP tool objects
+                    const toolKey = typeof tool === 'string' ? tool : tool.tool || tool;
+                    return typeof toolKey === 'string' ? !toolKey.includes(domain ?? '') : true;
+                  }),
                 };
               }
               return agent;
@@ -299,7 +303,11 @@ export const useDeleteAgentAction = (
 
         return {
           ...prev,
-          tools: prev.tools?.filter((tool) => !tool.includes(domain ?? '')),
+          tools: prev.tools?.filter((tool) => {
+            // Handle both string tools and MCP tool objects
+            const toolKey = typeof tool === 'string' ? tool : tool.tool || tool;
+            return typeof toolKey === 'string' ? !toolKey.includes(domain ?? '') : true;
+          }),
         };
       });
       return options?.onSuccess?.(_data, variables, context);

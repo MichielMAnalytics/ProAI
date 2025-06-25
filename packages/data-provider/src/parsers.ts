@@ -431,13 +431,13 @@ export function findLastSeparatorIndex(text: string, separators = SEPARATORS): n
 export function replaceSpecialVars({ 
   text, 
   user, 
-  mcp_servers, 
+ 
   tools,
   timezone 
 }: { 
   text: string; 
   user?: t.TUser | null;
-  mcp_servers?: string[];
+
   tools?: string[];
   timezone?: string;
 }) {
@@ -530,10 +530,6 @@ export function replaceSpecialVars({
     result = result.replace(/{{current_user}}/gi, user.name);
   }
 
-  if (mcp_servers && mcp_servers.length > 0) {
-    const mcpServersText = mcp_servers.join(', ');
-    result = result.replace(/{{mcp_servers}}/gi, mcpServersText);
-  }
 
   if (tools && tools.length > 0) {
     const toolsText = tools.join(', ');

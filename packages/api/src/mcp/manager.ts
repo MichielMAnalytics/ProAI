@@ -397,6 +397,7 @@ export class MCPManager {
             icon: connection.iconPath,
             serverName: serverName,
             appSlug: serverName,
+            isGlobal: true, // Mark as global since these are app-level connections
           };
           const config = this.mcpConfigs[serverName];
           if (config?.chatMenu === false) {

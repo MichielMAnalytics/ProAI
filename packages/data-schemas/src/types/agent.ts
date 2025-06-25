@@ -1,5 +1,11 @@
 import { Document, Types } from 'mongoose';
 
+export interface MCPToolConfig {
+  tool: string;
+  server: string;
+  type: 'global' | 'user';
+}
+
 export interface IAgent extends Omit<Document, 'model'> {
   id: string;
   name?: string;
@@ -15,7 +21,7 @@ export interface IAgent extends Omit<Document, 'model'> {
   artifacts?: string;
   access_level?: number;
   recursion_limit?: number;
-  tools?: string[];
+  tools?: Array<string | MCPToolConfig>; // Support both regular tools (strings) and MCP tools (objects)
   tool_kwargs?: Array<unknown>;
   actions?: string[];
   author: Types.ObjectId;
@@ -29,6 +35,5 @@ export interface IAgent extends Omit<Document, 'model'> {
   tool_resources?: unknown;
   projectIds?: Types.ObjectId[];
   originalAgentId?: string;
-  mcp_servers?: string[];
   versions?: Omit<IAgent, 'versions'>[];
 }

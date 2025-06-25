@@ -1603,7 +1603,7 @@ export const specialVariables = {
   current_datetime: true,
   current_date_time: true, // Alternative name for current_datetime
   utc_iso_datetime: true,  // Alternative name for iso_datetime
-  mcp_servers: true,
+  
   tools: true,
 };
 

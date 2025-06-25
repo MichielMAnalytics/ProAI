@@ -61,14 +61,24 @@ export default function AgentSelect({
         [AgentCapabilities.scheduler]: false,
       };
 
-      const agentTools: string[] = [];
-      (fullAgent.tools ?? []).forEach((tool) => {
-        if (capabilities[tool] !== undefined) {
-          capabilities[tool] = true;
-          return;
+      const agentTools: Array<string | { tool: string; server: string; type: 'global' | 'user' }> = [];
+      (fullAgent.tools ?? []).forEach((tool: any) => {
+        // Handle both string tools and MCP tool objects
+        if (typeof tool === 'string') {
+          if (capabilities[tool] !== undefined) {
+            capabilities[tool] = true;
+            return;
+          }
+          agentTools.push(tool);
+        } else if (typeof tool === 'object' && tool.tool) {
+          // For MCP tool objects, check the tool name for capabilities
+          if (capabilities[tool.tool] !== undefined) {
+            capabilities[tool.tool] = true;
+            return;
+          }
+          // Preserve the entire MCP tool object (including disconnected ones)
+          agentTools.push(tool);
         }
-
-        agentTools.push(tool);
       });
 
       const formValues: Partial<AgentForm & TAgentCapabilities> = {
@@ -98,14 +108,7 @@ export default function AgentSelect({
           return;
         }
 
-        if (
-          name === 'mcp_servers' &&
-          Array.isArray(value) &&
-          value.every((item) => typeof item === 'string')
-        ) {
-          formValues[name] = value;
-          return;
-        }
+
 
         if (!keys.has(name)) {
           return;

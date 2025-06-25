@@ -27,11 +27,10 @@ export type AgentForm = {
   instructions: string | null;
   model: string | null;
   model_parameters: AgentModelParameters;
-  tools?: string[];
+  tools?: Array<string | { tool: string; server: string; type: 'global' | 'user' }>;
   provider?: AgentProvider | OptionWithIcon;
   agent_ids?: string[];
   [AgentCapabilities.artifacts]?: ArtifactModes | string;
   workflows?: boolean;
   recursion_limit?: number;
-  mcp_servers?: string[];
 } & TAgentCapabilities;

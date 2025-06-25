@@ -43,7 +43,7 @@ const agentSchema = new Schema<IAgent>(
       type: Number,
     },
     tools: {
-      type: [String],
+      type: [Schema.Types.Mixed],
       default: undefined,
     },
     tool_kwargs: {
@@ -94,9 +94,6 @@ const agentSchema = new Schema<IAgent>(
     },
     originalAgentId: {
       type: String,
-    },
-    mcp_servers: {
-      type: [String],
     },
     versions: {
       type: [Schema.Types.Mixed],

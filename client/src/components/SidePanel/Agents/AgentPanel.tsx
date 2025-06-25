@@ -182,7 +182,8 @@ export default function AgentPanel({
 
   const onSubmit = useCallback(
     (data: AgentForm) => {
-      const tools = data.tools ?? [];
+      // Create a new array to avoid mutating the original enhanced tools structure
+      const tools = [...(data.tools ?? [])];
 
       if (data.execute_code === true) {
         tools.push(Tools.execute_code);
@@ -212,7 +213,6 @@ export default function AgentPanel({
         end_after_tools,
         hide_sequential_outputs,
         recursion_limit,
-        mcp_servers,
       } = data;
 
       const model = _model ?? '';
@@ -257,7 +257,6 @@ export default function AgentPanel({
                     end_after_tools,
                     hide_sequential_outputs,
                     recursion_limit,
-                    mcp_servers: mcp_servers || [],
                     isCollaborative: false, // Make the private copy non-collaborative
                     originalAgentId: agent_id, // Track which agent this was duplicated from
                     projectIds: [], // Ensure the duplicated agent is private (not associated with projects)
@@ -285,7 +284,6 @@ export default function AgentPanel({
             end_after_tools,
             hide_sequential_outputs,
             recursion_limit,
-            mcp_servers: mcp_servers || [],
           },
         });
         return;
@@ -311,7 +309,6 @@ export default function AgentPanel({
         end_after_tools,
         hide_sequential_outputs,
         recursion_limit,
-        mcp_servers: mcp_servers || [],
       });
     },
     [agent_id, agentQuery.data, startupConfig, user?.id, user?.role, duplicateAgent, update, create, showToast, localize],

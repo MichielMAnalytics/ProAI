@@ -224,8 +224,7 @@ function ChatView({ index = 0 }: { index?: number }) {
                         index={index}
                         isMcpChecking={isMcpChecking}
                         disabled={shouldShowAgentModal}
-                        mcpServers={agentData?.mcp_servers || []}
-                        toolKeys={agentData?.tools || []}
+                        agentTools={agentData?.tools || []}
                       />
                     </div>
                     {/* Show DefaultPrompts for new conversations with agents that have default prompts */}

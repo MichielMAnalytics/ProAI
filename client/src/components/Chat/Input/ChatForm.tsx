@@ -39,7 +39,7 @@ import store from '~/store';
 import type { TAvailableIntegration } from 'librechat-data-provider';
 import { useMCPConnection } from '~/hooks/useMCPConnection';
 
-const MCPServerIcons = ({ mcpServers, toolKeys }: { mcpServers: string[]; toolKeys?: string[] }) => {
+const MCPServerIcons = ({ agentTools }: { agentTools: Array<string | { tool: string; server: string; type: 'global' | 'user' }> }) => {
   const { data: availableIntegrations } = useAvailableIntegrationsQuery();
   const { data: tools } = useAvailableToolsQuery(EModelEndpoint.agents);
   const { data: userIntegrations } = useUserIntegrationsQuery();
@@ -49,11 +49,23 @@ const MCPServerIcons = ({ mcpServers, toolKeys }: { mcpServers: string[]; toolKe
   const [isAppModalOpen, setIsAppModalOpen] = useState(false);
   const [isToolModalOpen, setIsToolModalOpen] = useState(false);
 
+  // Derive MCP servers and tool keys from agentTools
+  const mcpServers = Array.from(new Set(
+    agentTools
+      .filter((tool): tool is { tool: string; server: string; type: 'global' | 'user' } => 
+        typeof tool === 'object' && 'server' in tool
+      )
+      .map(tool => tool.server.startsWith('pipedream-') ? tool.server.replace('pipedream-', '') : tool.server)
+  ));
+
+  const toolKeys = agentTools
+    .filter((tool): tool is string => typeof tool === 'string');
+
   if ((!mcpServers || mcpServers.length === 0) && (!toolKeys || toolKeys.length === 0)) {
     return null;
   }
 
-  const getMCPServerData = (serverName: string): { icon?: string; integration?: TAvailableIntegration; isConnected: boolean } => {
+  const getMCPServerData = (serverName: string): { icon?: string; integration?: TAvailableIntegration; isConnected: boolean; isGlobal?: boolean } => {
     // First, try direct match with the server name
     let integration = availableIntegrations?.find(int => int.appSlug === serverName);
     if (integration?.appIcon) {
@@ -96,8 +108,19 @@ const MCPServerIcons = ({ mcpServers, toolKeys }: { mcpServers: string[]; toolKe
         int.appSlug === serverName
       );
       
-      const isConnected = integration ? isIntegrationConnected(integration.appSlug) : false;
-      return { icon: serverTool.icon, integration, isConnected };
+      // Check if this is a global tool (isGlobal property indicates global MCP tools)
+      const isGlobalTool = serverTool.isGlobal === true;
+      
+      // For global tools, always consider them "connected" since they're globally available
+      // For user tools, check actual user integration status
+      const isConnected = isGlobalTool || (integration ? isIntegrationConnected(integration.appSlug) : false);
+      
+      return { 
+        icon: serverTool.icon, 
+        integration, 
+        isConnected,
+        isGlobal: isGlobalTool
+      };
     }
     
     return { icon: undefined, integration: undefined, isConnected: false };
@@ -128,12 +151,13 @@ const MCPServerIcons = ({ mcpServers, toolKeys }: { mcpServers: string[]; toolKe
     integration?: TAvailableIntegration;
     description?: string;
     isConnected: boolean;
+    isGlobal?: boolean;
   }> = [];
 
   // Add MCP servers (one icon per server)
   if (mcpServers && mcpServers.length > 0) {
     mcpServers.forEach(serverName => {
-      const { icon, integration, isConnected } = getMCPServerData(serverName);
+      const { icon, integration, isConnected, isGlobal } = getMCPServerData(serverName);
       if (icon) {
         allItems.push({
           id: serverName,
@@ -141,7 +165,8 @@ const MCPServerIcons = ({ mcpServers, toolKeys }: { mcpServers: string[]; toolKe
           name: serverName,
           icon,
           integration,
-          isConnected
+          isConnected,
+          isGlobal
         });
       }
     });
@@ -252,20 +277,32 @@ const MCPServerIcons = ({ mcpServers, toolKeys }: { mcpServers: string[]; toolKe
             {allItems.map((item) => (
               <TooltipAnchor
                 key={item.id}
-                description={item.isConnected ? `${item.name} - Connected` : 'App not connected. Click on it to connect.'}
+                description={
+                  item.isConnected 
+                    ? `${item.name} - ${item.isGlobal ? 'Connected (Global)' : 'Connected'}` 
+                    : item.isGlobal 
+                      ? `${item.name} - Global tool (always available)`
+                      : 'App not connected. Click on it to connect.'
+                }
                 side="top"
                 role="button"
                 className={cn(
                   "group relative p-1 rounded-md transition-all duration-200",
                   item.isConnected 
-                    ? "hover:bg-surface-hover" 
+                    ? item.isGlobal 
+                      ? "hover:bg-blue-100/20 dark:hover:bg-blue-900/20" 
+                      : "hover:bg-surface-hover" 
                     : "hover:bg-orange-100/20 dark:hover:bg-orange-900/20"
                 )}
                 onClick={() => handleIconClick(item)}
               >
                 {/* Connection status indicator */}
-                {!item.isConnected && (
+                {!item.isConnected && !item.isGlobal && (
                   <div className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-orange-500 border border-white dark:border-gray-800 animate-pulse" />
+                )}
+                {/* Global tool indicator */}
+                {item.isGlobal && (
+                  <div className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-blue-500 border border-white dark:border-gray-800" />
                 )}
                 <img
                   src={item.icon}
@@ -273,7 +310,9 @@ const MCPServerIcons = ({ mcpServers, toolKeys }: { mcpServers: string[]; toolKe
                   className={cn(
                     "h-5 w-5 rounded-sm object-cover transition-all duration-200 group-hover:scale-110 p-0.5",
                     item.isConnected 
-                      ? "bg-white/90 dark:bg-gray-100/90" 
+                      ? item.isGlobal 
+                        ? "bg-blue-100/90 dark:bg-blue-900/90 ring-1 ring-blue-400/50"
+                        : "bg-white/90 dark:bg-gray-100/90" 
                       : "bg-orange-100/90 dark:bg-orange-900/90 ring-1 ring-orange-400/50"
                   )}
                   onError={(e) => {
@@ -312,14 +351,12 @@ const ChatForm = memo(
     index = 0,
     disabled = false,
     isMcpChecking = false,
-    mcpServers = [],
-    toolKeys = [],
+    agentTools = [],
   }: {
     index?: number;
     disabled?: boolean;
     isMcpChecking?: boolean;
-    mcpServers?: string[];
-    toolKeys?: string[];
+    agentTools?: Array<string | { tool: string; server: string; type: 'global' | 'user' }>;
   }) => {
     const submitButtonRef = useRef<HTMLButtonElement>(null);
     const textAreaRef = useRef<HTMLTextAreaElement>(null);
@@ -623,7 +660,7 @@ const ChatForm = memo(
                 </div>
               </div>
               {TextToSpeech && automaticPlayback && <StreamAudio index={index} />}
-              <MCPServerIcons mcpServers={mcpServers} toolKeys={toolKeys} />
+              <MCPServerIcons agentTools={agentTools} />
             </div>
           </div>
         </div>
