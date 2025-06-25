@@ -230,16 +230,16 @@ export default function AppCard({
                 <img 
                   src={app.icon} 
                   alt={app.displayName} 
-                  className="w-10 h-10 rounded-lg object-cover"
+                  className="w-10 h-10 rounded-sm object-cover"
                 />
               ) : (
-                <div className="w-10 h-10 rounded-lg bg-surface-tertiary flex items-center justify-center">
+                <div className="w-10 h-10 rounded-sm bg-surface-tertiary flex items-center justify-center">
                   <div className="w-6 h-6 rounded bg-surface-quaternary" />
                 </div>
               )}
               {/* Global indicator */}
               {app.isGlobal && (
-                <div className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-blue-500 border border-white dark:border-gray-800" />
+                <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-blue-500 border border-white dark:border-gray-800" />
               )}
             </div>
             

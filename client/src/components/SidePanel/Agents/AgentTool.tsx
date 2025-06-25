@@ -77,8 +77,8 @@ export default function AgentTool({
       >
         <div className="flex min-w-0 grow items-center">
           {isDisconnected ? (
-            <div className="ml-2 flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full relative">
-              <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-orange-100 dark:bg-orange-800/50">
+            <div className="ml-2 flex h-8 w-8 flex-shrink-0 items-center justify-center relative">
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-800/50">
                 <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
               </div>
               {/* Global indicator */}
@@ -87,10 +87,11 @@ export default function AgentTool({
               )}
             </div>
           ) : currentTool.icon ? (
-            <div className="ml-2 flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full relative">
-              <div
-                className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-center bg-no-repeat dark:bg-white/20"
-                style={{ backgroundImage: `url(${currentTool.icon})`, backgroundSize: 'cover' }}
+            <div className="ml-2 flex h-8 w-8 flex-shrink-0 items-center justify-center relative">
+              <img
+                src={currentTool.icon}
+                alt={currentTool.name}
+                className="h-6 w-6 rounded-sm object-cover"
               />
               {/* Global indicator */}
               {isGlobalTool && (
