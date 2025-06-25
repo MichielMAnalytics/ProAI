@@ -69,6 +69,20 @@ async function loadCustomConfig() {
   }
 
   const result = configSchema.strict().safeParse(customConfig);
+  
+  // Enhanced logging for MCP server configuration validation
+  if (customConfig.mcpServers) {
+    logger.info(`[loadCustomConfig] Found MCP servers in config: ${Object.keys(customConfig.mcpServers).join(', ')}`);
+    logger.info(`[loadCustomConfig] MCP servers configuration:`, JSON.stringify(customConfig.mcpServers, null, 2));
+    
+    // Check specifically for Perplexity server
+    if (customConfig.mcpServers.Perplexity) {
+      logger.info(`[loadCustomConfig] Perplexity MCP server configuration found:`, JSON.stringify(customConfig.mcpServers.Perplexity, null, 2));
+    }
+  } else {
+    logger.info(`[loadCustomConfig] No MCP servers found in configuration`);
+  }
+  
   if (result?.error?.errors?.some((err) => err?.path && err.path?.includes('imageOutputType'))) {
     throw new Error(
       `
@@ -86,6 +100,16 @@ Please specify a correct \`imageOutputType\` value (case-sensitive).
   if (!result.success) {
     let errorMessage = `Invalid custom config file at ${configPath}:
 ${JSON.stringify(result.error, null, 2)}`;
+
+    // Check for MCP-related validation errors
+    const mcpErrors = result.error.errors.filter(err => 
+      err.path && (err.path.includes('mcpServers') || 
+                   err.path.some(p => p === 'mcpServers' || (typeof p === 'string' && p.includes('mcp'))))
+    );
+    
+    if (mcpErrors.length > 0) {
+      logger.error(`[loadCustomConfig] MCP server configuration validation errors:`, mcpErrors);
+    }
 
     if (i === 0) {
       logger.error(errorMessage);

@@ -28,7 +28,7 @@ const { loadAndFormatTools } = require('./ToolService');
 const { agentsConfigSetup } = require('./start/agents');
 const { isEnabled } = require('~/server/utils');
 const { initializeRoles } = require('~/models');
-const { getMCPManager } = require('~/config');
+const { getMCPManager, logger } = require('~/config');
 const paths = require('~/config/paths');
 
 /**
@@ -77,9 +77,26 @@ const AppService = async (app) => {
   });
 
   if (config.mcpServers != null) {
+    logger.info('[AppService] Global MCP servers found in config:', Object.keys(config.mcpServers));
+    logger.info('[AppService] MCP server configurations:', JSON.stringify(config.mcpServers, null, 2));
+    
     const mcpManager = getMCPManager();
+    logger.info('[AppService] Initializing global MCP servers...');
     await mcpManager.initializeMCP(config.mcpServers, processMCPEnv);
+    
+    logger.info('[AppService] Mapping global MCP tools to availableTools...');
+    const toolsCountBefore = Object.keys(availableTools).length;
     await mcpManager.mapAvailableTools(availableTools);
+    const toolsCountAfter = Object.keys(availableTools).length;
+    logger.info(`[AppService] Available tools count: ${toolsCountBefore} → ${toolsCountAfter} (added ${toolsCountAfter - toolsCountBefore} MCP tools)`);
+    
+    // Log the actual tools that were added
+    const mcpToolNames = Object.keys(availableTools).slice(toolsCountBefore);
+    if (mcpToolNames.length > 0) {
+      logger.info('[AppService] Global MCP tools added:', mcpToolNames);
+    }
+  } else {
+    logger.info('[AppService] No global MCP servers configured in librechat.yaml');
   }
 
   const socialLogins =

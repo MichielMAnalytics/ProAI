@@ -21,11 +21,10 @@ const { logger, getMCPManager } = require('~/config');
  * @returns { Promise<typeof tool | { _call: (toolInput: Object | string) => unknown}> } An object with `_call` method to execute the tool input.
  */
 async function createMCPTool({ req, toolKey, provider: _provider }) {
-  // logger.info(`[MCP] createMCPTool called for toolKey: ${toolKey}`);
-  // logger.info(`[MCP] Provider: ${_provider}`);
-  // logger.info(`[MCP] Available tools count: ${Object.keys(req.app.locals.availableTools || {}).length}`);
-  // logger.info(`[MCP] Sample available tools: ${Object.keys(req.app.locals.availableTools || {}).slice(0, 5).join(', ')}`);
-  // logger.info(`[MCP] Looking for tool definition for key: ${toolKey}`);
+  logger.info(`[MCP] createMCPTool called for toolKey: ${toolKey}`);
+  logger.info(`[MCP] Provider: ${_provider}`);
+  logger.info(`[MCP] Available tools count: ${Object.keys(req.app.locals.availableTools || {}).length}`);
+  logger.info(`[MCP] Looking for tool definition for key: ${toolKey}`);
   
   const toolDefinition = req.app.locals.availableTools[toolKey]?.function;
   if (!toolDefinition) {
@@ -47,13 +46,13 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
 
   // Get server information from the MCP tool registry
   const mcpToolRegistry = req.app.locals.mcpToolRegistry;
-  // logger.info(`[MCP] mcpToolRegistry exists: ${!!mcpToolRegistry}`);
-  // logger.info(`[MCP] mcpToolRegistry size: ${mcpToolRegistry?.size || 0}`);
-  // logger.info(`[MCP] mcpToolRegistry has toolKey ${toolKey}: ${mcpToolRegistry?.has(toolKey) || false}`);
+  logger.info(`[MCP] mcpToolRegistry exists: ${!!mcpToolRegistry}`);
+  logger.info(`[MCP] mcpToolRegistry size: ${mcpToolRegistry?.size || 0}`);
+  logger.info(`[MCP] mcpToolRegistry has toolKey ${toolKey}: ${mcpToolRegistry?.has(toolKey) || false}`);
   
-  // if (mcpToolRegistry && mcpToolRegistry.size > 0) {
-  //   logger.info(`[MCP] mcpToolRegistry contents: ${Array.from(mcpToolRegistry.keys()).join(', ')}`);
-  // }
+  if (mcpToolRegistry && mcpToolRegistry.size > 0) {
+    logger.info(`[MCP] mcpToolRegistry contents: ${Array.from(mcpToolRegistry.keys()).join(', ')}`);
+  }
   
   if (!mcpToolRegistry || !mcpToolRegistry.has(toolKey)) {
     logger.error(`[MCP] Tool ${toolKey} not found in MCP tool registry`);
@@ -64,9 +63,10 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
   const mcpInfo = mcpToolRegistry.get(toolKey);
   const serverName = mcpInfo?.serverName;
   const toolName = mcpInfo?.toolName || toolKey; // Fallback to toolKey if toolName not available
+  const isGlobalTool = mcpInfo?.isGlobal || false;
   
-  // logger.info(`[MCP] Tool info for ${toolKey}: serverName=${serverName}, toolName=${toolName}`);
-  // logger.info(`[MCP] Full mcpInfo: ${JSON.stringify(mcpInfo)}`);
+  logger.info(`[MCP] Tool info for ${toolKey}: serverName=${serverName}, toolName=${toolName}, isGlobal=${isGlobalTool}`);
+  logger.info(`[MCP] Full mcpInfo: ${JSON.stringify(mcpInfo)}`);
   
   if (!serverName) {
     logger.error(`[MCP] Could not determine server name for MCP tool: ${toolKey}`);
@@ -105,23 +105,36 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
         toolName
       });
       
-      // SECURITY FIX: Verify that the current user has access to this MCP server
-      // This prevents users from using admin's MCP tools via shared agents
+      // SECURITY FIX: Handle global vs user-specific MCP tools differently
       const mcpManager = getMCPManager(currentUserId);
       
-      // Check if the current user has their own integration for this server
-      try {
-        const userConnection = await mcpManager.getUserConnection(currentUserId, serverName);
-        if (!userConnection || !(await userConnection.isConnected())) {
-          logger.warn(`[MCP][${serverName}][${toolName}] User ${currentUserId} does not have access to MCP server ${serverName}. This may be a shared agent tool that requires user's own integration.`);
-          throw new Error(`You need to connect your own ${serverName.replace('pipedream-', '')} integration to use this tool. Shared agent MCP tools require your personal account connections.`);
+      // For global tools, use the global connection; for user tools, verify user access
+      if (isGlobalTool) {
+        logger.info(`[MCP][${serverName}][${toolName}] Using global MCP tool for user ${currentUserId}`);
+        
+        // For global tools, check if the global connection exists and is available
+        const globalConnection = mcpManager.getConnection(serverName);
+        if (!globalConnection || !(await globalConnection.isConnected())) {
+          logger.error(`[MCP][${serverName}][${toolName}] Global MCP server ${serverName} is not connected`);
+          throw new Error(`Global MCP service ${serverName} is currently unavailable. Please contact support.`);
         }
-      } catch (error) {
-        if (error.message.includes('You need to connect your own')) {
-          throw error; // Re-throw our custom error message
+      } else {
+        logger.info(`[MCP][${serverName}][${toolName}] Using user-specific MCP tool for user ${currentUserId}`);
+        
+        // Check if the current user has their own integration for this server
+        try {
+          const userConnection = await mcpManager.getUserConnection(currentUserId, serverName);
+          if (!userConnection || !(await userConnection.isConnected())) {
+            logger.warn(`[MCP][${serverName}][${toolName}] User ${currentUserId} does not have access to MCP server ${serverName}. This may be a shared agent tool that requires user's own integration.`);
+            throw new Error(`You need to connect your own ${serverName.replace('pipedream-', '')} integration to use this tool. Shared agent MCP tools require your personal account connections.`);
+          }
+        } catch (error) {
+          if (error.message.includes('You need to connect your own')) {
+            throw error; // Re-throw our custom error message
+          }
+          logger.error(`[MCP][${serverName}][${toolName}] Failed to verify user access for ${currentUserId}:`, error.message);
+          throw new Error(`Unable to access ${serverName.replace('pipedream-', '')} integration. Please ensure you have connected your account.`);
         }
-        logger.error(`[MCP][${serverName}][${toolName}] Failed to verify user access for ${currentUserId}:`, error.message);
-        throw new Error(`Unable to access ${serverName.replace('pipedream-', '')} integration. Please ensure you have connected your account.`);
       }
       
       const provider = (config?.metadata?.provider || _provider)?.toLowerCase();
@@ -134,10 +147,13 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
         provider,
         toolArguments,
         options: {
-          userId: currentUserId,
+          userId: isGlobalTool ? null : currentUserId, // For global tools, don't pass userId to use global connection
           signal: derivedSignal,
         },
       });
+      
+      logger.info(`[MCP][${serverName}][${toolName}] Tool call successful for user ${currentUserId} (isGlobal=${isGlobalTool})`);
+      logger.debug(`[MCP][${serverName}][${toolName}] Tool result:`, result);
 
       if (isAssistantsEndpoint(provider) && Array.isArray(result)) {
         return result[0];

@@ -400,11 +400,37 @@ class MCPInitializer {
       const serverCount = Object.keys(userMCPServers).length;
 
       logger.info(`[MCPInitializer][${context}] Found ${serverCount} user MCP servers for user ${userId}: ${Object.keys(userMCPServers).join(', ')}`);
+      
+      // Enhanced logging for global MCP servers
+      const globalMCPServers = mcpManager.getAllConnections();
+      const globalServerCount = globalMCPServers.size;
+      logger.info(`[MCPInitializer][${context}] Global MCP servers available: ${globalServerCount} (${Array.from(globalMCPServers.keys()).join(', ')})`);
+      
+      // Check if Perplexity is in global servers
+      if (globalMCPServers.has('Perplexity')) {
+        const perplexityConnection = globalMCPServers.get('Perplexity');
+        const isConnected = await perplexityConnection.isConnected();
+        logger.info(`[MCPInitializer][${context}] Global Perplexity MCP server status: ${isConnected ? 'CONNECTED' : 'DISCONNECTED'}`);
+        
+        if (isConnected) {
+          try {
+            const tools = await perplexityConnection.fetchTools();
+            logger.info(`[MCPInitializer][${context}] Global Perplexity MCP server tools: ${tools.map(t => t.name).join(', ')}`);
+          } catch (error) {
+            logger.warn(`[MCPInitializer][${context}] Failed to fetch tools from global Perplexity server:`, error.message);
+          }
+        }
+      } else {
+        logger.warn(`[MCPInitializer][${context}] Global Perplexity MCP server NOT FOUND in global connections`);
+      }
 
       let toolCount = 0;
       const mcpTools = {}; // Store tools for caching
       let manifestTools = []; // Store manifest tools for caching
 
+      // Always check for global MCP tools, regardless of user-specific servers
+      // globalMCPServers already declared above
+      
       if (serverCount > 0) {
         // Initialize user-specific MCP servers
         logger.info(`[MCPInitializer][${context}] Initializing user MCP servers for user ${userId}`);
@@ -437,7 +463,7 @@ class MCPInitializer {
         await mcpManager.mapUserAvailableTools(availableTools, userId, mcpToolRegistry);
         const toolCountAfter = Object.keys(availableTools).length;
         toolCount = toolCountAfter - toolCountBefore;
-
+        
         // Debug: Log registry size after tool mapping
         logger.info(`[MCPInitializer][${context}] MCP tool registry size after mapping: ${mcpToolRegistry?.size || 0}`);
         if (mcpToolRegistry && mcpToolRegistry.size > 0) {
@@ -467,6 +493,58 @@ class MCPInitializer {
         }
 
         // logger.info(`[MCPInitializer][${context}] Successfully mapped ${toolCount} user MCP tools to availableTools for user ${userId} (total tools: ${toolCountAfter})`);
+      }
+
+      // CRITICAL FIX: Always register global MCP tools for all users, regardless of user-specific servers
+      if (globalServerCount > 0) {
+        logger.info(`[MCPInitializer][${context}] Registering global MCP tools for user ${userId}`);
+        
+        // Count how many global MCP tools are currently in availableTools
+        let globalToolsInRegistry = 0;
+        let globalToolsRegistered = 0;
+        
+        for (const [serverName, connection] of globalMCPServers.entries()) {
+          try {
+            if (await connection.isConnected()) {
+              const tools = await connection.fetchTools();
+              logger.info(`[MCPInitializer][${context}] Global server '${serverName}' has ${tools.length} tools: ${tools.map(t => t.name).join(', ')}`);
+              
+              for (const tool of tools) {
+                if (availableTools[tool.name]) {
+                  globalToolsInRegistry++;
+                  
+                  // CRITICAL FIX: Always register global tools in the MCP tool registry
+                  if (mcpToolRegistry) {
+                    mcpToolRegistry.set(tool.name, {
+                      serverName,
+                      appSlug: serverName,
+                      toolName: tool.name,
+                      isGlobal: true,
+                    });
+                    globalToolsRegistered++;
+                    logger.info(`[MCPInitializer][${context}] Registered global MCP tool '${tool.name}' from server '${serverName}' in registry`);
+                    
+                    // Also add to cached tools for future use
+                    mcpTools[tool.name] = availableTools[tool.name];
+                  } else {
+                    logger.warn(`[MCPInitializer][${context}] No mcpToolRegistry provided to register global tool '${tool.name}'`);
+                  }
+                } else {
+                  logger.warn(`[MCPInitializer][${context}] Global MCP tool '${tool.name}' from server '${serverName}' NOT found in availableTools`);
+                }
+              }
+            } else {
+              logger.warn(`[MCPInitializer][${context}] Global server '${serverName}' is not connected`);
+            }
+          } catch (error) {
+            logger.warn(`[MCPInitializer][${context}] Error checking global server '${serverName}':`, error.message);
+          }
+        }
+        
+        logger.info(`[MCPInitializer][${context}] Global MCP tools found in availableTools: ${globalToolsInRegistry}, registered: ${globalToolsRegistered}`);
+        
+        // Update tool count to include global tools
+        toolCount += globalToolsRegistered;
       }
 
       const result = {
