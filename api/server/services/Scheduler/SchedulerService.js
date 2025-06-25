@@ -39,14 +39,46 @@ class NotificationManager {
     logger.debug(`[NotificationManager] Attempting to send notification to user ${userId}`);
     logger.debug(`[NotificationManager] Active connections:`, Object.keys(this.connections));
     
+    // Validate notification data
+    if (!data) {
+      logger.error(`[NotificationManager] Cannot send notification to user ${userId}: data is null or undefined`);
+      return false;
+    }
+    
+    // Log notification data with safe serialization
+    try {
+      logger.info(`[NotificationManager] Sending notification to user ${userId}:`, JSON.stringify(data, null, 2));
+    } catch (serializationError) {
+      logger.warn(`[NotificationManager] Failed to serialize notification data for logging:`, serializationError);
+      logger.info(`[NotificationManager] Sending notification to user ${userId} (data type: ${typeof data})`);
+    }
+    
     if (this.connections.has(userId)) {
       const connections = this.connections.get(userId);
-      const message = `data: ${JSON.stringify(data)}\n\n`;
       
-      logger.info(`[NotificationManager] Sending notification to user ${userId}:`, data);
+      // Safely serialize the notification data
+      let message;
+      try {
+        message = `data: ${JSON.stringify(data)}\n\n`;
+      } catch (jsonError) {
+        logger.error(`[NotificationManager] Failed to serialize notification data for user ${userId}:`, jsonError);
+        // Send a fallback error notification
+        message = `data: ${JSON.stringify({ 
+          type: 'error', 
+          message: 'Failed to serialize notification data',
+          originalType: data?.type || 'unknown'
+        })}\n\n`;
+      }
       
       connections.forEach(res => {
         try {
+          // Check if response is still writable before attempting to write
+          if (res.destroyed || res.writableEnded || !res.writable) {
+            logger.warn(`[NotificationManager] Connection for user ${userId} is not writable, removing...`);
+            this.removeConnection(userId, res);
+            return;
+          }
+          
           res.write(message);
         } catch (error) {
           logger.warn(`[NotificationManager] Failed to send notification to user ${userId}:`, error);
@@ -54,8 +86,9 @@ class NotificationManager {
         }
       });
       
-      logger.debug(`[NotificationManager] Sent notification to ${connections.size} connections for user ${userId}`);
-      return connections.size > 0;
+      const remainingConnections = this.connections.get(userId)?.size || 0;
+      logger.debug(`[NotificationManager] Sent notification to ${remainingConnections} connections for user ${userId}`);
+      return remainingConnections > 0;
     } else {
       logger.warn(`[NotificationManager] No active connections for user ${userId}`);
       logger.debug(`[NotificationManager] Available connection keys:`, Array.from(this.connections.keys()));

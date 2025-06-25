@@ -305,57 +305,46 @@ router.post('/message', requireJwtAuth, sendSchedulerMessage);
  * @route GET /scheduler/notifications
  * @returns {stream} Server-Sent Events stream
  */
-router.get('/notifications', setHeaders, async (req, res) => {
+router.get('/notifications', requireJwtAuth, setHeaders, async (req, res) => {
   try {
-    // Extract token from query parameter since EventSource doesn't support custom headers
-    const token = req.query.token || req.headers.authorization?.replace('Bearer ', '');
-    
-    if (!token) {
-      return res.status(401).json({ error: 'Authentication token required' });
-    }
-    
-    // Manually verify the JWT token
-    const jwt = require('jsonwebtoken');
-    const { User } = require('~/db/models');
-    
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (error) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-    
-    const user = await User.findById(decoded.id);
-    if (!user) {
-      return res.status(401).json({ error: 'User not found' });
-    }
-    
-    const userId = user._id.toString();
-    
+    const userId = req.user._id.toString();
+
     // Add this connection to the notification manager
     notificationManager.addConnection(userId, res);
-    
+
     // Send initial connection confirmation
     res.write('data: {"type":"connected","message":"Connected to scheduler notifications"}\n\n');
-    
+
     // Keep connection alive with periodic heartbeat
     const heartbeat = setInterval(() => {
       try {
+        if (res.writableEnded) {
+          clearInterval(heartbeat);
+          return;
+        }
         res.write('data: {"type":"heartbeat"}\n\n');
       } catch (error) {
         clearInterval(heartbeat);
       }
     }, 30000); // 30 seconds
-    
+
     // Clean up on connection close
     req.on('close', () => {
       clearInterval(heartbeat);
       notificationManager.removeConnection(userId, res);
     });
-    
   } catch (error) {
-    console.error('Error setting up SSE connection:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error in SSE connection handler:', error);
+    try {
+      if (!res.writableEnded) {
+        res.write(
+          `data: ${JSON.stringify({ type: 'error', message: 'Internal Server Error' })}\n\n`,
+        );
+        res.end();
+      }
+    } catch (sseError) {
+      console.error('Failed to send SSE error message:', sseError);
+    }
   }
 });
 

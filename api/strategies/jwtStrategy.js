@@ -7,7 +7,10 @@ const { getUserById, updateUser } = require('~/models');
 const jwtLogin = () =>
   new JwtStrategy(
     {
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        ExtractJwt.fromUrlQueryParameter('token'),
+      ]),
       secretOrKey: process.env.JWT_SECRET,
     },
     async (payload, done) => {

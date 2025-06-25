@@ -8,6 +8,7 @@ const {
   SystemRoles,
   EToolResources,
   actionDelimiter,
+  AgentCapabilities,
 } = require('librechat-data-provider');
 const {
   getAgent,
@@ -25,11 +26,26 @@ const { getProjectByName } = require('~/models/Project');
 const { deleteFileByFilter } = require('~/models/File');
 const { revertAgentVersion } = require('~/models/Agent');
 const { logger } = require('~/config');
+const { checkCapability } = require('~/server/services/Config/getEndpointsConfig');
 
 const systemTools = {
   [Tools.execute_code]: true,
   [Tools.file_search]: true,
-  workflows: true,
+  [Tools.web_search]: true,
+  [Tools.scheduler]: true,
+  [Tools.workflows]: true,
+};
+
+// Add this function to map tools to their corresponding capabilities
+const getToolCapability = (tool) => {
+  const toolCapabilityMap = {
+    [Tools.execute_code]: AgentCapabilities.execute_code,
+    [Tools.file_search]: AgentCapabilities.file_search,
+    [Tools.web_search]: AgentCapabilities.web_search,
+    [Tools.scheduler]: AgentCapabilities.scheduler,
+    [Tools.workflows]: AgentCapabilities.workflows,
+  };
+  return toolCapabilityMap[tool];
 };
 
 /**
@@ -113,9 +129,22 @@ const createAgentHandler = async (req, res) => {
     const validTools = [];
     for (const tool of tools) {
       if (typeof tool === 'string') {
-        // Validate string tools against available tools and system tools
-        if (req.app.locals.availableTools[tool] || systemTools[tool]) {
+        // Check if tool is available in manifest tools
+        if (req.app.locals.availableTools[tool]) {
           validTools.push(tool);
+        }
+        // For system tools, also check if the capability is enabled
+        else if (systemTools[tool]) {
+          const capability = getToolCapability(tool);
+          if (capability) {
+            const isCapabilityEnabled = await checkCapability(req, capability);
+            if (isCapabilityEnabled) {
+              validTools.push(tool);
+            }
+          } else {
+            // Tool doesn't require a capability check (shouldn't happen with current system tools)
+            validTools.push(tool);
+          }
         }
       } else if (typeof tool === 'object' && tool.tool && tool.server && tool.type) {
         // Preserve MCP tool objects as they come from the frontend
@@ -231,9 +260,22 @@ const updateAgentHandler = async (req, res) => {
       const validTools = [];
       for (const tool of updateData.tools) {
         if (typeof tool === 'string') {
-          // Validate string tools against available tools and system tools
-          if (req.app.locals.availableTools[tool] || systemTools[tool]) {
+          // Check if tool is available in manifest tools
+          if (req.app.locals.availableTools[tool]) {
             validTools.push(tool);
+          }
+          // For system tools, also check if the capability is enabled
+          else if (systemTools[tool]) {
+            const capability = getToolCapability(tool);
+            if (capability) {
+              const isCapabilityEnabled = await checkCapability(req, capability);
+              if (isCapabilityEnabled) {
+                validTools.push(tool);
+              }
+            } else {
+              // Tool doesn't require a capability check (shouldn't happen with current system tools)
+              validTools.push(tool);
+            }
           }
         } else if (typeof tool === 'object' && tool.tool && tool.server && tool.type) {
           // Preserve MCP tool objects as they come from the frontend
