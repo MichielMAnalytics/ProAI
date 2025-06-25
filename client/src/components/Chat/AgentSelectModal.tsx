@@ -11,7 +11,7 @@ interface AgentSelectModalProps {
 }
 
 // Tools count component for agent cards
-function AgentToolsCount({ tools }: { tools?: string[] }) {
+function AgentToolsCount({ tools }: { tools?: Array<string | { tool: string; server: string; type: 'global' | 'user' }> }) {
   if (!tools || tools.length === 0) {
     return null;
   }

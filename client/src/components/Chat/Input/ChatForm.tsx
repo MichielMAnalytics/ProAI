@@ -314,11 +314,14 @@ const MCPServerIcons = ({ agentTools }: { agentTools: Array<string | { tool: str
                   alt={`${item.name} ${item.type === 'tool' ? 'tool' : 'integration'}`}
                   className={cn(
                     "h-5 w-5 rounded-sm object-cover transition-all duration-200 group-hover:scale-110 p-0.5",
-                    item.isConnected 
-                      ? item.isGlobal 
-                        ? "bg-blue-100/90 dark:bg-blue-900/90 ring-1 ring-blue-400/50"
-                        : "bg-white/90 dark:bg-gray-100/90" 
-                      : "bg-orange-100/90 dark:bg-orange-900/90 ring-1 ring-orange-400/50"
+                    {
+                      // Connected global tool (blue with ring)
+                      "bg-blue-100/90 dark:bg-blue-900/90 ring-1 ring-blue-400/50": item.isConnected && item.isGlobal,
+                      // Connected non-global tool (white/gray)
+                      "bg-white/90 dark:bg-gray-100/90": item.isConnected && !item.isGlobal,
+                      // Not connected tool (orange with ring)
+                      "bg-orange-100/90 dark:bg-orange-900/90 ring-1 ring-orange-400/50": !item.isConnected
+                    }
                   )}
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';

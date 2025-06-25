@@ -169,10 +169,10 @@ export default function AppDetailsModal({
               </div>
 
               <TabsContent value="overview">
-                <div className="space-y-6 sm:grid sm:grid-cols-2 sm:gap-6 sm:space-y-0">
-                  <div className="space-y-4">
+                <div className="space-y-6 sm:grid sm:grid-cols-2 sm:gap-6 sm:space-y-0 sm:items-start">
+                  <div className="flex flex-col space-y-4 h-full">
                     <h3 className="text-lg font-semibold font-comfortaa text-text-primary">Connection Status</h3>
-                    <div className="rounded-2xl border border-gray-200 bg-surface-primary p-5 shadow-sm dark:border-gray-700 dark:bg-surface-secondary">
+                    <div className="rounded-2xl border border-gray-200 bg-surface-primary p-5 shadow-sm dark:border-gray-700 dark:bg-surface-secondary flex-1">
                       {isConnected ? (
                         <div className="space-y-4">
                           <div className="flex items-center space-x-3">
@@ -227,9 +227,9 @@ export default function AppDetailsModal({
                     </div>
                   </div>
 
-                  <div className="space-y-4">
+                  <div className="flex flex-col space-y-4 h-full">
                     <h3 className="text-lg font-semibold font-comfortaa text-text-primary">App Information</h3>
-                    <div className="rounded-2xl border border-gray-200 bg-surface-primary p-5 shadow-sm dark:border-gray-700 dark:bg-surface-secondary">
+                    <div className="rounded-2xl border border-gray-200 bg-surface-primary p-5 shadow-sm dark:border-gray-700 dark:bg-surface-secondary flex-1">
                       <dl className="space-y-4">
                         <div>
                           <dt className="text-sm font-medium text-text-secondary mb-2">Authentication Type</dt>
