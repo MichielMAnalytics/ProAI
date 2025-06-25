@@ -4,6 +4,7 @@ import { useFormContext } from 'react-hook-form';
 import { useUpdateUserPluginsMutation } from 'librechat-data-provider/react-query';
 import type { TPlugin, TPluginAction, TError, TAvailableIntegration } from 'librechat-data-provider';
 import { cn } from '~/utils';
+import { formatToolName, cleanDescription } from '~/utils/textProcessing';
 import { useMCPConnection } from '~/hooks';
 import { useAvailableIntegrationsQuery, useUserIntegrationsQuery } from '~/data-provider';
 import { TrashIcon } from '~/components/svg';
@@ -34,50 +35,7 @@ export default function AppCard({
   onAddTool,
   onRemoveTool
 }: AppCardProps) {
-  // Format tool name: replace dashes with spaces and capitalize each word
-  const formatToolName = (name: string) => {
-    return name
-      .replace(/-/g, ' ')
-      .replace(/_/g, ' ')
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  };
 
-  // Clean tool description
-  const cleanToolDescription = (description: string) => {
-    if (!description) return 'No description available';
-    return description
-      .replace(/\[See the docs?\]/gi, '')
-      .replace(/\[See the docs here\]/gi, '')
-      .replace(/\[See the documentation\]/gi, '')
-      .replace(/See the docs?/gi, '')
-      .replace(/See the documentation/gi, '')
-      .replace(/IMPORTANT:[\s\S]*?format:\s*string/gi, '')
-      .replace(/\s*for more information/gi, '')
-      .replace(/\s*-\s*cc:[\s\S]*?format:\s*string/gi, '')
-      .replace(/\s*-\s*bcc:[\s\S]*?format:\s*string/gi, '')
-      .replace(/\s*-\s*attachment[\s\S]*?format:\s*string/gi, '')
-      // Remove everything from 'safetySettings' onwards (including the word itself)
-      .replace(/\s*-?\s*safetySettings[\s\S]*/gi, '')
-      .replace(/\s*-?\s*safety_settings[\s\S]*/gi, '')
-      // Remove everything from 'mediaPaths' onwards  
-      .replace(/\s*-?\s*mediaPaths[\s\S]*/gi, '')
-      .replace(/\s*-?\s*media_paths[\s\S]*/gi, '')
-      // Remove other technical parameter patterns
-      .replace(/\s*-?\s*Return JSON in this format[\s\S]*/gi, '')
-      .replace(/\s*-?\s*format:\s*string[\s\S]*/gi, '')
-      .replace(/https:\/\/[^\s)]+/g, '')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Convert markdown links to plain text
-      .replace(/\(\s*\)/g, '')
-      .replace(/\[\s*\]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      // Replace trailing comma with period
-      .replace(/,\s*$/, '.')
-      // Remove patterns like '. .' (period space period)
-      .replace(/\.\s*\.\s*$/, '.');
-  };
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedIntegration, setSelectedIntegration] = useState<TAvailableIntegration | null>(null);
   const [isAppModalOpen, setIsAppModalOpen] = useState(false);
@@ -426,9 +384,9 @@ export default function AppCard({
                               ? "text-orange-600 dark:text-orange-400"
                               : "text-text-secondary"
                           )}
-                          title={cleanToolDescription(tool.description)}
+                          title={cleanDescription(tool.description)}
                         >
-                          {cleanToolDescription(tool.description)}
+                          {cleanDescription(tool.description)}
                         </p>
                       )}
                     </div>

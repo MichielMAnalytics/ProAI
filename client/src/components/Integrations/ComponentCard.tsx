@@ -1,6 +1,7 @@
 import React from 'react';
 import { ExternalLink, Github, BookOpen } from 'lucide-react';
 import type { TAppComponent } from 'librechat-data-provider';
+import { cleanDescription } from '~/utils/textProcessing';
 
 interface ComponentCardProps {
   component: TAppComponent;
@@ -35,32 +36,10 @@ export default function ComponentCard({ component, type, isConnected, appSlug }:
     return urlMatch ? urlMatch[0] : null;
   };
 
-  // Parse and clean description (remove doc links and references)
-  const getCleanDescription = (text: string): string => {
-    if (!text) return 'No description available';
-    
-    return text
-      .replace(/\[See the docs?\]/gi, '')
-      .replace(/\[See the docs here\]/gi, '')
-      .replace(/\[See the documentation\]/gi, '')
-      .replace(/See the docs?/gi, '')
-      .replace(/See the documentation/gi, '')
-      .replace(/IMPORTANT:[\s\S]*?format:\s*string/gi, '')
-      .replace(/\s*for more information/gi, '')
-      .replace(/\s*-\s*cc:[\s\S]*?format:\s*string/gi, '')
-      .replace(/\s*-\s*bcc:[\s\S]*?format:\s*string/gi, '')
-      .replace(/\s*-\s*attachment[\s\S]*?format:\s*string/gi, '')
-      .replace(/https:\/\/[^\s)]+/g, '')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Convert markdown links to plain text
-      .replace(/\(\s*\)/g, '')
-      .replace(/\[\s*\]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-  };
 
   const githubLink = getGitHubLink();
   const docUrl = getDocUrl();
-  const cleanDescription = getCleanDescription(component.description || '');
+  const cleanedDescription = cleanDescription(component.description || '');
 
   return (
     <div className="group relative rounded-xl border border-gray-200 bg-surface-primary p-6 shadow-sm hover:shadow-md transition-shadow dark:border-gray-700 dark:bg-surface-secondary">
@@ -107,9 +86,9 @@ export default function ComponentCard({ component, type, isConnected, appSlug }:
         </div>
         <p 
           className="text-sm body-text"
-          title={cleanDescription}
+          title={cleanedDescription}
         >
-          {cleanDescription}
+          {cleanedDescription}
         </p>
       </div>
     </div>

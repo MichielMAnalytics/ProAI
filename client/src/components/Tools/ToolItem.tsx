@@ -1,6 +1,7 @@
 import { TPlugin } from 'librechat-data-provider';
 import { XCircle, PlusCircleIcon, Wrench, ExternalLink } from 'lucide-react';
 import { useLocalize } from '~/hooks';
+import { formatToolName, cleanDescription } from '~/utils/textProcessing';
 
 type ToolItemProps = {
   tool: TPlugin;
@@ -19,15 +20,6 @@ function ToolItem({ tool, onAddTool, onRemoveTool, isInstalled = false }: ToolIt
     }
   };
 
-  // Format tool name: replace dashes with spaces and capitalize each word
-  const formatToolName = (name: string) => {
-    return name
-      .replace(/-/g, ' ')
-      .replace(/_/g, ' ')
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  };
 
   // Extract documentation URL from description
   const getDocUrl = () => {
@@ -83,45 +75,9 @@ function ToolItem({ tool, onAddTool, onRemoveTool, isInstalled = false }: ToolIt
         <div className="flex-1 mb-4">
           <p 
             className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-3"
-            title={tool.description 
-              ? tool.description
-                  .replace(/\[See the docs?\]/gi, '')
-                  .replace(/\[See the docs here\]/gi, '')
-                  .replace(/\[See the documentation\]/gi, '')
-                  .replace(/See the docs?/gi, '')
-                  .replace(/See the documentation/gi, '')
-                  .replace(/IMPORTANT:[\s\S]*?format:\s*string/gi, '')
-                  .replace(/\s*for more information/gi, '')
-                  .replace(/\s*-\s*cc:[\s\S]*?format:\s*string/gi, '')
-                  .replace(/\s*-\s*bcc:[\s\S]*?format:\s*string/gi, '')
-                  .replace(/\s*-\s*attachment[\s\S]*?format:\s*string/gi, '')
-                  .replace(/https:\/\/[^\s)]+/g, '')
-                  .replace(/\(\s*\)/g, '')
-                  .replace(/\[\s*\]/g, '')
-                  .replace(/\s+/g, ' ')
-                  .trim()
-              : ''
-            }
+            title={cleanDescription(tool.description || '')}
           >
-            {tool.description 
-              ? tool.description
-                  .replace(/\[See the docs?\]/gi, '')
-                  .replace(/\[See the docs here\]/gi, '')
-                  .replace(/\[See the documentation\]/gi, '')
-                  .replace(/See the docs?/gi, '')
-                  .replace(/See the documentation/gi, '')
-                  .replace(/IMPORTANT:[\s\S]*?format:\s*string/gi, '')
-                  .replace(/\s*for more information/gi, '')
-                  .replace(/\s*-\s*cc:[\s\S]*?format:\s*string/gi, '')
-                  .replace(/\s*-\s*bcc:[\s\S]*?format:\s*string/gi, '')
-                  .replace(/\s*-\s*attachment[\s\S]*?format:\s*string/gi, '')
-                  .replace(/https:\/\/[^\s)]+/g, '')
-                  .replace(/\(\s*\)/g, '')
-                  .replace(/\[\s*\]/g, '')
-                  .replace(/\s+/g, ' ')
-                  .trim()
-              : ''
-            }
+            {cleanDescription(tool.description || '')}
           </p>
         </div>
 
