@@ -86,7 +86,7 @@ router.post('/create-checkout-session', requireJwtAuth, async (req, res) => {
       priceId,
       userEmail: user.email,
       userId: user._id.toString(),
-      tier: credits.toString(),
+      credits: credits.toString(),
       idempotencyKey
     });
 
