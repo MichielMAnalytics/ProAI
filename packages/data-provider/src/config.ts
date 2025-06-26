@@ -741,6 +741,8 @@ export const balanceSchema = z.object({
     .optional()
     .default('days'),
   refillAmount: z.number().optional().default(10000),
+  proTierTokens: z.number().optional().default(100000),
+  maxTierTokens: z.number().optional().default(500000),
 });
 
 export const schedulerSchema = z.object({

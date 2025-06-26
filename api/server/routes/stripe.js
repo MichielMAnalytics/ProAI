@@ -8,16 +8,10 @@ const { Transaction } = require('~/models/Transaction');
 
 const router = express.Router();
 
-// Price ID mapping for different credit tiers
+// Price ID mapping for simplified Pro/Max tiers
 const PRICE_IDS = {
-  100000: process.env.STRIPE_PRICE_100K,   // $20/month - 100K credits
-  200000: process.env.STRIPE_PRICE_200K,   // $35/month - 200K credits
-  400000: process.env.STRIPE_PRICE_400K,   // $60/month - 400K credits
-  800000: process.env.STRIPE_PRICE_800K,   // $100/month - 800K credits
-  1200000: process.env.STRIPE_PRICE_1200K, // $140/month - 1.2M credits
-  2000000: process.env.STRIPE_PRICE_2000K, // $200/month - 2M credits
-  3000000: process.env.STRIPE_PRICE_3000K, // $280/month - 3M credits
-  4000000: process.env.STRIPE_PRICE_4000K, // $350/month - 4M credits
+  'pro': process.env.STRIPE_EVE_PRO,   // $29/month - Pro tier
+  'max': process.env.STRIPE_EVE_MAX,   // $99/month - Max tier
 };
 
 /**
@@ -38,8 +32,8 @@ router.post('/create-checkout-session', requireJwtAuth, async (req, res) => {
 
     if (!credits || !PRICE_IDS[credits]) {
       return res.status(400).json({
-        error: 'Invalid credit amount',
-        validCredits: Object.keys(PRICE_IDS).map(Number),
+        error: 'Invalid tier selection',
+        validTiers: Object.keys(PRICE_IDS),
       });
     }
 
@@ -64,7 +58,7 @@ router.post('/create-checkout-session', requireJwtAuth, async (req, res) => {
       // Find recent session for this user with same credit amount
       const recentSession = existingSessions.data.find(session => 
         session.metadata?.userId === user._id.toString() &&
-        session.metadata?.credits === credits.toString() &&
+        session.metadata?.tier === credits.toString() &&
         session.status === 'open' // Only consider open sessions
       );
 
@@ -92,7 +86,7 @@ router.post('/create-checkout-session', requireJwtAuth, async (req, res) => {
       priceId,
       userEmail: user.email,
       userId: user._id.toString(),
-      credits: credits.toString(),
+      tier: credits.toString(),
       idempotencyKey
     });
 
@@ -136,7 +130,7 @@ router.get('/subscription-status', requireJwtAuth, async (req, res) => {
       subscriptions: subscriptions.map(sub => ({
         id: sub.id,
         status: sub.status,
-        credits: sub.metadata.credits,
+        tier: sub.metadata.tier,
         currentPeriodEnd: sub.current_period_end,
         cancelAtPeriodEnd: sub.cancel_at_period_end,
       })),
@@ -450,7 +444,7 @@ async function handleCheckoutCompleted(session, eventId) {
     }
 
     const priceId = lineItems.data[0].price.id;
-    const credits = BalanceService.getCreditAmountFromPriceId(priceId);
+    const credits = await BalanceService.getCreditAmountFromPriceId(priceId);
     
     if (!credits) {
       logger.error(`Unable to determine credit amount for price ID: ${priceId}`);
@@ -556,7 +550,7 @@ async function handleSubscriptionCreated(subscription, eventId) {
 
     // Get credits from price ID
     const priceId = items.data[0]?.price?.id;
-    const credits = BalanceService.getCreditAmountFromPriceId(priceId);
+    const credits = await BalanceService.getCreditAmountFromPriceId(priceId);
     
     if (!credits) {
       logger.error(`Unable to determine credit amount for subscription price ID: ${priceId}`);
@@ -867,7 +861,7 @@ async function handlePaymentSucceeded(invoice, eventId) {
 
     // Get credits from subscription price ID
     const priceId = subscription.items.data[0]?.price?.id;
-    const credits = BalanceService.getCreditAmountFromPriceId(priceId);
+    const credits = await BalanceService.getCreditAmountFromPriceId(priceId);
     
     if (!credits) {
       logger.error(`Unable to determine credit amount for payment price ID: ${priceId}`, {
@@ -1177,8 +1171,8 @@ router.post('/modify-subscription', requireJwtAuth, async (req, res) => {
 
     if (!credits || !PRICE_IDS[credits]) {
       return res.status(400).json({
-        error: 'Invalid credit amount',
-        validCredits: Object.keys(PRICE_IDS).map(Number),
+        error: 'Invalid tier selection',
+        validTiers: Object.keys(PRICE_IDS),
       });
     }
 
@@ -1224,7 +1218,7 @@ router.post('/modify-subscription', requireJwtAuth, async (req, res) => {
         proration_behavior: 'create_prorations', // Handle prorating automatically
         metadata: {
           userId: user._id.toString(),
-          credits: credits.toString(),
+          tier: credits.toString(),
           userEmail: user.email,
           modifiedAt: new Date().toISOString()
         }
@@ -1240,7 +1234,7 @@ router.post('/modify-subscription', requireJwtAuth, async (req, res) => {
       });
 
       // Update user's tier in database immediately
-      const tierInfo = BalanceService.getTierInfoFromPriceId(newPriceId);
+      const tierInfo = await BalanceService.getTierInfoFromPriceId(newPriceId);
       if (tierInfo) {
         try {
           const { updateBalance } = require('~/models/Transaction');
@@ -1248,8 +1242,8 @@ router.post('/modify-subscription', requireJwtAuth, async (req, res) => {
           // Calculate credit difference for immediate adjustment
           let creditDifference = 0;
           const oldPriceId = subscription.items.data[0].price.id;
-          const oldTierCredits = BalanceService.getCreditAmountFromPriceId(oldPriceId);
-          const newTierCredits = BalanceService.getCreditAmountFromPriceId(newPriceId);
+          const oldTierCredits = await BalanceService.getCreditAmountFromPriceId(oldPriceId);
+          const newTierCredits = await BalanceService.getCreditAmountFromPriceId(newPriceId);
           
           if (oldTierCredits && newTierCredits) {
             creditDifference = newTierCredits - oldTierCredits;

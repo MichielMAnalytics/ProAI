@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, ArrowRight, Crown, Zap, ChevronDown } from 'lucide-react';
+import { Check, ArrowRight, ChevronDown } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthContext } from '~/hooks';
 import { useGetUserBalance, useGetStartupConfig } from '~/data-provider';
@@ -13,8 +13,7 @@ const PricingPage = () => {
     enabled: !!isAuthenticated && startupConfig?.balance?.enabled,
   });
   const [searchParams] = useSearchParams();
-  const [selectedProCredits, setSelectedProCredits] = useState(100000);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [selectedTier, setSelectedTier] = useState('pro');
   const [openFaqItems, setOpenFaqItems] = useState<Set<number>>(new Set());
   const [checkoutStatus, setCheckoutStatus] = useState<'success' | 'canceled' | null>(null);
   const [isDowngrading, setIsDowngrading] = useState(false);
@@ -47,33 +46,21 @@ const PricingPage = () => {
     }
   }, [checkoutStatus, navigate]);
 
-  const creditOptions = [
-    { credits: 100000, price: 20 },
-    { credits: 200000, price: 35 },
-    { credits: 400000, price: 60 },
-    { credits: 800000, price: 100 },
-    { credits: 1200000, price: 140 },
-    { credits: 2000000, price: 200 },
-    { credits: 3000000, price: 280 },
-    { credits: 4000000, price: 350 },
+  const tierOptions = [
+    { tier: 'pro', name: 'Eve Pro', price: 29 },
+    { tier: 'max', name: 'Eve Max', price: 99 },
   ];
 
-  // Function to get tier name and emoji for credit amount
-  const getTierInfoFromCredits = (credits: number) => {
-    const creditToTierMap: { [key: number]: { tier: string; tierName: string } } = {
-      100000: { tier: 'pro_1', tierName: 'Pro Tier 1' },
-      200000: { tier: 'pro_2', tierName: 'Pro Tier 2' },
-      400000: { tier: 'pro_3', tierName: 'Pro Tier 3' },
-      800000: { tier: 'pro_4', tierName: 'Pro Tier 4' },
-      1200000: { tier: 'pro_5', tierName: 'Pro Tier 5' },
-      2000000: { tier: 'pro_6', tierName: 'Pro Tier 6' },
-      3000000: { tier: 'pro_7', tierName: 'Pro Tier 7' },
-      4000000: { tier: 'pro_8', tierName: 'Pro Tier 8' },
+  // Function to get tier info from tier string
+  const getTierInfo = (tier: string) => {
+    const tierMap: { [key: string]: { tier: string; tierName: string; credits: string } } = {
+      'pro': { tier: 'pro', tierName: 'Eve Pro', credits: startupConfig?.balance?.proTierTokens ? `${Math.floor(startupConfig.balance.proTierTokens / 1000)}K` : '200K' },
+      'max': { tier: 'max', tierName: 'Eve Max', credits: startupConfig?.balance?.maxTierTokens ? `${Math.floor(startupConfig.balance.maxTierTokens / 1000)}K` : '900K' },
     };
-    return creditToTierMap[credits] || { tier: 'pro_1', tierName: 'Pro Tier 1' };
+    return tierMap[tier] || { tier: 'pro', tierName: 'Eve Pro', credits: '200K' };
   };
 
-  const selectedOption = creditOptions.find(option => option.credits === selectedProCredits);
+  const selectedOption = tierOptions.find(option => option.tier === selectedTier);
 
   // Helper function to determine user's current tier
   const getCurrentUserTier = () => {
@@ -84,99 +71,75 @@ const PricingPage = () => {
   };
 
   // Helper function to check if a tier is the user's current plan
-  const isCurrentPlan = (tierType: 'free' | 'pro' | 'enterprise') => {
+  const isCurrentPlan = (tierType: 'free' | 'pro' | 'max') => {
     const currentTier = getCurrentUserTier();
     
     if (tierType === 'free') {
       return currentTier === 'free';
     } else if (tierType === 'pro') {
-      return currentTier.startsWith('pro_');
-    } else if (tierType === 'enterprise') {
-      return currentTier === 'enterprise';
+      return currentTier === 'pro';
+    } else if (tierType === 'max') {
+      return currentTier === 'max';
     }
     return false;
   };
 
-  // Helper function to check if the selected credits match user's current plan
-  const isCurrentSelectedPlan = () => {
-    if (!isCurrentPlan('pro')) {
-      return false;
-    }
-    const currentProCredits = getCurrentProCredits();
-    return currentProCredits === selectedProCredits;
-  };
-
-  // Helper function to check if selected credits represent a downgrade
-  const isSelectedPlanDowngrade = () => {
-    if (!isCurrentPlan('pro')) {
-      return false;
-    }
-    const currentProCredits = getCurrentProCredits();
-    return currentProCredits && selectedProCredits < currentProCredits;
-  };
-
-  // Helper function to check if selected credits represent an upgrade
-  const isSelectedPlanUpgrade = () => {
-    if (!isCurrentPlan('pro')) {
-      return true; // Free users upgrading to any pro tier
-    }
-    const currentProCredits = getCurrentProCredits();
-    return currentProCredits && selectedProCredits > currentProCredits;
-  };
-
-  // Get user's current pro tier credits if they're on a pro plan
-  const getCurrentProCredits = () => {
+  // Helper function to check if the selected tier matches user's current plan
+  const isCurrentSelectedPlan = (tier: string) => {
     const currentTier = getCurrentUserTier();
-    if (!currentTier.startsWith('pro_')) {
-      return null;
+    return currentTier === tier;
+  };
+
+  // Helper function to check if selected tier represents a downgrade
+  const isSelectedPlanDowngrade = (tier: string) => {
+    const currentTier = getCurrentUserTier();
+    if (currentTier === 'max' && tier === 'pro') {
+      return true;
     }
+    return false;
+  };
 
-    // Map tier to credits based on our tier system
-    const tierToCredits = {
-      'pro_1': 100000,
-      'pro_2': 200000,
-      'pro_3': 400000,
-      'pro_4': 800000,
-      'pro_5': 1200000,
-      'pro_6': 2000000,
-      'pro_7': 3000000,
-      'pro_8': 4000000,
-    };
+  // Helper function to check if selected tier represents an upgrade
+  const isSelectedPlanUpgrade = (tier: string) => {
+    const currentTier = getCurrentUserTier();
+    if (currentTier === 'free' && (tier === 'pro' || tier === 'max')) {
+      return true;
+    }
+    if (currentTier === 'pro' && tier === 'max') {
+      return true;
+    }
+    return false;
+  };
 
-    return tierToCredits[currentTier as keyof typeof tierToCredits] || null;
+  // Get user's current tier if they're on a pro plan
+  const getCurrentTierInfo = () => {
+    const currentTier = getCurrentUserTier();
+    if (currentTier === 'pro' || currentTier === 'max') {
+      return currentTier;
+    }
+    return null;
   };
 
   // Get the next tier up from user's current plan to encourage upgrades
-  const getNextTierCredits = () => {
+  const getNextTier = () => {
     const currentTier = getCurrentUserTier();
     
     if (currentTier === 'free') {
-      return 100000; // First pro tier
+      return 'pro'; // First pro tier
     }
     
-    if (currentTier.startsWith('pro_')) {
-      const tierToCredits = {
-        'pro_1': 200000,  // Next: pro_2
-        'pro_2': 400000,  // Next: pro_3
-        'pro_3': 800000,  // Next: pro_4
-        'pro_4': 1200000, // Next: pro_5
-        'pro_5': 2000000, // Next: pro_6
-        'pro_6': 3000000, // Next: pro_7
-        'pro_7': 4000000, // Next: pro_8
-        'pro_8': 4000000, // Already max, stay at pro_8
-      };
-      
-      return tierToCredits[currentTier as keyof typeof tierToCredits] || 100000;
+    if (currentTier === 'pro') {
+      return 'max'; // Upgrade to max
     }
     
-    return 100000; // Default fallback
+    return 'pro'; // Default fallback
   };
 
-  // Set selected pro credits to next tier above user's current plan by default
+  // Set selected tier to next tier above user's current plan by default
   useEffect(() => {
     if (balanceQuery.data) {
-      const nextTierCredits = getNextTierCredits();
-      setSelectedProCredits(nextTierCredits);
+      const nextTier = getNextTier();
+      setSelectedTier(nextTier);
     }
   }, [balanceQuery.data]);
 
@@ -187,19 +150,19 @@ const PricingPage = () => {
     },
     {
       question: "What does the free plan include?",
-      answer: "The free plan includes 5000 credits per month, access to 2700+ apps and 10,000+ tools, access to all state of the art large language models, and unlimited tasks. It's designed to help you get started and explore Eve's capabilities."
+      answer: "The free plan includes 10,000 credits per month, access to 2700+ apps and 10,000+ tools, access to all state of the art large language models, and unlimited tasks. It's designed to help you get started and explore Eve's capabilities."
     },
     {
       question: "How much does it cost to use?",
-      answer: "Free users have a limited number of AI credits. Paid users have more AI credits. You can start with our generous free tier and upgrade to Pro when you need additional credits and features like custom apps/tools and priority support."
+      answer: "Free users get 10,000 AI credits per month. Pro users get 200,000 credits per month for $29, and Max users get 900,000 credits per month for $99. You can start with our generous free tier and upgrade when you need additional credits and features like custom apps/tools and priority support."
     },
     {
       question: "What are credits?",
       answer: "Credits are units that measure your usage of the AI. Credit consumption varies based on the model used - more sophisticated models require more credits. Using tools and integrations also increases credit usage. A typical conversation uses 1000-2000 credits depending on length, complexity, model choice, and tool usage."
     },
     {
-      question: "Can I change my Pro plan credits anytime?",
-      answer: "Yes, you can upgrade or downgrade your Pro plan credits at any time. Changes will be reflected in your next billing cycle, and you'll be charged the prorated amount."
+      question: "Can I change my Pro plan anytime?",
+      answer: "Yes, you can upgrade from Pro to Max or downgrade at any time. Changes will be reflected in your next billing cycle, and you'll be charged the prorated amount."
     },
     {
       question: "How does Enterprise pricing work?",
@@ -226,7 +189,7 @@ const PricingPage = () => {
 
     try {
       const currentTier = getCurrentUserTier();
-      const isExistingProUser = currentTier.startsWith('pro_');
+      const isExistingProUser = currentTier === 'pro' || currentTier === 'max';
       
       // Use different endpoints based on whether user already has a subscription
       const endpoint = isExistingProUser 
@@ -240,7 +203,7 @@ const PricingPage = () => {
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          credits: selectedProCredits,
+          credits: selectedTier,
         }),
       });
 
@@ -360,17 +323,9 @@ const PricingPage = () => {
     navigate('/c/new');
   };
 
-  const formatCredits = (credits: number) => {
-    if (credits >= 1000000) {
-      return `${credits / 1000000}M`;
-    } else if (credits >= 1000) {
-      return `${credits / 1000}K`;
-    }
-    return credits.toString();
-  };
 
   return (
-    <div className="min-h-screen py-12 px-4" style={{
+    <div className="min-h-screen py-6 px-4" style={{
       background: 'var(--surface-primary)',
       minHeight: '100vh'
     }}>
@@ -420,15 +375,15 @@ const PricingPage = () => {
         )}
 
         {/* Header */}
-        <div className="text-center mb-16">
-          <div className="w-12 h-12 mx-auto mb-6">
+        <div className="text-center mb-8">
+          <div className="w-12 h-12 mx-auto mb-4">
             <img
               src="/assets/logo.svg"
               className="h-full w-full object-contain"
               alt="EVE Logo"
             />
           </div>
-          <h1 className="text-4xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
+          <h1 className="text-4xl font-bold mb-3" style={{ color: 'var(--text-primary)' }}>
             Pricing
           </h1>
           <p className="text-lg max-w-2xl mx-auto" style={{ color: 'var(--text-secondary)' }}>
@@ -437,19 +392,24 @@ const PricingPage = () => {
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid lg:grid-cols-3 gap-8 max-w-5xl mx-auto mb-16">
+        <div className="grid lg:grid-cols-3 gap-6 max-w-5xl mx-auto mb-8">
           {/* Free Tier */}
           <div 
-            className="p-8 relative flex flex-col h-full rounded-2xl"
+            className="p-6 relative flex flex-col h-full rounded-2xl"
             style={{
               backgroundColor: 'var(--surface-secondary)',
               border: '1px solid var(--border-light)'
             }}
           >
-            <div className="mb-8">
+            {/* Header Section - Fixed Height */}
+            <div className="h-14 mb-4">
               <h3 className="text-2xl font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
                 Free
               </h3>
+            </div>
+
+            {/* Price Section - Fixed Height */}
+            <div className="h-20 mb-4">
               <div className="text-4xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
                 $0
                 <span className="text-lg font-normal" style={{ color: 'var(--text-secondary)' }}>
@@ -459,17 +419,19 @@ const PricingPage = () => {
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>For getting started</p>
             </div>
 
-            <div className="mb-8">
-              <div className="text-sm font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>
-                🍼 5000 credits / month
+            {/* Credits Section - Fixed Height */}
+            <div className="h-8 mb-4">
+              <div className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                🍼 10,000 credits / month
               </div>
             </div>
 
-            <div className="mb-8 flex-grow">
-              <div className="text-sm font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>
+            {/* Features Section - Flexible Height */}
+            <div className="mb-4 flex-grow">
+              <div className="text-sm font-medium mb-3" style={{ color: 'var(--text-secondary)' }}>
                 Get started with:
               </div>
-              <ul className="space-y-3">
+              <ul className="space-y-2">
                 <li className="flex items-center text-sm">
                   <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
                   <span style={{ color: 'var(--text-secondary)' }}>Access 2700+ apps and 10,000+ tools</span>
@@ -485,6 +447,7 @@ const PricingPage = () => {
               </ul>
             </div>
 
+            {/* Button Section - Fixed at Bottom */}
             <button
               onClick={isCurrentPlan('free') ? handleBackToChat : handleDowngrade}
               disabled={isDowngrading}
@@ -507,40 +470,45 @@ const PricingPage = () => {
 
           {/* Pro Tier */}
           <div 
-            className="p-8 relative flex flex-col h-full rounded-2xl"
+            className="p-6 relative flex flex-col h-full rounded-2xl"
             style={{
               backgroundColor: 'var(--surface-secondary)',
               border: isCurrentPlan('pro') ? '2px solid var(--brand-blue)' : '2px solid var(--brand-blue)'
             }}
           >
-            <div className="flex items-center gap-2 mb-8">
-              <h3 className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
-                Pro
-              </h3>
-              {isCurrentPlan('pro') ? (
-                <span 
-                  className="px-3 py-1 rounded-full text-xs font-semibold text-white"
-                  style={{ 
-                    background: 'linear-gradient(135deg, var(--brand-blue) 0%, var(--brand-dark) 100%)'
-                  }}
-                >
-                  CURRENT
-                </span>
-              ) : (
-                <span 
-                  className="px-3 py-1 rounded-full text-xs font-semibold text-white"
-                  style={{ 
-                    background: 'linear-gradient(135deg, var(--brand-blue) 0%, var(--brand-dark) 100%)'
-                  }}
-                >
-                  POPULAR
-                </span>
-              )}
+            {/* Header Section - Fixed Height */}
+            <div className="h-14 mb-4">
+              <div className="flex items-center gap-2">
+                <h3 className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  Pro
+                </h3>
+                {isCurrentPlan('pro') ? (
+                  <span 
+                    className="px-3 py-1 rounded-full text-xs font-semibold text-white"
+                    style={{ 
+                      background: 'linear-gradient(135deg, var(--brand-blue) 0%, var(--brand-dark) 100%)'
+                    }}
+                  >
+                    CURRENT
+                  </span>
+                ) : (
+                  <span 
+                    className="px-3 py-1 rounded-full text-xs font-semibold"
+                    style={{ 
+                      background: '#10b981',
+                      color: 'white'
+                    }}
+                  >
+                    POPULAR
+                  </span>
+                )}
+              </div>
             </div>
 
-            <div className="mb-2">
-              <div className="text-4xl font-bold" style={{ color: 'var(--text-primary)' }}>
-                ${selectedOption?.price}
+            {/* Price Section - Fixed Height */}
+            <div className="h-20 mb-4">
+              <div className="text-4xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
+                $29
                 <span className="text-lg font-normal" style={{ color: 'var(--text-secondary)' }}>
                   /month
                 </span>
@@ -548,84 +516,22 @@ const PricingPage = () => {
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>For more projects and usage</p>
             </div>
 
-            <div className="mb-8 relative">
-              <button
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="w-full h-12 px-4 text-left rounded-lg border flex items-center justify-between"
-                style={{
-                  borderColor: 'var(--border-medium)',
-                  backgroundColor: 'var(--surface-primary)',
-                  color: 'var(--text-primary)'
-                }}
-              >
-                <span>
-                  {(() => {
-                    const tierInfo = getTierInfoFromCredits(selectedProCredits);
-                    return `${getTierEmoji(tierInfo.tierName, tierInfo.tier)} ${formatCredits(selectedProCredits)} credits / month`;
-                  })()}
-                </span>
-                <ChevronDown className="h-4 w-4" style={{ 
-                  color: 'var(--text-secondary)',
-                  transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.2s'
-                }} />
-              </button>
-
-              {isDropdownOpen && (
-                <div 
-                  className="absolute top-full left-0 right-0 mt-1 rounded-lg border shadow-lg z-10 max-h-64 overflow-y-auto"
-                  style={{
-                    backgroundColor: 'var(--surface-primary)',
-                    borderColor: 'var(--border-medium)',
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)'
-                  }}
-                >
-                  {creditOptions.map((option) => {
-                    const tierInfo = getTierInfoFromCredits(option.credits);
-                    return (
-                      <button
-                        key={option.credits}
-                        onClick={() => {
-                          setSelectedProCredits(option.credits);
-                          setIsDropdownOpen(false);
-                        }}
-                        className="w-full px-4 py-3 text-left transition-colors"
-                        style={{
-                          color: selectedProCredits === option.credits ? 'var(--brand-blue)' : 'var(--text-primary)',
-                          backgroundColor: selectedProCredits === option.credits ? 'var(--surface-hover)' : 'transparent'
-                        }}
-                        onMouseEnter={(e) => {
-                          if (selectedProCredits !== option.credits) {
-                            e.currentTarget.style.backgroundColor = 'var(--surface-hover)';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (selectedProCredits !== option.credits) {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                          }
-                        }}
-                      >
-                        <div className="flex justify-between items-center">
-                          <span>{getTierEmoji(tierInfo.tierName, tierInfo.tier)} {formatCredits(option.credits)} credits / month</span>
-                          {selectedProCredits === option.credits && (
-                            <Check className="h-4 w-4" style={{ color: 'var(--brand-blue)' }} />
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+            {/* Credits Section - Fixed Height */}
+            <div className="h-8 mb-4">
+              <div className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                {getTierInfo('pro').credits} credits / month
+              </div>
             </div>
 
-            <div className="mb-8 flex-grow">
-              <div className="text-sm font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>
+            {/* Features Section - Flexible Height */}
+            <div className="mb-4 flex-grow">
+              <div className="text-sm font-medium mb-3" style={{ color: 'var(--text-secondary)' }}>
                 Everything in Free, plus:
               </div>
-              <ul className="space-y-3">
+              <ul className="space-y-2">
                 <li className="flex items-center text-sm">
                   <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>{formatCredits(selectedProCredits)} credits / month</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{getTierInfo('pro').credits} credits / month</span>
                 </li>
                 <li className="flex items-center text-sm">
                   <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
@@ -638,88 +544,142 @@ const PricingPage = () => {
               </ul>
             </div>
 
+            {/* Button Section - Fixed at Bottom */}
             <button
-              onClick={isCurrentSelectedPlan() ? handleBackToChat : handleUpgradeToPro}
+              onClick={() => {
+                setSelectedTier('pro');
+                if (isCurrentSelectedPlan('pro')) {
+                  handleBackToChat();
+                } else {
+                  handleUpgradeToPro();
+                }
+              }}
               className={`w-full h-12 text-sm font-semibold mt-auto transition-colors ${
-                isCurrentSelectedPlan() 
+                isCurrentSelectedPlan('pro') 
                   ? 'btn btn-secondary'
-                  : isSelectedPlanDowngrade()
+                  : isSelectedPlanDowngrade('pro')
                     ? 'border border-red-500 text-red-500 hover:bg-red-50 hover:border-red-600 active:bg-red-100 active:border-red-700 rounded-lg'
                     : 'btn btn-primary'
               }`}
             >
-              {isCurrentSelectedPlan() 
+              {isCurrentSelectedPlan('pro') 
                 ? 'Current Plan' 
-                : isSelectedPlanDowngrade()
+                : isSelectedPlanDowngrade('pro')
                   ? 'Downgrade'
-                  : 'Upgrade'
+                  : 'Upgrade to Pro'
               }
             </button>
           </div>
 
-          {/* Enterprise Tier */}
+          {/* Max Tier */}
           <div 
-            className="p-8 relative flex flex-col h-full rounded-2xl"
+            className="p-6 relative flex flex-col h-full rounded-2xl"
             style={{
               backgroundColor: 'var(--surface-secondary)',
-              border: '1px solid var(--border-light)'
+              border: isCurrentPlan('max') ? '2px solid var(--brand-blue)' : '1px solid var(--border-light)'
             }}
           >
-            <div className="flex items-center gap-2 mb-8">
-              <h3 className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
-                Enterprise
-              </h3>
-            </div>
-
-            <div className="mb-8">
-              <div className="text-3xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
-                Custom Pricing
+            {/* Header Section - Fixed Height */}
+            <div className="h-14 mb-4">
+              <div className="flex items-center gap-2">
+                <h3 className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  Max
+                </h3>
+                {isCurrentPlan('max') && (
+                  <span 
+                    className="px-3 py-1 rounded-full text-xs font-semibold text-white"
+                    style={{ 
+                      background: 'linear-gradient(135deg, var(--brand-blue) 0%, var(--brand-dark) 100%)'
+                    }}
+                  >
+                    CURRENT
+                  </span>
+                )}
               </div>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>For teams and organizations</p>
             </div>
 
-            <div className="mb-8">
-              <div className="text-sm font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>
-                Unlimited credits
+            {/* Price Section - Fixed Height */}
+            <div className="h-20 mb-4">
+              <div className="text-4xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
+                $99
+                <span className="text-lg font-normal" style={{ color: 'var(--text-secondary)' }}>
+                  /month
+                </span>
+              </div>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>For power users and teams</p>
+            </div>
+
+            {/* Credits Section - Fixed Height */}
+            <div className="h-8 mb-4">
+              <div className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                {getTierInfo('max').credits} credits / month
               </div>
             </div>
 
-            <div className="mb-8 flex-grow">
-              <div className="text-sm font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>
+            {/* Features Section - Flexible Height */}
+            <div className="mb-4 flex-grow">
+              <div className="text-sm font-medium mb-3" style={{ color: 'var(--text-secondary)' }}>
                 Everything in Pro, plus:
               </div>
-              <ul className="space-y-3">
+              <ul className="space-y-2">
                 <li className="flex items-center text-sm">
                   <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>Unlimited credits</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{getTierInfo('max').credits} credits / month</span>
                 </li>
                 <li className="flex items-center text-sm">
                   <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>Team collaboration tools</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>Advanced workflow automation</span>
+                </li>
+                <li className="flex items-center text-sm">
+                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
+                  <span style={{ color: 'var(--text-secondary)' }}>Premium support</span>
                 </li>
                 <li className="flex items-center text-sm">
                   <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
                   <span style={{ color: 'var(--text-secondary)' }}>Advanced analytics</span>
                 </li>
-                <li className="flex items-center text-sm">
-                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>Dedicated support</span>
-                </li>
-                <li className="flex items-center text-sm">
-                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>SSO & advanced security</span>
-                </li>
               </ul>
             </div>
 
+            {/* Button Section - Fixed at Bottom */}
             <button
-              onClick={handleContactSales}
-              className="btn btn-secondary w-full h-12 text-sm font-semibold mt-auto flex items-center justify-center gap-2"
+              onClick={() => {
+                setSelectedTier('max');
+                if (isCurrentSelectedPlan('max')) {
+                  handleBackToChat();
+                } else {
+                  handleUpgradeToPro();
+                }
+              }}
+              className={`w-full h-12 text-sm font-semibold mt-auto transition-colors ${
+                isCurrentSelectedPlan('max') 
+                  ? 'btn btn-secondary'
+                  : isSelectedPlanDowngrade('max')
+                    ? 'border border-red-500 text-red-500 hover:bg-red-50 hover:border-red-600 active:bg-red-100 active:border-red-700 rounded-lg'
+                    : 'btn btn-primary'
+              }`}
             >
-              Contact Us
-              <ArrowRight className="h-4 w-4" />
+              {isCurrentSelectedPlan('max') 
+                ? 'Current Plan' 
+                : isSelectedPlanDowngrade('max')
+                  ? 'Downgrade'
+                  : 'Upgrade to Max'
+              }
             </button>
           </div>
+        </div>
+
+        {/* Enterprise Note */}
+        <div className="text-center mb-6">
+          <p className="text-lg mb-3" style={{ color: 'var(--text-secondary)' }}>
+            Need unlimited credits and enterprise features?
+          </p>
+          <button 
+            onClick={handleContactSales}
+            className="btn btn-secondary"
+          >
+            Contact Sales
+          </button>
         </div>
 
         {/* FAQ Section */}

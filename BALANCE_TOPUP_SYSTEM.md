@@ -12,9 +12,9 @@ This document outlines the secure balance top-up system integrated with Stripe p
 - **Database Validation**: Checks existing transactions before processing
 
 ### 2. Input Validation
-- **Credit Amount Validation**: Only accepts predefined credit amounts (100K-4M)
+- **Tier Validation**: Only accepts predefined tiers (Pro and Max)
 - **User Validation**: Verifies user exists and is not suspended/banned
-- **Price ID Mapping**: Securely maps Stripe price IDs to credit amounts
+- **Price ID Mapping**: Securely maps Stripe price IDs to tier configurations
 
 ### 3. Audit Trail
 - **Transaction Logging**: Every credit addition is logged with metadata
@@ -49,18 +49,12 @@ This document outlines the secure balance top-up system integrated with Stripe p
 - **Balance Model**: Integrates with existing balance system
 - **Config Respect**: Honors LibreChat's balance configuration
 
-## 💳 Credit Tier Mapping
+## 💳 Simplified Tier Mapping
 
-| Credits | Monthly Price | Environment Variable |
-|---------|---------------|---------------------|
-| 100K    | $20          | STRIPE_PRICE_100K   |
-| 200K    | $35          | STRIPE_PRICE_200K   |
-| 400K    | $60          | STRIPE_PRICE_400K   |
-| 800K    | $100         | STRIPE_PRICE_800K   |
-| 1.2M    | $140         | STRIPE_PRICE_1200K  |
-| 2M      | $200         | STRIPE_PRICE_2000K  |
-| 3M      | $280         | STRIPE_PRICE_3000K  |
-| 4M      | $350         | STRIPE_PRICE_4000K  |
+| Tier | Monthly Price | Environment Variable | Configurable Credits |
+|------|---------------|---------------------|---------------------|
+| Pro  | $29           | STRIPE_EVE_PRO      | librechat.yaml: proTierTokens (default: 200K) |
+| Max  | $99           | STRIPE_EVE_MAX      | librechat.yaml: maxTierTokens (default: 800K) |
 
 ## 🔄 Payment Flow
 
@@ -93,15 +87,9 @@ This document outlines the secure balance top-up system integrated with Stripe p
 STRIPE_SECRET_KEY=sk_live_or_test_key
 STRIPE_WEBHOOK_SECRET=whsec_webhook_secret
 
-# Price IDs for each tier
-STRIPE_PRICE_100K=price_xxxxx
-STRIPE_PRICE_200K=price_xxxxx
-STRIPE_PRICE_400K=price_xxxxx
-STRIPE_PRICE_800K=price_xxxxx
-STRIPE_PRICE_1200K=price_xxxxx
-STRIPE_PRICE_2000K=price_xxxxx
-STRIPE_PRICE_3000K=price_xxxxx
-STRIPE_PRICE_4000K=price_xxxxx
+# Simplified Price IDs
+STRIPE_EVE_PRO=price_xxxxx   # $29/month Pro tier
+STRIPE_EVE_MAX=price_xxxxx   # $99/month Max tier
 
 # Application URL
 DOMAIN_SERVER=https://your-domain.com
@@ -112,7 +100,13 @@ Ensure balance is enabled in `librechat.yaml`:
 ```yaml
 balance:
   enabled: true
-  startBalance: 5000
+  startBalance: 10000          # Free tier monthly credits
+  autoRefillEnabled: true
+  refillIntervalValue: 1
+  refillIntervalUnit: "months"
+  refillAmount: 10000          # Free tier refill amount
+  proTierTokens: 200000        # Pro tier monthly credits ($29)
+  maxTierTokens: 800000        # Max tier monthly credits ($99)
 ```
 
 ## 🔍 Monitoring & Logging

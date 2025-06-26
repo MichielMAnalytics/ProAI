@@ -12,31 +12,48 @@ class BalanceService {
   /**
    * Get credit amount from Stripe price ID
    * @param {string} priceId - Stripe price ID
-   * @returns {number|null} Credit amount or null if invalid
+   * @returns {Promise<number|null>} Credit amount or null if invalid
    */
-  static getCreditAmountFromPriceId(priceId) {
-    const priceMapping = {
-      [process.env.STRIPE_PRICE_100K]: 100000,
-      [process.env.STRIPE_PRICE_200K]: 200000,
-      [process.env.STRIPE_PRICE_400K]: 400000,
-      [process.env.STRIPE_PRICE_800K]: 800000,
-      [process.env.STRIPE_PRICE_1200K]: 1200000,
-      [process.env.STRIPE_PRICE_2000K]: 2000000,
-      [process.env.STRIPE_PRICE_3000K]: 3000000,
-      [process.env.STRIPE_PRICE_4000K]: 4000000,
-    };
+  static async getCreditAmountFromPriceId(priceId) {
+    try {
+      const balanceConfig = await getBalanceConfig();
+      
+      const priceMapping = {
+        [process.env.STRIPE_EVE_PRO]: balanceConfig?.proTierTokens || 200000,
+        [process.env.STRIPE_EVE_MAX]: balanceConfig?.maxTierTokens || 800000,
+      };
 
-    return priceMapping[priceId] || null;
+      return priceMapping[priceId] || null;
+    } catch (error) {
+      logger.error('Error getting balance config for price mapping:', error);
+      // Fallback to default values
+      const priceMapping = {
+        [process.env.STRIPE_EVE_PRO]: 200000,
+        [process.env.STRIPE_EVE_MAX]: 800000,
+      };
+      return priceMapping[priceId] || null;
+    }
   }
 
   /**
    * Validate credit amount against expected values
    * @param {number} credits - Credit amount to validate
-   * @returns {boolean} True if valid
+   * @returns {Promise<boolean>} True if valid
    */
-  static isValidCreditAmount(credits) {
-    const validAmounts = [100000, 200000, 400000, 800000, 1200000, 2000000, 3000000, 4000000];
-    return validAmounts.includes(Number(credits));
+  static async isValidCreditAmount(credits) {
+    try {
+      const balanceConfig = await getBalanceConfig();
+      const validAmounts = [
+        balanceConfig?.proTierTokens || 200000,
+        balanceConfig?.maxTierTokens || 800000
+      ];
+      return validAmounts.includes(Number(credits));
+    } catch (error) {
+      logger.error('Error getting balance config for validation:', error);
+      // Fallback to default values
+      const validAmounts = [200000, 800000];
+      return validAmounts.includes(Number(credits));
+    }
   }
 
   /**
@@ -111,7 +128,8 @@ class BalanceService {
         throw new Error('Missing required parameters: userId, credits, or transactionId');
       }
 
-      if (!this.isValidCreditAmount(credits)) {
+      const isValid = await this.isValidCreditAmount(credits);
+      if (!isValid) {
         throw new Error(`Invalid credit amount: ${credits}`);
       }
 
@@ -140,7 +158,7 @@ class BalanceService {
       const balanceUpdateFields = {};
       
       if (stripeData.priceId) {
-        tierInfo = this.getTierInfoFromPriceId(stripeData.priceId);
+        tierInfo = await this.getTierInfoFromPriceId(stripeData.priceId);
         if (tierInfo) {
           balanceUpdateFields.tier = tierInfo.tier;
           balanceUpdateFields.tierName = tierInfo.name;
@@ -393,77 +411,55 @@ class BalanceService {
   /**
    * Map Stripe price IDs to subscription tier information
    * @param {string} priceId - Stripe price ID
-   * @returns {Object|null} Tier information or null if invalid
+   * @returns {Promise<Object|null>} Tier information or null if invalid
    */
-  static getTierInfoFromPriceId(priceId) {
-    const tierMapping = {
-      [process.env.STRIPE_PRICE_100K]: {
-        tier: 'pro_1',
-        name: 'Pro Tier 1',
-        credits: 100000,
-        refillAmount: 100000,
-        refillIntervalValue: 1,
-        refillIntervalUnit: 'months'
-      },
-      [process.env.STRIPE_PRICE_200K]: {
-        tier: 'pro_2', 
-        name: 'Pro Tier 2',
-        credits: 200000,
-        refillAmount: 200000,
-        refillIntervalValue: 1,
-        refillIntervalUnit: 'months'
-      },
-      [process.env.STRIPE_PRICE_400K]: {
-        tier: 'pro_3',
-        name: 'Pro Tier 3', 
-        credits: 400000,
-        refillAmount: 400000,
-        refillIntervalValue: 1,
-        refillIntervalUnit: 'months'
-      },
-      [process.env.STRIPE_PRICE_800K]: {
-        tier: 'pro_4',
-        name: 'Pro Tier 4',
-        credits: 800000,
-        refillAmount: 800000,
-        refillIntervalValue: 1,
-        refillIntervalUnit: 'months'
-      },
-      [process.env.STRIPE_PRICE_1200K]: {
-        tier: 'pro_5',
-        name: 'Pro Tier 5',
-        credits: 1200000,
-        refillAmount: 1200000,
-        refillIntervalValue: 1,
-        refillIntervalUnit: 'months'
-      },
-      [process.env.STRIPE_PRICE_2000K]: {
-        tier: 'pro_6',
-        name: 'Pro Tier 6',
-        credits: 2000000,
-        refillAmount: 2000000,
-        refillIntervalValue: 1,
-        refillIntervalUnit: 'months'
-      },
-      [process.env.STRIPE_PRICE_3000K]: {
-        tier: 'pro_7',
-        name: 'Pro Tier 7',
-        credits: 3000000,
-        refillAmount: 3000000,
-        refillIntervalValue: 1,
-        refillIntervalUnit: 'months'
-      },
-      [process.env.STRIPE_PRICE_4000K]: {
-        tier: 'pro_8',
-        name: 'Pro Tier 8',
-        credits: 4000000,
-        refillAmount: 4000000,
-        refillIntervalValue: 1,
-        refillIntervalUnit: 'months'
-      }
-    };
+  static async getTierInfoFromPriceId(priceId) {
+    try {
+      const balanceConfig = await getBalanceConfig();
+      
+      const tierMapping = {
+        [process.env.STRIPE_EVE_PRO]: {
+          tier: 'pro',
+          name: 'Eve Pro',
+          credits: balanceConfig?.proTierTokens || 200000,
+          refillAmount: balanceConfig?.proTierTokens || 200000,
+          refillIntervalValue: 1,
+          refillIntervalUnit: 'months'
+        },
+        [process.env.STRIPE_EVE_MAX]: {
+          tier: 'max',
+          name: 'Eve Max',
+          credits: balanceConfig?.maxTierTokens || 800000,
+          refillAmount: balanceConfig?.maxTierTokens || 800000,
+          refillIntervalValue: 1,
+          refillIntervalUnit: 'months'
+        }
+      };
 
-    return tierMapping[priceId] || null;
+      return tierMapping[priceId] || null;
+    } catch (error) {
+      logger.error('Error getting balance config for tier mapping:', error);
+      // Fallback to default values
+      const tierMapping = {
+        [process.env.STRIPE_EVE_PRO]: {
+          tier: 'pro',
+          name: 'Eve Pro',
+          credits: 200000,
+          refillAmount: 200000,
+          refillIntervalValue: 1,
+          refillIntervalUnit: 'months'
+        },
+        [process.env.STRIPE_EVE_MAX]: {
+          tier: 'max',
+          name: 'Eve Max',
+          credits: 800000,
+          refillAmount: 800000,
+          refillIntervalValue: 1,
+          refillIntervalUnit: 'months'
+        }
+      };
+      return tierMapping[priceId] || null;
+    }
   }
 }
 
