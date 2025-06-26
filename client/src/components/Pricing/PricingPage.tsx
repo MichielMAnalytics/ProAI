@@ -430,7 +430,7 @@ const PricingPage = () => {
                   /month
                 </span>
               </div>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>For getting started</p>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Try Eve</p>
             </div>
 
             {/* Credits Section - Fixed Height */}
@@ -448,16 +448,13 @@ const PricingPage = () => {
               <ul className="space-y-2">
                 <li className="flex items-center text-sm">
                   <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>Access 2700+ apps and 10,000+ tools</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>Access to all preconfigured System Agents</span>
                 </li>
                 <li className="flex items-center text-sm">
                   <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>Access to all state of the art large language models</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>Access to 2700+ apps and 10,000+ tools</span>
                 </li>
-                <li className="flex items-center text-sm">
-                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>Unlimited tasks & workflows</span>
-                </li>
+               
               </ul>
             </div>
 
@@ -545,16 +542,13 @@ const PricingPage = () => {
               <ul className="space-y-2">
                 <li className="flex items-center text-sm">
                   <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>{getTierInfo('pro').credits} credits / month</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>Access to all state of the art large language models</span>
                 </li>
                 <li className="flex items-center text-sm">
                   <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>Request custom apps and tools</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>Access to workflows</span>
                 </li>
-                <li className="flex items-center text-sm">
-                  <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>Priority support</span>
-                </li>
+              
               </ul>
             </div>
 
@@ -620,7 +614,7 @@ const PricingPage = () => {
                   /month
                 </span>
               </div>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>For power users and teams</p>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Get the most out of Eve</p>
             </div>
 
             {/* Credits Section - Fixed Height */}
@@ -638,19 +632,19 @@ const PricingPage = () => {
               <ul className="space-y-2">
                 <li className="flex items-center text-sm">
                   <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>{getTierInfo('max').credits} credits / month</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>5x more credits than Pro</span>
                 </li>
                 <li className="flex items-center text-sm">
                   <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>Advanced workflow automation</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>Access to global apps without credentials</span>
                 </li>
                 <li className="flex items-center text-sm">
                   <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>Premium support</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>Priority support</span>
                 </li>
                 <li className="flex items-center text-sm">
                   <Check className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--brand-blue)' }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>Advanced analytics</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>Request custom apps and tools</span>
                 </li>
               </ul>
             </div>
