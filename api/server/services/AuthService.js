@@ -205,6 +205,14 @@ const registerUser = async (user, additionalData = {}) => {
     //determine if this is the first registered user (not counting anonymous_user)
     const isFirstRegisteredUser = (await countUsers()) === 0;
 
+    // Handle timezone validation and default
+    let userTimezone = 'UTC'; // Default fallback
+    if (additionalData.timezone) {
+      const isValid = isValidTimezone(additionalData.timezone);
+      userTimezone = isValid ? additionalData.timezone : 'UTC';
+      logger.info(`[registerUser] Setting timezone for new user: ${userTimezone} (provided: ${additionalData.timezone}, valid: ${isValid})`);
+    }
+
     const salt = bcrypt.genSaltSync(10);
     const newUserData = {
       provider: 'local',
@@ -214,6 +222,7 @@ const registerUser = async (user, additionalData = {}) => {
       avatar: null,
       role: isFirstRegisteredUser ? SystemRoles.ADMIN : SystemRoles.USER,
       password: bcrypt.hashSync(password, salt),
+      timezone: userTimezone,
       ...additionalData,
     };
 

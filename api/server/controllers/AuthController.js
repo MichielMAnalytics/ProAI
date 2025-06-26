@@ -15,7 +15,9 @@ const { isEnabled } = require('~/server/utils');
 
 const registrationController = async (req, res) => {
   try {
-    const response = await registerUser(req.body);
+    // Extract timezone from request body for user registration
+    const { timezone, ...userData } = req.body;
+    const response = await registerUser(userData, { timezone });
     const { status, message } = response;
     res.status(status).send({ message });
   } catch (err) {

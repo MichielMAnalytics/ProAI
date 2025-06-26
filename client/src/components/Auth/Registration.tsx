@@ -8,6 +8,7 @@ import type { TLoginLayoutContext } from '~/common';
 import { ErrorMessage } from './ErrorMessage';
 import { Spinner } from '~/components/svg';
 import { useLocalize, TranslationKeys, ThemeContext } from '~/hooks';
+import { getDetectedTimezone } from '~/utils/timezone';
 
 const Registration: React.FC = () => {
   const navigate = useNavigate();
@@ -123,7 +124,11 @@ const Registration: React.FC = () => {
             aria-label="Registration form"
             method="POST"
             onSubmit={handleSubmit((data: TRegisterUser) =>
-              registerUser.mutate({ ...data, token: token ?? undefined }),
+              registerUser.mutate({ 
+                ...data, 
+                token: token ?? undefined,
+                timezone: getDetectedTimezone()
+              }),
             )}
           >
             {renderInput('name', 'com_auth_full_name', 'text', {

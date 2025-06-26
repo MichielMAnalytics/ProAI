@@ -360,6 +360,7 @@ export type TRegisterUser = {
   password: string;
   confirm_password?: string;
   token?: string;
+  timezone?: string;
 };
 
 export type TLoginUser = {
