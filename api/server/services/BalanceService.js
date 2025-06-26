@@ -12,48 +12,48 @@ class BalanceService {
   /**
    * Get credit amount from Stripe price ID
    * @param {string} priceId - Stripe price ID
-   * @returns {Promise<number|null>} Credit amount or null if invalid
+   * @returns {Promise<number>} Credit amount
+   * @throws {Error} If config cannot be loaded or price ID is invalid
    */
   static async getCreditAmountFromPriceId(priceId) {
-    try {
-      const balanceConfig = await getBalanceConfig();
-      
-      const priceMapping = {
-        [process.env.STRIPE_EVE_PRO]: balanceConfig?.proTierTokens || 200000,
-        [process.env.STRIPE_EVE_MAX]: balanceConfig?.maxTierTokens || 800000,
-      };
-
-      return priceMapping[priceId] || null;
-    } catch (error) {
-      logger.error('Error getting balance config for price mapping:', error);
-      // Fallback to default values
-      const priceMapping = {
-        [process.env.STRIPE_EVE_PRO]: 200000,
-        [process.env.STRIPE_EVE_MAX]: 800000,
-      };
-      return priceMapping[priceId] || null;
+    const balanceConfig = await getBalanceConfig();
+    
+    if (!balanceConfig) {
+      throw new Error('Critical: Cannot load balance configuration for payment processing');
     }
+    
+    const priceMapping = {
+      [process.env.STRIPE_EVE_PRO]: balanceConfig.proTierTokens,
+      [process.env.STRIPE_EVE_MAX]: balanceConfig.maxTierTokens,
+    };
+
+    const amount = priceMapping[priceId];
+    if (!amount) {
+      throw new Error(`Invalid price ID for payment: ${priceId}`);
+    }
+    
+    return amount;
   }
 
   /**
    * Validate credit amount against expected values
    * @param {number} credits - Credit amount to validate
    * @returns {Promise<boolean>} True if valid
+   * @throws {Error} If config cannot be loaded
    */
   static async isValidCreditAmount(credits) {
-    try {
-      const balanceConfig = await getBalanceConfig();
-      const validAmounts = [
-        balanceConfig?.proTierTokens || 200000,
-        balanceConfig?.maxTierTokens || 800000
-      ];
-      return validAmounts.includes(Number(credits));
-    } catch (error) {
-      logger.error('Error getting balance config for validation:', error);
-      // Fallback to default values
-      const validAmounts = [200000, 800000];
-      return validAmounts.includes(Number(credits));
+    const balanceConfig = await getBalanceConfig();
+    
+    if (!balanceConfig) {
+      throw new Error('Critical: Cannot load balance configuration for payment validation');
     }
+    
+    const validAmounts = [
+      balanceConfig.proTierTokens,
+      balanceConfig.maxTierTokens
+    ];
+    
+    return validAmounts.includes(Number(credits));
   }
 
   /**
@@ -411,55 +411,41 @@ class BalanceService {
   /**
    * Map Stripe price IDs to subscription tier information
    * @param {string} priceId - Stripe price ID
-   * @returns {Promise<Object|null>} Tier information or null if invalid
+   * @returns {Promise<Object>} Tier information
+   * @throws {Error} If config cannot be loaded or price ID is invalid
    */
   static async getTierInfoFromPriceId(priceId) {
-    try {
-      const balanceConfig = await getBalanceConfig();
-      
-      const tierMapping = {
-        [process.env.STRIPE_EVE_PRO]: {
-          tier: 'pro',
-          name: 'Eve Pro',
-          credits: balanceConfig?.proTierTokens || 200000,
-          refillAmount: balanceConfig?.proTierTokens || 200000,
-          refillIntervalValue: 1,
-          refillIntervalUnit: 'months'
-        },
-        [process.env.STRIPE_EVE_MAX]: {
-          tier: 'max',
-          name: 'Eve Max',
-          credits: balanceConfig?.maxTierTokens || 800000,
-          refillAmount: balanceConfig?.maxTierTokens || 800000,
-          refillIntervalValue: 1,
-          refillIntervalUnit: 'months'
-        }
-      };
-
-      return tierMapping[priceId] || null;
-    } catch (error) {
-      logger.error('Error getting balance config for tier mapping:', error);
-      // Fallback to default values
-      const tierMapping = {
-        [process.env.STRIPE_EVE_PRO]: {
-          tier: 'pro',
-          name: 'Eve Pro',
-          credits: 200000,
-          refillAmount: 200000,
-          refillIntervalValue: 1,
-          refillIntervalUnit: 'months'
-        },
-        [process.env.STRIPE_EVE_MAX]: {
-          tier: 'max',
-          name: 'Eve Max',
-          credits: 800000,
-          refillAmount: 800000,
-          refillIntervalValue: 1,
-          refillIntervalUnit: 'months'
-        }
-      };
-      return tierMapping[priceId] || null;
+    const balanceConfig = await getBalanceConfig();
+    
+    if (!balanceConfig) {
+      throw new Error('Critical: Cannot load balance configuration for tier mapping');
     }
+    
+    const tierMapping = {
+      [process.env.STRIPE_EVE_PRO]: {
+        tier: 'pro',
+        name: 'Eve Pro',
+        credits: balanceConfig.proTierTokens,
+        refillAmount: balanceConfig.proTierTokens,
+        refillIntervalValue: 1,
+        refillIntervalUnit: 'months'
+      },
+      [process.env.STRIPE_EVE_MAX]: {
+        tier: 'max',
+        name: 'Eve Max',
+        credits: balanceConfig.maxTierTokens,
+        refillAmount: balanceConfig.maxTierTokens,
+        refillIntervalValue: 1,
+        refillIntervalUnit: 'months'
+      }
+    };
+
+    const tierInfo = tierMapping[priceId];
+    if (!tierInfo) {
+      throw new Error(`Invalid price ID for tier mapping: ${priceId}`);
+    }
+    
+    return tierInfo;
   }
 }
 
