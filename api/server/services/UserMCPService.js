@@ -123,25 +123,15 @@ class UserMCPService {
           _appName: integration.appName,
         };
 
-        // Add Authorization header if we can get an access token
+        // Add Authorization header using Pipedream SDK with automatic token refresh
         try {
           const PipedreamConnect = require('./Pipedream/PipedreamConnect');
           if (PipedreamConnect.isEnabled()) {
-            // Get access token using OAuth client credentials
-            const baseURL = process.env.PIPEDREAM_API_BASE_URL || 'https://api.pipedream.com/v1';
-            
-            const tokenResponse = await axios.post(`${baseURL}/oauth/token`, {
-              grant_type: 'client_credentials',
-              client_id: process.env.PIPEDREAM_CLIENT_ID,
-              client_secret: process.env.PIPEDREAM_CLIENT_SECRET,
-            }, {
-              headers: { 'Content-Type': 'application/json' },
-            });
-            
-            const accessToken = tokenResponse.data.access_token;
+            // Get fresh OAuth access token using Pipedream SDK (handles refresh automatically)
+            const accessToken = await PipedreamConnect.getOAuthAccessToken();
             if (accessToken) {
               mcpServers[serverName].headers['Authorization'] = `Bearer ${accessToken}`;
-              // logger.info(`UserMCPService: Added Pipedream auth token for server ${serverName}`);
+              logger.info(`UserMCPService: Added Pipedream auth token for server ${serverName} using SDK`);
             }
           }
         } catch (authError) {

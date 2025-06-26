@@ -98,6 +98,61 @@ export class MCPConnection extends EventEmitter {
     return `[MCP]${userPart}[${this.serverName}]`;
   }
 
+  /** Helper to detect authentication errors */
+  private isAuthenticationError(errorMessage: string): boolean {
+    const authErrorPatterns = [
+      'HTTP 401',
+      'HTTP 403', 
+      'HTTP 500',
+      'Unauthorized',
+      'Forbidden',
+      'Internal server error',
+      'Authentication failed',
+      'Invalid token',
+      'Token expired',
+      'access_token'
+    ];
+    
+    return authErrorPatterns.some(pattern => 
+      errorMessage.toLowerCase().includes(pattern.toLowerCase())
+    );
+  }
+
+  /** Helper to refresh Pipedream authentication token */
+  private async refreshAuthToken(): Promise<boolean> {
+    try {
+      // Only refresh if this is a Pipedream streamable-http connection
+      if (this.options.type !== 'streamable-http' || !this.options.headers) {
+        return false;
+      }
+
+      // Check if this looks like a Pipedream MCP server
+      const url = 'url' in this.options ? this.options.url : '';
+      if (!url.includes('pipedream.net')) {
+        return false;
+      }
+
+      this.logger?.info(`${this.getLogPrefix()} Attempting to refresh Pipedream auth token`);
+      
+      // Dynamically import PipedreamConnect to avoid circular dependencies
+      const PipedreamConnect = require('../../../api/server/services/Pipedream/PipedreamConnect');
+      
+      if (PipedreamConnect.isEnabled()) {
+        const newToken = await PipedreamConnect.getOAuthAccessToken();
+        if (newToken) {
+          this.options.headers['Authorization'] = `Bearer ${newToken}`;
+          this.logger?.info(`${this.getLogPrefix()} Successfully refreshed Pipedream auth token`);
+          return true;
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      this.logger?.error(`${this.getLogPrefix()} Failed to refresh auth token:`, error);
+      return false;
+    }
+  }
+
 
   private emitError(error: unknown, errorContext: string): void {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -207,8 +262,16 @@ export class MCPConnection extends EventEmitter {
           };
 
           transport.onerror = (error: Error | unknown) => {
+            const errorMessage = error instanceof Error ? error.message : String(error);
             this.logger?.error(`${this.getLogPrefix()} Streamable-http transport error:`, error);
-            this.emitError(error, 'Streamable-http transport error:');
+            
+            // Check if this is an authentication error (HTTP 401/403/500 with auth-related message)
+            if (this.isAuthenticationError(errorMessage)) {
+              this.logger?.warn(`${this.getLogPrefix()} Authentication error detected - token may have expired`);
+              this.emit('authenticationError', error);
+            }
+            
+            this.emitError(error, 'Streamable-http transport error');
           };
 
           transport.onmessage = (message: JSONRPCMessage) => {
@@ -255,6 +318,25 @@ export class MCPConnection extends EventEmitter {
         this.handleReconnection().catch((error) => {
           this.logger?.error(`${this.getLogPrefix()} Reconnection handler failed:`, error);
         });
+      }
+    });
+
+    // Handle authentication errors with token refresh
+    this.on('authenticationError', async () => {
+      this.logger?.info(`${this.getLogPrefix()} Handling authentication error with token refresh attempt`);
+      try {
+        const refreshed = await this.refreshAuthToken();
+        if (refreshed) {
+          this.logger?.info(`${this.getLogPrefix()} Token refreshed, attempting reconnection`);
+          // Attempt reconnection with new token
+          setTimeout(() => {
+            this.handleReconnection().catch((reconnectError) => {
+              this.logger?.error(`${this.getLogPrefix()} Reconnection after token refresh failed:`, reconnectError);
+            });
+          }, 1000);
+        }
+      } catch (refreshError) {
+        this.logger?.error(`${this.getLogPrefix()} Token refresh failed:`, refreshError);
       }
     });
 
