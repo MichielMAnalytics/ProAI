@@ -104,6 +104,29 @@ export default function IntegrationsView() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(12);
 
+  // State for tracking image load status
+  const [imagesLoaded, setImagesLoaded] = useState(false);
+
+  // Preload critical images properly
+  useEffect(() => {
+    const imageUrls = ['/assets/logo.svg', '/assets/pipedream.png'];
+    let loadedCount = 0;
+    
+    const handleImageLoad = () => {
+      loadedCount++;
+      if (loadedCount === imageUrls.length) {
+        setImagesLoaded(true);
+      }
+    };
+
+    imageUrls.forEach(url => {
+      const img = new Image();
+      img.onload = handleImageLoad;
+      img.onerror = handleImageLoad; // Still count as "loaded" to prevent hanging
+      img.src = url;
+    });
+  }, []);
+
   // Fetch data
   const {
     data: availableIntegrations = [],
@@ -464,14 +487,13 @@ export default function IntegrationsView() {
     setIsMobileSidebarOpen(false);
   }, [selectedCategory]);
 
-  const isLoading = isLoadingAvailable || isLoadingUser;
+  const isLoading = isLoadingAvailable || isLoadingUser || !imagesLoaded;
 
   if (isLoading) {
     return (
       <div className="flex h-96 items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
           <Spinner className="h-8 w-8" />
-          <p className="text-text-secondary">{localize('com_ui_integrations_loading')}</p>
         </div>
       </div>
     );
@@ -555,17 +577,6 @@ export default function IntegrationsView() {
                       alt="Eve Logo" 
                       className="w-full h-full object-contain"
                       style={{ minHeight: '100%', minWidth: '100%' }}
-                      onLoad={(e) => {
-                        (e.target as HTMLImageElement).style.opacity = '1';
-                      }}
-                      onError={(e) => {
-                        // Fallback if logo fails to load
-                        (e.target as HTMLImageElement).style.display = 'none';
-                        const parent = (e.target as HTMLImageElement).parentElement;
-                        if (parent) {
-                          parent.innerHTML = '<span class="text-white font-bold text-lg">E</span>';
-                        }
-                      }}
                     />
                   </div>
                   
@@ -585,17 +596,6 @@ export default function IntegrationsView() {
                         alt="Pipedream" 
                         className="w-full h-full object-contain rounded"
                         style={{ minHeight: '100%', minWidth: '100%' }}
-                        onLoad={(e) => {
-                          (e.target as HTMLImageElement).style.opacity = '1';
-                        }}
-                        onError={(e) => {
-                          // Fallback if logo fails to load
-                          (e.target as HTMLImageElement).style.display = 'none';
-                          const parent = (e.target as HTMLImageElement).parentElement;
-                          if (parent) {
-                            parent.innerHTML = '<span class="text-white font-bold text-xs">P</span>';
-                          }
-                        }}
                       />
                     </div>
                   </div>
