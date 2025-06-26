@@ -256,10 +256,11 @@ const PricingPage = () => {
     }
 
     // Show confirmation dialog
+    const freeCredits = startupConfig?.balance?.refillAmount ? formatBalance(startupConfig.balance.refillAmount) : '10K';
     const confirmed = window.confirm(
       'Are you sure you want to downgrade to the Free plan? This will:\n\n' +
       '• Cancel your current subscription\n' +
-      '• Reduce your monthly credits to 5,000\n' +
+      `• Reduce your monthly credits to ${freeCredits}\n` +
       '• Remove access to premium features\n\n' +
       'This action cannot be undone.'
     );
