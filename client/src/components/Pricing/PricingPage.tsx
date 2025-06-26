@@ -9,7 +9,7 @@ import { formatBalance } from '~/utils/formatBalance';
 const PricingPage = () => {
   const navigate = useNavigate();
   const { token, isAuthenticated } = useAuthContext();
-  const { data: startupConfig } = useGetStartupConfig();
+  const { data: startupConfig, isLoading: configLoading } = useGetStartupConfig();
   const balanceQuery = useGetUserBalance({
     enabled: !!isAuthenticated && startupConfig?.balance?.enabled,
   });
@@ -28,12 +28,7 @@ const PricingPage = () => {
     }
   }, [searchParams]);
 
-  // Check authentication status
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login');
-    }
-  }, [isAuthenticated, navigate]);
+
 
   // Clear status after showing it
   useEffect(() => {
@@ -324,6 +319,24 @@ const PricingPage = () => {
     navigate('/c/new');
   };
 
+  // Check if we're still loading critical data needed for proper badge display
+  const isLoadingCriticalData = configLoading || 
+    (isAuthenticated && startupConfig?.balance?.enabled && (balanceQuery.isLoading || balanceQuery.isFetching));
+
+  // Don't render until we have all the data needed to display correctly
+  if (isLoadingCriticalData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{
+        background: 'var(--surface-primary)',
+        minHeight: '100vh'
+      }}>
+        <div className="flex flex-col items-center">
+          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-lg" style={{ color: 'var(--text-secondary)' }}></p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen py-6 px-4" style={{
@@ -492,7 +505,7 @@ const PricingPage = () => {
                   >
                     CURRENT
                   </span>
-                ) : (
+                ) : !isCurrentPlan('max') && (
                   <span 
                     className="px-3 py-1 rounded-full text-xs font-semibold"
                     style={{ 
