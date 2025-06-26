@@ -51,16 +51,12 @@ function isStreamableHTTPOptions(options: t.MCPOptions): options is t.Streamable
   return false;
 }
 
-const FIVE_MINUTES = 5 * 60 * 1000;
 export class MCPConnection extends EventEmitter {
-  private static instance: MCPConnection | null = null;
   public client: Client;
   private transport: Transport | null = null; // Make this nullable
   private connectionState: t.ConnectionState = 'disconnected';
   private connectPromise: Promise<void> | null = null;
   private lastError: Error | null = null;
-  private lastConfigUpdate = 0;
-  private readonly CONFIG_TTL = 5 * 60 * 1000; // 5 minutes
   private readonly MAX_RECONNECT_ATTEMPTS = 3;
   public readonly serverName: string;
   private shouldStopReconnecting = false;
@@ -70,7 +66,6 @@ export class MCPConnection extends EventEmitter {
   iconPath?: string;
   timeout?: number;
   private readonly userId?: string;
-  private lastPingTime: number;
 
   constructor(
     serverName: string,
@@ -84,7 +79,6 @@ export class MCPConnection extends EventEmitter {
     this.userId = userId;
     this.iconPath = options.iconPath;
     this.timeout = options.timeout;
-    this.lastPingTime = Date.now();
     this.client = new Client(
       {
         name: '@librechat/api-client',
@@ -104,28 +98,6 @@ export class MCPConnection extends EventEmitter {
     return `[MCP]${userPart}[${this.serverName}]`;
   }
 
-  public static getInstance(
-    serverName: string,
-    options: t.MCPOptions,
-    logger?: Logger,
-    userId?: string,
-  ): MCPConnection {
-    if (!MCPConnection.instance) {
-      MCPConnection.instance = new MCPConnection(serverName, options, logger, userId);
-    }
-    return MCPConnection.instance;
-  }
-
-  public static getExistingInstance(): MCPConnection | null {
-    return MCPConnection.instance;
-  }
-
-  public static async destroyInstance(): Promise<void> {
-    if (MCPConnection.instance) {
-      await MCPConnection.instance.disconnect();
-      MCPConnection.instance = null;
-    }
-  }
 
   private emitError(error: unknown, errorContext: string): void {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -341,7 +313,6 @@ export class MCPConnection extends EventEmitter {
 
   private invalidateCache(): void {
     // this.cachedConfig = null;
-    this.lastConfigUpdate = 0;
   }
 
   async connectClient(): Promise<void> {
@@ -408,12 +379,6 @@ export class MCPConnection extends EventEmitter {
 
     const originalSend = this.transport.send.bind(this.transport);
     this.transport.send = async (msg) => {
-      if ('result' in msg && !('method' in msg) && Object.keys(msg.result ?? {}).length === 0) {
-        if (Date.now() - this.lastPingTime < FIVE_MINUTES) {
-          throw new Error('Empty result');
-        }
-        this.lastPingTime = Date.now();
-      }
       this.logger?.debug(`${this.getLogPrefix()} Transport sending: ${JSON.stringify(msg)}`);
       return originalSend(msg);
     };
