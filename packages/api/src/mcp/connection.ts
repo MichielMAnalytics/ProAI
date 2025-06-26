@@ -138,6 +138,9 @@ export class MCPConnection extends EventEmitter {
       const PipedreamConnect = require('../../../api/server/services/Pipedream/PipedreamConnect');
       
       if (PipedreamConnect.isEnabled()) {
+        // Clear cached token since it's likely expired/invalid
+        PipedreamConnect.clearTokenCache();
+        
         const newToken = await PipedreamConnect.getOAuthAccessToken();
         if (newToken) {
           this.options.headers['Authorization'] = `Bearer ${newToken}`;

@@ -17,6 +17,9 @@ const { logger } = require('~/config');
 class PipedreamConnect {
   constructor() {
     this.client = null;
+    this.cachedToken = null;
+    this.tokenExpiresAt = null;
+    this.tokenRefreshPromise = null; // Prevent concurrent token refreshes
     this.initializeClient();
   }
 
@@ -430,7 +433,7 @@ class PipedreamConnect {
 
   /**
    * Get a fresh OAuth access token for API authentication
-   * The Pipedream SDK handles token refresh automatically
+   * Production-ready implementation with concurrency control and retry logic
    * 
    * @returns {Promise<string>} OAuth access token
    */
@@ -439,34 +442,111 @@ class PipedreamConnect {
       throw new Error('Pipedream Connect is not enabled or configured');
     }
 
-    try {
-      // The SDK handles token refresh internally, so we can make any API call
-      // to trigger token refresh and then access the token
-      // We'll use a minimal API call to get accounts (with limit to minimize overhead)
-      await this.client.getAccounts({ limit: 1 });
-      
-      // Access the internal token from the SDK client
-      // Note: This accesses internal SDK properties, but it's the only way to get the token
-      if (this.client._token && this.client._token.access_token) {
-        logger.debug('PipedreamConnect: Retrieved fresh OAuth access token');
-        return this.client._token.access_token;
-      }
-      
-      throw new Error('No access token available from SDK client');
-    } catch (error) {
-      logger.error('PipedreamConnect: Failed to get OAuth access token:', {
-        message: error.message,
-        hasClient: !!this.client,
-        isEnabled: this.isEnabled()
-      });
-      throw new Error(`Failed to get OAuth access token: ${error.message}`);
+    // Check if we have a valid cached token (with 5 minute buffer)
+    const now = Date.now();
+    if (this.cachedToken && this.tokenExpiresAt && (this.tokenExpiresAt - now) > 300000) {
+      logger.debug('PipedreamConnect: Using cached OAuth access token');
+      return this.cachedToken;
     }
+
+    // Prevent concurrent token refresh requests
+    if (this.tokenRefreshPromise) {
+      logger.debug('PipedreamConnect: Token refresh already in progress, waiting...');
+      return await this.tokenRefreshPromise;
+    }
+
+    // Create and cache the refresh promise
+    this.tokenRefreshPromise = this._refreshToken();
+
+    try {
+      const token = await this.tokenRefreshPromise;
+      return token;
+    } finally {
+      // Clear the promise regardless of success/failure
+      this.tokenRefreshPromise = null;
+    }
+  }
+
+  /**
+   * Internal method to refresh the OAuth token with retry logic
+   * @private
+   */
+  async _refreshToken() {
+    const axios = require('axios');
+    const baseURL = process.env.PIPEDREAM_API_BASE_URL || 'https://api.pipedream.com/v1';
+    const maxRetries = 3;
+    const retryDelay = 1000; // 1 second
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        logger.debug(`PipedreamConnect: Fetching new OAuth access token (attempt ${attempt}/${maxRetries})`);
+        
+        const tokenResponse = await axios.post(`${baseURL}/oauth/token`, {
+          grant_type: 'client_credentials',
+          client_id: process.env.PIPEDREAM_CLIENT_ID,
+          client_secret: process.env.PIPEDREAM_CLIENT_SECRET,
+        }, {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 10000, // 10 second timeout
+        });
+        
+        const accessToken = tokenResponse.data.access_token;
+        const expiresIn = tokenResponse.data.expires_in || 3600; // Default to 1 hour
+        
+        if (accessToken) {
+          // Cache the token with expiration
+          const now = Date.now();
+          this.cachedToken = accessToken;
+          this.tokenExpiresAt = now + (expiresIn * 1000);
+          
+          logger.info('PipedreamConnect: Retrieved and cached fresh OAuth access token', {
+            expires_in_minutes: Math.floor(expiresIn / 60),
+            attempt: attempt
+          });
+          return accessToken;
+        }
+        
+        throw new Error('No access token in response');
+        
+      } catch (error) {
+        const isLastAttempt = attempt === maxRetries;
+        
+        logger.warn(`PipedreamConnect: Token refresh attempt ${attempt}/${maxRetries} failed:`, {
+          message: error.message,
+          status: error.response?.status,
+          willRetry: !isLastAttempt
+        });
+        
+        if (isLastAttempt) {
+          logger.error('PipedreamConnect: All token refresh attempts failed:', {
+            message: error.message,
+            hasClient: !!this.client,
+            isEnabled: this.isEnabled()
+          });
+          throw new Error(`Failed to get OAuth access token after ${maxRetries} attempts: ${error.message}`);
+        }
+        
+        // Wait before retrying (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+      }
+    }
+  }
+
+  /**
+   * Clear cached OAuth token (useful when token becomes invalid)
+   */
+  clearTokenCache() {
+    this.cachedToken = null;
+    this.tokenExpiresAt = null;
+    this.tokenRefreshPromise = null; // Also clear any pending refresh
+    logger.debug('PipedreamConnect: Cleared OAuth token cache');
   }
 
   /**
    * Reinitialize the client (useful for configuration changes)
    */
   reinitialize() {
+    this.clearTokenCache();
     this.initializeClient();
   }
 }
