@@ -11,6 +11,7 @@ import useAvatar from '~/hooks/Messages/useAvatar';
 import { UserIcon } from '~/components/svg';
 import { useLocalize } from '~/hooks';
 import { getTierEmoji } from '~/utils/tierEmojis';
+import { formatBalance } from '~/utils/formatBalance';
 import Settings from './Settings';
 import store from '~/store';
 
@@ -27,18 +28,6 @@ function AccountSettings() {
 
   const avatarSrc = useAvatar(user);
   const avatarSeed = user?.avatar || user?.name || user?.username || '';
-
-  const formatBalance = (balance: number): string => {
-    if (balance >= 1e9) {
-      return (balance / 1e9).toFixed(balance >= 10e9 ? 1 : 2) + 'B';
-    } else if (balance >= 1e6) {
-      return (balance / 1e6).toFixed(balance >= 10e6 ? 1 : 2) + 'M';
-    } else if (balance >= 1e3) {
-      return (balance / 1e3).toFixed(balance >= 10e3 ? 1 : 2) + 'K';
-    } else {
-      return balance.toFixed(2);
-    }
-  };
 
   const handleUpgradeClick = () => {
     navigate('/pricing');

@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthContext } from '~/hooks';
 import { useGetUserBalance, useGetStartupConfig } from '~/data-provider';
 import { getTierEmoji } from '~/utils/tierEmojis';
+import { formatBalance } from '~/utils/formatBalance';
 
 const PricingPage = () => {
   const navigate = useNavigate();
@@ -54,8 +55,8 @@ const PricingPage = () => {
   // Function to get tier info from tier string
   const getTierInfo = (tier: string) => {
     const tierMap: { [key: string]: { tier: string; tierName: string; credits: string } } = {
-      'pro': { tier: 'pro', tierName: 'Eve Pro', credits: startupConfig?.balance?.proTierTokens ? `${Math.floor(startupConfig.balance.proTierTokens / 1000)}K` : '200K' },
-      'max': { tier: 'max', tierName: 'Eve Max', credits: startupConfig?.balance?.maxTierTokens ? `${Math.floor(startupConfig.balance.maxTierTokens / 1000)}K` : '900K' },
+      'pro': { tier: 'pro', tierName: 'Eve Pro', credits: startupConfig?.balance?.proTierTokens ? formatBalance(startupConfig.balance.proTierTokens) : '200K' },
+      'max': { tier: 'max', tierName: 'Eve Max', credits: startupConfig?.balance?.maxTierTokens ? formatBalance(startupConfig.balance.maxTierTokens) : '900K' },
     };
     return tierMap[tier] || { tier: 'pro', tierName: 'Eve Pro', credits: '200K' };
   };
@@ -422,7 +423,7 @@ const PricingPage = () => {
             {/* Credits Section - Fixed Height */}
             <div className="h-8 mb-4">
               <div className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-                🍼 10,000 credits / month
+                🍼 {formatBalance(startupConfig?.balance?.refillAmount || 100000)} credits / month
               </div>
             </div>
 
