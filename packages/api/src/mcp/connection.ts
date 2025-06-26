@@ -388,7 +388,11 @@ export class MCPConnection extends EventEmitter {
     try {
       await this.disconnect();
       await this.connectClient();
-      if (!this.isConnected()) {
+      
+      // Wait a bit for connection to stabilize before checking
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      if (!(await this.isConnected())) {
         throw new Error('Connection not established');
       }
     } catch (error) {
@@ -533,11 +537,19 @@ export class MCPConnection extends EventEmitter {
   }
 
   public async isConnected(): Promise<boolean> {
+    // Check connection state first before attempting ping
+    if (this.connectionState !== 'connected' || !this.transport) {
+      return false;
+    }
+    
     try {
       await this.client.ping();
-      return this.connectionState === 'connected';
+      return true;
     } catch (error) {
       this.logger?.error(`${this.getLogPrefix()} Ping failed:`, error);
+      // Update connection state if ping fails
+      this.connectionState = 'error';
+      this.emit('connectionChange', 'error');
       return false;
     }
   }
