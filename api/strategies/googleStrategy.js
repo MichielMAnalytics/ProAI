@@ -19,6 +19,7 @@ module.exports = () =>
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL: `${process.env.DOMAIN_SERVER}${process.env.GOOGLE_CALLBACK_URL}`,
       proxy: true,
+      passReqToCallback: true, // This passes the request object to the callback
     },
     googleLogin,
   );

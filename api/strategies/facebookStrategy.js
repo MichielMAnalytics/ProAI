@@ -21,6 +21,7 @@ module.exports = () =>
       proxy: true,
       scope: ['public_profile'],
       profileFields: ['id', 'email', 'name'],
+      passReqToCallback: true, // This passes the request object to the callback
     },
     facebookLogin,
   );

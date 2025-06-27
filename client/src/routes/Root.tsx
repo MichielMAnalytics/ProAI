@@ -13,12 +13,14 @@ import {
   AssistantsMapContext,
   FileMapContext,
   SetConvoProvider,
+  TimezoneProvider,
 } from '~/Providers';
 import TermsAndConditionsModal from '~/components/ui/TermsAndConditionsModal';
 import { useUserTermsQuery, useGetStartupConfig } from '~/data-provider';
 import { Nav, MobileNav } from '~/components/Nav';
 import { useHealthCheck } from '~/data-provider';
 import { Banner } from '~/components/Banners';
+import TimezoneInitializer from '~/components/TimezoneInitializer';
 
 export default function Root() {
   const [showTerms, setShowTerms] = useState(false);
@@ -65,32 +67,35 @@ export default function Root() {
 
   return (
     <SetConvoProvider>
-      <FileMapContext.Provider value={fileMap}>
-        <AssistantsMapContext.Provider value={assistantsMap}>
-          <AgentsMapContext.Provider value={agentsMap}>
-            <Banner onHeightChange={setBannerHeight} />
-            <div className="flex" style={{ height: `calc(100dvh - ${bannerHeight}px)` }}>
-              <div className="relative z-0 flex h-full w-full overflow-hidden">
-                <Nav navVisible={navVisible} setNavVisible={setNavVisible} />
-                <div className="relative flex h-full max-w-full flex-1 flex-col overflow-hidden">
-                  <MobileNav setNavVisible={setNavVisible} />
-                  <Outlet context={{ navVisible, setNavVisible } satisfies ContextType} />
+      <TimezoneProvider>
+        <FileMapContext.Provider value={fileMap}>
+          <AssistantsMapContext.Provider value={assistantsMap}>
+            <AgentsMapContext.Provider value={agentsMap}>
+              <TimezoneInitializer />
+              <Banner onHeightChange={setBannerHeight} />
+              <div className="flex" style={{ height: `calc(100dvh - ${bannerHeight}px)` }}>
+                <div className="relative z-0 flex h-full w-full overflow-hidden">
+                  <Nav navVisible={navVisible} setNavVisible={setNavVisible} />
+                  <div className="relative flex h-full max-w-full flex-1 flex-col overflow-hidden">
+                    <MobileNav setNavVisible={setNavVisible} />
+                    <Outlet context={{ navVisible, setNavVisible } satisfies ContextType} />
+                  </div>
                 </div>
               </div>
-            </div>
-          </AgentsMapContext.Provider>
-          {config?.interface?.termsOfService?.modalAcceptance === true && (
-            <TermsAndConditionsModal
-              open={showTerms}
-              onOpenChange={setShowTerms}
-              onAccept={handleAcceptTerms}
-              onDecline={handleDeclineTerms}
-              title={config.interface.termsOfService.modalTitle}
-              modalContent={config.interface.termsOfService.modalContent}
-            />
-          )}
-        </AssistantsMapContext.Provider>
-      </FileMapContext.Provider>
+            </AgentsMapContext.Provider>
+            {config?.interface?.termsOfService?.modalAcceptance === true && (
+              <TermsAndConditionsModal
+                open={showTerms}
+                onOpenChange={setShowTerms}
+                onAccept={handleAcceptTerms}
+                onDecline={handleDeclineTerms}
+                title={config.interface.termsOfService.modalTitle}
+                modalContent={config.interface.termsOfService.modalContent}
+              />
+            )}
+          </AssistantsMapContext.Provider>
+        </FileMapContext.Provider>
+      </TimezoneProvider>
     </SetConvoProvider>
   );
 }

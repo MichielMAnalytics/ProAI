@@ -10,15 +10,72 @@ export interface TimezoneOption {
 }
 
 /**
- * Get user's detected timezone from browser
+ * Get user's detected timezone from browser with enhanced fallback strategies
  */
 export function getDetectedTimezone(): string {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+    // Primary: Use Intl.DateTimeFormat
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (timezone) {
+      const sanitized = sanitizeTimezone(timezone);
+      if (isValidTimezone(sanitized)) {
+        return sanitized;
+      }
+    }
   } catch (error) {
-    console.warn('Failed to detect timezone, falling back to UTC:', error);
-    return 'UTC';
+    console.warn('Intl.DateTimeFormat timezone detection failed:', error);
   }
+
+  try {
+    // Fallback 1: Try alternative Intl method
+    const timezone = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (timezone) {
+      const sanitized = sanitizeTimezone(timezone);
+      if (isValidTimezone(sanitized)) {
+        return sanitized;
+      }
+    }
+  } catch (error) {
+    console.warn('Alternative Intl timezone detection failed:', error);
+  }
+
+  try {
+    // Fallback 2: Check for common timezone formats in Date
+    const date = new Date();
+    const timezoneOffset = date.getTimezoneOffset();
+
+    // Convert offset to common timezone names
+    const offsetHours = Math.abs(timezoneOffset) / 60;
+    const offsetSign = timezoneOffset <= 0 ? '+' : '-';
+
+    // Map common offsets to timezone names
+    const offsetToTimezone: Record<string, string> = {
+      '+0': 'UTC',
+      '-5': 'America/New_York',
+      '-6': 'America/Chicago',
+      '-7': 'America/Denver',
+      '-8': 'America/Los_Angeles',
+      '+1': 'Europe/London',
+      '+2': 'Europe/Paris',
+      '+9': 'Asia/Tokyo',
+    };
+
+    const offsetKey = `${offsetSign}${offsetHours}`;
+    const fallbackTimezone = offsetToTimezone[offsetKey];
+
+    if (fallbackTimezone && isValidTimezone(fallbackTimezone)) {
+      console.warn(
+        `Using offset-based fallback timezone: ${fallbackTimezone} (offset: ${offsetKey})`,
+      );
+      return fallbackTimezone;
+    }
+  } catch (error) {
+    console.warn('Offset-based timezone detection failed:', error);
+  }
+
+  // Ultimate fallback
+  console.warn('All timezone detection methods failed, falling back to UTC');
+  return 'UTC';
 }
 
 /**
@@ -31,19 +88,19 @@ export function getTimezoneOffset(timezone: string): string {
       timeZone: timezone,
       timeZoneName: 'short',
     });
-    
+
     const parts = formatter.formatToParts(now);
-    const timeZoneName = parts.find(part => part.type === 'timeZoneName')?.value;
-    
+    const timeZoneName = parts.find((part) => part.type === 'timeZoneName')?.value;
+
     if (timeZoneName && timeZoneName.startsWith('GMT')) {
       return timeZoneName;
     }
-    
+
     // Fallback: calculate offset manually
     const utcDate = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
     const localDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
     const offset = (localDate.getTime() - utcDate.getTime()) / (1000 * 60 * 60);
-    
+
     if (offset === 0) return 'GMT+0';
     const sign = offset > 0 ? '+' : '';
     return `GMT${sign}${offset}`;
@@ -61,7 +118,7 @@ export function getPopularTimezones(): TimezoneOption[] {
     'UTC',
     'America/New_York',
     'America/Chicago',
-    'America/Denver', 
+    'America/Denver',
     'America/Los_Angeles',
     'America/Sao_Paulo',
     'Europe/London',
@@ -78,7 +135,7 @@ export function getPopularTimezones(): TimezoneOption[] {
     'Pacific/Auckland',
   ];
 
-  return timezones.map(tz => ({
+  return timezones.map((tz) => ({
     value: tz,
     label: formatTimezoneLabel(tz),
     offset: getTimezoneOffset(tz),
@@ -90,7 +147,7 @@ export function getPopularTimezones(): TimezoneOption[] {
  */
 export function formatTimezoneLabel(timezone: string): string {
   if (timezone === 'UTC') return 'UTC (Coordinated Universal Time)';
-  
+
   try {
     // Convert timezone identifier to readable format
     const city = timezone.split('/').pop()?.replace(/_/g, ' ') || timezone;
@@ -102,19 +159,76 @@ export function formatTimezoneLabel(timezone: string): string {
 }
 
 /**
- * Validate timezone string
+ * Validate timezone string with comprehensive checks
  */
 export function isValidTimezone(timezone: string): boolean {
-  if (!timezone) return false;
-  if (timezone === 'UTC') return true;
-  
-  try {
-    // Test if timezone is valid by trying to format a date with it
-    Intl.DateTimeFormat('en-US', { timeZone: timezone });
-    return true;
-  } catch (error) {
+  if (!timezone || typeof timezone !== 'string') {
     return false;
   }
+
+  // Quick check for UTC
+  if (timezone === 'UTC') {
+    return true;
+  }
+
+  // Check if timezone string looks valid (basic format validation)
+  const timezonePattern = /^[A-Za-z_]+\/[A-Za-z_]+(?:\/[A-Za-z_]+)*$|^UTC$|^GMT[+-]\d{1,2}$/;
+  if (!timezonePattern.test(timezone)) {
+    return false;
+  }
+
+  try {
+    // Primary validation: Test if timezone works with Intl.DateTimeFormat
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone });
+    return true;
+  } catch (error) {
+    // Secondary validation: Try with a specific date
+    try {
+      const testDate = new Date('2023-06-15T12:00:00Z');
+      testDate.toLocaleString('en-US', { timeZone: timezone });
+      return true;
+    } catch (secondError) {
+      console.warn(`Invalid timezone "${timezone}":`, error);
+      return false;
+    }
+  }
+}
+
+/**
+ * Sanitize timezone string to prevent issues
+ */
+export function sanitizeTimezone(timezone: string): string {
+  if (!timezone || typeof timezone !== 'string') {
+    return 'UTC';
+  }
+
+  // Trim and normalize
+  const sanitized = timezone.trim();
+
+  // Check if valid after sanitization
+  if (isValidTimezone(sanitized)) {
+    return sanitized;
+  }
+
+  // Try common fixes
+  const commonFixes: Record<string, string> = {
+    utc: 'UTC',
+    gmt: 'UTC',
+    est: 'America/New_York',
+    pst: 'America/Los_Angeles',
+    cst: 'America/Chicago',
+    mst: 'America/Denver',
+  };
+
+  const fixed = commonFixes[sanitized.toLowerCase()];
+  if (fixed && isValidTimezone(fixed)) {
+    console.debug(`Fixed timezone "${timezone}" -> "${fixed}"`);
+    return fixed;
+  }
+
+  // If all else fails, return UTC
+  console.warn(`Could not sanitize timezone "${timezone}", using UTC`);
+  return 'UTC';
 }
 
 /**
@@ -125,12 +239,12 @@ export function convertToUserTimezone(utcDate: Date, userTimezone: string): Date
     const utcTime = utcDate.getTime();
     const localOffset = new Date().getTimezoneOffset() * 60000; // Local timezone offset in ms
     const utcDateTime = utcTime + localOffset; // Get true UTC time
-    
+
     // Create date in user's timezone
     const userDate = new Date(utcDateTime);
     const userOffset = getTimezoneOffsetMinutes(userTimezone);
-    
-    return new Date(utcDateTime + (userOffset * 60000));
+
+    return new Date(utcDateTime + userOffset * 60000);
   } catch (error) {
     console.warn(`Failed to convert date to timezone ${userTimezone}:`, error);
     return utcDate;
@@ -144,9 +258,9 @@ export function convertToUTC(localDate: Date, userTimezone: string): Date {
   try {
     // Get the offset for the user's timezone
     const userOffset = getTimezoneOffsetMinutes(userTimezone);
-    
+
     // Convert to UTC by subtracting the offset
-    return new Date(localDate.getTime() - (userOffset * 60000));
+    return new Date(localDate.getTime() - userOffset * 60000);
   } catch (error) {
     console.warn(`Failed to convert date from timezone ${userTimezone} to UTC:`, error);
     return localDate;
@@ -161,7 +275,7 @@ function getTimezoneOffsetMinutes(timezone: string): number {
     const now = new Date();
     const utcDate = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
     const tzDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
-    
+
     return (tzDate.getTime() - utcDate.getTime()) / (1000 * 60);
   } catch (error) {
     return 0; // Default to UTC offset
@@ -180,7 +294,7 @@ export function formatTimeWithTimezone(date: Date, timezone: string): string {
       hour12: true,
       timeZoneName: 'short',
     });
-    
+
     return formatter.format(date);
   } catch (error) {
     console.warn(`Failed to format time for timezone ${timezone}:`, error);
@@ -191,10 +305,14 @@ export function formatTimeWithTimezone(date: Date, timezone: string): string {
 /**
  * Format date in user's timezone (date only)
  */
-export function formatDateInTimezone(dateInput: string | Date, timezone: string, isSmallScreen = false): string {
+export function formatDateInTimezone(
+  dateInput: string | Date,
+  timezone: string,
+  isSmallScreen = false,
+): string {
   try {
     const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-    
+
     if (isNaN(date.getTime())) {
       return 'Invalid date';
     }
@@ -225,8 +343,21 @@ export function formatDateInTimezone(dateInput: string | Date, timezone: string,
         year: '2-digit',
       });
     }
-    
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     const day = date.getDate();
     const month = months[date.getMonth()];
     const year = date.getFullYear();
@@ -237,14 +368,18 @@ export function formatDateInTimezone(dateInput: string | Date, timezone: string,
 /**
  * Format full datetime in user's timezone
  */
-export function formatDateTimeInTimezone(dateInput: string | Date, timezone: string, options?: {
-  showSeconds?: boolean;
-  showTimezone?: boolean;
-  use24Hour?: boolean;
-}): string {
+export function formatDateTimeInTimezone(
+  dateInput: string | Date,
+  timezone: string,
+  options?: {
+    showSeconds?: boolean;
+    showTimezone?: boolean;
+    use24Hour?: boolean;
+  },
+): string {
   try {
     const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-    
+
     if (isNaN(date.getTime())) {
       return 'Invalid date';
     }
@@ -278,13 +413,17 @@ export function formatDateTimeInTimezone(dateInput: string | Date, timezone: str
 /**
  * Format time only in user's timezone
  */
-export function formatTimeInTimezone(dateInput: string | Date, timezone: string, options?: {
-  showSeconds?: boolean;
-  use24Hour?: boolean;
-}): string {
+export function formatTimeInTimezone(
+  dateInput: string | Date,
+  timezone: string,
+  options?: {
+    showSeconds?: boolean;
+    use24Hour?: boolean;
+  },
+): string {
   try {
     const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-    
+
     if (isNaN(date.getTime())) {
       return 'Invalid time';
     }
@@ -314,7 +453,7 @@ export function formatTimeInTimezone(dateInput: string | Date, timezone: string,
 export function formatRelativeTimeInTimezone(dateInput: string | Date, timezone: string): string {
   try {
     const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-    
+
     if (isNaN(date.getTime())) {
       return 'Invalid date';
     }
@@ -357,10 +496,10 @@ export function getTimezoneAbbreviation(timezone: string): string {
       timeZone: timezone,
       timeZoneName: 'short',
     });
-    
+
     const parts = formatter.formatToParts(now);
-    const timeZoneName = parts.find(part => part.type === 'timeZoneName')?.value;
-    
+    const timeZoneName = parts.find((part) => part.type === 'timeZoneName')?.value;
+
     return timeZoneName || timezone;
   } catch (error) {
     console.warn(`Failed to get timezone abbreviation for ${timezone}:`, error);
@@ -375,29 +514,33 @@ export function getTimezoneAbbreviation(timezone: string): string {
  * @param userTimezone - User's timezone
  * @returns Object with UTC hour and minute
  */
-export function convertTimeToUTC(hour: number, minute: number, userTimezone: string): { hour: number; minute: number } {
+export function convertTimeToUTC(
+  hour: number,
+  minute: number,
+  userTimezone: string,
+): { hour: number; minute: number } {
   try {
     // Create a date in the user's timezone for today at the specified time
     const today = new Date();
     const userDate = new Date();
-    
+
     // Set the time in the user's timezone
     const userDateString = today.toLocaleDateString('en-CA'); // YYYY-MM-DD format
     const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
     const fullDateString = `${userDateString}T${timeString}:00`;
-    
+
     // Create date in user's timezone
     const localDate = new Date(fullDateString);
     const utcTime = new Date(localDate.toLocaleString('en-US', { timeZone: 'UTC' }));
     const userTime = new Date(localDate.toLocaleString('en-US', { timeZone: userTimezone }));
-    
+
     // Calculate the offset
     const offsetMs = userTime.getTime() - utcTime.getTime();
     const utcDate = new Date(localDate.getTime() - offsetMs);
-    
+
     return {
       hour: utcDate.getHours(),
-      minute: utcDate.getMinutes()
+      minute: utcDate.getMinutes(),
     };
   } catch (error) {
     console.warn(`Failed to convert time to UTC for timezone ${userTimezone}:`, error);
@@ -407,37 +550,36 @@ export function convertTimeToUTC(hour: number, minute: number, userTimezone: str
 
 /**
  * Convert a time from UTC to user's timezone
- * @param hour - Hour in UTC (0-23)  
+ * @param hour - Hour in UTC (0-23)
  * @param minute - Minute (0-59)
  * @param userTimezone - User's timezone
  * @returns Object with local hour and minute
  */
-export function convertTimeFromUTC(hour: number, minute: number, userTimezone: string): { hour: number; minute: number } {
+export function convertTimeFromUTC(
+  hour: number,
+  minute: number,
+  userTimezone: string,
+): { hour: number; minute: number } {
   try {
     // Create a UTC date for today at the specified time
     const today = new Date();
-    const utcDate = new Date(Date.UTC(
-      today.getUTCFullYear(),
-      today.getUTCMonth(), 
-      today.getUTCDate(),
-      hour,
-      minute,
-      0
-    ));
-    
+    const utcDate = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), hour, minute, 0),
+    );
+
     // Convert to user's timezone
-    const userTimeString = utcDate.toLocaleString('en-US', { 
+    const userTimeString = utcDate.toLocaleString('en-US', {
       timeZone: userTimezone,
       hour12: false,
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
-    
+
     const [userHour, userMinute] = userTimeString.split(':').map(Number);
-    
+
     return {
       hour: userHour,
-      minute: userMinute
+      minute: userMinute,
     };
   } catch (error) {
     console.warn(`Failed to convert time from UTC for timezone ${userTimezone}:`, error);
@@ -455,109 +597,109 @@ export function parseScheduleToUTCCron(input: string, userTimezone: string): str
   if (!input) return null;
 
   const cleanInput = input.toLowerCase().trim();
-  
+
   // Pattern matchers with timezone conversion
   const patterns = [
     // "daily at 9 AM" or "daily at 9:30 AM"
-    { 
-      regex: /daily\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i, 
+    {
+      regex: /daily\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i,
       handler: (match: RegExpMatchArray) => {
         let hour = parseInt(match[1]);
         const minute = parseInt(match[2] || '0');
         const period = match[3]?.toLowerCase();
-        
+
         // Convert to 24-hour format
         if (period === 'pm' && hour !== 12) hour += 12;
         if (period === 'am' && hour === 12) hour = 0;
-        
+
         // Convert to UTC
         const { hour: utcHour, minute: utcMinute } = convertTimeToUTC(hour, minute, userTimezone);
         return `${utcMinute} ${utcHour} * * *`;
-      }
+      },
     },
-    
+
     // "at 2 PM" or "at 14:30"
-    { 
-      regex: /(?:^|\s)at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?(?:\s|$)/i, 
+    {
+      regex: /(?:^|\s)at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?(?:\s|$)/i,
       handler: (match: RegExpMatchArray) => {
         let hour = parseInt(match[1]);
         const minute = parseInt(match[2] || '0');
         const period = match[3]?.toLowerCase();
-        
+
         // Convert to 24-hour format
         if (period === 'pm' && hour !== 12) hour += 12;
         if (period === 'am' && hour === 12) hour = 0;
-        
+
         // Convert to UTC for daily schedule
         const { hour: utcHour, minute: utcMinute } = convertTimeToUTC(hour, minute, userTimezone);
         return `${utcMinute} ${utcHour} * * *`;
-      }
+      },
     },
-    
+
     // "every X minutes"
-    { 
-      regex: /every\s+(\d+)\s+minutes?/i, 
+    {
+      regex: /every\s+(\d+)\s+minutes?/i,
       handler: (match: RegExpMatchArray) => {
         const minutes = parseInt(match[1]);
         return `*/${minutes} * * * *`;
-      }
+      },
     },
-    
+
     // "every hour"
-    { 
-      regex: /every\s+hour/i, 
-      handler: () => '0 * * * *'
+    {
+      regex: /every\s+hour/i,
+      handler: () => '0 * * * *',
     },
-    
+
     // "hourly"
-    { 
-      regex: /^hourly$/i, 
-      handler: () => '0 * * * *'
+    {
+      regex: /^hourly$/i,
+      handler: () => '0 * * * *',
     },
-    
+
     // "every morning" (9 AM in user's timezone)
-    { 
-      regex: /every\s+morning/i, 
+    {
+      regex: /every\s+morning/i,
       handler: () => {
         const { hour: utcHour, minute: utcMinute } = convertTimeToUTC(9, 0, userTimezone);
         return `${utcMinute} ${utcHour} * * *`;
-      }
+      },
     },
-    
+
     // "every day" or "daily" (default to 9 AM in user's timezone)
-    { 
-      regex: /(?:every\s+day|^daily$)(?!\s+at)/i, 
+    {
+      regex: /(?:every\s+day|^daily$)(?!\s+at)/i,
       handler: () => {
         const { hour: utcHour, minute: utcMinute } = convertTimeToUTC(9, 0, userTimezone);
         return `${utcMinute} ${utcHour} * * *`;
-      }
+      },
     },
-    
+
     // "every X hours"
-    { 
-      regex: /every\s+(\d+)\s+hours?/i, 
+    {
+      regex: /every\s+(\d+)\s+hours?/i,
       handler: (match: RegExpMatchArray) => {
         const hours = parseInt(match[1]);
         return `0 */${hours} * * *`;
-      }
+      },
     },
-    
+
     // "weekdays at 9 AM" (Monday-Friday)
-    { 
-      regex: /weekdays?\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i, 
+    {
+      regex: /weekdays?\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i,
       handler: (match: RegExpMatchArray) => {
         let hour = parseInt(match[1]);
         const minute = parseInt(match[2] || '0');
         const period = match[3]?.toLowerCase();
-        
+
         // Convert to 24-hour format
         if (period === 'pm' && hour !== 12) hour += 12;
         if (period === 'am' && hour === 12) hour = 0;
-        
+
         // Convert to UTC
         const { hour: utcHour, minute: utcMinute } = convertTimeToUTC(hour, minute, userTimezone);
         return `${utcMinute} ${utcHour} * * 1-5`; // Monday-Friday
-      }
+      },
     },
   ];
 
@@ -591,7 +733,8 @@ export function parseScheduleToUTCCron(input: string, userTimezone: string): str
  * @returns true if it looks like a cron expression
  */
 export function isCronExpression(input: string): boolean {
-  const cronPattern = /^(\*|[0-9,-/]+)\s+(\*|[0-9,-/]+)\s+(\*|[0-9,-/]+)\s+(\*|[0-9,-/]+)\s+(\*|[0-7,-/]+)$/;
+  const cronPattern =
+    /^(\*|[0-9,-/]+)\s+(\*|[0-9,-/]+)\s+(\*|[0-9,-/]+)\s+(\*|[0-9,-/]+)\s+(\*|[0-7,-/]+)$/;
   return cronPattern.test(input.trim());
 }
 
@@ -603,30 +746,46 @@ export function isCronExpression(input: string): boolean {
  */
 export function cronToHumanReadable(cronExpression: string, userTimezone: string): string {
   if (!cronExpression) return 'Not scheduled';
-  
+
   try {
     const parts = cronExpression.trim().split(/\s+/);
     if (parts.length !== 5) return cronExpression; // Invalid cron, return as is
-    
+
     const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
-    
+
     // Handle common patterns
-    if (minute !== '*' && hour !== '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+    if (
+      minute !== '*' &&
+      hour !== '*' &&
+      dayOfMonth === '*' &&
+      month === '*' &&
+      dayOfWeek === '*'
+    ) {
       // Daily at specific time
       const utcHour = parseInt(hour);
       const utcMinute = parseInt(minute);
-      
+
       if (!isNaN(utcHour) && !isNaN(utcMinute)) {
-        const { hour: localHour, minute: localMinute } = convertTimeFromUTC(utcHour, utcMinute, userTimezone);
+        const { hour: localHour, minute: localMinute } = convertTimeFromUTC(
+          utcHour,
+          utcMinute,
+          userTimezone,
+        );
         const period = localHour >= 12 ? 'PM' : 'AM';
         const displayHour = localHour === 0 ? 12 : localHour > 12 ? localHour - 12 : localHour;
         const timeStr = `${displayHour}:${localMinute.toString().padStart(2, '0')} ${period}`;
         return `Daily at ${timeStr}`;
       }
     }
-    
+
     // Handle minute-based schedules
-    if (minute.startsWith('*/') && hour === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+    if (
+      minute.startsWith('*/') &&
+      hour === '*' &&
+      dayOfMonth === '*' &&
+      month === '*' &&
+      dayOfWeek === '*'
+    ) {
       const intervalMinutes = parseInt(minute.substring(2));
       if (intervalMinutes === 1) {
         return 'Every minute';
@@ -634,32 +793,54 @@ export function cronToHumanReadable(cronExpression: string, userTimezone: string
         return `Every ${intervalMinutes} minutes`;
       }
     }
-    
+
     // Handle hourly schedules
-    if (minute === '0' && hour === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+    if (
+      minute === '0' &&
+      hour === '*' &&
+      dayOfMonth === '*' &&
+      month === '*' &&
+      dayOfWeek === '*'
+    ) {
       return 'Every hour';
     }
-    
+
     // Handle hour-based schedules
-    if (minute === '0' && hour.startsWith('*/') && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+    if (
+      minute === '0' &&
+      hour.startsWith('*/') &&
+      dayOfMonth === '*' &&
+      month === '*' &&
+      dayOfWeek === '*'
+    ) {
       const intervalHours = parseInt(hour.substring(2));
       return `Every ${intervalHours} hours`;
     }
-    
+
     // Handle weekdays
-    if (minute !== '*' && hour !== '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '1-5') {
+    if (
+      minute !== '*' &&
+      hour !== '*' &&
+      dayOfMonth === '*' &&
+      month === '*' &&
+      dayOfWeek === '1-5'
+    ) {
       const utcHour = parseInt(hour);
       const utcMinute = parseInt(minute);
-      
+
       if (!isNaN(utcHour) && !isNaN(utcMinute)) {
-        const { hour: localHour, minute: localMinute } = convertTimeFromUTC(utcHour, utcMinute, userTimezone);
+        const { hour: localHour, minute: localMinute } = convertTimeFromUTC(
+          utcHour,
+          utcMinute,
+          userTimezone,
+        );
         const period = localHour >= 12 ? 'PM' : 'AM';
         const displayHour = localHour === 0 ? 12 : localHour > 12 ? localHour - 12 : localHour;
         const timeStr = `${displayHour}:${localMinute.toString().padStart(2, '0')} ${period}`;
         return `Weekdays at ${timeStr}`;
       }
     }
-    
+
     return cronExpression; // Fallback to original if we can't parse it
   } catch (error) {
     console.warn(`Failed to convert cron to human readable for timezone ${userTimezone}:`, error);
@@ -670,7 +851,7 @@ export function cronToHumanReadable(cronExpression: string, userTimezone: string
 /**
  * Get next run time for a cron expression in user's timezone
  * @param cronExpression - UTC cron expression
- * @param userTimezone - User's timezone 
+ * @param userTimezone - User's timezone
  * @returns Next run date in user's timezone
  */
 export function getNextRunInTimezone(cronExpression: string, userTimezone: string): Date | null {
@@ -678,7 +859,7 @@ export function getNextRunInTimezone(cronExpression: string, userTimezone: strin
     // Calculate next run in UTC (using same logic as backend)
     const nextRunUTC = calculateNextRunUTC(cronExpression);
     if (!nextRunUTC) return null;
-    
+
     // Convert to user's timezone for display
     const userTimeString = nextRunUTC.toLocaleString('en-US', { timeZone: userTimezone });
     return new Date(userTimeString);
@@ -690,7 +871,7 @@ export function getNextRunInTimezone(cronExpression: string, userTimezone: strin
 
 /**
  * Calculate next run time for cron expression in UTC (client-side approximation)
- * Note: This is a simplified version for client-side preview. 
+ * Note: This is a simplified version for client-side preview.
  * The authoritative calculation happens on the server.
  */
 function calculateNextRunUTC(cronExpression: string): Date | null {
@@ -699,28 +880,34 @@ function calculateNextRunUTC(cronExpression: string): Date | null {
     // For production, you might want to use a proper cron library on the client side too
     const parts = cronExpression.trim().split(/\s+/);
     if (parts.length !== 5) return null;
-    
+
     const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
     const now = new Date();
-    
+
     // Handle simple daily schedules
-    if (minute !== '*' && hour !== '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+    if (
+      minute !== '*' &&
+      hour !== '*' &&
+      dayOfMonth === '*' &&
+      month === '*' &&
+      dayOfWeek === '*'
+    ) {
       const targetHour = parseInt(hour);
       const targetMinute = parseInt(minute);
-      
+
       if (!isNaN(targetHour) && !isNaN(targetMinute)) {
         const nextRun = new Date(now);
         nextRun.setUTCHours(targetHour, targetMinute, 0, 0);
-        
+
         // If the time has passed today, schedule for tomorrow
         if (nextRun <= now) {
           nextRun.setUTCDate(nextRun.getUTCDate() + 1);
         }
-        
+
         return nextRun;
       }
     }
-    
+
     // Handle minute intervals
     if (minute.startsWith('*/') && hour === '*') {
       const interval = parseInt(minute.substring(2));
@@ -728,7 +915,7 @@ function calculateNextRunUTC(cronExpression: string): Date | null {
         const nextRun = new Date(now);
         const currentMinute = nextRun.getUTCMinutes();
         const nextMinute = Math.ceil((currentMinute + 1) / interval) * interval;
-        
+
         if (nextMinute >= 60) {
           nextRun.setUTCHours(nextRun.getUTCHours() + 1);
           nextRun.setUTCMinutes(nextMinute % 60);
@@ -736,11 +923,11 @@ function calculateNextRunUTC(cronExpression: string): Date | null {
           nextRun.setUTCMinutes(nextMinute);
         }
         nextRun.setUTCSeconds(0, 0);
-        
+
         return nextRun;
       }
     }
-    
+
     // For complex patterns, return a rough estimate (1 hour from now)
     const estimate = new Date(now.getTime() + 60 * 60 * 1000);
     return estimate;
@@ -748,4 +935,4 @@ function calculateNextRunUTC(cronExpression: string): Date | null {
     console.warn('Failed to calculate next run UTC:', error);
     return null;
   }
-} 
+}

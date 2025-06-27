@@ -20,6 +20,7 @@ module.exports = () =>
       callbackURL: `${process.env.DOMAIN_SERVER}${process.env.GITHUB_CALLBACK_URL}`,
       proxy: false,
       scope: ['user:email'],
+      passReqToCallback: true, // This passes the request object to the callback
       ...(process.env.GITHUB_ENTERPRISE_BASE_URL && {
         authorizationURL: `${process.env.GITHUB_ENTERPRISE_BASE_URL}/login/oauth/authorize`,
         tokenURL: `${process.env.GITHUB_ENTERPRISE_BASE_URL}/login/oauth/access_token`,

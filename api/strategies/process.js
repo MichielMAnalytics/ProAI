@@ -53,6 +53,7 @@ const handleExistingUser = async (oldUser, avatarUrl) => {
  * @param {string} params.username - The username of the new user.
  * @param {string} params.name - The name of the new user.
  * @param {boolean} [params.emailVerified=false] - Optional. Indicates whether the user's email is verified. Defaults to false.
+ * @param {string} [params.timezone] - Optional. The user's timezone. Defaults to UTC if not provided.
  *
  * @returns {Promise<User>}
  *          A promise that resolves to the newly created user object.
@@ -68,6 +69,7 @@ const createSocialUser = async ({
   username,
   name,
   emailVerified,
+  timezone,
 }) => {
   const update = {
     email,
@@ -77,6 +79,7 @@ const createSocialUser = async ({
     username,
     name,
     emailVerified,
+    timezone: timezone || 'UTC', // Default to UTC if no timezone provided
   };
 
   const balanceConfig = await getBalanceConfig();
