@@ -743,6 +743,8 @@
   "com_ui_prompt_assist_tooltip": "Enhance your instructions with AI assistance",
   "com_ui_prompt_enhanced": "Instructions enhanced successfully",
   "com_ui_prompt_enhance_error": "Failed to enhance instructions",
+  "com_ui_enhance_mode_on": "Enhance mode is ON - messages will be improved before sending",
+  "com_ui_enhance_mode_off": "Enhance mode is OFF - click to enable message enhancement",
   "com_ui_integrations": "Integrations",
   "com_ui_integrations_coming_soon": "MCP integrations will be displayed here soon.",
   "com_ui_integrations_available": "Available Integrations",
@@ -990,5 +992,7 @@
   "com_ui_create_memory": "Create Memory",
   "com_ui_memory_created": "Memory created successfully",
   "com_ui_memory_key_exists": "A memory with this key already exists. Please use a different key.",
-  "com_agents_no_agent_id_error": "No agent ID found. Please ensure the agent is created first."
+  "com_agents_no_agent_id_error": "No agent ID found. Please ensure the agent is created first.",
+  "com_ui_enhance_prompt": "Enhance this prompt to make it more detailed and effective",
+  "com_ui_enhancing": "Enhancing your prompt..."
 }

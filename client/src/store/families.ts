@@ -158,6 +158,11 @@ const showStopButtonByIndex = atomFamily<boolean, string | number>({
   default: false,
 });
 
+const enhanceModeByIndex = atomFamily<boolean, string | number>({
+  key: 'enhanceModeByIndex',
+  default: false,
+});
+
 const abortScrollFamily = atomFamily<boolean, string | number>({
   key: 'abortScrollByIndex',
   default: false,
@@ -392,6 +397,7 @@ export default {
   submissionByIndex,
   textByIndex,
   showStopButtonByIndex,
+  enhanceModeByIndex,
   abortScrollFamily,
   isSubmittingFamily,
   optionSettingsFamily,

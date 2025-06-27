@@ -1,0 +1,74 @@
+import React, { useState } from 'react';
+import { Sparkles } from 'lucide-react';
+import { cn } from '~/utils';
+import { useLocalize } from '~/hooks';
+import { TooltipAnchor } from '~/components/ui/Tooltip';
+import { dataService } from 'librechat-data-provider';
+
+interface EnhancePromptProps {
+  textAreaRef: React.RefObject<HTMLTextAreaElement>;
+  disabled?: boolean;
+  className?: string;
+}
+
+export default function EnhancePrompt({ textAreaRef, disabled = false, className }: EnhancePromptProps) {
+  const localize = useLocalize();
+  const [isEnhancing, setIsEnhancing] = useState(false);
+
+  const handleEnhance = async () => {
+    if (!textAreaRef.current || disabled || isEnhancing) {
+      return;
+    }
+
+    const currentText = textAreaRef.current.value.trim();
+    if (!currentText) {
+      return;
+    }
+
+    setIsEnhancing(true);
+    try {
+      const response = await dataService.enhanceMessage(currentText);
+      if (response.enhancedMessage && textAreaRef.current) {
+        textAreaRef.current.value = response.enhancedMessage;
+        // Trigger input event to update form state
+        const event = new Event('input', { bubbles: true });
+        textAreaRef.current.dispatchEvent(event);
+        // Force resize
+        textAreaRef.current.style.height = 'auto';
+        textAreaRef.current.style.height = textAreaRef.current.scrollHeight + 'px';
+      }
+    } catch (error) {
+      console.error('Failed to enhance message:', error);
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
+
+  const tooltipDescription = isEnhancing 
+    ? localize('com_ui_enhancing')
+    : localize('com_ui_enhance_prompt');
+
+  return (
+    <TooltipAnchor
+      description={tooltipDescription}
+      side="top"
+      role="button"
+      className={cn(
+        'flex h-[40px] w-[40px] items-center justify-center transition-all duration-200 hover:opacity-80 rounded-md',
+        disabled && 'opacity-50 cursor-not-allowed',
+        className,
+      )}
+      onClick={handleEnhance}
+      aria-label={tooltipDescription}
+    >
+      <Sparkles
+        className={cn(
+          'h-6 w-6 transition-all duration-200',
+          isEnhancing 
+            ? 'text-yellow-500 animate-pulse [&>*]:fill-current' 
+            : 'text-text-secondary hover:text-yellow-500'
+        )}
+      />
+    </TooltipAnchor>
+  );
+}

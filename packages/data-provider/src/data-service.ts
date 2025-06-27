@@ -107,6 +107,10 @@ export function enhancePrompt(data: {
   return request.post(endpoints.promptAssist(), data);
 }
 
+export function enhanceMessage(message: string): Promise<{ enhancedMessage: string }> {
+  return request.post(endpoints.enhanceMessage(), { message });
+}
+
 export const updateTokenCount = (text: string) => {
   return request.post(endpoints.tokenizer(), { arg: text });
 };

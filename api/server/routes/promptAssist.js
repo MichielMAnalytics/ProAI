@@ -92,4 +92,84 @@ Create enhanced instructions that will help the AI assistant perform its intende
   }
 });
 
+router.post('/enhance-message', requireJwtAuth, async (req, res) => {
+  try {
+    const { message } = req.body;
+    
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    // Get prompt assist configuration
+    const customConfig = await getCustomConfig();
+    const promptAssistConfig = customConfig?.promptAssist;
+    
+    if (!promptAssistConfig?.enabled) {
+      return res.status(400).json({ error: 'Prompt assist is not enabled' });
+    }
+
+    const provider = promptAssistConfig.provider || 'openAI';
+    const model = promptAssistConfig.model || 'gpt-4o-mini';
+    
+    if (provider !== 'openAI') {
+      return res.status(400).json({ error: 'Only OpenAI provider is currently supported' });
+    }
+
+    // Check for OpenAI API key
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(400).json({ error: 'OpenAI API key not configured' });
+    }
+
+    // Create OpenAI client directly
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+    
+    const systemPrompt = `You are an expert at improving user messages to AI assistants to make them much clearer, more specific, and more effective for getting high-quality responses.
+
+Your task is to significantly enhance the user's message while preserving their original intent. The enhancement should:
+- Expand on the core request with specific details and context
+- Add relevant parameters, constraints, and requirements that would help the AI provide a better response
+- Include desired output format, length, or structure when applicable
+- Add context about the use case, target audience, or specific goals
+- Make the request actionable and comprehensive
+- Transform vague requests into detailed, specific instructions
+
+IMPORTANT GUIDELINES:
+- Transform brief requests into detailed, comprehensive prompts
+- Add relevant context that would help the AI understand the full scope
+- Include specific requirements like format, length, tone, target audience
+- Preserve the user's original intent but make it much more detailed
+- Return ONLY the enhanced message text without quotes, explanations, or additional formatting
+- Do not add quotes around the response
+
+Examples:
+- "help me write code" → "Help me write clean, well-documented Python code for [specific functionality]. Include error handling, follow PEP 8 standards, and add inline comments explaining the logic. Provide the complete code with example usage."
+- "make a sales email" → "Create a professional sales email template for B2B cold outreach targeting [specific industry/role]. The email should be personalized, include a clear value proposition, have a compelling subject line, and end with a specific call-to-action. Keep it under 150 words and maintain a consultative tone."
+
+Return the enhanced message as plain text.`;
+
+    const userPrompt = `Transform this user message into a detailed, comprehensive prompt that will help an AI assistant provide the best possible response:
+
+${message}`;
+
+    const response = await openai.chat.completions.create({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 500,
+    });
+
+    const enhancedMessage = response.choices[0]?.message?.content || message;
+    
+    res.json({ enhancedMessage });
+  } catch (error) {
+    logger.error('[/api/prompt-assist/enhance-message] Error enhancing message:', error);
+    res.status(500).json({ error: 'Failed to enhance message', originalMessage: req.body.message });
+  }
+});
+
 module.exports = router;

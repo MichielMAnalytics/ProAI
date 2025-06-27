@@ -33,6 +33,7 @@ import SendButton from './SendButton';
 import EditBadges from './EditBadges';
 import BadgeRow from './BadgeRow';
 import Mention from './Mention';
+import EnhancePrompt from './EnhancePrompt';
 import AppDetailsModal from '../../Integrations/AppDetailsModal';
 import ToolDetailsModal from '../../Tools/ToolDetailsModal';
 import store from '~/store';
@@ -653,6 +654,12 @@ const ChatForm = memo(
                     isSubmitting={isSubmitting}
                   />
                 )}
+                <div className={`${isRTL ? 'ml-2' : 'mr-2'}`}>
+                  <EnhancePrompt 
+                    textAreaRef={textAreaRef} 
+                    disabled={disableInputs || isNotAppendable || !textValue?.trim()} 
+                  />
+                </div>
                 <div className={`${isRTL ? 'ml-2' : 'mr-2'}`}>
                   {(isSubmitting || isSubmittingAdded) && (showStopButton || showStopAdded) ? (
                     <StopButton stop={handleStopGenerating} setShowStopButton={setShowStopButton} />

@@ -1,7 +1,7 @@
 import { v4 } from 'uuid';
 import { useCallback } from 'react';
 import { useRecoilValue, useSetRecoilState } from 'recoil';
-import { Constants, replaceSpecialVars } from 'librechat-data-provider';
+import { Constants, replaceSpecialVars, dataService } from 'librechat-data-provider';
 import { useChatContext, useChatFormContext, useAddedChatContext } from '~/Providers';
 import { useAuthContext } from '~/hooks/AuthContext';
 import store from '~/store';
@@ -24,10 +24,13 @@ export default function useSubmitMessage() {
   const setActivePrompt = useSetRecoilState(store.activePromptByIndex(index));
 
   const submitMessage = useCallback(
-    (data?: { text: string }) => {
+    async (data?: { text: string }) => {
       if (!data) {
         return console.warn('No data provided to submitMessage');
       }
+
+      const finalText = data.text;
+
       const rootMessages = getMessages();
       const isLatestInRootMessages = rootMessages?.some(
         (message) => message.messageId === latestMessage?.messageId,
@@ -47,7 +50,7 @@ export default function useSubmitMessage() {
       const clientTimestamp = new Date().toISOString();
 
       ask({
-        text: data.text,
+        text: finalText,
         overrideConvoId: appendIndex(rootIndex, overrideConvoId),
         overrideUserMessageId: appendIndex(rootIndex, overrideUserMessageId),
         clientTimestamp,
@@ -56,7 +59,7 @@ export default function useSubmitMessage() {
       if (hasAdded) {
         askAdditional(
           {
-            text: data.text,
+            text: finalText,
             overrideConvoId: appendIndex(addedIndex, overrideConvoId),
             overrideUserMessageId: appendIndex(addedIndex, overrideUserMessageId),
             clientTimestamp,

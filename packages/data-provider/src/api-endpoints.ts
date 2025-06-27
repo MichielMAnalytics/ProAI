@@ -31,6 +31,8 @@ export const deleteUser = () => '/api/user/delete';
 
 export const promptAssist = () => '/api/prompt-assist';
 
+export const enhanceMessage = () => '/api/prompt-assist/enhance-message';
+
 export const messages = (params: q.MessagesListParams) => {
   const { conversationId, messageId, ...rest } = params;
 
