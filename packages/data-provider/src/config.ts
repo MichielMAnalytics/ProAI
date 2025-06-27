@@ -1601,11 +1601,8 @@ export const providerEndpointMap = {
 export const specialVariables = {
   current_date: true,
   current_user: true,
-  iso_datetime: true,
   current_datetime: true,
-  current_date_time: true, // Alternative name for current_datetime
-  utc_iso_datetime: true,  // Alternative name for iso_datetime
-  
+  utc_iso_datetime: true,
   tools: true,
 };
 

@@ -132,6 +132,30 @@ function ToolSelectDialog({
     );
   };
 
+  const onRemoveApp = (appId: string, toolKeys: string[]) => {
+    setShowPluginAuthForm(false);
+    
+    // Remove all tools from this app immediately from the form
+    const currentTools = getValues(toolsFormKey);
+    const updatedTools = currentTools.filter((fn: string | any) => {
+      const fnKey = typeof fn === 'string' ? fn : fn.tool || fn;
+      return !toolKeys.includes(fnKey);
+    });
+    setValue(toolsFormKey, updatedTools);
+    
+    // Then handle uninstallation for each tool
+    toolKeys.forEach(toolKey => {
+      updateUserPlugins.mutate(
+        { pluginKey: toolKey, action: 'uninstall', auth: undefined, isEntityTool: true },
+        {
+          onError: (error: unknown) => {
+            handleInstallError(error as TError);
+          },
+        },
+      );
+    });
+  };
+
   const onAddTool = (pluginKey: string) => {
     setShowPluginAuthForm(false);
     const getAvailablePluginFromKey = tools?.find((p) => p.pluginKey === pluginKey);
@@ -691,6 +715,7 @@ function ToolSelectDialog({
                             updateMCPServers={updateMCPServers}
                             onAddTool={onAddTool}
                             onRemoveTool={onRemoveTool}
+                            onRemoveApp={onRemoveApp}
                           />
                         ))}
                       </div>
@@ -713,6 +738,7 @@ function ToolSelectDialog({
                             updateMCPServers={updateMCPServers}
                             onAddTool={onAddTool}
                             onRemoveTool={onRemoveTool}
+                            onRemoveApp={onRemoveApp}
                           />
                         ))}
                       </div>

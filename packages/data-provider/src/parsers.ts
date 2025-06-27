@@ -451,7 +451,7 @@ export function replaceSpecialVars({
   const now = new Date();
   
   // Log timezone usage for debugging
-  if (userTimezone && (text.includes('{{current_date}}') || text.includes('{{current_datetime}}') || text.includes('{{current_date_time}}'))) {
+  if (userTimezone && (text.includes('{{current_date}}') || text.includes('{{current_datetime}}'))) {
     console.log(`[replaceSpecialVars] Using timezone: ${userTimezone} for user: ${user?.name || 'unknown'}`);
   }
 
@@ -516,14 +516,8 @@ export function replaceSpecialVars({
   }
   
   result = result.replace(/{{current_datetime}}/gi, `${currentDatetime} (${dayNumber})`);
-  
-  // Support alternative variable name
-  result = result.replace(/{{current_date_time}}/gi, `${currentDatetime} (${dayNumber})`);
 
   const isoDatetime = dayjs().toISOString();
-  result = result.replace(/{{iso_datetime}}/gi, isoDatetime);
-  
-  // Support alternative variable name
   result = result.replace(/{{utc_iso_datetime}}/gi, isoDatetime);
 
   if (user && user.name) {

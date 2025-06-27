@@ -26,6 +26,7 @@ interface AppCardProps {
   updateMCPServers: () => void;
   onAddTool: (pluginKey: string) => void;
   onRemoveTool: (pluginKey: string) => void;
+  onRemoveApp: (appId: string, toolKeys: string[]) => void;
 }
 
 export default function AppCard({ 
@@ -34,7 +35,8 @@ export default function AppCard({
   onInstallError,
   updateMCPServers,
   onAddTool,
-  onRemoveTool
+  onRemoveTool,
+  onRemoveApp
 }: AppCardProps) {
 
   const [isExpanded, setIsExpanded] = useState(false);
@@ -98,9 +100,7 @@ export default function AppCard({
       
       if (allToolsSelected) {
         // Deselect all tools from this app
-        toolKeys.forEach(toolKey => {
-          onRemoveTool(toolKey);
-        });
+        onRemoveApp(app.id, toolKeys);
       } else {
         // Select all tools from this app that don't require auth
         app.tools.forEach(tool => {
