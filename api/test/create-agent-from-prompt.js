@@ -5,10 +5,10 @@
 //   cd api && node test/create-agent-from-prompt.js burn_monitor.txt
 
 //   With custom user ID:
-//   cd api && node test/create-agent-from-prompt.js burn_monitor.txt 68341a46ee1d93d1f7d18834
+//   cd api && node test/create-agent-from-prompt.js burn_monitor.txt 685e6b47738f92a3c82c88eb
 
 //   With options:
-//   cd api && node test/create-agent-from-prompt.js burn_monitor.txt 68341a46ee1d93d1f7d18834
+//   cd api && node test/create-agent-from-prompt.js burn_monitor.txt 685e6b47738f92a3c82c88eb
 //   '{"tools":["web_search","workflows"],"provider":"anthropic","model":"claude-3-sonnet"}'
 
 const path = require('path');
@@ -161,10 +161,10 @@ async function updateAgentVersion(existingAgent, newAgentData) {
 /**
  * Create agent in database from prompt file
  * @param {string} filename - Name of the prompt file
- * @param {string} userId - MongoDB ObjectId of the user (optional, defaults to 6831a77a46d7304e714d8248)
+ * @param {string} userId - MongoDB ObjectId of the user (optional, defaults to 685e6b47738f92a3c82c88eb)
  * @param {Object} options - Additional options
  */
-async function createAgentFromPrompt(filename, userId = '6831a77a46d7304e714d8248', options = {}) {
+async function createAgentFromPrompt(filename, userId = '685e6b47738f92a3c82c88eb', options = {}) {
   try {
     // Connect to database
     await connectDb();
@@ -269,7 +269,7 @@ if (require.main === module) {
     console.log('');
     console.log('Arguments:');
     console.log('  filename   - Name of the prompt file (e.g., burn_monitor.txt)');
-    console.log('  user_id    - MongoDB ObjectId of the user (optional, defaults to 6831a77a46d7304e714d8248)');
+    console.log('  user_id    - MongoDB ObjectId of the user (optional, defaults to 685e6b47738f92a3c82c88eb)');
     console.log('');
     console.log('Options (JSON format):');
     console.log('  --provider       - AI provider (default: "openAI")');
@@ -278,13 +278,13 @@ if (require.main === module) {
     console.log('');
     console.log('Examples:');
     console.log('  node create-agent-from-prompt.js burn_monitor.txt');
-    console.log('  node create-agent-from-prompt.js burn_monitor.txt 68341a46ee1d93d1f7d18834');
-    console.log('  node create-agent-from-prompt.js burn_monitor.txt 68341a46ee1d93d1f7d18834 \'{"tools":["web_search"],"provider":"anthropic","model":"claude-3-sonnet"}\'');
+    console.log('  node create-agent-from-prompt.js burn_monitor.txt 685e6b47738f92a3c82c88eb');
+    console.log('  node create-agent-from-prompt.js burn_monitor.txt 685e6b47738f92a3c82c88eb \'{"tools":["web_search"],"provider":"anthropic","model":"claude-3-sonnet"}\'');
     process.exit(1);
   }
   
   const filename = args[0];
-  const userId = args[1] || '6831a77a46d7304e714d8248'; // Default user ID
+  const userId = args[1] || '685e6b47738f92a3c82c88eb'; // Default user ID
   const optionsJson = args[2] || '{}';
   
   let options = {};
