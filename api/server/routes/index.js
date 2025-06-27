@@ -32,6 +32,7 @@ const scheduler = require('./scheduler');
 const workflows = require('./workflows');
 const enterpriseContact = require('./enterpriseContact');
 const stripe = require('./stripe');
+const promptAssist = require('./promptAssist');
 
 module.exports = {
   ask,
@@ -68,4 +69,5 @@ module.exports = {
   workflows,
   enterpriseContact,
   stripe,
+  promptAssist,
 };

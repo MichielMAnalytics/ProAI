@@ -130,6 +130,7 @@ const startServer = async () => {
   app.use('/api/workflows', routes.workflows);
   app.use('/api/enterprise-contact', routes.enterpriseContact);
   app.use('/api/stripe', routes.stripe);
+  app.use('/api/prompt-assist', routes.promptAssist);
 
   app.use((req, res) => {
     res.set({

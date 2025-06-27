@@ -9,6 +9,7 @@ import { cn, defaultTextProps, removeFocusOutlines } from '~/utils';
 // import ControlCombobox from '~/components/ui/ControlCombobox';
 import { DropdownPopup } from '~/components';
 import { useLocalize } from '~/hooks';
+import PromptAssist from '../PromptAssist';
 
 const inputClass = cn(
   defaultTextProps,
@@ -48,51 +49,54 @@ export default function Instructions() {
         <label className="text-token-text-primary flex-grow font-medium" htmlFor="instructions">
           {localize('com_ui_instructions')}
         </label>
-        <div className="ml-auto" title="Add variables to instructions">
-          {/* ControlCombobox implementation
-          <ControlCombobox
-            selectedValue=""
-            displayValue="Add variables"
-            items={variableOptions.map((option) => ({
-              label: option.label,
-              value: option.value,
-            }))}
-            setValue={handleAddVariable}
-            ariaLabel="Add variable to instructions"
-            searchPlaceholder="Search variables"
-            selectPlaceholder="Add"
-            isCollapsed={false}
-            SelectIcon={<PlusCircle className="h-3 w-3 text-text-secondary" />}
-            containerClassName="w-fit"
-            className="h-7 gap-1 rounded-md border border-border-medium bg-surface-secondary px-2 py-0 text-sm text-text-primary transition-colors duration-200 hover:bg-surface-tertiary"
-            iconSide="left"
-            showCarat={false}
-          />
-          */}
-          <DropdownPopup
-            portal={true}
-            mountByState={true}
-            unmountOnHide={true}
-            preserveTabOrder={true}
-            isOpen={isMenuOpen}
-            setIsOpen={setIsMenuOpen}
-            trigger={
-              <Menu.MenuButton
-                id="variables-menu-button"
-                aria-label="Add variable to instructions"
-                className="flex h-7 items-center gap-1 rounded-md border border-border-medium bg-surface-secondary px-2 py-0 text-sm text-text-primary transition-colors duration-200 hover:bg-surface-tertiary"
-              >
-                <PlusCircle className="mr-1 h-3 w-3 text-text-secondary" aria-hidden={true} />
-                {localize('com_ui_variables')}
-              </Menu.MenuButton>
-            }
-            items={variableOptions.map((option) => ({
-              label: localize(option.label) || option.label,
-              onClick: () => handleAddVariable(option.label, option.value),
-            }))}
-            menuId={menuId}
-            className="z-30"
-          />
+        <div className="ml-auto flex items-center gap-2">
+          <PromptAssist className="h-7" />
+          <div title="Add variables to instructions">
+            {/* ControlCombobox implementation
+            <ControlCombobox
+              selectedValue=""
+              displayValue="Add variables"
+              items={variableOptions.map((option) => ({
+                label: option.label,
+                value: option.value,
+              }))}
+              setValue={handleAddVariable}
+              ariaLabel="Add variable to instructions"
+              searchPlaceholder="Search variables"
+              selectPlaceholder="Add"
+              isCollapsed={false}
+              SelectIcon={<PlusCircle className="h-3 w-3 text-text-secondary" />}
+              containerClassName="w-fit"
+              className="h-7 gap-1 rounded-md border border-border-medium bg-surface-secondary px-2 py-0 text-sm text-text-primary transition-colors duration-200 hover:bg-surface-tertiary"
+              iconSide="left"
+              showCarat={false}
+            />
+            */}
+            <DropdownPopup
+              portal={true}
+              mountByState={true}
+              unmountOnHide={true}
+              preserveTabOrder={true}
+              isOpen={isMenuOpen}
+              setIsOpen={setIsMenuOpen}
+              trigger={
+                <Menu.MenuButton
+                  id="variables-menu-button"
+                  aria-label="Add variable to instructions"
+                  className="flex h-7 items-center gap-1 rounded-md border border-border-medium bg-surface-secondary px-2 py-0 text-sm text-text-primary transition-colors duration-200 hover:bg-surface-tertiary"
+                >
+                  <PlusCircle className="mr-1 h-3 w-3 text-text-secondary" aria-hidden={true} />
+                  {localize('com_ui_variables')}
+                </Menu.MenuButton>
+              }
+              items={variableOptions.map((option) => ({
+                label: localize(option.label) || option.label,
+                onClick: () => handleAddVariable(option.label, option.value),
+              }))}
+              menuId={menuId}
+              className="z-30"
+            />
+          </div>
         </div>
       </div>
       <Controller

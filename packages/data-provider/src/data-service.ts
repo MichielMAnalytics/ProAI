@@ -98,6 +98,15 @@ export function getUserBalance(): Promise<TUserBalance> {
   return request.get(endpoints.balance() + '?detailed=true');
 }
 
+export function enhancePrompt(data: {
+  title?: string;
+  description?: string;
+  instructions?: string;
+  availableVariables?: Array<{ name: string; syntax: string; description: string }>;
+}): Promise<{ enhancedPrompt: string }> {
+  return request.post(endpoints.promptAssist(), data);
+}
+
 export const updateTokenCount = (text: string) => {
   return request.post(endpoints.tokenizer(), { arg: text });
 };

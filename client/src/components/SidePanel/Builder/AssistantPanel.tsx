@@ -31,6 +31,7 @@ import { Spinner } from '~/components/svg';
 import Knowledge from './Knowledge';
 import { Panel } from '~/common';
 import Action from './Action';
+import PromptAssist from '../PromptAssist';
 
 const labelClass = 'mb-2 text-token-text-primary block font-medium';
 const inputClass = cn(
@@ -310,9 +311,14 @@ export default function AssistantPanel({
 
           {/* Instructions */}
           <div className="mb-6">
-            <label className={labelClass} htmlFor="instructions">
-              {localize('com_ui_instructions')}
-            </label>
+            <div className="mb-2 flex items-center">
+              <label className={cn(labelClass, 'mb-0 flex-grow')} htmlFor="instructions">
+                {localize('com_ui_instructions')}
+              </label>
+              <div className="ml-auto">
+                <PromptAssist className="h-7" />
+              </div>
+            </div>
             <Controller
               name="instructions"
               control={control}

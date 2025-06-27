@@ -765,6 +765,14 @@ export const workflowsSchema = z.object({
 
 export type TWorkflowsConfig = z.infer<typeof workflowsSchema>;
 
+export const promptAssistSchema = z.object({
+  enabled: z.boolean().optional().default(true),
+  provider: z.string().optional().default('openAI'),
+  model: z.string().optional().default('gpt-4o-mini'),
+});
+
+export type TPromptAssistConfig = z.infer<typeof promptAssistSchema>;
+
 export const memorySchema = z.object({
   disabled: z.boolean().optional(),
   validKeys: z.array(z.string()).optional(),
@@ -817,6 +825,7 @@ export const configSchema = z.object({
   balance: balanceSchema.optional(),
   scheduler: schedulerSchema.optional(),
   workflows: workflowsSchema.optional(),
+  promptAssist: promptAssistSchema.optional(),
   speech: z
     .object({
       tts: ttsSchema.optional(),
