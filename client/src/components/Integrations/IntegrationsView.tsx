@@ -109,7 +109,7 @@ export default function IntegrationsView() {
 
   // Preload critical images properly
   useEffect(() => {
-    const imageUrls = ['/assets/logo.svg', '/assets/pipedream.png'];
+    const imageUrls = ['/assets/logo.svg', '/assets/pipedream.png', '/assets/zen2.png'];
     let loadedCount = 0;
     
     const handleImageLoad = () => {
@@ -531,23 +531,6 @@ export default function IntegrationsView() {
 
       {/* Header - Mobile responsive */}
       <div className="integrations-header relative overflow-hidden">
-        {/* Subtle grid pattern overlay */}
-        <div className="absolute inset-0 opacity-60 dark:opacity-45">
-          <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
-                <path 
-                  d="M 32 0 L 0 0 0 32" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  strokeWidth="0.75" 
-                  className="text-border-light dark:text-border-medium"
-                />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#grid)" />
-          </svg>
-        </div>
 
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-12">
           <div className="text-center max-w-4xl mx-auto">
@@ -562,13 +545,13 @@ export default function IntegrationsView() {
               }}
             >
               {/* Premium glassmorphism overlay */}
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-brand-blue/8 via-indigo-500/12 to-brand-blue/8 dark:from-indigo-400/10 dark:via-blue-400/15 dark:to-indigo-400/10"></div>
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-brand-blue/8 via-indigo-500/12 to-brand-blue/8 dark:from-indigo-400/10 dark:via-blue-400/15 dark:to-indigo-400/10 z-10"></div>
               
               {/* Animated border glow effect */}
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-brand-blue/25 via-indigo-400/35 to-brand-blue/25 dark:from-indigo-300/25 dark:via-blue-300/35 dark:to-indigo-300/25 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm"></div>
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-brand-blue/25 via-indigo-400/35 to-brand-blue/25 dark:from-indigo-300/25 dark:via-blue-300/35 dark:to-indigo-300/25 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm z-10"></div>
               
               {/* Content container */}
-              <div className="relative z-10 flex items-center gap-2 sm:gap-3">
+              <div className="relative z-40 flex items-center gap-2 sm:gap-3">
                 {/* Eve logo with Pipedream attribution underneath */}
                 <div className="flex flex-col items-center gap-1 flex-shrink-0">
                   <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-xl shadow-lg shadow-brand-blue/30 dark:shadow-indigo-400/30 group-hover:scale-110 group-hover:shadow-brand-blue/40 dark:group-hover:shadow-indigo-400/40 transition-all duration-300 bg-brand-blue flex items-center justify-center">
@@ -621,13 +604,28 @@ export default function IntegrationsView() {
               </div>
               
               {/* Subtle inner glow */}
-              <div className="absolute inset-px rounded-2xl bg-gradient-to-r from-white/20 via-transparent to-white/20 dark:from-white/10 dark:via-transparent dark:to-white/10 pointer-events-none"></div>
+              <div className="absolute inset-px rounded-2xl bg-gradient-to-r from-white/20 via-transparent to-white/20 dark:from-white/10 dark:via-transparent dark:to-white/10 pointer-events-none z-30"></div>
               
               {/* Premium shine effect */}
-              <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+              <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none z-30">
                 <div className="absolute -top-2 -left-2 w-6 h-6 sm:w-8 sm:h-8 bg-white/40 dark:bg-white/20 rounded-full blur-xl opacity-60 group-hover:opacity-80 transition-opacity duration-500"></div>
                 <div className="absolute top-1 left-1 w-12 h-px sm:w-16 bg-gradient-to-r from-transparent via-white/60 dark:via-white/30 to-transparent opacity-50"></div>
               </div>
+
+              {/* Zen character positioned on badge */}
+              <div className="absolute bottom-0.5 right-0.5 sm:bottom-0.5 sm:right-1 w-8 h-8 sm:w-10 sm:h-10 z-20 pointer-events-none">
+                <img 
+                  src="/assets/zen2.png" 
+                  alt="Zen character pointing" 
+                  className="w-full h-full object-contain transform group-hover:scale-110 transition-transform duration-300"
+                  style={{ 
+                    filter: 'drop-shadow(0 2px 8px rgba(0, 0, 0, 0.1))',
+                    minHeight: '100%', 
+                    minWidth: '100%' 
+                  }}
+                />
+              </div>
+
             </div>
 
             {/* Main Title - Mobile responsive */}

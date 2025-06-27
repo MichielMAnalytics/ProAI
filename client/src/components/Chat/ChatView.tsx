@@ -181,13 +181,9 @@ function ChatView({ index = 0 }: { index?: number }) {
           <Presentation>
             <div 
               className={cn(
-                "flex h-full w-full flex-col chat-grid-bg",
+                "flex h-full w-full flex-col",
                 shouldShowAgentModal && "blur-sm pointer-events-none"
               )}
-              style={{
-                backgroundSize: '32px 32px',
-                backgroundRepeat: 'repeat'
-              }}
             >
               {!isLoading && <Header />}
               <>
