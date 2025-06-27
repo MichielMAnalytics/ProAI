@@ -14,6 +14,11 @@ const {
   deleteMessages,
   deleteUserById,
   deleteAllUserSessions,
+  UserIntegration,
+  deleteSchedulerTasksByUser,
+  deleteSchedulerExecutionsByUser,
+  getAllUserMemories,
+  deleteMemory,
 } = require('~/models');
 const { updateUserPluginAuth, deleteUserPluginAuth } = require('~/server/services/PluginService');
 const { updateUserPluginsService, deleteUserKey } = require('~/server/services/UserService');
@@ -156,7 +161,13 @@ const deleteUserController = async (req, res) => {
   const { user } = req;
 
   try {
-    await deleteMessages({ user: user.id }); // delete user messages
+    // Wrap MeiliSearch-dependent operations in try-catch to handle indexing errors gracefully
+    try {
+      await deleteMessages({ user: user.id }); // delete user messages
+    } catch (error) {
+      logger.error('[deleteUserController] Error deleting messages, continuing deletion', error);
+    }
+    
     await deleteAllUserSessions({ userId: user.id }); // delete user sessions
     await Transaction.deleteMany({ user: user.id }); // delete user transactions
     await deleteUserKey({ userId: user.id, all: true }); // delete user keys
@@ -169,6 +180,22 @@ const deleteUserController = async (req, res) => {
       logger.error('[deleteUserController] Error deleting user convos, likely no convos', error);
     }
     await deleteUserPluginAuth(user.id, null, true); // delete user plugin auth
+    
+    // Delete additional user collections
+    try {
+      await UserIntegration.deleteMany({ userId: user.id }); // delete user integrations
+      await deleteSchedulerTasksByUser(user.id); // delete scheduler tasks
+      await deleteSchedulerExecutionsByUser(user.id); // delete scheduler executions
+      
+      // Delete memory entries
+      const memories = await getAllUserMemories(user.id);
+      for (const memory of memories) {
+        await deleteMemory({ userId: user.id, key: memory.key });
+      }
+    } catch (error) {
+      logger.error('[deleteUserController] Error deleting additional user data', error);
+    }
+    
     await deleteUserById(user.id); // delete user
     await deleteAllSharedLinks(user.id); // delete user shared links
     await deleteUserFiles(req); // delete user files
