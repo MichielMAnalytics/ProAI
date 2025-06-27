@@ -67,13 +67,6 @@ export default function FileSearch({
 
   return (
     <div className="w-full">
-      <div className="mb-1.5 flex items-center gap-2">
-        <span>
-          <label className="text-token-text-primary block font-medium">
-            {localize('com_assistants_file_search')}
-          </label>
-        </span>
-      </div>
       <FileSearchCheckbox />
       <div className="flex flex-col gap-3 mt-4">
         {/* File Search (RAG API) Files */}

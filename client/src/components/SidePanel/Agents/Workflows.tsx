@@ -32,22 +32,13 @@ export default function Workflows() {
 
   return (
     <div className="w-full">
-      <div className="mb-1.5 flex items-center gap-2">
-        <span>
-          <label className="text-token-text-primary block font-medium">
-            {localize('com_ui_workflows')}
-          </label>
-        </span>
-      </div>
-      <div className="flex flex-col gap-3">
-        <SwitchItem
-          id="workflows"
-          label={localize('com_ui_workflows')}
-          checked={workflowsValue}
-          onCheckedChange={handleWorkflowsChange}
-          hoverCardText={localize('com_ui_workflows_agent_description')}
-        />
-      </div>
+      <SwitchItem
+        id="workflows"
+        label={localize('com_ui_workflows')}
+        checked={workflowsValue}
+        onCheckedChange={handleWorkflowsChange}
+        hoverCardText={localize('com_ui_workflows_agent_description')}
+      />
     </div>
   );
 }

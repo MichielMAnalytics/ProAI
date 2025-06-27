@@ -33,22 +33,13 @@ export default function Scheduler() {
 
   return (
     <div className="w-full">
-      <div className="mb-1.5 flex items-center gap-2">
-        <span>
-          <label className="text-token-text-primary block font-medium">
-            {localize('com_ui_schedules')}
-          </label>
-        </span>
-      </div>
-      <div className="flex flex-col gap-3">
-        <SwitchItem
-          id="scheduler"
-          label={localize('com_ui_schedules')}
-          checked={schedulerValue}
-          onCheckedChange={handleSchedulerChange}
-          hoverCardText={localize('com_ui_scheduler_agent_description')}
-        />
-      </div>
+      <SwitchItem
+        id="scheduler"
+        label={localize('com_ui_schedules')}
+        checked={schedulerValue}
+        onCheckedChange={handleSchedulerChange}
+        hoverCardText={localize('com_ui_scheduler_agent_description')}
+      />
     </div>
   );
 }

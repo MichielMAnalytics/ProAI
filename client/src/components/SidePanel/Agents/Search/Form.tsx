@@ -66,27 +66,18 @@ export default function SearchForm() {
   return (
     <>
       <div className="w-full">
-        <div className="mb-1.5 flex items-center gap-2">
-          <span>
-            <label className="text-token-text-primary block font-medium">
-              {localize('com_ui_web_search')}
-            </label>
-          </span>
-        </div>
-        <div className="flex flex-col gap-3">
-          <SwitchItem
-            id="web_search"
-            label={localize('com_ui_web_search')}
-            checked={webSearchValue}
-            onCheckedChange={handleWebSearchChange}
-            hoverCardText={localize('com_agents_search_info')}
-            disabled={!data?.authenticated && !webSearchEnabled}
-            isUserProvided={isUserProvided}
-            isToolAuthenticated={data?.authenticated}
-            webSearchEnabled={webSearchEnabled}
-            setIsDialogOpen={setIsDialogOpen}
-          />
-        </div>
+        <SwitchItem
+          id="web_search"
+          label={localize('com_ui_web_search')}
+          checked={webSearchValue}
+          onCheckedChange={handleWebSearchChange}
+          hoverCardText={localize('com_agents_search_info')}
+          disabled={!data?.authenticated && !webSearchEnabled}
+          isUserProvided={isUserProvided}
+          isToolAuthenticated={data?.authenticated}
+          webSearchEnabled={webSearchEnabled}
+          setIsDialogOpen={setIsDialogOpen}
+        />
       </div>
       <ApiKeyDialog
         onSubmit={onSubmit}

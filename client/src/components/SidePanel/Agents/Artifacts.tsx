@@ -42,39 +42,30 @@ export default function Artifacts() {
   const isShadcnEnabled = artifactsMode === ArtifactModes.SHADCNUI;
 
   return (
-    <div className="w-full">
-      <div className="mb-1.5 flex items-center gap-2">
-        <span>
-          <label className="text-token-text-primary block font-medium">
-            {localize('com_ui_artifacts')}
-          </label>
-        </span>
-      </div>
-      <div className="flex flex-col gap-3">
-        <SwitchItem
-          id="artifacts"
-          label={localize('com_ui_artifacts_toggle_agent')}
-          checked={isEnabled}
-          onCheckedChange={handleArtifactsChange}
-          hoverCardText={localize('com_nav_info_code_artifacts_agent')}
-        />
-        <SwitchItem
-          id="includeShadcnui"
-          label={localize('com_ui_include_shadcnui_agent')}
-          checked={isShadcnEnabled}
-          onCheckedChange={handleShadcnuiChange}
-          hoverCardText={localize('com_nav_info_include_shadcnui')}
-          disabled={!isEnabled || isCustomEnabled}
-        />
-        <SwitchItem
-          id="customPromptMode"
-          label={localize('com_ui_custom_prompt_mode')}
-          checked={isCustomEnabled}
-          onCheckedChange={handleCustomModeChange}
-          hoverCardText={localize('com_nav_info_custom_prompt_mode')}
-          disabled={!isEnabled}
-        />
-      </div>
+    <div className="w-full flex flex-col gap-3">
+      <SwitchItem
+        id="artifacts"
+        label={localize('com_ui_artifacts_toggle_agent')}
+        checked={isEnabled}
+        onCheckedChange={handleArtifactsChange}
+        hoverCardText={localize('com_nav_info_code_artifacts_agent')}
+      />
+      <SwitchItem
+        id="includeShadcnui"
+        label={localize('com_ui_include_shadcnui_agent')}
+        checked={isShadcnEnabled}
+        onCheckedChange={handleShadcnuiChange}
+        hoverCardText={localize('com_nav_info_include_shadcnui')}
+        disabled={!isEnabled || isCustomEnabled}
+      />
+      <SwitchItem
+        id="customPromptMode"
+        label={localize('com_ui_custom_prompt_mode')}
+        checked={isCustomEnabled}
+        onCheckedChange={handleCustomModeChange}
+        hoverCardText={localize('com_nav_info_custom_prompt_mode')}
+        disabled={!isEnabled}
+      />
     </div>
   );
 }
