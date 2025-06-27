@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles } from 'lucide-react';
 import { cn } from '~/utils';
 import { useLocalize } from '~/hooks';
@@ -9,11 +9,53 @@ interface EnhancePromptProps {
   textAreaRef: React.RefObject<HTMLTextAreaElement>;
   disabled?: boolean;
   className?: string;
+  hasText?: boolean;
 }
 
-export default function EnhancePrompt({ textAreaRef, disabled = false, className }: EnhancePromptProps) {
+export default function EnhancePrompt({ textAreaRef, disabled = false, className, hasText = false }: EnhancePromptProps) {
   const localize = useLocalize();
   const [isEnhancing, setIsEnhancing] = useState(false);
+  const [isSparklingIntro, setIsSparklingIntro] = useState(false);
+  const [hasShownIntro, setHasShownIntro] = useState(false);
+  const sparkleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Trigger sparkling animation when text first becomes available
+  useEffect(() => {
+    if (hasText && !disabled && !hasShownIntro) {
+      setIsSparklingIntro(true);
+      setHasShownIntro(true);
+      
+      // Clear any existing timeout
+      if (sparkleTimeoutRef.current) {
+        clearTimeout(sparkleTimeoutRef.current);
+      }
+      
+      // Set new timeout
+      sparkleTimeoutRef.current = setTimeout(() => {
+        setIsSparklingIntro(false);
+        sparkleTimeoutRef.current = null;
+      }, 2000); // 2 seconds
+    }
+    
+    // Reset when text is cleared
+    if (!hasText) {
+      setHasShownIntro(false);
+      if (sparkleTimeoutRef.current) {
+        clearTimeout(sparkleTimeoutRef.current);
+        sparkleTimeoutRef.current = null;
+      }
+      setIsSparklingIntro(false);
+    }
+  }, [hasText, disabled, hasShownIntro]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (sparkleTimeoutRef.current) {
+        clearTimeout(sparkleTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleEnhance = async () => {
     if (!textAreaRef.current || disabled || isEnhancing) {
@@ -65,7 +107,11 @@ export default function EnhancePrompt({ textAreaRef, disabled = false, className
         className={cn(
           'h-6 w-6 transition-all duration-200',
           isEnhancing 
-            ? 'text-yellow-500 animate-pulse [&>*]:fill-current' 
+            ? 'text-yellow-500 animate-pulse [&>*]:fill-current'
+            : isSparklingIntro
+            ? 'text-yellow-500 animate-bounce [&>*]:fill-current'
+            : disabled
+            ? 'text-text-secondary'
             : 'text-text-secondary hover:text-yellow-500'
         )}
       />
