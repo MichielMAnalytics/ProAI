@@ -150,7 +150,7 @@ const PricingPage = () => {
     },
     {
       question: "How much does it cost to use?",
-      answer: "Free users get 10,000 AI credits per month. Pro users get 200,000 credits per month for $29, and Max users get 900,000 credits per month for $99. You can start with our generous free tier and upgrade when you need additional credits and features like custom apps/tools and priority support."
+      answer: "Free users get 10,000 AI credits per month. Pro users get 200,000 credits per month for €29, and Max users get 900,000 credits per month for €99. You can start with our generous free tier and upgrade when you need additional credits and features like custom apps/tools and priority support."
     },
     {
       question: "What are credits?",
@@ -426,7 +426,7 @@ const PricingPage = () => {
             {/* Price Section - Fixed Height */}
             <div className="h-20 mb-4">
               <div className="text-4xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
-                $0
+                €0
                 <span className="text-lg font-normal" style={{ color: 'var(--text-secondary)' }}>
                   /month
                 </span>
@@ -520,7 +520,7 @@ const PricingPage = () => {
             {/* Price Section - Fixed Height */}
             <div className="h-20 mb-4">
               <div className="text-4xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
-                $29
+                €29
                 <span className="text-lg font-normal" style={{ color: 'var(--text-secondary)' }}>
                   /month
                 </span>
@@ -610,7 +610,7 @@ const PricingPage = () => {
             {/* Price Section - Fixed Height */}
             <div className="h-20 mb-4">
               <div className="text-4xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
-                $99
+                €99
                 <span className="text-lg font-normal" style={{ color: 'var(--text-secondary)' }}>
                   /month
                 </span>
@@ -749,15 +749,16 @@ const PricingPage = () => {
           </div>
         </div>
 
-        {/* Back to Chat */}
-        <div className="text-center mt-12">
-          <button
-            onClick={handleBackToChat}
-            className="btn btn-neutral px-4 py-2 text-sm"
-          >
-            ← Back to Chat
-          </button>
-        </div>
+        {/* Close Button */}
+        <button
+          onClick={handleBackToChat}
+          className="fixed top-4 right-4 z-50 flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-800"
+          aria-label="Close pricing"
+        >
+          <svg className="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
     </div>
   );

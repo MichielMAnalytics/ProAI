@@ -890,7 +890,7 @@
   "com_ui_special_var_current_date": "Current Date",
   "com_ui_special_var_current_datetime": "Current Date & Time",
   "com_ui_special_var_current_user": "Current User",
-  "com_ui_special_var_iso_datetime": "UTC ISO Datetime",
+  "com_ui_special_var_utc_iso_datetime": "UTC ISO Datetime",
   "com_ui_special_var_mcp_servers": "MCP Servers",
   "com_ui_special_var_tools": "Tools",
   "com_ui_special_variables": "Special variables:",
