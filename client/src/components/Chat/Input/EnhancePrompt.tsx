@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles } from 'lucide-react';
+import { UseFormReturn } from 'react-hook-form';
 import { cn } from '~/utils';
 import { useLocalize } from '~/hooks';
 import { TooltipAnchor } from '~/components/ui/Tooltip';
@@ -7,12 +8,13 @@ import { dataService } from 'librechat-data-provider';
 
 interface EnhancePromptProps {
   textAreaRef: React.RefObject<HTMLTextAreaElement>;
+  methods: UseFormReturn<{ text: string }>;
   disabled?: boolean;
   className?: string;
   hasText?: boolean;
 }
 
-export default function EnhancePrompt({ textAreaRef, disabled = false, className, hasText = false }: EnhancePromptProps) {
+export default function EnhancePrompt({ textAreaRef, methods, disabled = false, className, hasText = false }: EnhancePromptProps) {
   const localize = useLocalize();
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isSparklingIntro, setIsSparklingIntro] = useState(false);
@@ -70,14 +72,19 @@ export default function EnhancePrompt({ textAreaRef, disabled = false, className
     setIsEnhancing(true);
     try {
       const response = await dataService.enhanceMessage(currentText);
-      if (response.enhancedMessage && textAreaRef.current) {
-        textAreaRef.current.value = response.enhancedMessage;
-        // Trigger input event to update form state
-        const event = new Event('input', { bubbles: true });
-        textAreaRef.current.dispatchEvent(event);
-        // Force resize
-        textAreaRef.current.style.height = 'auto';
-        textAreaRef.current.style.height = textAreaRef.current.scrollHeight + 'px';
+      if (response.enhancedMessage) {
+        // Update form state using React Hook Form's setValue
+        methods.setValue('text', response.enhancedMessage, { 
+          shouldValidate: true,
+          shouldDirty: true,
+          shouldTouch: true 
+        });
+        
+        // Force textarea resize
+        if (textAreaRef.current) {
+          textAreaRef.current.style.height = 'auto';
+          textAreaRef.current.style.height = textAreaRef.current.scrollHeight + 'px';
+        }
       }
     } catch (error) {
       console.error('Failed to enhance message:', error);

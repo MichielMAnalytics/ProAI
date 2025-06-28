@@ -656,7 +656,8 @@ const ChatForm = memo(
                 )}
                 <div className={`${isRTL ? 'ml-2' : 'mr-2'}`}>
                   <EnhancePrompt 
-                    textAreaRef={textAreaRef} 
+                    textAreaRef={textAreaRef}
+                    methods={methods}
                     disabled={disableInputs || isNotAppendable || !textValue?.trim()}
                     hasText={!!textValue?.trim()}
                   />
