@@ -6,6 +6,7 @@ import {
   Permissions,
   EModelEndpoint,
 } from 'librechat-data-provider';
+import { useRecoilValue } from 'recoil';
 import type { ContextType } from '~/common';
 import ModelSelector from './Menus/Endpoints/ModelSelector';
 import { PresetsMenu, HeaderNewChat, OpenSidebar, IntegrationsButton } from './Menus';
@@ -17,7 +18,9 @@ import BookmarkMenu from './Menus/BookmarkMenu';
 import { TemporaryChat } from './TemporaryChat';
 import AddMultiConvo from './AddMultiConvo';
 import HeaderAgentSelect from './HeaderAgentSelect';
+import FeedbackButton from './FeedbackButton';
 import { mapEndpoints } from '~/utils';
+import store from '~/store';
 
 const defaultInterface = getConfigDefaults().interface;
 
@@ -28,6 +31,7 @@ export default function Header() {
   const assistantsMap = useAssistantsMapContext();
   const { data: endpointsConfig } = useGetEndpointsQuery();
   const { data: endpoints = [] } = useGetEndpointsQuery({ select: mapEndpoints });
+  const conversation = useRecoilValue(store.conversationByIndex(0));
 
   const interfaceConfig = useMemo(
     () => startupConfig?.interface ?? defaultInterface,
@@ -102,6 +106,7 @@ export default function Header() {
           {hasAccessToMultiConvo === true && <AddMultiConvo />}
           {isSmallScreen && (
             <>
+              <FeedbackButton conversationId={conversation?.conversationId} />
               <ExportAndShareMenu
                 isSharedButtonEnabled={startupConfig?.sharedLinksEnabled ?? false}
               />
@@ -111,6 +116,7 @@ export default function Header() {
         </div>
         {!isSmallScreen && (
           <div className="flex items-center gap-2">
+            <FeedbackButton conversationId={conversation?.conversationId} />
             <ExportAndShareMenu
               isSharedButtonEnabled={startupConfig?.sharedLinksEnabled ?? false}
             />

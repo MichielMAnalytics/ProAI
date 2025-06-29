@@ -3,10 +3,13 @@ import { v4 as uuidv4 } from 'uuid';
 
 export interface IEnterpriseContact extends Document {
   contactId: string;
+  // Contact type
+  feedbackType: 'enterprise' | 'general';
+  
   // Step 1: Contact details
-  firstName: string;
-  lastName: string;
-  workEmail: string;
+  firstName?: string;
+  lastName?: string;
+  workEmail?: string;
   phoneNumber?: string;
   companyWebsite?: string;
 
@@ -21,6 +24,10 @@ export interface IEnterpriseContact extends Document {
   timeline?: string;
   additionalInfo?: string;
 
+  // General feedback fields
+  userId?: string;
+  conversationId?: string;
+  
   // System fields
   status: 'new' | 'contacted' | 'qualified' | 'closed';
   contactedAt?: Date;
@@ -35,25 +42,37 @@ const enterpriseContactSchema = new Schema<IEnterpriseContact>(
       unique: true,
       default: () => uuidv4(),
     },
+    // Contact type
+    feedbackType: {
+      type: String,
+      enum: ['enterprise', 'general'],
+      default: 'enterprise',
+    },
     // Step 1: Contact details
     firstName: {
       type: String,
-      required: true,
+      required: function(this: IEnterpriseContact) {
+        return this.feedbackType === 'enterprise';
+      },
       trim: true,
     },
     lastName: {
       type: String,
-      required: true,
+      required: function(this: IEnterpriseContact) {
+        return this.feedbackType === 'enterprise';
+      },
       trim: true,
     },
     workEmail: {
       type: String,
-      required: true,
+      required: function(this: IEnterpriseContact) {
+        return this.feedbackType === 'enterprise';
+      },
       trim: true,
       lowercase: true,
       validate: {
         validator: function (email: string) {
-          return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+          return !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
         },
         message: 'Please enter a valid email address',
       },
@@ -119,6 +138,16 @@ const enterpriseContactSchema = new Schema<IEnterpriseContact>(
       trim: true,
     },
 
+    // General feedback fields
+    userId: {
+      type: String,
+      trim: true,
+    },
+    conversationId: {
+      type: String,
+      trim: true,
+    },
+
     // System fields
     status: {
       type: String,
@@ -151,5 +180,8 @@ enterpriseContactSchema.pre('save', function (next) {
 enterpriseContactSchema.index({ workEmail: 1 });
 enterpriseContactSchema.index({ status: 1 });
 enterpriseContactSchema.index({ createdAt: -1 });
+enterpriseContactSchema.index({ feedbackType: 1 });
+enterpriseContactSchema.index({ userId: 1 });
+enterpriseContactSchema.index({ conversationId: 1 });
 
 export default enterpriseContactSchema;

@@ -8,11 +8,12 @@ const {
 } = require('~/models/EnterpriseContact');
 
 /**
- * Creates a new enterprise contact
+ * Creates a new enterprise contact or general feedback
  */
 const createEnterpriseContactController = async (req, res) => {
   try {
     const {
+      feedbackType = 'enterprise',
       firstName,
       lastName,
       workEmail,
@@ -25,30 +26,47 @@ const createEnterpriseContactController = async (req, res) => {
       complianceNeeds = [],
       timeline,
       additionalInfo,
+      conversationId,
+      userId: bodyUserId,
     } = req.body;
 
-    // Validate required fields
-    if (!firstName || !lastName || !workEmail) {
-      return res.status(400).json({
-        error: 'Missing required fields: firstName, lastName, and workEmail are required',
-      });
+    // Get user info from authenticated user if available, fallback to body
+    const userId = req.user?._id?.toString() || req.user?.id?.toString() || bodyUserId;
+
+    // Validate required fields based on feedback type
+    if (feedbackType === 'enterprise') {
+      if (!firstName || !lastName || !workEmail) {
+        return res.status(400).json({
+          error:
+          'Missing required fields: firstName, lastName, and workEmail are required for enterprise contacts',
+        });
+      }
+    } else if (feedbackType === 'general') {
+      if (!additionalInfo || additionalInfo.trim().length === 0) {
+        return res.status(400).json({
+          error: 'Feedback content is required',
+        });
+      }
     }
 
-    // Check for existing contact with same email
-    const existingContact = await getEnterpriseContactById(workEmail);
-    if (existingContact) {
-      logger.info(`Duplicate enterprise contact submission for email: ${workEmail}`);
-      // Return success to avoid exposing existing contacts, but don't create duplicate
-      return res.status(200).json({
-        message: 'Contact submission received successfully',
-        contactId: existingContact.contactId,
-      });
+    // Check for existing contact with same email (only for enterprise contacts)
+    if (feedbackType === 'enterprise' && workEmail) {
+      const existingContact = await getEnterpriseContactById(workEmail);
+      if (existingContact) {
+        logger.info(`Duplicate enterprise contact submission for email: ${workEmail}`);
+        // Return success to avoid exposing existing contacts, but don't create duplicate
+        return res.status(200).json({
+          message: 'Contact submission received successfully',
+          contactId: existingContact.contactId,
+        });
+      }
     }
 
     const contactData = {
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      workEmail: workEmail.trim().toLowerCase(),
+      feedbackType,
+      firstName: firstName?.trim(),
+      lastName: lastName?.trim(),
+      workEmail: workEmail?.trim().toLowerCase(),
       phoneNumber: phoneNumber?.trim(),
       companyWebsite: companyWebsite?.trim(),
       problemToSolve: problemToSolve?.trim(),
@@ -58,14 +76,21 @@ const createEnterpriseContactController = async (req, res) => {
       complianceNeeds: Array.isArray(complianceNeeds) ? complianceNeeds : [],
       timeline,
       additionalInfo: additionalInfo?.trim(),
+      userId: userId?.toString(),
+      conversationId: conversationId?.trim(),
     };
 
     const contact = await createEnterpriseContact(contactData);
 
-    logger.info(`New enterprise contact created: ${contact.contactId} - ${workEmail}`);
+    logger.info(
+      `New ${feedbackType} contact created: ${contact.contactId} - ${workEmail || userId}`,
+    );
 
     res.status(201).json({
-      message: 'Contact submission received successfully',
+      message:
+        feedbackType === 'general'
+          ? 'Feedback submitted successfully'
+          : 'Contact submission received successfully',
       contactId: contact.contactId,
     });
   } catch (error) {
