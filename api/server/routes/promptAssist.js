@@ -14,18 +14,18 @@ const router = express.Router();
 router.post('/', requireJwtAuth, async (req, res) => {
   try {
     const { title, description, instructions, availableVariables } = req.body;
-    
+
     // Get prompt assist configuration
     const customConfig = await getCustomConfig();
     const promptAssistConfig = customConfig?.promptAssist;
-    
+
     if (!promptAssistConfig?.enabled) {
       return res.status(400).json({ error: 'Prompt assist is not enabled' });
     }
 
     const provider = promptAssistConfig.provider || 'openAI';
     const model = promptAssistConfig.model || 'gpt-4o-mini';
-    
+
     if (provider !== 'openAI') {
       return res.status(400).json({ error: 'Only OpenAI provider is currently supported' });
     }
@@ -39,7 +39,7 @@ router.post('/', requireJwtAuth, async (req, res) => {
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
-    
+
     // Prepare messages for token estimation
     const systemPrompt = `You are an expert at writing clear, effective prompts for AI assistants. 
 Your task is to enhance the given instructions to make them more clear, comprehensive, and effective.
@@ -59,12 +59,14 @@ The enhanced prompt should:
 - Specify the desired output format when applicable
 - Include examples if helpful
 - Be well-structured and easy to follow
-- Incorporate dynamic variables when they would enhance the functionality${availableVariables && availableVariables.length > 0 
-      ? `\n\nAvailable Variables (use these when appropriate):
-${availableVariables.map(v => `- ${v.syntax}: ${v.description}`).join('\n')}
+- Incorporate dynamic variables when they would enhance the functionality${
+      availableVariables && availableVariables.length > 0
+        ? `\n\nAvailable Variables (use these when appropriate):
+${availableVariables.map((v) => `- ${v.syntax}: ${v.description}`).join('\n')}
 
 When enhancing the prompt, consider incorporating these variables where they would be useful. For example, if the assistant needs current information, suggest using {{current_date}} or {{current_datetime}}. If it should personalize responses, mention {{current_user}}.`
-      : ''}
+        : ''
+    }
 
 Return ONLY the enhanced instructions content without any title, description, headers, or markdown formatting.`;
 
@@ -79,12 +81,12 @@ Create enhanced instructions that will help the AI assistant perform its intende
     // Estimate token usage for balance check
     const messages = [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
+      { role: 'user', content: userPrompt },
     ];
-    
+
     const promptTokens = promptTokensEstimate({ messages, model });
     const estimatedCompletionTokens = 1000; // Max tokens we're requesting
-    
+
     // Check balance if enabled
     const balanceConfig = await getBalanceConfig();
     if (balanceConfig?.enabled && supportsBalanceCheck[EModelEndpoint.openAI]) {
@@ -103,9 +105,9 @@ Create enhanced instructions that will help the AI assistant perform its intende
         });
       } catch (err) {
         logger.error('[/api/prompt-assist] Balance check failed:', err);
-        return res.status(402).json({ 
-          error: 'Insufficient balance', 
-          details: err.message 
+        return res.status(402).json({
+          error: 'Insufficient balance',
+          details: err.message,
         });
       }
     }
@@ -119,12 +121,14 @@ Create enhanced instructions that will help the AI assistant perform its intende
     });
 
     const enhancedPrompt = response.choices[0]?.message?.content || '';
-    
+
     // Log token usage
     if (response.usage) {
-      logger.info(`[/api/prompt-assist] Token usage for instruction enhancement - Total: ${response.usage.total_tokens} tokens (prompt: ${response.usage.prompt_tokens}, completion: ${response.usage.completion_tokens}) for user: ${req.user.id} using model: ${model}`);
+      logger.info(
+        `[/api/prompt-assist] Token usage for instruction enhancement - Total: ${response.usage.total_tokens} tokens (prompt: ${response.usage.prompt_tokens}, completion: ${response.usage.completion_tokens}) for user: ${req.user.id} using model: ${model}`,
+      );
     }
-    
+
     // Record token usage
     if (balanceConfig?.enabled && response.usage) {
       const { prompt_tokens, completion_tokens } = response.usage;
@@ -141,10 +145,10 @@ Create enhanced instructions that will help the AI assistant perform its intende
         {
           promptTokens: prompt_tokens,
           completionTokens: completion_tokens,
-        }
+        },
       );
     }
-    
+
     res.json({ enhancedPrompt });
   } catch (error) {
     logger.error('[/api/prompt-assist] Error enhancing prompt:', error);
@@ -155,7 +159,7 @@ Create enhanced instructions that will help the AI assistant perform its intende
 router.post('/enhance-message', requireJwtAuth, async (req, res) => {
   try {
     const { message } = req.body;
-    
+
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'Message is required' });
     }
@@ -163,14 +167,14 @@ router.post('/enhance-message', requireJwtAuth, async (req, res) => {
     // Get prompt assist configuration
     const customConfig = await getCustomConfig();
     const promptAssistConfig = customConfig?.promptAssist;
-    
+
     if (!promptAssistConfig?.enabled) {
       return res.status(400).json({ error: 'Prompt assist is not enabled' });
     }
 
     const provider = promptAssistConfig.provider || 'openAI';
     const model = promptAssistConfig.model || 'gpt-4o-mini';
-    
+
     if (provider !== 'openAI') {
       return res.status(400).json({ error: 'Only OpenAI provider is currently supported' });
     }
@@ -184,7 +188,7 @@ router.post('/enhance-message', requireJwtAuth, async (req, res) => {
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
-    
+
     // Prepare system prompt
     const systemPrompt = `You are an expert at improving user messages to AI assistants to make them much clearer, more specific, and more effective for getting high-quality responses.
 
@@ -227,13 +231,13 @@ ${message}`;
     // Prepare messages for API call
     const messages = [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
+      { role: 'user', content: userPrompt },
     ];
-    
+
     // Estimate token usage for balance check
     const promptTokens = promptTokensEstimate({ messages, model });
     const estimatedCompletionTokens = 500; // Max tokens we're requesting
-    
+
     // Check balance if enabled
     const balanceConfig = await getBalanceConfig();
     if (balanceConfig?.enabled && supportsBalanceCheck[EModelEndpoint.openAI]) {
@@ -252,10 +256,10 @@ ${message}`;
         });
       } catch (err) {
         logger.error('[/api/prompt-assist/enhance-message] Balance check failed:', err);
-        return res.status(402).json({ 
-          error: 'Insufficient balance', 
+        return res.status(402).json({
+          error: 'Insufficient balance',
           details: err.message,
-          originalMessage: message
+          originalMessage: message,
         });
       }
     }
@@ -268,12 +272,14 @@ ${message}`;
     });
 
     const enhancedMessage = response.choices[0]?.message?.content || message;
-    
+
     // Log token usage
     if (response.usage) {
-      logger.info(`[/api/prompt-assist/enhance-message] Token usage for message enhancement - Total: ${response.usage.total_tokens} tokens (prompt: ${response.usage.prompt_tokens}, completion: ${response.usage.completion_tokens}) for user: ${req.user.id} using model: ${model}`);
+      logger.info(
+        `[/api/prompt-assist/enhance-message] Token usage for message enhancement - Total: ${response.usage.total_tokens} tokens (prompt: ${response.usage.prompt_tokens}, completion: ${response.usage.completion_tokens}) for user: ${req.user.id} using model: ${model}`,
+      );
     }
-    
+
     // Record token usage
     if (balanceConfig?.enabled && response.usage) {
       const { prompt_tokens, completion_tokens } = response.usage;
@@ -290,10 +296,10 @@ ${message}`;
         {
           promptTokens: prompt_tokens,
           completionTokens: completion_tokens,
-        }
+        },
       );
     }
-    
+
     res.json({ enhancedMessage });
   } catch (error) {
     logger.error('[/api/prompt-assist/enhance-message] Error enhancing message:', error);

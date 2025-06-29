@@ -5,7 +5,7 @@ const SchedulerService = require('~/server/services/Scheduler/SchedulerService')
 const SchedulerExecutionService = require('~/server/services/Scheduler/SchedulerExecutionService');
 const { notificationManager } = require('~/server/services/Scheduler/SchedulerService');
 const { setHeaders } = require('~/server/middleware');
-const { 
+const {
   getSchedulerTasksByUser,
   getSchedulerTasksOnlyByUser,
   getSchedulerWorkflowsByUser,
@@ -13,12 +13,12 @@ const {
   updateSchedulerTask,
   deleteSchedulerTask,
   enableSchedulerTask,
-  disableSchedulerTask
+  disableSchedulerTask,
 } = require('~/models/SchedulerTask');
 const {
   getSchedulerExecutionsByTask,
   getSchedulerExecutionsByUser,
-  getSchedulerExecutionById
+  getSchedulerExecutionById,
 } = require('~/models/SchedulerExecution');
 
 const router = express.Router();
@@ -33,7 +33,7 @@ router.get('/tasks', requireJwtAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const { type } = req.query;
-    
+
     let tasks;
     if (type === 'task') {
       tasks = await getSchedulerTasksOnlyByUser(userId);
@@ -42,10 +42,10 @@ router.get('/tasks', requireJwtAuth, async (req, res) => {
     } else {
       tasks = await getSchedulerTasksByUser(userId, type);
     }
-    
+
     res.json({
       success: true,
-      tasks: tasks.map(task => ({
+      tasks: tasks.map((task) => ({
         id: task.id,
         name: task.name,
         schedule: task.schedule,
@@ -63,12 +63,12 @@ router.get('/tasks', requireJwtAuth, async (req, res) => {
         agent_id: task.agent_id,
         created_at: task.createdAt,
         updated_at: task.updatedAt,
-      }))
+      })),
     });
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 });
@@ -83,19 +83,19 @@ router.get('/tasks/:taskId', requireJwtAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const { taskId } = req.params;
-    
+
     const task = await getSchedulerTaskById(taskId, userId);
-    
+
     if (!task) {
       return res.status(404).json({
         success: false,
-        error: 'Task not found'
+        error: 'Task not found',
       });
     }
-    
+
     res.json({
       success: true,
-              task: {
+      task: {
         id: task.id,
         name: task.name,
         schedule: task.schedule,
@@ -113,12 +113,12 @@ router.get('/tasks/:taskId', requireJwtAuth, async (req, res) => {
         agent_id: task.agent_id,
         created_at: task.createdAt,
         updated_at: task.updatedAt,
-      }
+      },
     });
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 });
@@ -134,20 +134,20 @@ router.put('/tasks/:taskId', requireJwtAuth, async (req, res) => {
     const userId = req.user.id;
     const { taskId } = req.params;
     const updateData = req.body;
-    
+
     const updatedTask = await updateSchedulerTask(taskId, userId, updateData);
-    
+
     if (!updatedTask) {
       return res.status(404).json({
         success: false,
-        error: 'Task not found'
+        error: 'Task not found',
       });
     }
-    
+
     res.json({
       success: true,
       message: `Task "${updatedTask.name}" updated successfully`,
-              task: {
+      task: {
         id: updatedTask.id,
         name: updatedTask.name,
         schedule: updatedTask.schedule,
@@ -162,12 +162,12 @@ router.put('/tasks/:taskId', requireJwtAuth, async (req, res) => {
         endpoint: updatedTask.endpoint,
         ai_model: updatedTask.ai_model,
         agent_id: updatedTask.agent_id,
-      }
+      },
     });
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 });
@@ -182,24 +182,24 @@ router.delete('/tasks/:taskId', requireJwtAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const { taskId } = req.params;
-    
+
     const result = await deleteSchedulerTask(taskId, userId);
-    
+
     if (result.deletedCount === 0) {
       return res.status(404).json({
         success: false,
-        error: 'Task not found'
+        error: 'Task not found',
       });
     }
-    
+
     res.json({
       success: true,
-      message: 'Task deleted successfully'
+      message: 'Task deleted successfully',
     });
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 });
@@ -214,16 +214,16 @@ router.post('/tasks/:taskId/enable', requireJwtAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const { taskId } = req.params;
-    
+
     const task = await enableSchedulerTask(taskId, userId);
-    
+
     if (!task) {
       return res.status(404).json({
         success: false,
-        error: 'Task not found'
+        error: 'Task not found',
       });
     }
-    
+
     res.json({
       success: true,
       message: `Task "${task.name}" enabled successfully`,
@@ -236,12 +236,12 @@ router.post('/tasks/:taskId/enable', requireJwtAuth, async (req, res) => {
         endpoint: task.endpoint,
         ai_model: task.ai_model,
         agent_id: task.agent_id,
-      }
+      },
     });
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 });
@@ -256,16 +256,16 @@ router.post('/tasks/:taskId/disable', requireJwtAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const { taskId } = req.params;
-    
+
     const task = await disableSchedulerTask(taskId, userId);
-    
+
     if (!task) {
       return res.status(404).json({
         success: false,
-        error: 'Task not found'
+        error: 'Task not found',
       });
     }
-    
+
     res.json({
       success: true,
       message: `Task "${task.name}" disabled successfully`,
@@ -278,12 +278,12 @@ router.post('/tasks/:taskId/disable', requireJwtAuth, async (req, res) => {
         endpoint: task.endpoint,
         ai_model: task.ai_model,
         agent_id: task.agent_id,
-      }
+      },
     });
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 });
@@ -364,9 +364,9 @@ router.post('/internal/message', async (req, res) => {
     const result = await SchedulerService.sendSchedulerMessage(req.body);
     res.json(result);
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 });
@@ -388,9 +388,9 @@ router.post('/internal/task-result', async (req, res) => {
     const result = await SchedulerService.sendTaskResult(req.body);
     res.json(result);
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 });
@@ -411,9 +411,9 @@ router.post('/internal/notification', async (req, res) => {
     const result = await SchedulerService.sendTaskNotification(req.body);
     res.json(result);
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 });
@@ -449,17 +449,17 @@ router.get('/status', requireJwtAuth, async (req, res) => {
         taskTimeout: parseInt(process.env.SCHEDULER_TASK_TIMEOUT || '300000'),
         maxRetries: parseInt(process.env.SCHEDULER_MAX_RETRIES || '3'),
         shutdownTimeout: parseInt(process.env.SCHEDULER_SHUTDOWN_TIMEOUT || '60000'),
-      }
+      },
     };
-    
+
     res.json({
       success: true,
-      status
+      status,
     });
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 });
@@ -474,17 +474,17 @@ router.get('/executions', requireJwtAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const limit = parseInt(req.query.limit) || 50;
-    
+
     const executions = await getSchedulerExecutionsByUser(userId, limit);
-    
+
     res.json({
       success: true,
-      executions
+      executions,
     });
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 });
@@ -494,17 +494,17 @@ router.get('/tasks/:taskId/executions', requireJwtAuth, async (req, res) => {
     const userId = req.user.id;
     const { taskId } = req.params;
     const limit = parseInt(req.query.limit) || 10;
-    
+
     const executions = await getSchedulerExecutionsByTask(taskId, userId, limit);
-    
+
     res.json({
       success: true,
-      executions
+      executions,
     });
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 });
@@ -519,26 +519,26 @@ router.get('/executions/:executionId', requireJwtAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const { executionId } = req.params;
-    
+
     const execution = await getSchedulerExecutionById(executionId, userId);
-    
+
     if (!execution) {
       return res.status(404).json({
         success: false,
-        error: 'Execution not found'
+        error: 'Execution not found',
       });
     }
-    
+
     res.json({
       success: true,
-      execution
+      execution,
     });
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 });
 
-module.exports = router; 
+module.exports = router;

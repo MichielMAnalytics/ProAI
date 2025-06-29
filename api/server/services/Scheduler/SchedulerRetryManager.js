@@ -25,9 +25,9 @@ class SchedulerRetryManager {
       /quota.*exceeded/i,
       /rate.*limit/i,
     ];
-    
+
     const errorMessage = error.message || error.toString();
-    return !nonRetriablePatterns.some(pattern => pattern.test(errorMessage));
+    return !nonRetriablePatterns.some((pattern) => pattern.test(errorMessage));
   }
 
   /**
@@ -51,16 +51,22 @@ class SchedulerRetryManager {
    */
   shouldRetry(task, error, attempt) {
     if (attempt >= this.maxRetries) {
-      logger.debug(`[SchedulerRetryManager] Max retries (${this.maxRetries}) reached for task ${task.id}`);
+      logger.debug(
+        `[SchedulerRetryManager] Max retries (${this.maxRetries}) reached for task ${task.id}`,
+      );
       return false;
     }
 
     if (!this.isRetriableError(error)) {
-      logger.debug(`[SchedulerRetryManager] Non-retriable error for task ${task.id}: ${error.message}`);
+      logger.debug(
+        `[SchedulerRetryManager] Non-retriable error for task ${task.id}: ${error.message}`,
+      );
       return false;
     }
 
-    logger.debug(`[SchedulerRetryManager] Task ${task.id} eligible for retry (attempt ${attempt}/${this.maxRetries})`);
+    logger.debug(
+      `[SchedulerRetryManager] Task ${task.id} eligible for retry (attempt ${attempt}/${this.maxRetries})`,
+    );
     return true;
   }
 
@@ -74,7 +80,7 @@ class SchedulerRetryManager {
   createRetryInfo(task, error, attempt) {
     const delay = this.calculateRetryDelay(attempt);
     const priority = calculateRetryPriority(task, attempt);
-    
+
     return {
       success: false,
       retry: true,
@@ -95,14 +101,22 @@ class SchedulerRetryManager {
    * @returns {Object} Execution result with retry information
    */
   handleTaskFailure(task, error, attempt) {
-    logger.error(`[SchedulerRetryManager] Task ${task.id} failed on attempt ${attempt}:`, error.message);
-    
+    logger.error(
+      `[SchedulerRetryManager] Task ${task.id} failed on attempt ${attempt}:`,
+      error.message,
+    );
+
     if (this.shouldRetry(task, error, attempt)) {
       const retryInfo = this.createRetryInfo(task, error, attempt);
-      logger.info(`[SchedulerRetryManager] Scheduling retry for task ${task.id} in ${retryInfo.delay}ms (attempt ${retryInfo.nextAttempt}/${this.maxRetries})`);
+      logger.info(
+        `[SchedulerRetryManager] Scheduling retry for task ${task.id} in ${retryInfo.delay}ms (attempt ${retryInfo.nextAttempt}/${this.maxRetries})`,
+      );
       return retryInfo;
     } else {
-      logger.error(`[SchedulerRetryManager] Task ${task.id} failed permanently after ${attempt} attempts:`, error.message);
+      logger.error(
+        `[SchedulerRetryManager] Task ${task.id} failed permanently after ${attempt} attempts:`,
+        error.message,
+      );
       throw error;
     }
   }
@@ -118,4 +132,4 @@ class SchedulerRetryManager {
   }
 }
 
-module.exports = SchedulerRetryManager; 
+module.exports = SchedulerRetryManager;

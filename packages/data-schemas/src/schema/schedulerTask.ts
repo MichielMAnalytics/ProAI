@@ -99,14 +99,14 @@ const schedulerTaskSchema: Schema<ISchedulerTask> = new Schema(
     },
     metadata: {
       type: Schema.Types.Mixed,
-      default: function() {
+      default: function () {
         return { type: this.type || 'task' };
       },
     },
   },
-  { 
+  {
     timestamps: true,
-    versionKey: false
+    versionKey: false,
   },
 );
 
@@ -118,4 +118,4 @@ schedulerTaskSchema.index({ user: 1, enabled: 1 });
 schedulerTaskSchema.index({ user: 1, endpoint: 1 });
 schedulerTaskSchema.index({ user: 1, agent_id: 1 });
 
-export default schedulerTaskSchema; 
+export default schedulerTaskSchema;

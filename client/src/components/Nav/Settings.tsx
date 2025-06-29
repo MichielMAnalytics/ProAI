@@ -4,8 +4,24 @@ import { MessageSquare, Command } from 'lucide-react';
 import { SettingsTabValues } from 'librechat-data-provider';
 import type { TDialogProps } from '~/common';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import { GearIcon, DataIcon, SpeechIcon, UserIcon, ExperimentIcon, PersonalizationIcon } from '~/components/svg';
-import { General, Chat, Speech, Beta, Commands, Data, Account, Personalization } from './SettingsTabs';
+import {
+  GearIcon,
+  DataIcon,
+  SpeechIcon,
+  UserIcon,
+  ExperimentIcon,
+  PersonalizationIcon,
+} from '~/components/svg';
+import {
+  General,
+  Chat,
+  Speech,
+  Beta,
+  Commands,
+  Data,
+  Account,
+  Personalization,
+} from './SettingsTabs';
 import { useMediaQuery, useLocalize, TranslationKeys } from '~/hooks';
 import { useGetStartupConfig } from '~/data-provider';
 import usePersonalizationAccess from '~/hooks/usePersonalizationAccess';
@@ -65,11 +81,15 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
       label: 'com_nav_setting_speech',
       configKey: 'speech',
     },
-    ...(hasAnyPersonalizationFeature ? [{
-      value: SettingsTabValues.PERSONALIZATION,
-      icon: <PersonalizationIcon />,
-      label: 'Personalization' as TranslationKeys,
-    }] : []),
+    ...(hasAnyPersonalizationFeature
+      ? [
+          {
+            value: SettingsTabValues.PERSONALIZATION,
+            icon: <PersonalizationIcon />,
+            label: 'Personalization' as TranslationKeys,
+          },
+        ]
+      : []),
     {
       value: SettingsTabValues.DATA,
       icon: <DataIcon />,
@@ -85,11 +105,13 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
   ];
 
   const settingsTabs = useMemo(() => {
-    return allSettingsTabs.filter(tab => !tab.configKey || settingsTabsConfig[tab.configKey] !== false);
+    return allSettingsTabs.filter(
+      (tab) => !tab.configKey || settingsTabsConfig[tab.configKey] !== false,
+    );
   }, [settingsTabsConfig, hasAnyPersonalizationFeature]);
 
   const tabs = useMemo(() => {
-    return settingsTabs.map(tab => tab.value);
+    return settingsTabs.map((tab) => tab.value);
   }, [settingsTabs]);
 
   // Ensure activeTab is valid for the current available tabs
@@ -246,7 +268,7 @@ export default function Settings({ open, onOpenChange }: TDialogProps) {
                     )}
                     {hasAnyPersonalizationFeature && (
                       <Tabs.Content value={SettingsTabValues.PERSONALIZATION}>
-                        <Personalization 
+                        <Personalization
                           hasMemoryOptOut={hasMemoryOptOut}
                           hasAnyPersonalizationFeature={hasAnyPersonalizationFeature}
                         />

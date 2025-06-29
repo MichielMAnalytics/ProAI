@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-
 // Basic usage:
 //   cd api && node test/create-agent-from-prompt.js burn_monitor.txt
 
@@ -45,43 +44,54 @@ function parsePromptFile(filePath) {
 
   const content = fs.readFileSync(filePath, 'utf8');
   const lines = content.split('\n');
-  
+
   let name = '';
   let description = '';
   let instructions = '';
   let defaultPrompts = [];
   let currentSection = '';
-  
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
-    
+
     if (line.startsWith('Name:')) {
       currentSection = 'name';
       name = line.replace('Name:', '').trim();
       continue;
     }
-    
+
     if (line.startsWith('Description:')) {
       currentSection = 'description';
       description = line.replace('Description:', '').trim();
       continue;
     }
-    
+
     if (line.startsWith('Instructions:')) {
       currentSection = 'instructions';
       instructions = line.replace('Instructions:', '').trim();
       continue;
     }
-    
+
     if (line.startsWith('Default prompts:')) {
       currentSection = 'default_prompts';
       continue;
     }
-    
+
     // Continue reading content for current section
-    if (currentSection === 'name' && line && !line.startsWith('Description:') && !line.startsWith('Instructions:') && !line.startsWith('Default prompts:')) {
+    if (
+      currentSection === 'name' &&
+      line &&
+      !line.startsWith('Description:') &&
+      !line.startsWith('Instructions:') &&
+      !line.startsWith('Default prompts:')
+    ) {
       name += (name ? ' ' : '') + line;
-    } else if (currentSection === 'description' && line && !line.startsWith('Instructions:') && !line.startsWith('Default prompts:')) {
+    } else if (
+      currentSection === 'description' &&
+      line &&
+      !line.startsWith('Instructions:') &&
+      !line.startsWith('Default prompts:')
+    ) {
       description += (description ? ' ' : '') + line;
     } else if (currentSection === 'instructions' && line && !line.startsWith('Default prompts:')) {
       instructions += (instructions ? '\n' : '') + lines[i]; // Keep original formatting for instructions
@@ -102,12 +112,12 @@ function parsePromptFile(filePath) {
       }
     }
   }
-  
+
   return {
     name: name.trim(),
     description: description.trim(),
     instructions: instructions.trim(),
-    defaultPrompts: defaultPrompts
+    defaultPrompts: defaultPrompts,
   };
 }
 
@@ -136,14 +146,14 @@ async function createAgent(agentData) {
 async function updateAgentVersion(existingAgent, newAgentData) {
   const { author, ...versionData } = newAgentData;
   const timestamp = new Date();
-  
+
   // Create new version object
   const newVersion = {
     ...versionData,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
-  
+
   // Update the main agent fields with new data
   const updatedAgent = await Agent.findByIdAndUpdate(
     existingAgent._id,
@@ -152,9 +162,9 @@ async function updateAgentVersion(existingAgent, newAgentData) {
       $push: { versions: newVersion },
       updatedAt: timestamp,
     },
-    { new: true }
+    { new: true },
   );
-  
+
   return updatedAgent.toObject();
 }
 
@@ -168,27 +178,27 @@ async function createAgentFromPrompt(filename, userId = '685e6b47738f92a3c82c88e
   try {
     // Connect to database
     await connectDb();
-    
+
     // Build file path
     const promptsPath = path.join(__dirname, '../../user_agent_system_prompts');
     const filePath = path.join(promptsPath, filename);
-    
+
     // Parse prompt file
     const { name, description, instructions, defaultPrompts } = parsePromptFile(filePath);
-    
+
     if (!name || !description || !instructions) {
       throw new Error('Missing required fields: Name, Description, or Instructions');
     }
-    
+
     // Check if an agent with the same name and author already exists
     const existingAgent = await Agent.findOne({ name, author: userId });
-    
+
     let agent;
     let isNewAgent = false;
-    
+
     if (existingAgent) {
       console.log(`🔄 Found existing agent "${name}" - creating new version...`);
-      
+
       // Prepare agent data for new version (keep existing ID)
       const agentData = {
         id: existingAgent.id, // Keep the same ID
@@ -207,19 +217,18 @@ async function createAgentFromPrompt(filename, userId = '685e6b47738f92a3c82c88e
         projectIds: options.projectIds || [],
         model_parameters: options.model_parameters || {},
         end_after_tools: options.end_after_tools || false,
-        hide_sequential_outputs: options.hide_sequential_outputs || false
+        hide_sequential_outputs: options.hide_sequential_outputs || false,
       };
-      
+
       // Update existing agent with new version
       agent = await updateAgentVersion(existingAgent, agentData);
-      
     } else {
       console.log(`🆕 Creating new agent "${name}"...`);
       isNewAgent = true;
-      
+
       // Generate unique agent ID for new agent
       const agentId = `agent_${nanoid()}`;
-      
+
       // Prepare agent data with defaults
       const agentData = {
         id: agentId,
@@ -238,22 +247,21 @@ async function createAgentFromPrompt(filename, userId = '685e6b47738f92a3c82c88e
         projectIds: options.projectIds || [],
         model_parameters: options.model_parameters || {},
         end_after_tools: options.end_after_tools || false,
-        hide_sequential_outputs: options.hide_sequential_outputs || false
+        hide_sequential_outputs: options.hide_sequential_outputs || false,
       };
-      
+
       // Create new agent in database
       agent = await createAgent(agentData);
     }
-    
+
     console.log(`✅ Agent ${isNewAgent ? 'created' : 'updated'} successfully!`);
     console.log(`📄 Name: ${agent.name}`);
     console.log(`🆔 ID: ${agent.id}`);
     console.log(`👤 Author: ${agent.author}`);
     console.log(`📝 Description: ${agent.description}`);
     console.log(`📊 Versions: ${agent.versions ? agent.versions.length : 1}`);
-    
+
     return agent;
-    
   } catch (error) {
     console.error('❌ Error creating agent:', error.message);
     throw error;
@@ -263,13 +271,15 @@ async function createAgentFromPrompt(filename, userId = '685e6b47738f92a3c82c88e
 // CLI interface
 if (require.main === module) {
   const args = process.argv.slice(2);
-  
+
   if (args.length < 1) {
     console.log('Usage: node create-agent-from-prompt.js <filename> [user_id] [options]');
     console.log('');
     console.log('Arguments:');
     console.log('  filename   - Name of the prompt file (e.g., burn_monitor.txt)');
-    console.log('  user_id    - MongoDB ObjectId of the user (optional, defaults to 685e6b47738f92a3c82c88eb)');
+    console.log(
+      '  user_id    - MongoDB ObjectId of the user (optional, defaults to 685e6b47738f92a3c82c88eb)',
+    );
     console.log('');
     console.log('Options (JSON format):');
     console.log('  --provider       - AI provider (default: "openAI")');
@@ -279,14 +289,16 @@ if (require.main === module) {
     console.log('Examples:');
     console.log('  node create-agent-from-prompt.js burn_monitor.txt');
     console.log('  node create-agent-from-prompt.js burn_monitor.txt 685e6b47738f92a3c82c88eb');
-    console.log('  node create-agent-from-prompt.js burn_monitor.txt 685e6b47738f92a3c82c88eb \'{"tools":["web_search"],"provider":"anthropic","model":"claude-3-sonnet"}\'');
+    console.log(
+      '  node create-agent-from-prompt.js burn_monitor.txt 685e6b47738f92a3c82c88eb \'{"tools":["web_search"],"provider":"anthropic","model":"claude-3-sonnet"}\'',
+    );
     process.exit(1);
   }
-  
+
   const filename = args[0];
   const userId = args[1] || '685e6b47738f92a3c82c88eb'; // Default user ID
   const optionsJson = args[2] || '{}';
-  
+
   let options = {};
   try {
     options = JSON.parse(optionsJson);
@@ -294,7 +306,7 @@ if (require.main === module) {
     console.error('❌ Invalid JSON in options:', error.message);
     process.exit(1);
   }
-  
+
   createAgentFromPrompt(filename, userId, options)
     .then(() => {
       console.log('🎉 Done!');

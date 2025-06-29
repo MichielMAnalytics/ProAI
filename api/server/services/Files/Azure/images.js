@@ -95,10 +95,18 @@ async function prepareAzureImageURL(req, file) {
  * @param {string} [params.containerName] - The Azure Blob container name.
  * @returns {Promise<string>} The URL of the avatar.
  */
-async function processAzureAvatar({ buffer, userId, manual, basePath = '', containerName = 'agent-avatars' }) {
+async function processAzureAvatar({
+  buffer,
+  userId,
+  manual,
+  basePath = '',
+  containerName = 'agent-avatars',
+}) {
   try {
-    logger.info(`[processAzureAvatar] Starting avatar upload - UserId: ${userId}, Container: ${containerName}, BasePath: '${basePath}', Manual: ${manual}`);
-    
+    logger.info(
+      `[processAzureAvatar] Starting avatar upload - UserId: ${userId}, Container: ${containerName}, BasePath: '${basePath}', Manual: ${manual}`,
+    );
+
     const downloadURL = await saveBufferToAzure({
       userId,
       buffer,
@@ -106,16 +114,16 @@ async function processAzureAvatar({ buffer, userId, manual, basePath = '', conta
       basePath,
       containerName,
     });
-    
+
     logger.info(`[processAzureAvatar] Avatar uploaded to Azure - URL: ${downloadURL}`);
-    
+
     const isManual = manual === 'true';
     const url = `${downloadURL}?manual=${isManual}`;
     if (isManual) {
       await updateUser(userId, { avatar: url });
       logger.info(`[processAzureAvatar] User avatar updated in database`);
     }
-    
+
     logger.info(`[processAzureAvatar] Final avatar URL: ${url}`);
     return url;
   } catch (error) {

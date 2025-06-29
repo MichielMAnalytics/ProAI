@@ -31,11 +31,8 @@ async function executeStepWithAgent(step, prompt, context, userId, abortSignal) 
 
   try {
     // Always create a fresh agent for each step to prevent context bleeding
-    const { agent, client, configuredModel, configuredEndpoint, endpointName } = await createFreshAgent(
-      context.workflow,
-      step,
-      context,
-    );
+    const { agent, client, configuredModel, configuredEndpoint, endpointName } =
+      await createFreshAgent(context.workflow, step, context);
 
     if (!agent || !client) {
       throw new Error('Failed to create fresh agent and client for workflow step');
@@ -130,7 +127,9 @@ async function createFreshAgent(workflow, step, context) {
       ? workflow.agent_id
       : Constants.EPHEMERAL_AGENT_ID;
 
-  logger.info(`[WorkflowAgentExecutor] Determined agent for fresh agent creation: ${agentIdToLoad}`);
+  logger.info(
+    `[WorkflowAgentExecutor] Determined agent for fresh agent creation: ${agentIdToLoad}`,
+  );
 
   // Create mock request for agent initialization
   const mockReq = createMockRequestForWorkflow(
@@ -183,12 +182,12 @@ async function createFreshAgent(workflow, step, context) {
   // Filter out the workflows tool to prevent recursive workflow creation during execution
   if (agent.tools && Array.isArray(agent.tools)) {
     const originalToolCount = agent.tools.length;
-    agent.tools = agent.tools.filter(tool => tool !== 'workflows');
+    agent.tools = agent.tools.filter((tool) => tool !== 'workflows');
     const filteredToolCount = agent.tools.length;
-    
+
     if (originalToolCount > filteredToolCount) {
       logger.info(
-        `[WorkflowAgentExecutor] Filtered out 'workflows' tool to prevent recursive workflow creation (${originalToolCount} -> ${filteredToolCount} tools)`
+        `[WorkflowAgentExecutor] Filtered out 'workflows' tool to prevent recursive workflow creation (${originalToolCount} -> ${filteredToolCount} tools)`,
       );
     }
   }
@@ -226,17 +225,19 @@ async function createFreshAgent(workflow, step, context) {
   // Results are tracked in ExecutionDashboard instead
   client.skipSaveConvo = true;
 
-  logger.info(`[WorkflowAgentExecutor] AgentClient initialized successfully for step "${step.name}" (conversation saving disabled)`);
+  logger.info(
+    `[WorkflowAgentExecutor] AgentClient initialized successfully for step "${step.name}" (conversation saving disabled)`,
+  );
 
-  return { 
-    agent, 
-    client, 
-    configuredModel, 
-    configuredEndpoint, 
-    endpointName 
+  return {
+    agent,
+    client,
+    configuredModel,
+    configuredEndpoint,
+    endpointName,
   };
 }
 
 module.exports = {
   executeStepWithAgent,
-}; 
+};

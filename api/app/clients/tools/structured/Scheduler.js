@@ -4,16 +4,19 @@ const { v4: uuidv4 } = require('uuid');
 const { logger } = require('~/config');
 const { EModelEndpoint } = require('librechat-data-provider');
 const SchedulerService = require('~/server/services/Scheduler/SchedulerService');
-const { 
-  createSchedulerTask, 
-  getSchedulerTasksByUser, 
+const {
+  createSchedulerTask,
+  getSchedulerTasksByUser,
   getSchedulerTaskById,
   updateSchedulerTask,
   deleteSchedulerTask,
   enableSchedulerTask,
-  disableSchedulerTask
+  disableSchedulerTask,
 } = require('~/models/SchedulerTask');
-const { validateCronExpression, calculateNextRun } = require('~/server/services/Scheduler/utils/cronUtils'); // Use standardized cron utilities
+const {
+  validateCronExpression,
+  calculateNextRun,
+} = require('~/server/services/Scheduler/utils/cronUtils'); // Use standardized cron utilities
 
 class SchedulerTool extends Tool {
   static lc_name() {
@@ -30,7 +33,7 @@ class SchedulerTool extends Tool {
     this.endpoint = fields.endpoint;
     this.model = fields.model;
     this.req = fields.req;
-    
+
     // Debug logging to see what context we receive
     logger.debug(`[SchedulerTool] Constructor called with:`, {
       userId: this.userId,
@@ -44,7 +47,7 @@ class SchedulerTool extends Tool {
       reqBodyEndpoint: this.req?.body?.endpoint,
       reqBodyEndpointOption: this.req?.body?.endpointOption,
     });
-    
+
     this.name = 'scheduler';
     this.description = `Create and manage scheduled tasks that can execute prompts at specified times using cron expressions.
     
@@ -119,29 +122,51 @@ class SchedulerTool extends Tool {
     - Use do_only_once: false for recurring tasks like daily reports
     - Tasks can be temporarily disabled without deletion using disable_task
     - Cron expressions are validated before task creation`;
-    
+
     this.schema = z.object({
-      action: z.enum(['create_task', 'list_tasks', 'get_task', 'update_task', 'delete_task', 'enable_task', 'disable_task'])
+      action: z
+        .enum([
+          'create_task',
+          'list_tasks',
+          'get_task',
+          'update_task',
+          'delete_task',
+          'enable_task',
+          'disable_task',
+        ])
         .describe('The action to perform'),
-      name: z.string().optional()
-        .describe('Name of the task (required for create_task)'),
-      schedule: z.string().optional()
-        .describe('Cron expression for scheduling (required for create_task). Examples: "0 9 * * *" (daily at 9 AM), "*/30 * * * *" (every 30 minutes)'),
-      prompt: z.string().optional()
-        .describe('The prompt to send to the AI agent when the task runs (required for create_task)'),
-      do_only_once: z.boolean().optional().default(true)
+      name: z.string().optional().describe('Name of the task (required for create_task)'),
+      schedule: z
+        .string()
+        .optional()
+        .describe(
+          'Cron expression for scheduling (required for create_task). Examples: "0 9 * * *" (daily at 9 AM), "*/30 * * * *" (every 30 minutes)',
+        ),
+      prompt: z
+        .string()
+        .optional()
+        .describe(
+          'The prompt to send to the AI agent when the task runs (required for create_task)',
+        ),
+      do_only_once: z
+        .boolean()
+        .optional()
+        .default(true)
         .describe('Whether to run the task only once (true) or repeatedly (false)'),
-      enabled: z.boolean().optional().default(true)
-        .describe('Whether the task is enabled'),
-      task_id: z.string().optional()
-        .describe('Task ID for get_task, update_task, delete_task, enable_task, disable_task actions'),
+      enabled: z.boolean().optional().default(true).describe('Whether the task is enabled'),
+      task_id: z
+        .string()
+        .optional()
+        .describe(
+          'Task ID for get_task, update_task, delete_task, enable_task, disable_task actions',
+        ),
     });
   }
 
   /**
    * Create a new scheduled task
    * @param {Object} data - Task data
-   * @param {string} userId - User ID  
+   * @param {string} userId - User ID
    * @param {string} conversationId - Conversation ID
    * @param {string} parentMessageId - Parent message ID
    * @param {string} endpoint - Endpoint name
@@ -182,13 +207,17 @@ class SchedulerTool extends Tool {
       taskEndpoint = endpoint;
       taskModel = model;
       taskAgentId = null;
-      logger.info(`[SchedulerTool] Creating task with endpoint context: endpoint=${taskEndpoint}, model=${taskModel}`);
+      logger.info(
+        `[SchedulerTool] Creating task with endpoint context: endpoint=${taskEndpoint}, model=${taskModel}`,
+      );
     } else {
       // Fallback to default values (shouldn't happen in normal operation)
       taskEndpoint = EModelEndpoint.openAI;
       taskModel = 'gpt-4o-mini';
       taskAgentId = null;
-      logger.warn(`[SchedulerTool] Using fallback values for task ${taskId}: endpoint=${taskEndpoint}, model=${taskModel}`);
+      logger.warn(
+        `[SchedulerTool] Using fallback values for task ${taskId}: endpoint=${taskEndpoint}, model=${taskModel}`,
+      );
     }
 
     const taskData = {
@@ -210,28 +239,35 @@ class SchedulerTool extends Tool {
       agent_id: taskAgentId,
     };
 
-    logger.info(`[SchedulerTool] Creating task: ${taskId} (${name}) - will use stored context: endpoint=${taskEndpoint}, model=${taskModel}, agent_id=${taskAgentId}`);
-    logger.debug(`[SchedulerTool] Task data:`, { ...taskData, prompt: prompt.substring(0, 100) + '...' });
+    logger.info(
+      `[SchedulerTool] Creating task: ${taskId} (${name}) - will use stored context: endpoint=${taskEndpoint}, model=${taskModel}, agent_id=${taskAgentId}`,
+    );
+    logger.debug(`[SchedulerTool] Task data:`, {
+      ...taskData,
+      prompt: prompt.substring(0, 100) + '...',
+    });
 
     try {
       const task = await createSchedulerTask(taskData);
-      
-      // Send notification to refresh schedules panel  
+
+      // Send notification to refresh schedules panel
       try {
         await SchedulerService.sendTaskStatusUpdate({
           userId: userId,
           taskId: taskId,
           taskName: name,
           notificationType: 'created',
-          details: 'New task created via chat interface'
+          details: 'New task created via chat interface',
         });
         logger.debug(`[SchedulerTool] Sent task creation notification for task ${taskId}`);
       } catch (notificationError) {
-        logger.warn(`[SchedulerTool] Failed to send task creation notification: ${notificationError.message}`);
+        logger.warn(
+          `[SchedulerTool] Failed to send task creation notification: ${notificationError.message}`,
+        );
       }
 
       logger.info(`[SchedulerTool] Created task: ${taskId} (${name}) for user ${userId}`);
-      
+
       return {
         success: true,
         message: `Task "${name}" created successfully. ${do_only_once ? 'It will run once' : 'It will run repeatedly'} according to schedule: ${schedule}. Will use ${taskAgentId ? `agent ${taskAgentId}` : `${taskEndpoint}/${taskModel}`} for execution.`,
@@ -249,7 +285,7 @@ class SchedulerTool extends Tool {
           endpoint: task.endpoint,
           ai_model: task.ai_model,
           agent_id: task.agent_id,
-        }
+        },
       };
     } catch (error) {
       logger.error(`[SchedulerTool] Error creating task:`, error);
@@ -260,11 +296,11 @@ class SchedulerTool extends Tool {
   async listTasks(userId) {
     try {
       const tasks = await getSchedulerTasksByUser(userId);
-      
+
       return {
         success: true,
         message: `Found ${tasks.length} tasks`,
-        tasks: tasks.map(task => ({
+        tasks: tasks.map((task) => ({
           id: task.id,
           name: task.name,
           schedule: task.schedule,
@@ -279,7 +315,7 @@ class SchedulerTool extends Tool {
           endpoint: task.endpoint,
           ai_model: task.ai_model,
           agent_id: task.agent_id,
-        }))
+        })),
       };
     } catch (error) {
       logger.error(`[SchedulerTool] Error listing tasks:`, error);
@@ -294,11 +330,11 @@ class SchedulerTool extends Tool {
 
     try {
       const task = await getSchedulerTaskById(taskId, userId);
-      
+
       if (!task) {
         return {
           success: false,
-          message: `Task with ID ${taskId} not found`
+          message: `Task with ID ${taskId} not found`,
         };
       }
 
@@ -322,7 +358,7 @@ class SchedulerTool extends Tool {
           agent_id: task.agent_id,
           created_at: task.createdAt,
           updated_at: task.updatedAt,
-        }
+        },
       };
     } catch (error) {
       logger.error(`[SchedulerTool] Error getting task:`, error);
@@ -342,16 +378,18 @@ class SchedulerTool extends Tool {
         throw new Error(`Invalid cron expression: ${cronValidation.error}`);
       }
       updateData.next_run = cronValidation.nextRun;
-      logger.debug(`[SchedulerTool] Updated schedule for task ${taskId}: ${updateData.schedule}, next run: ${cronValidation.nextRun?.toISOString()}`);
+      logger.debug(
+        `[SchedulerTool] Updated schedule for task ${taskId}: ${updateData.schedule}, next run: ${cronValidation.nextRun?.toISOString()}`,
+      );
     }
 
     try {
       const updatedTask = await updateSchedulerTask(taskId, userId, updateData);
-      
+
       if (!updatedTask) {
         return {
           success: false,
-          message: `Task with ID ${taskId} not found`
+          message: `Task with ID ${taskId} not found`,
         };
       }
 
@@ -362,11 +400,13 @@ class SchedulerTool extends Tool {
           taskId: taskId,
           taskName: updatedTask.name,
           notificationType: 'updated',
-          details: 'Task updated via chat interface'
+          details: 'Task updated via chat interface',
         });
         logger.debug(`[SchedulerTool] Sent task update notification for task ${taskId}`);
       } catch (notificationError) {
-        logger.warn(`[SchedulerTool] Failed to send task update notification: ${notificationError.message}`);
+        logger.warn(
+          `[SchedulerTool] Failed to send task update notification: ${notificationError.message}`,
+        );
       }
 
       return {
@@ -383,7 +423,7 @@ class SchedulerTool extends Tool {
           next_run: updatedTask.next_run,
           conversation_id: updatedTask.conversation_id,
           parent_message_id: updatedTask.parent_message_id,
-        }
+        },
       };
     } catch (error) {
       logger.error(`[SchedulerTool] Error updating task ${taskId}:`, error);
@@ -398,11 +438,11 @@ class SchedulerTool extends Tool {
 
     try {
       const result = await deleteSchedulerTask(taskId, userId);
-      
+
       if (result.deletedCount === 0) {
         return {
           success: false,
-          message: `Task with ID ${taskId} not found`
+          message: `Task with ID ${taskId} not found`,
         };
       }
 
@@ -413,16 +453,18 @@ class SchedulerTool extends Tool {
           taskId: taskId,
           taskName: 'Deleted Task',
           notificationType: 'deleted',
-          details: 'Task deleted via chat interface'
+          details: 'Task deleted via chat interface',
         });
         logger.debug(`[SchedulerTool] Sent task deletion notification for task ${taskId}`);
       } catch (notificationError) {
-        logger.warn(`[SchedulerTool] Failed to send task deletion notification: ${notificationError.message}`);
+        logger.warn(
+          `[SchedulerTool] Failed to send task deletion notification: ${notificationError.message}`,
+        );
       }
 
       return {
         success: true,
-        message: `Task deleted successfully`
+        message: `Task deleted successfully`,
       };
     } catch (error) {
       logger.error(`[SchedulerTool] Error deleting task:`, error);
@@ -437,11 +479,11 @@ class SchedulerTool extends Tool {
 
     try {
       const task = await enableSchedulerTask(taskId, userId);
-      
+
       if (!task) {
         return {
           success: false,
-          message: `Task with ID ${taskId} not found`
+          message: `Task with ID ${taskId} not found`,
         };
       }
 
@@ -452,16 +494,18 @@ class SchedulerTool extends Tool {
           taskId: taskId,
           taskName: task.name,
           notificationType: 'enabled',
-          details: 'Task enabled via chat interface'
+          details: 'Task enabled via chat interface',
         });
         logger.debug(`[SchedulerTool] Sent task enable notification for task ${taskId}`);
       } catch (notificationError) {
-        logger.warn(`[SchedulerTool] Failed to send task enable notification: ${notificationError.message}`);
+        logger.warn(
+          `[SchedulerTool] Failed to send task enable notification: ${notificationError.message}`,
+        );
       }
 
       return {
         success: true,
-        message: `Task "${task.name}" enabled successfully`
+        message: `Task "${task.name}" enabled successfully`,
       };
     } catch (error) {
       logger.error(`[SchedulerTool] Error enabling task:`, error);
@@ -476,11 +520,11 @@ class SchedulerTool extends Tool {
 
     try {
       const task = await disableSchedulerTask(taskId, userId);
-      
+
       if (!task) {
         return {
           success: false,
-          message: `Task with ID ${taskId} not found`
+          message: `Task with ID ${taskId} not found`,
         };
       }
 
@@ -491,16 +535,18 @@ class SchedulerTool extends Tool {
           taskId: taskId,
           taskName: task.name,
           notificationType: 'disabled',
-          details: 'Task disabled via chat interface'
+          details: 'Task disabled via chat interface',
         });
         logger.debug(`[SchedulerTool] Sent task disable notification for task ${taskId}`);
       } catch (notificationError) {
-        logger.warn(`[SchedulerTool] Failed to send task disable notification: ${notificationError.message}`);
+        logger.warn(
+          `[SchedulerTool] Failed to send task disable notification: ${notificationError.message}`,
+        );
       }
 
       return {
         success: true,
-        message: `Task "${task.name}" disabled successfully`
+        message: `Task "${task.name}" disabled successfully`,
       };
     } catch (error) {
       logger.error(`[SchedulerTool] Error disabling task:`, error);
@@ -511,14 +557,15 @@ class SchedulerTool extends Tool {
   async _call(input, config) {
     try {
       const { action, ...data } = input;
-      
+
       // Extract user context from the tool instance and config
       const userId = this.userId;
       // Try to get conversationId from config first (like MCP tools), then fall back to instance
-      const conversationId = config?.configurable?.thread_id || 
-                           config?.configurable?.conversationId ||
-                           this.conversationId;
-      
+      const conversationId =
+        config?.configurable?.thread_id ||
+        config?.configurable?.conversationId ||
+        this.conversationId;
+
       // Debug logging to understand message ID flow
       logger.debug(`[SchedulerTool._call] Available message IDs:`, {
         'req.body.userMessageId': this.req?.body?.userMessageId,
@@ -528,11 +575,11 @@ class SchedulerTool extends Tool {
         'config.configurable': config?.configurable,
         'instance.parentMessageId': this.parentMessageId,
       });
-      
+
       // Try to get parentMessageId from various sources
       // First priority: use the current user message ID
       let parentMessageId = this.req?.body?.userMessageId || this.req?.body?.overrideUserMessageId;
-      
+
       // Fallback to other sources if userMessageId not found
       if (!parentMessageId) {
         parentMessageId = this.parentMessageId;
@@ -543,17 +590,17 @@ class SchedulerTool extends Tool {
       if (!parentMessageId && config?.configurable?.parentMessageId) {
         parentMessageId = config.configurable.parentMessageId;
       }
-      
+
       const endpoint = this.endpoint;
       const model = this.model;
-      
+
       if (!userId) {
         throw new Error('User context not available');
       }
 
-      logger.debug(`[SchedulerTool] Executing action: ${action}`, { 
-        userId, 
-        conversationId, 
+      logger.debug(`[SchedulerTool] Executing action: ${action}`, {
+        userId,
+        conversationId,
         parentMessageId,
         userMessageId: this.req?.body?.userMessageId,
         overrideUserMessageId: this.req?.body?.overrideUserMessageId,
@@ -561,32 +608,41 @@ class SchedulerTool extends Tool {
         instanceConversationId: this.conversationId,
         hasConfig: !!config,
         configKeys: config ? Object.keys(config) : 'no config',
-        configurableKeys: config?.configurable ? Object.keys(config.configurable) : 'no configurable',
+        configurableKeys: config?.configurable
+          ? Object.keys(config.configurable)
+          : 'no configurable',
       });
 
       switch (action) {
         case 'create_task':
-          return await this.createTask(data, userId, conversationId, parentMessageId, endpoint, model);
-        
+          return await this.createTask(
+            data,
+            userId,
+            conversationId,
+            parentMessageId,
+            endpoint,
+            model,
+          );
+
         case 'list_tasks':
           return await this.listTasks(userId);
-        
+
         case 'get_task':
           return await this.getTask(data.task_id, userId);
-        
+
         case 'update_task':
           const { task_id, ...updateData } = data;
           return await this.updateTask(task_id, userId, updateData);
-        
+
         case 'delete_task':
           return await this.deleteTask(data.task_id, userId);
-        
+
         case 'enable_task':
           return await this.enableTask(data.task_id, userId);
-        
+
         case 'disable_task':
           return await this.disableTask(data.task_id, userId);
-        
+
         default:
           throw new Error(`Unknown action: ${action}`);
       }
@@ -594,10 +650,10 @@ class SchedulerTool extends Tool {
       logger.error(`[SchedulerTool] Error in _call:`, error);
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
 }
 
-module.exports = SchedulerTool; 
+module.exports = SchedulerTool;

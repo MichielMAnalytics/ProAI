@@ -105,23 +105,12 @@ function RequestPasswordReset() {
               },
             })}
             aria-invalid={!!errors.email}
-            className="
-              webkit-dark-styles transition-color peer w-full rounded-2xl border border-border-light 
-              bg-surface-primary px-3.5 pb-2.5 pt-3 text-text-primary duration-200 
-              focus:border-brand-blue focus:outline-none
-            "
+            className="webkit-dark-styles transition-color peer w-full rounded-2xl border border-border-light bg-surface-primary px-3.5 pb-2.5 pt-3 text-text-primary duration-200 focus:border-brand-blue focus:outline-none"
             placeholder=" "
           />
           <label
             htmlFor="email"
-            className="
-              absolute start-3 top-1.5 z-10 origin-[0] -translate-y-4 scale-75 transform 
-              bg-surface-primary px-2 text-sm text-text-secondary-alt duration-200 
-              peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 
-              peer-placeholder-shown:scale-100 peer-focus:top-1.5 peer-focus:-translate-y-4 
-              peer-focus:scale-75 peer-focus:px-2 peer-focus:text-brand-blue 
-              dark:peer-focus:text-blue-400 rtl:peer-focus:left-auto rtl:peer-focus:translate-x-1/4
-            "
+            className="absolute start-3 top-1.5 z-10 origin-[0] -translate-y-4 scale-75 transform bg-surface-primary px-2 text-sm text-text-secondary-alt duration-200 peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:scale-100 peer-focus:top-1.5 peer-focus:-translate-y-4 peer-focus:scale-75 peer-focus:px-2 peer-focus:text-brand-blue dark:peer-focus:text-blue-400 rtl:peer-focus:left-auto rtl:peer-focus:translate-x-1/4"
           >
             {localize('com_auth_email_address')}
           </label>
@@ -133,11 +122,7 @@ function RequestPasswordReset() {
         )}
       </div>
       <div className="space-y-4">
-        <button
-          type="submit"
-          disabled={!!errors.email}
-          className="btn btn-primary w-full"
-        >
+        <button type="submit" disabled={!!errors.email} className="btn btn-primary w-full">
           {localize('com_auth_continue')}
         </button>
         <a

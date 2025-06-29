@@ -1,7 +1,28 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRecoilState, useSetRecoilState } from 'recoil';
 import * as Tabs from '@radix-ui/react-tabs';
-import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, RefreshCw, X, Play, Pause, TestTube, Trash2, Plus, Search, RotateCcw, Eye, Copy, Check, Square, BarChart3, FileText } from 'lucide-react';
+import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
+  X,
+  Play,
+  Pause,
+  TestTube,
+  Trash2,
+  Plus,
+  Search,
+  RotateCcw,
+  Eye,
+  Copy,
+  Check,
+  Square,
+  BarChart3,
+  FileText,
+} from 'lucide-react';
 import type { SandpackPreviewRef, CodeEditorRef } from '@codesandbox/sandpack-react';
 import useArtifacts from '~/hooks/Artifacts/useArtifacts';
 import DownloadArtifact from './DownloadArtifact';
@@ -40,7 +61,7 @@ function extractMeaningfulContent(result: any): string | null {
     const textParts = result.content
       .filter((part: any) => part.type === 'text' && part.text && part.text.trim())
       .map((part: any) => part.text.trim());
-    
+
     if (textParts.length > 0) {
       return textParts.join('\n').trim();
     }
@@ -62,17 +83,21 @@ function extractMeaningfulContent(result: any): string | null {
         const textParts = result.agentResponse.content
           .filter((part: any) => part.type === 'text' && part.text && part.text.trim())
           .map((part: any) => part.text.trim());
-        
+
         if (textParts.length > 0) {
           return textParts.join('\n').trim();
         }
       }
-      
+
       // Check for direct text in agent response
-      if (result.agentResponse.text && typeof result.agentResponse.text === 'string' && result.agentResponse.text.trim()) {
+      if (
+        result.agentResponse.text &&
+        typeof result.agentResponse.text === 'string' &&
+        result.agentResponse.text.trim()
+      ) {
         return result.agentResponse.text.trim();
       }
-      
+
       // Check for message content in agent response
       if (result.agentResponse.content && typeof result.agentResponse.content === 'string') {
         return result.agentResponse.content;
@@ -97,7 +122,7 @@ function extractMeaningfulContent(result: any): string | null {
         return null;
       })
       .filter(Boolean);
-    
+
     if (meaningfulResults.length > 0) {
       return meaningfulResults.join('\n');
     }
@@ -194,7 +219,7 @@ export default function Artifacts() {
     if (currentArtifact?.type !== 'application/vnd.workflow' || !currentArtifact.content) {
       return null;
     }
-    
+
     try {
       const parsedContent = JSON.parse(currentArtifact.content);
       return parsedContent;
@@ -205,33 +230,38 @@ export default function Artifacts() {
   }, [currentArtifact]);
 
   const isWorkflowArtifact = currentArtifact?.type === 'application/vnd.workflow';
-  
+
   // Force preview tab for workflow artifacts (since we hide tabs)
   const effectiveActiveTab = isWorkflowArtifact ? 'preview' : activeTab;
   const workflowId = workflowData?.workflow?.id;
-  
+
   // Check if this workflow is currently being tested
   const isWorkflowTesting = workflowId ? testingWorkflows.has(workflowId) : false;
-  
+
   // Query the current workflow state from the database
   const { data: currentWorkflowData, refetch: refetchWorkflow } = useWorkflowQuery(workflowId, {
     enabled: !!workflowId && isWorkflowArtifact,
     refetchOnWindowFocus: true, // Refetch when window gains focus
     staleTime: 30000, // Consider data fresh for 30 seconds
   });
-  
+
   // Use the current workflow data if available, fallback to artifact data
   const isWorkflowActive = currentWorkflowData?.isActive ?? workflowData?.workflow?.isActive;
   const isDraft = currentWorkflowData?.isDraft ?? workflowData?.workflow?.isDraft;
-  
+
   // Listen for workflow test notifications from agent-initiated tests
-  const { isWorkflowTesting: isWorkflowTestingFromHook, getCurrentStep, getExecutionResult, clearExecutionResult } = useWorkflowNotifications({
+  const {
+    isWorkflowTesting: isWorkflowTestingFromHook,
+    getCurrentStep,
+    getExecutionResult,
+    clearExecutionResult,
+  } = useWorkflowNotifications({
     workflowId,
     onTestStart: (testWorkflowId) => {
       if (testWorkflowId === workflowId) {
         setIsTesting(true);
         // Add to testing workflows state
-        setTestingWorkflows(prev => new Set(prev).add(testWorkflowId));
+        setTestingWorkflows((prev) => new Set(prev).add(testWorkflowId));
         // Result data will be managed by the hook
       }
     },
@@ -243,29 +273,35 @@ export default function Artifacts() {
     onTestComplete: (testWorkflowId, success, result) => {
       if (testWorkflowId === workflowId) {
         console.log('[Artifacts] onTestComplete called:', { testWorkflowId, success, result });
-        
+
         // Check if this is the immediate stop notification
-        if (result?.error === 'Execution stopped by user' && isCancelling && !hasReceivedStopNotification) {
-          console.log('[Artifacts] This is the immediate stop notification - keeping cancelling state');
+        if (
+          result?.error === 'Execution stopped by user' &&
+          isCancelling &&
+          !hasReceivedStopNotification
+        ) {
+          console.log(
+            '[Artifacts] This is the immediate stop notification - keeping cancelling state',
+          );
           setHasReceivedStopNotification(true);
           setIsTesting(false);
           // Remove from testing workflows state but keep cancelling state
-          setTestingWorkflows(prev => {
+          setTestingWorkflows((prev) => {
             const newSet = new Set(prev);
             newSet.delete(testWorkflowId);
             return newSet;
           });
           return; // Don't process further, wait for actual completion
         }
-        
+
         // This is either a normal completion or the final completion after cancellation
         console.log('[Artifacts] This is final completion - clearing all states');
         setIsTesting(false);
         setIsCancelling(false);
         setHasReceivedStopNotification(false);
-        
+
         // Remove from testing workflows state
-        setTestingWorkflows(prev => {
+        setTestingWorkflows((prev) => {
           const newSet = new Set(prev);
           newSet.delete(testWorkflowId);
           return newSet;
@@ -278,10 +314,15 @@ export default function Artifacts() {
   // Get current step and result from the hook
   const currentStep = workflowId ? getCurrentStep(workflowId) : null;
   const resultData = workflowId ? getExecutionResult(workflowId) : null;
-  
+
   // Determine if we should show the result overlay
-  const showingResult = !!(resultData && !isTesting && !isCancelling && !(workflowId && isWorkflowTestingFromHook(workflowId)));
-  
+  const showingResult = !!(
+    resultData &&
+    !isTesting &&
+    !isCancelling &&
+    !(workflowId && isWorkflowTestingFromHook(workflowId))
+  );
+
   // Status helper functions
   const getStatusColor = (isActive: boolean, isDraft: boolean) => {
     if (isActive) {
@@ -303,7 +344,10 @@ export default function Artifacts() {
   console.log('[Artifacts] Workflow ID:', workflowId);
   console.log('[Artifacts] Is testing:', isTesting);
   console.log('[Artifacts] Is cancelling:', isCancelling);
-  console.log('[Artifacts] Is workflow testing:', workflowId && isWorkflowTestingFromHook(workflowId));
+  console.log(
+    '[Artifacts] Is workflow testing:',
+    workflowId && isWorkflowTestingFromHook(workflowId),
+  );
   console.log('[Artifacts] Current step:', currentStep);
   console.log('[Artifacts] Showing result:', showingResult);
   console.log('[Artifacts] Result data:', resultData);
@@ -320,7 +364,7 @@ export default function Artifacts() {
   // Workflow management handlers
   const handleToggleWorkflow = () => {
     if (!workflowId) return;
-    
+
     toggleMutation.mutate(
       { workflowId, isActive: !isWorkflowActive },
       {
@@ -339,13 +383,13 @@ export default function Artifacts() {
             severity: NotificationSeverity.ERROR,
           });
         },
-      }
+      },
     );
   };
 
   const handleDeleteWorkflow = () => {
     if (!workflowId) return;
-    
+
     deleteMutation.mutate(workflowId, {
       onSuccess: () => {
         showToast({
@@ -366,19 +410,19 @@ export default function Artifacts() {
 
   const handleTestWorkflow = () => {
     if (!workflowId) return;
-    
+
     // If workflow is currently testing, stop it
     if (isWorkflowTesting) {
       // Set cancelling state immediately
       console.log('[Artifacts] Setting cancelling state to true');
       setIsCancelling(true);
       setHasReceivedStopNotification(false); // Reset flag when starting to cancel
-      
+
       stopMutation.mutate(workflowId, {
         onSuccess: () => {
           // Remove the toast message - user will see cancelling state and final result
           // Force clear all testing states immediately
-          setTestingWorkflows(prev => {
+          setTestingWorkflows((prev) => {
             const newSet = new Set(prev);
             newSet.delete(workflowId);
             return newSet;
@@ -397,7 +441,7 @@ export default function Artifacts() {
             severity: NotificationSeverity.ERROR,
           });
           // Also clear testing states on error to prevent stuck state
-          setTestingWorkflows(prev => {
+          setTestingWorkflows((prev) => {
             const newSet = new Set(prev);
             newSet.delete(workflowId);
             return newSet;
@@ -409,19 +453,19 @@ export default function Artifacts() {
       });
       return;
     }
-    
+
     // Otherwise, start testing
     setIsTesting(true);
     setHasReceivedStopNotification(false); // Reset flag for new test
     // Add to testing workflows state
-    setTestingWorkflows(prev => new Set(prev).add(workflowId));
-    
+    setTestingWorkflows((prev) => new Set(prev).add(workflowId));
+
     testMutation.mutate(workflowId, {
       onSuccess: (response) => {
         // The workflow notification system will handle the result display
         setIsTesting(false);
         // Remove from testing workflows state
-        setTestingWorkflows(prev => {
+        setTestingWorkflows((prev) => {
           const newSet = new Set(prev);
           newSet.delete(workflowId);
           return newSet;
@@ -430,7 +474,7 @@ export default function Artifacts() {
       onError: (error: unknown) => {
         setIsTesting(false);
         // Remove from testing workflows state on error
-        setTestingWorkflows(prev => {
+        setTestingWorkflows((prev) => {
           const newSet = new Set(prev);
           newSet.delete(workflowId);
           return newSet;
@@ -464,7 +508,7 @@ export default function Artifacts() {
 
   // Toggle step expansion
   const toggleStepExpansion = (stepId: string) => {
-    setExpandedSteps(prev => {
+    setExpandedSteps((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(stepId)) {
         newSet.delete(stepId);
@@ -478,44 +522,45 @@ export default function Artifacts() {
   // Extract summary from step result
   const getStepSummary = (step: any) => {
     const stepId = step.stepId || `step_${step.stepName}`;
-    
+
     // For successful steps, try to extract meaningful info
     if (step.status === 'completed' && step.result) {
       const result = step.result;
-      
+
       // Try to extract meaningful content first
       const meaningfulContent = extractMeaningfulContent(result);
       if (meaningfulContent) {
         // Truncate for summary display
-        const truncated = meaningfulContent.length > 100 
-          ? meaningfulContent.substring(0, 100) + '...'
-          : meaningfulContent;
+        const truncated =
+          meaningfulContent.length > 100
+            ? meaningfulContent.substring(0, 100) + '...'
+            : meaningfulContent;
         return truncated;
       }
-      
+
       // Check if it's an MCP agent action
       if (result.type === 'mcp_agent_action') {
         return `Tool: ${result.stepName}, Status: ${result.status || 'success'}`;
       }
-      
+
       // For other types, show a generic success message
       return `${step.stepType} completed successfully`;
     }
-    
+
     if (step.status === 'failed') {
       return `Failed: ${step.error || 'Unknown error'}`;
     }
-    
+
     return `${step.stepType} - ${step.status}`;
   };
 
   return (
     <Tabs.Root value={effectiveActiveTab} onValueChange={setActiveTab} asChild>
       {/* Main Parent - Full screen overlay on mobile only, normal container on desktop */}
-      <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm sm:relative sm:inset-auto sm:z-auto sm:bg-transparent sm:backdrop-blur-none flex h-full w-full items-center justify-center sm:h-full sm:w-full">
+      <div className="fixed inset-0 z-50 flex h-full w-full items-center justify-center bg-black/20 backdrop-blur-sm sm:relative sm:inset-auto sm:z-auto sm:h-full sm:w-full sm:bg-transparent sm:backdrop-blur-none">
         {/* Main Container - Full width on mobile, full height on desktop */}
         <div
-          className={`flex h-full w-full flex-col overflow-hidden border-0 sm:border border-border-medium bg-surface-primary text-xl text-text-primary shadow-xl transition-all duration-500 ease-in-out ${
+          className={`flex h-full w-full flex-col overflow-hidden border-0 border-border-medium bg-surface-primary text-xl text-text-primary shadow-xl transition-all duration-500 ease-in-out sm:border ${
             isVisible ? 'scale-100 opacity-100 blur-0' : 'scale-105 opacity-0 blur-sm'
           }`}
         >
@@ -523,24 +568,27 @@ export default function Artifacts() {
           <div className="flex items-center justify-between border-b border-border-medium bg-surface-primary-alt p-2 sm:p-3">
             {/* Left: Back button */}
             <TooltipAnchor description="Close artifacts" side="bottom">
-              <button 
-                className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary" 
+              <button
+                className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary sm:h-8 sm:w-8"
                 onClick={closeArtifacts}
               >
                 <ArrowLeft className="h-4 w-4" />
               </button>
             </TooltipAnchor>
-            
+
             {/* Center: Main workflow actions */}
             {isWorkflowArtifact && workflowId && (
               <div className="flex items-center gap-1 sm:gap-2">
                 {/* Test/Stop Button */}
-                <TooltipAnchor description={isWorkflowTesting ? "Stop workflow test" : "Test workflow"} side="bottom">
+                <TooltipAnchor
+                  description={isWorkflowTesting ? 'Stop workflow test' : 'Test workflow'}
+                  side="bottom"
+                >
                   <button
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg shadow-sm transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isWorkflowTesting 
-                        ? 'bg-gradient-to-r from-red-500 to-red-600 border border-red-500/60 hover:from-red-600 hover:to-red-700 hover:border-red-500' 
-                        : 'bg-gradient-to-r from-brand-blue to-indigo-600 border border-brand-blue/60 hover:from-indigo-600 hover:to-blue-700 hover:border-brand-blue'
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isWorkflowTesting
+                        ? 'border border-red-500/60 bg-gradient-to-r from-red-500 to-red-600 hover:border-red-500 hover:from-red-600 hover:to-red-700'
+                        : 'border border-brand-blue/60 bg-gradient-to-r from-brand-blue to-indigo-600 hover:border-brand-blue hover:from-indigo-600 hover:to-blue-700'
                     }`}
                     onClick={handleTestWorkflow}
                     disabled={!isWorkflowTesting ? testMutation.isLoading : stopMutation.isLoading}
@@ -552,14 +600,17 @@ export default function Artifacts() {
                     )}
                   </button>
                 </TooltipAnchor>
-                
+
                 {/* Toggle Button */}
-                <TooltipAnchor description={isWorkflowActive ? 'Deactivate workflow' : 'Activate workflow'} side="bottom">
+                <TooltipAnchor
+                  description={isWorkflowActive ? 'Deactivate workflow' : 'Activate workflow'}
+                  side="bottom"
+                >
                   <button
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg shadow-sm transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isWorkflowActive 
-                        ? 'bg-gradient-to-r from-amber-500 to-orange-600 border border-amber-500/60 text-white hover:from-amber-600 hover:to-orange-700 hover:border-amber-500' 
-                        : 'bg-gradient-to-r from-green-500 to-emerald-600 border border-green-500/60 text-white hover:from-green-600 hover:to-emerald-700 hover:border-green-500'
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isWorkflowActive
+                        ? 'border border-amber-500/60 bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:border-amber-500 hover:from-amber-600 hover:to-orange-700'
+                        : 'border border-green-500/60 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:border-green-500 hover:from-green-600 hover:to-emerald-700'
                     }`}
                     onClick={handleToggleWorkflow}
                     disabled={toggleMutation.isLoading || isWorkflowTesting || isTesting}
@@ -573,21 +624,21 @@ export default function Artifacts() {
                     )}
                   </button>
                 </TooltipAnchor>
-                
+
                 {/* Delete Button */}
                 <TooltipAnchor description="Delete workflow" side="bottom">
                   <button
-                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-r from-red-500 to-red-600 border border-red-500/60 text-white shadow-sm transition-all hover:from-red-600 hover:to-red-700 hover:shadow-md hover:border-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-500/60 bg-gradient-to-r from-red-500 to-red-600 text-white shadow-sm transition-all hover:border-red-500 hover:from-red-600 hover:to-red-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
                     onClick={handleDeleteWorkflow}
                     disabled={deleteMutation.isLoading || isWorkflowTesting || isTesting}
                   >
                     <Trash2 className="h-4 w-4 text-white" />
                   </button>
                 </TooltipAnchor>
-                
+
                 {/* Status Badge */}
                 <span
-                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium flex-shrink-0 font-inter ${getStatusColor(
+                  className={`inline-flex flex-shrink-0 items-center rounded-full px-2 py-0.5 font-inter text-xs font-medium ${getStatusColor(
                     isWorkflowActive || false,
                     isDraft || false,
                   )}`}
@@ -596,14 +647,16 @@ export default function Artifacts() {
                 </span>
               </div>
             )}
-            
+
             {/* Right: View toggle for workflows, close button for others */}
             {isWorkflowArtifact ? (
               <div className="flex items-center gap-1">
                 <TooltipAnchor description="Visualization view" side="bottom">
-                  <button 
-                    className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md transition-colors hover:bg-surface-hover ${
-                      viewMode === 'visualization' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:text-text-primary'
+                  <button
+                    className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-surface-hover sm:h-8 sm:w-8 ${
+                      viewMode === 'visualization'
+                        ? 'bg-surface-hover text-text-primary'
+                        : 'text-text-secondary hover:text-text-primary'
                     }`}
                     onClick={() => setViewMode('visualization')}
                   >
@@ -611,9 +664,11 @@ export default function Artifacts() {
                   </button>
                 </TooltipAnchor>
                 <TooltipAnchor description="Execution dashboard" side="bottom">
-                  <button 
-                    className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md transition-colors hover:bg-surface-hover ${
-                      viewMode === 'dashboard' ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:text-text-primary'
+                  <button
+                    className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-surface-hover sm:h-8 sm:w-8 ${
+                      viewMode === 'dashboard'
+                        ? 'bg-surface-hover text-text-primary'
+                        : 'text-text-secondary hover:text-text-primary'
                     }`}
                     onClick={() => setViewMode('dashboard')}
                   >
@@ -623,8 +678,8 @@ export default function Artifacts() {
               </div>
             ) : (
               <TooltipAnchor description="Close artifacts" side="bottom">
-                <button 
-                  className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary" 
+                <button
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary sm:h-8 sm:w-8"
                   onClick={closeArtifacts}
                 >
                   <X className="h-4 w-4" />
@@ -633,7 +688,7 @@ export default function Artifacts() {
             )}
           </div>
           {/* Content */}
-          <div className="flex-1 overflow-hidden relative">
+          <div className="relative flex-1 overflow-hidden">
             {isWorkflowArtifact && viewMode === 'dashboard' ? (
               <ExecutionDashboard workflowId={workflowId || ''} />
             ) : (
@@ -645,291 +700,360 @@ export default function Artifacts() {
                 previewRef={previewRef as React.MutableRefObject<SandpackPreviewRef>}
               />
             )}
-            
+
             {/* Testing Overlay - Show for both button-initiated and agent-initiated tests, only in visualization mode */}
-            {viewMode === 'visualization' && (isTesting || isCancelling || (workflowId && isWorkflowTestingFromHook(workflowId)) || showingResult) && (
-              <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/20 backdrop-blur-sm">
-                <div className="absolute inset-0 bg-gray-900/50"></div>
-                
-                {/* Scanner Line Animation - Only show when testing or cancelling */}
-                {(isTesting || isCancelling || (workflowId && isWorkflowTestingFromHook(workflowId))) && !showingResult && (
-                  <div className="absolute inset-0 overflow-hidden">
-                    <div className={`scanner-line absolute left-0 right-0 h-1 opacity-80 shadow-lg ${
-                      isCancelling 
-                        ? 'bg-gradient-to-r from-transparent via-red-400 to-transparent shadow-red-400/50'
-                        : 'bg-gradient-to-r from-transparent via-blue-400 to-transparent shadow-blue-400/50'
-                    }`}></div>
-                  </div>
-                )}
-                
-                {/* Testing Status or Results */}
-                {showingResult && resultData ? (
-                  // Show execution results
-                  <div className="relative z-10 flex flex-col items-center space-y-4 rounded-lg bg-white/95 px-4 sm:px-8 py-4 sm:py-6 backdrop-blur-sm dark:bg-gray-800/95 max-w-[90vw] sm:max-w-md mx-2 sm:mx-4 max-h-[80vh] overflow-auto">
-                    <div className="flex items-center space-x-3 w-full">
-                      {resultData.success ? (
-                        <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
-                          <svg className="h-4 w-4 sm:h-5 sm:w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      ) : (
-                        <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
-                          <svg className="h-4 w-4 sm:h-5 sm:w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </div>
-                      )}
-                      <span className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100">
-                        Test {resultData.success ? 'Completed' : 
-                          (resultData.error === 'Execution was cancelled by user' ? 'Cancelled' : 'Failed')}
-                      </span>
-                    </div>
-                    
-                    {/* Result Details */}
-                    <div className="w-full space-y-4 max-h-[60vh] sm:max-h-96 overflow-y-auto">
-                      {resultData.success ? (
-                        <div className="space-y-3">
-                          {resultData.result && Array.isArray(resultData.result) && (
-                            <div className="space-y-2 sm:space-y-4">
-                              {resultData.result.map((step: any, index: number) => {
-                                const stepId = step.stepId || `step_${index}`;
-                                const isExpanded = expandedSteps.has(stepId);
-                                
-                                return (
-                                  <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800">
-                                    {/* Step Header - Always Visible */}
-                                    <div className="flex items-center justify-between p-3 sm:p-4">
-                                      <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
-                                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                                          step.status === 'completed' ? 'bg-green-500' : 
-                                          step.status === 'failed' ? 'bg-red-500' : 'bg-gray-400'
-                                        }`}></span>
-                                        <div className="flex-1 min-w-0">
-                                          <div className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                                            {step.stepName || step.name || `Step ${index + 1}`}
-                                          </div>
-                                          {!isExpanded && (
-                                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 truncate">
-                                              {getStepSummary(step)}
+            {viewMode === 'visualization' &&
+              (isTesting ||
+                isCancelling ||
+                (workflowId && isWorkflowTestingFromHook(workflowId)) ||
+                showingResult) && (
+                <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/20 backdrop-blur-sm">
+                  <div className="absolute inset-0 bg-gray-900/50"></div>
+
+                  {/* Scanner Line Animation - Only show when testing or cancelling */}
+                  {(isTesting ||
+                    isCancelling ||
+                    (workflowId && isWorkflowTestingFromHook(workflowId))) &&
+                    !showingResult && (
+                      <div className="absolute inset-0 overflow-hidden">
+                        <div
+                          className={`scanner-line absolute left-0 right-0 h-1 opacity-80 shadow-lg ${
+                            isCancelling
+                              ? 'bg-gradient-to-r from-transparent via-red-400 to-transparent shadow-red-400/50'
+                              : 'bg-gradient-to-r from-transparent via-blue-400 to-transparent shadow-blue-400/50'
+                          }`}
+                        ></div>
+                      </div>
+                    )}
+
+                  {/* Testing Status or Results */}
+                  {showingResult && resultData ? (
+                    // Show execution results
+                    <div className="relative z-10 mx-2 flex max-h-[80vh] max-w-[90vw] flex-col items-center space-y-4 overflow-auto rounded-lg bg-white/95 px-4 py-4 backdrop-blur-sm dark:bg-gray-800/95 sm:mx-4 sm:max-w-md sm:px-8 sm:py-6">
+                      <div className="flex w-full items-center space-x-3">
+                        {resultData.success ? (
+                          <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-green-500 sm:h-8 sm:w-8">
+                            <svg
+                              className="h-4 w-4 text-white sm:h-5 sm:w-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M5 13l4 4L19 7"
+                              />
+                            </svg>
+                          </div>
+                        ) : (
+                          <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-red-500 sm:h-8 sm:w-8">
+                            <svg
+                              className="h-4 w-4 text-white sm:h-5 sm:w-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          </div>
+                        )}
+                        <span className="text-base font-medium text-gray-900 dark:text-gray-100 sm:text-lg">
+                          Test{' '}
+                          {resultData.success
+                            ? 'Completed'
+                            : resultData.error === 'Execution was cancelled by user'
+                              ? 'Cancelled'
+                              : 'Failed'}
+                        </span>
+                      </div>
+
+                      {/* Result Details */}
+                      <div className="max-h-[60vh] w-full space-y-4 overflow-y-auto sm:max-h-96">
+                        {resultData.success ? (
+                          <div className="space-y-3">
+                            {resultData.result && Array.isArray(resultData.result) && (
+                              <div className="space-y-2 sm:space-y-4">
+                                {resultData.result.map((step: any, index: number) => {
+                                  const stepId = step.stepId || `step_${index}`;
+                                  const isExpanded = expandedSteps.has(stepId);
+
+                                  return (
+                                    <div
+                                      key={index}
+                                      className="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
+                                    >
+                                      {/* Step Header - Always Visible */}
+                                      <div className="flex items-center justify-between p-3 sm:p-4">
+                                        <div className="flex min-w-0 flex-1 items-center space-x-2 sm:space-x-3">
+                                          <span
+                                            className={`h-2 w-2 flex-shrink-0 rounded-full ${
+                                              step.status === 'completed'
+                                                ? 'bg-green-500'
+                                                : step.status === 'failed'
+                                                  ? 'bg-red-500'
+                                                  : 'bg-gray-400'
+                                            }`}
+                                          ></span>
+                                          <div className="min-w-0 flex-1">
+                                            <div className="truncate text-xs font-medium text-gray-900 dark:text-gray-100 sm:text-sm">
+                                              {step.stepName || step.name || `Step ${index + 1}`}
                                             </div>
-                                          )}
+                                            {!isExpanded && (
+                                              <div className="mt-1 truncate text-xs text-gray-600 dark:text-gray-400">
+                                                {getStepSummary(step)}
+                                              </div>
+                                            )}
+                                          </div>
                                         </div>
-                                      </div>
-                                      
-                                      <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
-                                        {/* Copy button */}
-                                        {(step.result || step.output) && (
-                                          <button
-                                            onClick={() => {
-                                              const resultToCopy = step.result || step.output;
-                                              let copyContent: string;
-                                              
-                                              // Try to extract meaningful content first
-                                              if (step.result) {
-                                                const meaningfulContent = extractMeaningfulContent(step.result);
-                                                if (meaningfulContent) {
-                                                  copyContent = meaningfulContent;
+
+                                        <div className="flex flex-shrink-0 items-center space-x-1 sm:space-x-2">
+                                          {/* Copy button */}
+                                          {(step.result || step.output) && (
+                                            <button
+                                              onClick={() => {
+                                                const resultToCopy = step.result || step.output;
+                                                let copyContent: string;
+
+                                                // Try to extract meaningful content first
+                                                if (step.result) {
+                                                  const meaningfulContent =
+                                                    extractMeaningfulContent(step.result);
+                                                  if (meaningfulContent) {
+                                                    copyContent = meaningfulContent;
+                                                  } else {
+                                                    copyContent =
+                                                      typeof resultToCopy === 'string'
+                                                        ? resultToCopy
+                                                        : JSON.stringify(resultToCopy, null, 2);
+                                                  }
                                                 } else {
-                                                  copyContent = typeof resultToCopy === 'string' 
-                                                    ? resultToCopy
-                                                    : JSON.stringify(resultToCopy, null, 2);
+                                                  copyContent =
+                                                    typeof resultToCopy === 'string'
+                                                      ? resultToCopy
+                                                      : JSON.stringify(resultToCopy, null, 2);
                                                 }
-                                              } else {
-                                                copyContent = typeof resultToCopy === 'string' 
-                                                  ? resultToCopy
-                                                  : JSON.stringify(resultToCopy, null, 2);
-                                              }
-                                              
-                                              handleCopyStepOutput(stepId, copyContent);
-                                            }}
-                                            className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-                                            title="Copy output"
+
+                                                handleCopyStepOutput(stepId, copyContent);
+                                              }}
+                                              className="p-1 text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                              title="Copy output"
+                                            >
+                                              {copiedStepId === stepId ? (
+                                                <Check className="h-3 w-3 text-green-500 sm:h-4 sm:w-4" />
+                                              ) : (
+                                                <Copy className="h-3 w-3 sm:h-4 sm:w-4" />
+                                              )}
+                                            </button>
+                                          )}
+
+                                          {/* Expand/Collapse button */}
+                                          <button
+                                            onClick={() => toggleStepExpansion(stepId)}
+                                            className="p-1 text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                            title={
+                                              isExpanded ? 'Collapse details' : 'Expand details'
+                                            }
                                           >
-                                            {copiedStepId === stepId ? (
-                                              <Check className="w-3 h-3 sm:w-4 sm:h-4 text-green-500" />
+                                            {isExpanded ? (
+                                              <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4" />
                                             ) : (
-                                              <Copy className="w-3 h-3 sm:w-4 sm:h-4" />
+                                              <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4" />
                                             )}
                                           </button>
-                                        )}
-                                        
-                                        {/* Expand/Collapse button */}
-                                        <button
-                                          onClick={() => toggleStepExpansion(stepId)}
-                                          className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-                                          title={isExpanded ? "Collapse details" : "Expand details"}
-                                        >
-                                          {isExpanded ? (
-                                            <ChevronUp className="w-3 h-3 sm:w-4 sm:h-4" />
-                                          ) : (
-                                            <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4" />
-                                          )}
-                                        </button>
+                                        </div>
                                       </div>
-                                    </div>
-                                    
-                                    {/* Step Details - Collapsible */}
-                                    {isExpanded && (
-                                      <div className="px-3 sm:px-4 pb-3 sm:pb-4 border-t border-gray-200 dark:border-gray-600">
-                                        <div className="pt-3 space-y-3">
-                                          {step.result && (
-                                            <div>
-                                              <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Result:</div>
-                                              <div className="bg-white dark:bg-gray-900 rounded p-2 sm:p-3 border border-gray-200 dark:border-gray-600">
-                                                <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-32 sm:max-h-64 overflow-y-auto">
-                                                  {(() => {
-                                                    // First try to extract meaningful content
-                                                    const meaningfulContent = extractMeaningfulContent(step.result);
-                                                    if (meaningfulContent) {
-                                                      return meaningfulContent;
-                                                    }
-                                                    // Fallback to raw display
-                                                    return typeof step.result === 'string' ? step.result : JSON.stringify(step.result, null, 2);
-                                                  })()}
-                                                </pre>
-                                              </div>
-                                            </div>
-                                          )}
-                                          
-                                          {step.output && step.output !== step.result && (
-                                            <div>
-                                              <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Output:</div>
-                                              <div className="bg-white dark:bg-gray-900 rounded p-2 sm:p-3 border border-gray-200 dark:border-gray-600">
-                                                <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-32 sm:max-h-64 overflow-y-auto">
-                                                  {(() => {
-                                                    // For output, if it's an object, try to extract meaningful content
-                                                    if (typeof step.output === 'object') {
-                                                      const meaningfulContent = extractMeaningfulContent(step.output);
+
+                                      {/* Step Details - Collapsible */}
+                                      {isExpanded && (
+                                        <div className="border-t border-gray-200 px-3 pb-3 dark:border-gray-600 sm:px-4 sm:pb-4">
+                                          <div className="space-y-3 pt-3">
+                                            {step.result && (
+                                              <div>
+                                                <div className="mb-2 text-xs font-medium text-gray-600 dark:text-gray-400">
+                                                  Result:
+                                                </div>
+                                                <div className="rounded border border-gray-200 bg-white p-2 dark:border-gray-600 dark:bg-gray-900 sm:p-3">
+                                                  <pre className="max-h-32 overflow-y-auto whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300 sm:max-h-64">
+                                                    {(() => {
+                                                      // First try to extract meaningful content
+                                                      const meaningfulContent =
+                                                        extractMeaningfulContent(step.result);
                                                       if (meaningfulContent) {
                                                         return meaningfulContent;
                                                       }
-                                                    }
-                                                    // Fallback to raw display
-                                                    return typeof step.output === 'string' ? step.output : JSON.stringify(step.output, null, 2);
-                                                  })()}
-                                                </pre>
+                                                      // Fallback to raw display
+                                                      return typeof step.result === 'string'
+                                                        ? step.result
+                                                        : JSON.stringify(step.result, null, 2);
+                                                    })()}
+                                                  </pre>
+                                                </div>
                                               </div>
-                                            </div>
-                                          )}
-                                          
-                                          {step.error && (
-                                            <div>
-                                              <div className="text-xs font-medium text-red-600 dark:text-red-400 mb-2">Error:</div>
-                                              <div className="bg-red-50 dark:bg-red-900/20 rounded p-2 sm:p-3 border border-red-200 dark:border-red-700">
-                                                <pre className="text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap">
-                                                  {step.error}
-                                                </pre>
+                                            )}
+
+                                            {step.output && step.output !== step.result && (
+                                              <div>
+                                                <div className="mb-2 text-xs font-medium text-gray-600 dark:text-gray-400">
+                                                  Output:
+                                                </div>
+                                                <div className="rounded border border-gray-200 bg-white p-2 dark:border-gray-600 dark:bg-gray-900 sm:p-3">
+                                                  <pre className="max-h-32 overflow-y-auto whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300 sm:max-h-64">
+                                                    {(() => {
+                                                      // For output, if it's an object, try to extract meaningful content
+                                                      if (typeof step.output === 'object') {
+                                                        const meaningfulContent =
+                                                          extractMeaningfulContent(step.output);
+                                                        if (meaningfulContent) {
+                                                          return meaningfulContent;
+                                                        }
+                                                      }
+                                                      // Fallback to raw display
+                                                      return typeof step.output === 'string'
+                                                        ? step.output
+                                                        : JSON.stringify(step.output, null, 2);
+                                                    })()}
+                                                  </pre>
+                                                </div>
                                               </div>
-                                            </div>
-                                          )}
+                                            )}
+
+                                            {step.error && (
+                                              <div>
+                                                <div className="mb-2 text-xs font-medium text-red-600 dark:text-red-400">
+                                                  Error:
+                                                </div>
+                                                <div className="rounded border border-red-200 bg-red-50 p-2 dark:border-red-700 dark:bg-red-900/20 sm:p-3">
+                                                  <pre className="whitespace-pre-wrap text-xs text-red-700 dark:text-red-300">
+                                                    {step.error}
+                                                  </pre>
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
                                         </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-center">
+                            <div className="mb-4 font-medium text-red-600 dark:text-red-400">
+                              {resultData.error === 'Execution was cancelled by user'
+                                ? 'Workflow execution cancelled'
+                                : 'Workflow execution failed'}
+                            </div>
+                            {resultData.error && (
+                              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-left dark:border-red-700 dark:bg-red-900/20 sm:p-4">
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">
+                                  {resultData.error === 'Execution was cancelled by user'
+                                    ? 'Cancellation Details'
+                                    : 'Error Details'}
+                                </div>
+                                <div className="text-xs leading-relaxed text-red-700 dark:text-red-300 sm:text-sm">
+                                  {resultData.error}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={handleCloseResult}
+                        className="absolute right-2 top-2 text-gray-500 transition-colors hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                      >
+                        <X className="h-4 w-4 sm:h-5 sm:w-5" />
+                      </button>
+                    </div>
+                  ) : (
+                    // Show testing status with live step updates
+                    <div className="relative z-10 mx-2 flex max-w-[90vw] flex-col items-center space-y-4 rounded-xl border border-white/20 bg-white/95 px-4 py-4 shadow-2xl backdrop-blur-sm dark:bg-gray-800/95 sm:mx-4 sm:max-w-lg sm:space-y-6 sm:px-8 sm:py-6">
+                      {/* Live step progress */}
+                      {currentStep && !isCancelling ? (
+                        <div className="w-full space-y-3 sm:space-y-4">
+                          {/* Step header */}
+                          <div className="border-b border-gray-200/50 pb-3 text-center dark:border-gray-600/50">
+                            <div
+                              className={`text-xs font-medium uppercase tracking-wider sm:text-sm ${
+                                currentStep.status === 'running'
+                                  ? 'text-blue-600 dark:text-blue-400'
+                                  : currentStep.status === 'completed'
+                                    ? 'text-green-600 dark:text-green-400'
+                                    : 'text-red-600 dark:text-red-400'
+                              }`}
+                            >
+                              {currentStep.status === 'running' && 'EXECUTING'}
+                              {currentStep.status === 'completed' && 'COMPLETED'}
+                              {currentStep.status === 'failed' && 'FAILED'}
+                            </div>
+                            <div className="mt-1 break-words text-base font-semibold text-gray-900 dark:text-gray-100 sm:text-lg">
+                              {currentStep.stepName}
+                            </div>
+                          </div>
+
+                          {/* Loading indicator for running steps */}
+                          {currentStep.status === 'running' && (
+                            <div className="flex items-center justify-center py-2">
+                              <div className="flex space-x-1">
+                                <div className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:-0.3s]"></div>
+                                <div className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:-0.15s]"></div>
+                                <div className="h-2 w-2 animate-bounce rounded-full bg-blue-500"></div>
+                              </div>
                             </div>
                           )}
                         </div>
                       ) : (
-                        <div className="text-center">
-                          <div className="font-medium text-red-600 dark:text-red-400 mb-4">
-                            {resultData.error === 'Execution was cancelled by user' 
-                              ? 'Workflow execution cancelled' 
-                              : 'Workflow execution failed'}
-                          </div>
-                          {resultData.error && (
-                            <div className="text-left bg-red-50 dark:bg-red-900/20 p-3 sm:p-4 rounded-lg border border-red-200 dark:border-red-700">
-                              <div className="text-xs font-semibold text-red-600 dark:text-red-400 mb-2 uppercase tracking-wide">
-                                {resultData.error === 'Execution was cancelled by user' ? 'Cancellation Details' : 'Error Details'}
-                              </div>
-                              <div className="text-xs sm:text-sm text-red-700 dark:text-red-300 leading-relaxed">
-                                {resultData.error}
-                              </div>
+                        <div className="flex flex-col items-center space-y-4">
+                          <div className="text-center">
+                            <span
+                              className={`block break-words text-lg font-semibold sm:text-xl ${
+                                isCancelling
+                                  ? 'text-red-600 dark:text-red-400'
+                                  : 'text-gray-900 dark:text-gray-100'
+                              }`}
+                            >
+                              {isCancelling
+                                ? 'Cancelling workflow execution...'
+                                : workflowId && isWorkflowTestingFromHook(workflowId) && !isTesting
+                                  ? 'Agent initiated test...'
+                                  : 'Initializing workflow test...'}
+                            </span>
+                            <div className="mt-2 flex items-center justify-center space-x-1">
+                              <div
+                                className={`h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:-0.3s] ${
+                                  isCancelling ? 'bg-red-500' : 'bg-blue-500'
+                                }`}
+                              ></div>
+                              <div
+                                className={`h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:-0.15s] ${
+                                  isCancelling ? 'bg-red-500' : 'bg-blue-500'
+                                }`}
+                              ></div>
+                              <div
+                                className={`h-1.5 w-1.5 animate-bounce rounded-full ${
+                                  isCancelling ? 'bg-red-500' : 'bg-blue-500'
+                                }`}
+                              ></div>
                             </div>
-                          )}
+                          </div>
                         </div>
                       )}
                     </div>
-                    <button
-                      onClick={handleCloseResult}
-                      className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-                    >
-                      <X className="h-4 w-4 sm:h-5 sm:w-5" />
-                    </button>
-                  </div>
-                ) : (
-                  // Show testing status with live step updates
-                  <div className="relative z-10 flex flex-col items-center space-y-4 sm:space-y-6 rounded-xl bg-white/95 px-4 sm:px-8 py-4 sm:py-6 backdrop-blur-sm dark:bg-gray-800/95 max-w-[90vw] sm:max-w-lg mx-2 sm:mx-4 shadow-2xl border border-white/20">
-                    {/* Live step progress */}
-                    {currentStep && !isCancelling ? (
-                      <div className="w-full space-y-3 sm:space-y-4">
-                        {/* Step header */}
-                        <div className="text-center pb-3 border-b border-gray-200/50 dark:border-gray-600/50">
-                          <div className={`text-xs sm:text-sm font-medium uppercase tracking-wider ${
-                            currentStep.status === 'running' 
-                              ? 'text-blue-600 dark:text-blue-400' 
-                              : currentStep.status === 'completed'
-                              ? 'text-green-600 dark:text-green-400'
-                              : 'text-red-600 dark:text-red-400'
-                          }`}>
-                            {currentStep.status === 'running' && 'EXECUTING'}
-                            {currentStep.status === 'completed' && 'COMPLETED'}
-                            {currentStep.status === 'failed' && 'FAILED'}
-                          </div>
-                          <div className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mt-1 break-words">
-                            {currentStep.stepName}
-                          </div>
-                        </div>
-                        
-                        {/* Loading indicator for running steps */}
-                        {currentStep.status === 'running' && (
-                          <div className="flex items-center justify-center py-2">
-                            <div className="flex space-x-1">
-                              <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                              <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                              <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce"></div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center space-y-4">
-                        <div className="text-center">
-                          <span className={`text-lg sm:text-xl font-semibold block break-words ${
-                            isCancelling 
-                              ? 'text-red-600 dark:text-red-400' 
-                              : 'text-gray-900 dark:text-gray-100'
-                          }`}>
-                            {isCancelling 
-                              ? 'Cancelling workflow execution...'
-                              : workflowId && isWorkflowTestingFromHook(workflowId) && !isTesting 
-                                ? 'Agent initiated test...'
-                                : 'Initializing workflow test...'
-                            }
-                          </span>
-                          <div className="flex items-center justify-center space-x-1 mt-2">
-                            <div className={`h-1.5 w-1.5 rounded-full animate-bounce [animation-delay:-0.3s] ${
-                              isCancelling ? 'bg-red-500' : 'bg-blue-500'
-                            }`}></div>
-                            <div className={`h-1.5 w-1.5 rounded-full animate-bounce [animation-delay:-0.15s] ${
-                              isCancelling ? 'bg-red-500' : 'bg-blue-500'
-                            }`}></div>
-                            <div className={`h-1.5 w-1.5 rounded-full animate-bounce ${
-                              isCancelling ? 'bg-red-500' : 'bg-blue-500'
-                            }`}></div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
           </div>
           {/* Footer */}
-          <div className="flex items-center justify-between border-t border-border-medium bg-surface-primary-alt p-2 sm:p-3 text-sm text-text-secondary">
+          <div className="flex items-center justify-between border-t border-border-medium bg-surface-primary-alt p-2 text-sm text-text-secondary sm:p-3">
             <div className="flex items-center">
               <button onClick={() => cycleArtifact('prev')} className="mr-2 text-text-secondary">
                 <ChevronLeft className="h-4 w-4" />
@@ -941,12 +1065,12 @@ export default function Artifacts() {
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
-            
+
             <div className="flex items-center gap-1 sm:gap-2">
               {/* Refresh button - Moved from Header */}
               <TooltipAnchor description="Refresh" side="top">
                 <button
-                  className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary ${
+                  className={`flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary sm:h-8 sm:w-8 ${
                     isRefreshing ? 'animate-pulse' : ''
                   }`}
                   onClick={handleRefresh}

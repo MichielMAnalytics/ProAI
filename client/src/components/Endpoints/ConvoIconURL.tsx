@@ -41,7 +41,13 @@ const ConvoIconURL: React.FC<ConvoIconURLProps> = ({
 }) => {
   const Icon = useMemo(() => icons[iconURL] ?? icons.unknown, [iconURL]);
   const isURL = useMemo(
-    () => !!(iconURL && (iconURL.includes('http') || iconURL.startsWith('/images/') || iconURL.startsWith('/assets/'))),
+    () =>
+      !!(
+        iconURL &&
+        (iconURL.includes('http') ||
+          iconURL.startsWith('/images/') ||
+          iconURL.startsWith('/assets/'))
+      ),
     [iconURL],
   );
   if (isURL) {

@@ -118,11 +118,7 @@ const MessageEndpointIcon: React.FC<IconProps> = (props) => {
     ) : (
       <div className="h-6 w-6">
         <div className="shadow-stroke flex h-6 w-6 items-center justify-center overflow-hidden rounded-full">
-          <img 
-            src="/assets/logo.svg" 
-            alt="Eve Agent" 
-            className="h-2/3 w-2/3" 
-          />
+          <img src="/assets/logo.svg" alt="Eve Agent" className="h-2/3 w-2/3" />
         </div>
       </div>
     ),

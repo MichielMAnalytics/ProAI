@@ -122,7 +122,10 @@ const AdminSettings = ({ agent }: AdminSettingsProps) => {
     if (agent?.id !== currentAgentIdRef.current) {
       currentAgentIdRef.current = agent?.id;
       if (agent?.default_prompts) {
-        setDefaultPrompts([...agent.default_prompts, ...Array(6 - agent.default_prompts.length).fill('')]);
+        setDefaultPrompts([
+          ...agent.default_prompts,
+          ...Array(6 - agent.default_prompts.length).fill(''),
+        ]);
       } else {
         setDefaultPrompts(['', '', '', '', '', '']);
       }
@@ -158,7 +161,7 @@ const AdminSettings = ({ agent }: AdminSettingsProps) => {
       return;
     }
 
-    const filteredPrompts = defaultPrompts.filter(prompt => prompt.trim() !== '');
+    const filteredPrompts = defaultPrompts.filter((prompt) => prompt.trim() !== '');
     updateAgentMutation.mutate({
       agent_id: agent.id,
       data: {
@@ -274,7 +277,9 @@ const AdminSettings = ({ agent }: AdminSettingsProps) => {
                   Agent Default Prompts
                 </h3>
                 <p className="mb-4 text-sm text-text-secondary">
-                  Configure default prompts that will appear as suggestion cards under the chat input when users start new conversations with this agent and have connected the required integrations.
+                  Configure default prompts that will appear as suggestion cards under the chat
+                  input when users start new conversations with this agent and have connected the
+                  required integrations.
                 </p>
                 <div className="space-y-3">
                   {defaultPrompts.map((prompt, index) => (

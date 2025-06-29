@@ -5,14 +5,14 @@ const { logger } = require('~/config');
 
 /**
  * PipedreamComponents - Manages Pipedream components (actions and triggers)
- * 
+ *
  * This service handles:
  * - Fetching app components (actions/triggers)
  * - Configuring component properties
  * - Running actions
  * - Deploying triggers
  * - Component metadata and documentation
- * 
+ *
  * CACHING STRATEGY:
  * - Fresh Cache (6h default): Return immediately, no API calls
  * - Stale Cache (24h default): Return immediately + background refresh
@@ -36,42 +36,48 @@ class PipedreamComponents {
    */
   async getAuthToken() {
     let authToken = process.env.PIPEDREAM_API_KEY;
-    
+
     if (!authToken && process.env.PIPEDREAM_CLIENT_ID && process.env.PIPEDREAM_CLIENT_SECRET) {
       try {
-        const tokenResponse = await axios.post(`${this.baseURL}/oauth/token`, {
-          grant_type: 'client_credentials',
-          client_id: process.env.PIPEDREAM_CLIENT_ID,
-          client_secret: process.env.PIPEDREAM_CLIENT_SECRET,
-        }, {
-          headers: { 'Content-Type': 'application/json' },
-        });
-        
+        const tokenResponse = await axios.post(
+          `${this.baseURL}/oauth/token`,
+          {
+            grant_type: 'client_credentials',
+            client_id: process.env.PIPEDREAM_CLIENT_ID,
+            client_secret: process.env.PIPEDREAM_CLIENT_SECRET,
+          },
+          {
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
+
         authToken = tokenResponse.data.access_token;
       } catch (error) {
         logger.error('PipedreamComponents: Failed to obtain OAuth token:', error.message);
         throw new Error('Failed to authenticate with Pipedream API');
       }
     }
-    
+
     if (!authToken) {
       throw new Error('No authentication credentials available for Pipedream API');
     }
-    
+
     return authToken;
   }
 
   /**
    * Get components (actions/triggers) for a specific app with caching
-   * 
+   *
    * @param {string} appIdentifier - App slug or ID
    * @param {string} type - Component type ('actions', 'triggers', or null for both)
    * @returns {Promise<Object>} Object with actions and triggers arrays
    */
   async getAppComponents(appIdentifier, type = null) {
     const startTime = Date.now();
-    logger.info(`PipedreamComponents: Getting components for app ${appIdentifier}, type: ${type || 'all'}`);
-    
+    logger.info(
+      `PipedreamComponents: Getting components for app ${appIdentifier}, type: ${type || 'all'}`,
+    );
+
     if (!this.isEnabled()) {
       logger.warn('PipedreamComponents: Service is disabled, returning mock data');
       return this.getMockAppComponents(appIdentifier, type);
@@ -87,20 +93,23 @@ class PipedreamComponents {
       }
 
       const cached = await AppComponents.find(query).lean();
-      
+
       if (cached && cached.length > 0) {
-        const cacheAge = Date.now() - new Date(cached[0].updatedAt || cached[0].createdAt).getTime();
+        const cacheAge =
+          Date.now() - new Date(cached[0].updatedAt || cached[0].createdAt).getTime();
         const cacheAgeSeconds = Math.floor(cacheAge / 1000);
-        
+
         // Cache duration settings (in seconds) - shorter than integrations since components change more frequently
-        const CACHE_FRESH_DURATION = parseInt(process.env.PIPEDREAM_COMPONENTS_CACHE_FRESH_DURATION) || 21600; // 6h
-        const CACHE_STALE_DURATION = parseInt(process.env.PIPEDREAM_COMPONENTS_CACHE_STALE_DURATION) || 86400; // 24h
+        const CACHE_FRESH_DURATION =
+          parseInt(process.env.PIPEDREAM_COMPONENTS_CACHE_FRESH_DURATION) || 21600; // 6h
+        const CACHE_STALE_DURATION =
+          parseInt(process.env.PIPEDREAM_COMPONENTS_CACHE_STALE_DURATION) || 86400; // 24h
         const CACHE_MAX_AGE = parseInt(process.env.PIPEDREAM_COMPONENTS_CACHE_MAX_AGE) || 604800; // 7d
-        
+
         const isFresh = cacheAgeSeconds < CACHE_FRESH_DURATION;
         const isStale = cacheAgeSeconds > CACHE_STALE_DURATION;
         const isExpired = cacheAgeSeconds > CACHE_MAX_AGE;
-        
+
         logger.info('PipedreamComponents: Cache analysis', {
           app: appIdentifier,
           ageHours: Math.floor(cacheAgeSeconds / 3600),
@@ -109,20 +118,24 @@ class PipedreamComponents {
           isExpired,
           cachedCount: cached.length,
         });
-        
+
         // If cache is fresh, return immediately
         if (isFresh) {
           const result = this.formatCachedComponents(cached, type);
-          logger.info(`PipedreamComponents: Returning ${result.actions.length} cached actions for ${appIdentifier} in ${Date.now() - startTime}ms`);
+          logger.info(
+            `PipedreamComponents: Returning ${result.actions.length} cached actions for ${appIdentifier} in ${Date.now() - startTime}ms`,
+          );
           return result;
         }
-        
+
         // If cache is expired, force refresh
         if (isExpired) {
           logger.info('PipedreamComponents: Cache expired, forcing refresh');
         } else if (isStale) {
           // For stale cache, return cached data and refresh in background
-          logger.info('PipedreamComponents: Cache stale, returning cached data and refreshing in background');
+          logger.info(
+            'PipedreamComponents: Cache stale, returning cached data and refreshing in background',
+          );
           setImmediate(() => this.refreshComponentsInBackground(appIdentifier));
           const result = this.formatCachedComponents(cached, type);
           return result;
@@ -147,17 +160,22 @@ class PipedreamComponents {
         await this.cacheComponents(appIdentifier, result.actions, 'action');
       }
 
-      logger.info(`PipedreamComponents: Retrieved ${result.actions.length} actions for ${appIdentifier} in ${Date.now() - startTime}ms`);
+      logger.info(
+        `PipedreamComponents: Retrieved ${result.actions.length} actions for ${appIdentifier} in ${Date.now() - startTime}ms`,
+      );
       return result;
     } catch (error) {
-      logger.error(`PipedreamComponents: Error getting components for ${appIdentifier}:`, error.message);
-      
+      logger.error(
+        `PipedreamComponents: Error getting components for ${appIdentifier}:`,
+        error.message,
+      );
+
       // Try to return cached data as fallback
       try {
         const query = { appSlug: appIdentifier, isActive: true };
         if (type === 'actions') query.componentType = 'action';
         else if (type === 'triggers') query.componentType = 'trigger';
-        
+
         const cached = await AppComponents.find(query).lean();
         if (cached && cached.length > 0) {
           logger.info('PipedreamComponents: Returning cached data as error fallback');
@@ -166,7 +184,7 @@ class PipedreamComponents {
       } catch (cacheError) {
         logger.error('PipedreamComponents: Failed to retrieve cached data:', cacheError.message);
       }
-      
+
       return this.getMockAppComponents(appIdentifier, type);
     }
   }
@@ -176,8 +194,8 @@ class PipedreamComponents {
    */
   formatCachedComponents(cached, type) {
     const result = { actions: [], triggers: [] };
-    
-    cached.forEach(component => {
+
+    cached.forEach((component) => {
       const formatted = {
         name: component.name,
         version: component.version,
@@ -186,20 +204,20 @@ class PipedreamComponents {
         configurable_props: component.configurable_props || [],
         ...component.metadata,
       };
-      
+
       if (component.componentType === 'action' && (!type || type === 'actions')) {
         result.actions.push(formatted);
       } else if (component.componentType === 'trigger' && (!type || type === 'triggers')) {
         result.triggers.push(formatted);
       }
     });
-    
+
     return result;
   }
 
   /**
    * Get actions for a specific app from API
-   * 
+   *
    * @param {string} appIdentifier - App slug or ID
    * @returns {Promise<Array>} Array of actions
    */
@@ -217,15 +235,21 @@ class PipedreamComponents {
           });
 
           if (componentsResponse?.data) {
-            const actions = componentsResponse.data.filter(component => {
+            const actions = componentsResponse.data.filter((component) => {
               const key = component.key || '';
               const name = component.name || '';
               // Filter out triggers - keep only actions
-              return !(key.includes('trigger') || name.toLowerCase().includes('trigger') || 
-                      name.includes('New ') || name.includes('Updated '));
+              return !(
+                key.includes('trigger') ||
+                name.toLowerCase().includes('trigger') ||
+                name.includes('New ') ||
+                name.includes('Updated ')
+              );
             });
 
-            logger.info(`PipedreamComponents: SDK returned ${actions.length} actions for ${appIdentifier}`);
+            logger.info(
+              `PipedreamComponents: SDK returned ${actions.length} actions for ${appIdentifier}`,
+            );
             return actions;
           }
         } catch (sdkError) {
@@ -239,7 +263,7 @@ class PipedreamComponents {
           const authToken = await this.getAuthToken();
           const response = await axios.get(`${this.baseURL}/connect/${this.projectId}/actions`, {
             headers: {
-              'Authorization': `Bearer ${authToken}`,
+              Authorization: `Bearer ${authToken}`,
               'Content-Type': 'application/json',
             },
             params: {
@@ -249,11 +273,16 @@ class PipedreamComponents {
           });
 
           if (response.data?.data) {
-            logger.info(`PipedreamComponents: Connect API returned ${response.data.data.length} actions for ${appIdentifier}`);
+            logger.info(
+              `PipedreamComponents: Connect API returned ${response.data.data.length} actions for ${appIdentifier}`,
+            );
             return response.data.data;
           }
         } catch (apiError) {
-          logger.warn(`PipedreamComponents: Connect API error for ${appIdentifier}:`, apiError.message);
+          logger.warn(
+            `PipedreamComponents: Connect API error for ${appIdentifier}:`,
+            apiError.message,
+          );
         }
       }
 
@@ -261,7 +290,10 @@ class PipedreamComponents {
       logger.info(`PipedreamComponents: No actions found for ${appIdentifier}`);
       return [];
     } catch (error) {
-      logger.error(`PipedreamComponents: Error fetching actions for ${appIdentifier}:`, error.message);
+      logger.error(
+        `PipedreamComponents: Error fetching actions for ${appIdentifier}:`,
+        error.message,
+      );
       return [];
     }
   }
@@ -271,13 +303,15 @@ class PipedreamComponents {
    */
   async cacheComponents(appSlug, components, componentType) {
     try {
-      logger.info(`PipedreamComponents: Caching ${components.length} ${componentType}s for ${appSlug}`);
-      
+      logger.info(
+        `PipedreamComponents: Caching ${components.length} ${componentType}s for ${appSlug}`,
+      );
+
       // Clear existing cache for this app and component type
       await AppComponents.deleteMany({ appSlug, componentType });
-      
+
       // Prepare components for insertion
-      const componentsToCache = components.map(component => ({
+      const componentsToCache = components.map((component) => ({
         appSlug,
         componentType,
         componentId: component.id || component.key || `${appSlug}-${component.name}`,
@@ -293,15 +327,20 @@ class PipedreamComponents {
         isActive: true,
         lastUpdated: new Date(),
       }));
-      
+
       // Insert new components
       if (componentsToCache.length > 0) {
         await AppComponents.insertMany(componentsToCache, { ordered: false });
       }
-      
-      logger.info(`PipedreamComponents: Successfully cached ${componentsToCache.length} ${componentType}s for ${appSlug}`);
+
+      logger.info(
+        `PipedreamComponents: Successfully cached ${componentsToCache.length} ${componentType}s for ${appSlug}`,
+      );
     } catch (error) {
-      logger.error(`PipedreamComponents: Failed to cache ${componentType}s for ${appSlug}:`, error.message);
+      logger.error(
+        `PipedreamComponents: Failed to cache ${componentType}s for ${appSlug}:`,
+        error.message,
+      );
     }
   }
 
@@ -312,21 +351,28 @@ class PipedreamComponents {
     try {
       logger.info(`PipedreamComponents: Starting background refresh for ${appIdentifier}`);
       const actions = await this.fetchActionsFromAPI(appIdentifier);
-      
+
       if (actions.length > 0) {
         await this.cacheComponents(appIdentifier, actions, 'action');
-        logger.info(`PipedreamComponents: Background refresh completed for ${appIdentifier}: ${actions.length} actions`);
+        logger.info(
+          `PipedreamComponents: Background refresh completed for ${appIdentifier}: ${actions.length} actions`,
+        );
       } else {
-        logger.info(`PipedreamComponents: Background refresh completed for ${appIdentifier}: no actions found`);
+        logger.info(
+          `PipedreamComponents: Background refresh completed for ${appIdentifier}: no actions found`,
+        );
       }
     } catch (error) {
-      logger.error(`PipedreamComponents: Background refresh failed for ${appIdentifier}:`, error.message);
+      logger.error(
+        `PipedreamComponents: Background refresh failed for ${appIdentifier}:`,
+        error.message,
+      );
     }
   }
 
   /**
    * Configure a component's properties
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {Object} options - Configuration options
    * @param {string} options.componentId - Component ID
@@ -367,14 +413,17 @@ class PipedreamComponents {
       logger.info(`PipedreamComponents: Component configured successfully for user ${userId}`);
       return result;
     } catch (error) {
-      logger.error(`PipedreamComponents: Failed to configure component for user ${userId}:`, error.message);
+      logger.error(
+        `PipedreamComponents: Failed to configure component for user ${userId}:`,
+        error.message,
+      );
       throw new Error(`Failed to configure component: ${error.message}`);
     }
   }
 
   /**
    * Run an action component
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {Object} options - Action options
    * @param {string} options.componentId - Component ID
@@ -420,21 +469,25 @@ class PipedreamComponents {
 
   /**
    * Deploy a trigger component (placeholder - not implemented)
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {Object} options - Trigger options
    * @returns {Promise<Object>} Deployment result
    */
   async deployTrigger(userId, options) {
-    logger.info(`PipedreamComponents: Deploy trigger requested for user ${userId} (not implemented)`);
-    
+    logger.info(
+      `PipedreamComponents: Deploy trigger requested for user ${userId} (not implemented)`,
+    );
+
     // Triggers are not implemented as they're not needed for our use case
-    throw new Error('Trigger deployment is not implemented. This application focuses on actions only.');
+    throw new Error(
+      'Trigger deployment is not implemented. This application focuses on actions only.',
+    );
   }
 
   /**
    * Get component documentation/metadata
-   * 
+   *
    * @param {string} componentId - Component ID
    * @returns {Promise<Object>} Component documentation
    */
@@ -458,14 +511,17 @@ class PipedreamComponents {
         documentation_url: `https://pipedream.com/components/${componentId}`,
       };
     } catch (error) {
-      logger.error(`PipedreamComponents: Error getting documentation for ${componentId}:`, error.message);
+      logger.error(
+        `PipedreamComponents: Error getting documentation for ${componentId}:`,
+        error.message,
+      );
       return this.getMockComponentDocumentation(componentId);
     }
   }
 
   /**
    * Search components across apps
-   * 
+   *
    * @param {string} searchTerm - Search term
    * @param {Object} options - Search options
    * @param {string} options.type - Component type filter
@@ -494,8 +550,10 @@ class PipedreamComponents {
    * Get mock app components for development/testing
    */
   getMockAppComponents(appSlug, type) {
-    logger.info(`PipedreamComponents: Returning mock components for ${appSlug}, type: ${type || 'all'}`);
-    
+    logger.info(
+      `PipedreamComponents: Returning mock components for ${appSlug}, type: ${type || 'all'}`,
+    );
+
     const result = { actions: [], triggers: [] };
 
     // Only return actions as triggers are not needed
@@ -554,7 +612,7 @@ class PipedreamComponents {
         },
       ];
     }
-    
+
     return result;
   }
 
@@ -610,4 +668,4 @@ class PipedreamComponents {
   }
 }
 
-module.exports = new PipedreamComponents(); 
+module.exports = new PipedreamComponents();

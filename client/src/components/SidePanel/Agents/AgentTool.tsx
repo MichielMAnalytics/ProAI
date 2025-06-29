@@ -25,11 +25,11 @@ export default function AgentTool({
   const { showToast } = useToastContext();
   const updateUserPlugins = useUpdateUserPluginsMutation();
   const { getValues, setValue } = useFormContext();
-  
+
   // Extract tool key from both string tools and MCP tool objects
   const toolKey = typeof tool === 'string' ? tool : tool.tool;
   const currentTool = allTools.find((t) => t.pluginKey === toolKey);
-  
+
   // Check if this is a global MCP tool
   const isGlobalTool = typeof tool === 'object' && tool.type === 'global';
 
@@ -57,9 +57,7 @@ export default function AgentTool({
 
   // Handle disconnected tools
   const isDisconnected = !currentTool;
-  const toolName = isDisconnected 
-    ? formatToolName(toolKey) 
-    : formatToolName(currentTool.name);
+  const toolName = isDisconnected ? formatToolName(toolKey) : formatToolName(currentTool.name);
   const isNameTooLong = toolName && toolName.length > 30;
 
   return (
@@ -67,27 +65,27 @@ export default function AgentTool({
       <div
         className={cn(
           'flex w-full items-center rounded-lg border text-sm transition-colors',
-          isDisconnected 
-            ? 'border-orange-300 bg-orange-50 dark:bg-orange-900/20 dark:border-orange-600/50 hover:bg-orange-100 dark:hover:bg-orange-800/30'
+          isDisconnected
+            ? 'border-orange-300 bg-orange-50 hover:bg-orange-100 dark:border-orange-600/50 dark:bg-orange-900/20 dark:hover:bg-orange-800/30'
             : 'border-border-light bg-surface-secondary hover:bg-surface-tertiary',
-          !agent_id ? 'opacity-40' : ''
+          !agent_id ? 'opacity-40' : '',
         )}
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
       >
         <div className="flex min-w-0 grow items-center">
           {isDisconnected ? (
-            <div className="ml-2 flex h-8 w-8 flex-shrink-0 items-center justify-center relative">
+            <div className="relative ml-2 flex h-8 w-8 flex-shrink-0 items-center justify-center">
               <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-800/50">
                 <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
               </div>
               {/* Global indicator */}
               {isGlobalTool && (
-                <div className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-blue-500 border border-white dark:border-gray-800" />
+                <div className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border border-white bg-blue-500 dark:border-gray-800" />
               )}
             </div>
           ) : currentTool.icon ? (
-            <div className="ml-2 flex h-8 w-8 flex-shrink-0 items-center justify-center relative">
+            <div className="relative ml-2 flex h-8 w-8 flex-shrink-0 items-center justify-center">
               <img
                 src={currentTool.icon}
                 alt={currentTool.name}
@@ -95,31 +93,37 @@ export default function AgentTool({
               />
               {/* Global indicator */}
               {isGlobalTool && (
-                <div className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-blue-500 border border-white dark:border-gray-800" />
+                <div className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border border-white bg-blue-500 dark:border-gray-800" />
               )}
             </div>
           ) : null}
           <div className="min-w-0 flex-1 px-3 py-2">
             {isNameTooLong ? (
               <TooltipAnchor
-                description={isDisconnected ? `${toolName} (Disconnected - MCP server required)` : toolName}
+                description={
+                  isDisconnected ? `${toolName} (Disconnected - MCP server required)` : toolName
+                }
                 render={
-                  <div className={cn(
-                    "truncate",
-                    isDisconnected ? "text-orange-700 dark:text-orange-300" : "text-text-primary"
-                  )}>
+                  <div
+                    className={cn(
+                      'truncate',
+                      isDisconnected ? 'text-orange-700 dark:text-orange-300' : 'text-text-primary',
+                    )}
+                  >
                     {toolName}
-                    {isDisconnected && <span className="text-xs ml-1">(Disconnected)</span>}
+                    {isDisconnected && <span className="ml-1 text-xs">(Disconnected)</span>}
                   </div>
                 }
               />
             ) : (
-              <div className={cn(
-                "truncate",
-                isDisconnected ? "text-orange-700 dark:text-orange-300" : "text-text-primary"
-              )}>
+              <div
+                className={cn(
+                  'truncate',
+                  isDisconnected ? 'text-orange-700 dark:text-orange-300' : 'text-text-primary',
+                )}
+              >
                 {toolName}
-                {isDisconnected && <span className="text-xs ml-1">(Disconnected)</span>}
+                {isDisconnected && <span className="ml-1 text-xs">(Disconnected)</span>}
               </div>
             )}
           </div>
@@ -143,10 +147,9 @@ export default function AgentTool({
         className="max-w-[450px]"
         main={
           <Label className="text-left text-sm font-medium">
-            {isDisconnected 
+            {isDisconnected
               ? `Remove this disconnected tool "${toolName}" from the agent?`
-              : localize('com_ui_delete_tool_confirm')
-            }
+              : localize('com_ui_delete_tool_confirm')}
           </Label>
         }
         selection={{

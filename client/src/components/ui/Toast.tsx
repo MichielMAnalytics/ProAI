@@ -23,7 +23,7 @@ export default function Toast() {
     >
       <div className="w-full p-1 text-center md:w-auto md:text-justify">
         <div
-          className={`alert-root pointer-events-auto inline-flex flex-row gap-2 rounded-lg border-2 px-4 py-3 text-white font-inter font-medium backdrop-blur-sm transition-all duration-300 shadow-lg ${
+          className={`alert-root pointer-events-auto inline-flex flex-row gap-2 rounded-lg border-2 px-4 py-3 font-inter font-medium text-white shadow-lg backdrop-blur-sm transition-all duration-300 ${
             severityClassName[toast.severity]
           }`}
         >
@@ -48,7 +48,9 @@ export default function Toast() {
             </div>
           )}
           <RadixToast.Description className="flex-1 justify-center gap-2">
-            <div className="whitespace-pre-wrap text-left text-white font-inter">{toast.message}</div>
+            <div className="whitespace-pre-wrap text-left font-inter text-white">
+              {toast.message}
+            </div>
           </RadixToast.Description>
         </div>
       </div>

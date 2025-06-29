@@ -19,4 +19,4 @@ router.get('/:contactId', requireJwtAuth, checkAdmin, getEnterpriseContactByIdCo
 router.put('/:contactId', requireJwtAuth, checkAdmin, updateEnterpriseContactController);
 router.delete('/:contactId', requireJwtAuth, checkAdmin, deleteEnterpriseContactController);
 
-module.exports = router; 
+module.exports = router;

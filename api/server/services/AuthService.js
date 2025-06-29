@@ -210,7 +210,9 @@ const registerUser = async (user, additionalData = {}) => {
     if (additionalData.timezone) {
       const isValid = isValidTimezone(additionalData.timezone);
       userTimezone = isValid ? additionalData.timezone : 'UTC';
-      logger.info(`[registerUser] Setting timezone for new user: ${userTimezone} (provided: ${additionalData.timezone}, valid: ${isValid})`);
+      logger.info(
+        `[registerUser] Setting timezone for new user: ${userTimezone} (provided: ${additionalData.timezone}, valid: ${isValid})`,
+      );
     }
 
     const salt = bcrypt.genSaltSync(10);
@@ -519,13 +521,13 @@ async function autoSetUserTimezone(userId, detectedTimezone) {
     // Get current user to check if timezone is already set
     const { getUserById } = require('~/models');
     const user = await getUserById(userId, 'timezone');
-    
+
     // Only set timezone if user doesn't have one set
     if (!user?.timezone) {
       // Validate the detected timezone
       const isValid = isValidTimezone(detectedTimezone);
       const timezoneToSet = isValid ? detectedTimezone : 'UTC';
-      
+
       await updateUser(userId, { timezone: timezoneToSet });
       logger.info(`[AuthService] Auto-set timezone for user ${userId}: ${timezoneToSet}`);
     }
@@ -541,7 +543,7 @@ async function autoSetUserTimezone(userId, detectedTimezone) {
 function isValidTimezone(timezone) {
   if (!timezone || typeof timezone !== 'string') return false;
   if (timezone === 'UTC') return true;
-  
+
   try {
     // Test if timezone is valid by trying to format a date with it
     Intl.DateTimeFormat('en-US', { timeZone: timezone });

@@ -21,7 +21,9 @@ async function executeMCPAgentActionStep(step, context, userId, abortSignal) {
 
   // Check if MCP tools are available
   if (!context.mcp?.available || context.mcp.toolCount === 0) {
-    throw new Error(`No MCP tools available for step "${step.name}". Please configure MCP servers.`);
+    throw new Error(
+      `No MCP tools available for step "${step.name}". Please configure MCP servers.`,
+    );
   }
 
   logger.info(
@@ -182,4 +184,4 @@ async function executeStep(workflow, execution, step, context, abortSignal) {
 
 module.exports = {
   executeStep,
-}; 
+};

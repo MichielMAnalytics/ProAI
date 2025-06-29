@@ -86,26 +86,28 @@ function AccountSettings() {
         {startupConfig?.balance?.enabled === true &&
           balanceQuery.data != null &&
           !isNaN(parseFloat(balanceQuery.data.balance)) && (
-          <>
-            <div className="flex items-center justify-between ml-3 mr-2 py-2" role="note">
-              <div className="text-token-text-secondary text-sm">
-                {localize('com_nav_balance')}: {formatBalance(parseFloat(balanceQuery.data.balance))}
-                {balanceQuery.data.tierName && (
-                  <div className="text-xs text-token-text-tertiary mt-1">
-                    {getTierEmoji(balanceQuery.data.tierName, balanceQuery.data.tier)} {balanceQuery.data.tierName}
-                  </div>
-                )}
+            <>
+              <div className="ml-3 mr-2 flex items-center justify-between py-2" role="note">
+                <div className="text-token-text-secondary text-sm">
+                  {localize('com_nav_balance')}:{' '}
+                  {formatBalance(parseFloat(balanceQuery.data.balance))}
+                  {balanceQuery.data.tierName && (
+                    <div className="text-token-text-tertiary mt-1 text-xs">
+                      {getTierEmoji(balanceQuery.data.tierName, balanceQuery.data.tier)}{' '}
+                      {balanceQuery.data.tierName}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={handleUpgradeClick}
+                  className="btn btn-primary ml-3 px-3 py-1 text-xs font-semibold text-white"
+                >
+                  Upgrade
+                </button>
               </div>
-              <button
-                onClick={handleUpgradeClick}
-                className="btn btn-primary ml-3 px-3 py-1 text-xs font-semibold text-white"
-              >
-                Upgrade
-              </button>
-            </div>
-            <DropdownMenuSeparator />
-          </>
-        )}
+              <DropdownMenuSeparator />
+            </>
+          )}
         <Select.SelectItem
           value=""
           onClick={() => setShowFiles(true)}

@@ -19,7 +19,7 @@ export default function SearchForm() {
   const localize = useLocalize();
   const methods = useFormContext<AgentForm>();
   const { control, setValue } = methods;
-  
+
   const { data } = useVerifyAgentToolAuth(
     { toolId: Tools.web_search },
     {
@@ -61,7 +61,8 @@ export default function SearchForm() {
     return Boolean(webSearchEnabled);
   }, [webSearchEnabled]);
 
-  const isUserProvided = data?.authTypes?.some(([, authType]) => authType === 'user_provided') ?? false;
+  const isUserProvided =
+    data?.authTypes?.some(([, authType]) => authType === 'user_provided') ?? false;
 
   return (
     <>
@@ -123,22 +124,22 @@ function SwitchItem({
           <div className={disabled ? 'text-text-tertiary' : ''}>{label}</div>
           <div className="flex gap-2">
             {isUserProvided && (isToolAuthenticated || webSearchEnabled) && setIsDialogOpen && (
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setIsDialogOpen(true)}
                 className="flex items-center"
               >
-                <svg 
-                  className="h-4 w-4 text-text-primary" 
-                  fill="none" 
-                  stroke="currentColor" 
+                <svg
+                  className="h-4 w-4 text-text-primary"
+                  fill="none"
+                  stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <path 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    strokeWidth={2} 
-                    d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" 
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
                   />
                 </svg>
               </button>

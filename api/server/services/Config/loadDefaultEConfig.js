@@ -12,13 +12,13 @@ async function loadDefaultEndpointsConfig(req) {
   const { assistants, azureAssistants, azureOpenAI, chatGPTBrowser } = config;
 
   const enabledEndpoints = getEnabledEndpoints();
-  
+
   // Filter out endpoints based on interface config
   const interfaceConfig = req.app.locals.interfaceConfig;
   const pluginsEnabled = interfaceConfig?.plugins !== false;
   const assistantsEnabled = interfaceConfig?.assistants !== false;
-  
-  const filteredEndpoints = enabledEndpoints.filter(endpoint => {
+
+  const filteredEndpoints = enabledEndpoints.filter((endpoint) => {
     if (endpoint === EModelEndpoint.gptPlugins && !pluginsEnabled) {
       return false;
     }

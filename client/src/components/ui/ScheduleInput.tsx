@@ -2,11 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Clock, Calendar, Info } from 'lucide-react';
 import { Input, Label } from '~/components/ui';
 import { useTimezone } from '~/hooks/useTimezone';
-import { 
-  parseScheduleToUTCCron, 
-  cronToHumanReadable, 
+import {
+  parseScheduleToUTCCron,
+  cronToHumanReadable,
   getNextRunInTimezone,
-  isCronExpression 
+  isCronExpression,
 } from '~/utils/timezone';
 import { cn } from '~/utils';
 
@@ -37,7 +37,11 @@ const SCHEDULE_PRESETS: SchedulePreset[] = [
   { label: 'Daily at 9 AM', value: 'daily at 9 AM', description: 'Runs every day at 9:00 AM' },
   { label: 'Daily at 2 PM', value: 'daily at 2 PM', description: 'Runs every day at 2:00 PM' },
   { label: 'Daily at 6 PM', value: 'daily at 6 PM', description: 'Runs every day at 6:00 PM' },
-  { label: 'Weekdays at 9 AM', value: 'weekdays at 9 AM', description: 'Runs Monday-Friday at 9:00 AM' },
+  {
+    label: 'Weekdays at 9 AM',
+    value: 'weekdays at 9 AM',
+    description: 'Runs Monday-Friday at 9:00 AM',
+  },
   { label: 'Every morning', value: 'every morning', description: 'Runs every day at 9:00 AM' },
 ];
 
@@ -70,7 +74,7 @@ export const ScheduleInput: React.FC<ScheduleInputProps> = ({
     try {
       // Try to parse as natural language first
       let cronExpression = parseScheduleToUTCCron(inputValue, userTimezone);
-      
+
       // If parsing failed and it looks like a cron expression, use it directly
       if (!cronExpression && isCronExpression(inputValue)) {
         cronExpression = inputValue.trim();
@@ -79,7 +83,7 @@ export const ScheduleInput: React.FC<ScheduleInputProps> = ({
       if (cronExpression) {
         const humanReadable = cronToHumanReadable(cronExpression, userTimezone);
         const nextRun = getNextRunInTimezone(cronExpression, userTimezone);
-        
+
         return {
           cronExpression,
           humanReadable,
@@ -131,12 +135,12 @@ export const ScheduleInput: React.FC<ScheduleInputProps> = ({
 
   const formatNextRun = (date: Date | null) => {
     if (!date) return 'Unknown';
-    
+
     const now = new Date();
     const diffMs = date.getTime() - now.getTime();
     const diffMinutes = Math.round(diffMs / (1000 * 60));
     const diffHours = Math.round(diffMs / (1000 * 60 * 60));
-    
+
     let relativeTime = '';
     if (diffMinutes < 1) {
       relativeTime = 'in less than a minute';
@@ -188,16 +192,16 @@ export const ScheduleInput: React.FC<ScheduleInputProps> = ({
           className={cn(
             'pr-10',
             schedulePreview.isValid && 'border-green-500',
-            schedulePreview.error && 'border-red-500'
+            schedulePreview.error && 'border-red-500',
           )}
         />
-        
+
         {/* Preset Button */}
         <button
           type="button"
           onClick={() => setShowPresets(!showPresets)}
           disabled={disabled}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary hover:text-text-primary transition-colors"
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary transition-colors hover:text-text-primary"
           title="Choose from presets"
         >
           <Calendar className="h-4 w-4" />
@@ -211,7 +215,7 @@ export const ScheduleInput: React.FC<ScheduleInputProps> = ({
             <button
               key={index}
               onClick={() => handlePresetSelect(preset.value)}
-              className="w-full px-3 py-2 text-left text-sm hover:bg-surface-hover transition-colors"
+              className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-surface-hover"
             >
               <div className="font-medium">{preset.label}</div>
               <div className="text-xs text-text-secondary">{preset.description}</div>
@@ -227,12 +231,12 @@ export const ScheduleInput: React.FC<ScheduleInputProps> = ({
             <>
               {/* Human Readable Description */}
               <div className="flex items-start gap-2">
-                <Info className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-500" />
                 <div className="space-y-1">
                   <div className="text-sm font-medium text-text-primary">
                     {schedulePreview.humanReadable}
                   </div>
-                  
+
                   {/* Next Run */}
                   {schedulePreview.nextRun && (
                     <div className="text-xs text-text-secondary">
@@ -240,11 +244,11 @@ export const ScheduleInput: React.FC<ScheduleInputProps> = ({
                       {formatNextRun(schedulePreview.nextRun)}
                     </div>
                   )}
-                  
+
                   {/* Cron Expression (for debugging/advanced users) */}
                   <div className="text-xs text-text-secondary">
                     <span className="font-medium">Cron:</span>{' '}
-                    <code className="bg-surface-tertiary px-1 py-0.5 rounded text-xs">
+                    <code className="rounded bg-surface-tertiary px-1 py-0.5 text-xs">
                       {schedulePreview.cronExpression}
                     </code>
                   </div>
@@ -253,7 +257,7 @@ export const ScheduleInput: React.FC<ScheduleInputProps> = ({
             </>
           ) : (
             <div className="flex items-start gap-2">
-              <div className="h-4 w-4 rounded-full bg-red-500 mt-0.5 flex-shrink-0" />
+              <div className="mt-0.5 h-4 w-4 flex-shrink-0 rounded-full bg-red-500" />
               <div className="text-sm text-red-600">
                 {schedulePreview.error || 'Invalid schedule format'}
               </div>
@@ -265,7 +269,8 @@ export const ScheduleInput: React.FC<ScheduleInputProps> = ({
       {/* Help Text */}
       <div className="text-xs text-text-secondary">
         <p>
-          <strong>Examples:</strong> "daily at 9 AM", "every 5 minutes", "weekdays at 2 PM", "every hour"
+          <strong>Examples:</strong> "daily at 9 AM", "every 5 minutes", "weekdays at 2 PM", "every
+          hour"
         </p>
         <p className="mt-1">
           You can also use cron expressions like "0 9 * * *" for advanced scheduling.
@@ -276,4 +281,4 @@ export const ScheduleInput: React.FC<ScheduleInputProps> = ({
   );
 };
 
-export default ScheduleInput; 
+export default ScheduleInput;

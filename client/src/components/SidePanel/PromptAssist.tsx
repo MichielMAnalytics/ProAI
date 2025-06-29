@@ -32,16 +32,16 @@ export default function PromptAssist({ className, fieldName = 'instructions' }: 
   const handleEnhancePrompt = async () => {
     try {
       setIsLoading(true);
-      
+
       const formValues = getValues();
-      
+
       // Get available variables and their descriptions
-      const availableVariables = Object.keys(specialVariables).map(key => ({
+      const availableVariables = Object.keys(specialVariables).map((key) => ({
         name: key,
         syntax: `{{${key}}}`,
-        description: getVariableDescription(key)
+        description: getVariableDescription(key),
       }));
-      
+
       const data = {
         title: formValues.name || '',
         description: formValues.description || '',
@@ -50,7 +50,7 @@ export default function PromptAssist({ className, fieldName = 'instructions' }: 
       };
 
       const response = await dataService.enhancePrompt(data);
-      
+
       if (response.enhancedPrompt) {
         setValue(fieldName, response.enhancedPrompt);
         showToast({
@@ -80,11 +80,7 @@ export default function PromptAssist({ className, fieldName = 'instructions' }: 
       )}
       title={localize('com_ui_prompt_assist_tooltip')}
     >
-      {isLoading ? (
-        <Spinner className="h-3 w-3" />
-      ) : (
-        <Sparkles className="h-3 w-3" />
-      )}
+      {isLoading ? <Spinner className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
       {localize('com_ui_prompt_assist')}
     </button>
   );

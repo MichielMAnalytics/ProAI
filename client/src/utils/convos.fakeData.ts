@@ -98,7 +98,7 @@ export const convoData: ConversationData = {
           promptPrefix: null,
           resendFiles: false,
           temperature: 1,
-          title: 'Write Einstein\'s Famous Equation in LaTeX',
+          title: "Write Einstein's Famous Equation in LaTeX",
           top_p: 1,
           updatedAt,
         },

@@ -16,26 +16,29 @@ export default function MCPServerIcons({ mcpServers }: MCPServerIconsProps) {
 
   const getMCPServerIcon = (serverName: string): string | undefined => {
     // Method 1: Direct lookup by appSlug in available integrations
-    const integration = availableIntegrations?.find(int => int.appSlug === serverName);
+    const integration = availableIntegrations?.find((int) => int.appSlug === serverName);
     if (integration?.appIcon) {
       return integration.appIcon;
     }
-    
+
     // Method 2: Find tool by serverName or appSlug (clean tool names approach)
-    const serverTool = tools?.find(tool => 
-      tool.serverName === serverName || 
-      tool.appSlug === serverName ||
-      tool.serverName === `pipedream-${serverName}` ||
-      tool.appSlug === `pipedream-${serverName}`
+    const serverTool = tools?.find(
+      (tool) =>
+        tool.serverName === serverName ||
+        tool.appSlug === serverName ||
+        tool.serverName === `pipedream-${serverName}` ||
+        tool.appSlug === `pipedream-${serverName}`,
     );
-    
+
     return serverTool?.icon;
   };
 
-  const serverIcons = mcpServers.map(serverName => {
-    const icon = getMCPServerIcon(serverName);
-    return { serverName, icon };
-  }).filter(server => server.icon);
+  const serverIcons = mcpServers
+    .map((serverName) => {
+      const icon = getMCPServerIcon(serverName);
+      return { serverName, icon };
+    })
+    .filter((server) => server.icon);
 
   if (serverIcons.length === 0) {
     return null;

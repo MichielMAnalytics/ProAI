@@ -1,10 +1,10 @@
 const express = require('express');
 const { callTool, verifyToolAuth, getToolCalls } = require('~/server/controllers/tools');
 const { getAvailableTools } = require('~/server/controllers/PluginController');
-const { 
-  getUserMCPTools, 
-  initializeUserMCP, 
-  refreshUserMCP, 
+const {
+  getUserMCPTools,
+  initializeUserMCP,
+  refreshUserMCP,
   getUserMCPStatus,
   connectMCPServer,
   disconnectMCPServer,
@@ -63,8 +63,6 @@ router.post('/initialize-user-mcp', requireJwtAuth, initializeUserMCP);
  * @returns {Object} 200 - application/json
  */
 router.post('/refresh-user-mcp', requireJwtAuth, refreshUserMCP);
-
-
 
 /**
  * Connect a specific MCP server

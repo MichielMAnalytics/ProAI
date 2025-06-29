@@ -676,9 +676,9 @@ export type TCreateConnectTokenRequest = {
 export type TCreateConnectTokenResponse = {
   success: boolean;
   data: {
-  token: string;
-  expires_at: string;
-  connect_link_url: string;
+    token: string;
+    expires_at: string;
+    connect_link_url: string;
   };
 };
 

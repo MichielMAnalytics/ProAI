@@ -72,4 +72,4 @@ AppComponentSchema.index({ appSlug: 1, isActive: 1 });
 AppComponentSchema.index({ componentId: 1 }, { unique: true });
 AppComponentSchema.index({ key: 1 });
 
-export default AppComponentSchema; 
+export default AppComponentSchema;

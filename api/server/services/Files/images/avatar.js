@@ -49,7 +49,7 @@ async function resizeAvatar({ userId, input, desiredFormat = EImageOutputType.PN
     const squaredBuffer = await sharp(imageBuffer)
       .resize(maxSize, maxSize, {
         fit: 'contain',
-        background: { r: 255, g: 255, b: 255, alpha: 0 }
+        background: { r: 255, g: 255, b: 255, alpha: 0 },
       })
       .toBuffer();
 

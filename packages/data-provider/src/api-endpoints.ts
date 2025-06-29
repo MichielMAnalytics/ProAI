@@ -291,7 +291,7 @@ export const integrationsStatus = () => `${integrations()}/status`;
 export const availableIntegrations = () => `${integrations()}/available`;
 export const userIntegrations = () => `${integrations()}/user`;
 export const appDetails = (appSlug: string) => `${integrations()}/app/${appSlug}`;
-export const appComponents = (appSlug: string, type?: string) => 
+export const appComponents = (appSlug: string, type?: string) =>
   `${integrations()}/app/${appSlug}/components${type ? `?type=${type}` : ''}`;
 export const configureComponent = () => `${integrations()}/component/configure`;
 export const runAction = () => `${integrations()}/action/run`;
@@ -305,25 +305,31 @@ export const mcpConfig = () => `${integrations()}/mcp-config`;
 export const userMCPStatus = () => '/api/agents/tools/user-mcp-status';
 export const userMCPTools = () => '/api/agents/tools/user-mcp';
 export const refreshUserMCP = () => '/api/agents/tools/refresh-user-mcp';
-export const cleanupOrphanedMCPTools = () => `${agents({ path: '' })}/tools/cleanup-orphaned-mcp-tools`;
+export const cleanupOrphanedMCPTools = () =>
+  `${agents({ path: '' })}/tools/cleanup-orphaned-mcp-tools`;
 export const connectMCPServer = () => `${agents({ path: '' })}/tools/connect-mcp-server`;
 export const disconnectMCPServer = () => `${agents({ path: '' })}/tools/disconnect-mcp-server`;
 
 /* Scheduler Tasks */
 export const schedulerTasks = () => '/api/scheduler/tasks';
 export const schedulerTask = (taskId: string) => `/api/scheduler/tasks/${taskId}`;
-export const schedulerTaskAction = (taskId: string, action: string) => `/api/scheduler/tasks/${taskId}/${action}`;
+export const schedulerTaskAction = (taskId: string, action: string) =>
+  `/api/scheduler/tasks/${taskId}/${action}`;
 
 /* Scheduler Executions */
-export const schedulerExecutions = (taskId?: string) => taskId ? `/api/scheduler/tasks/${taskId}/executions` : '/api/scheduler/executions';
-export const schedulerExecution = (executionId: string) => `/api/scheduler/executions/${executionId}`;
+export const schedulerExecutions = (taskId?: string) =>
+  taskId ? `/api/scheduler/tasks/${taskId}/executions` : '/api/scheduler/executions';
+export const schedulerExecution = (executionId: string) =>
+  `/api/scheduler/executions/${executionId}`;
 
 /* Workflow endpoints */
 export const workflows = () => '/api/workflows';
 export const workflow = (workflowId: string) => `/api/workflows/${workflowId}`;
-export const workflowAction = (workflowId: string, action: string) => `/api/workflows/${workflowId}/${action}`;
+export const workflowAction = (workflowId: string, action: string) =>
+  `/api/workflows/${workflowId}/${action}`;
 export const workflowExecutions = (workflowId: string) => `/api/workflows/${workflowId}/executions`;
-export const workflowExecution = (workflowId: string, executionId: string) => `/api/workflows/${workflowId}/executions/${executionId}`;
+export const workflowExecution = (workflowId: string, executionId: string) =>
+  `/api/workflows/${workflowId}/executions/${executionId}`;
 export const workflowTest = (workflowId: string) => `/api/workflows/${workflowId}/test`;
 export const workflowStatus = () => '/api/workflows/status';
 

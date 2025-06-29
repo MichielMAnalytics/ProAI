@@ -26,21 +26,19 @@ export function useMCPConnection({
 }: UseMCPConnectionProps = {}) {
   const { user } = useAuthContext();
   const queryClient = useQueryClient();
-  
-  const {
-    data: userIntegrations = [],
-    refetch: refetchUserIntegrations,
-  } = useUserIntegrationsQuery();
+
+  const { data: userIntegrations = [], refetch: refetchUserIntegrations } =
+    useUserIntegrationsQuery();
 
   // Incremental MCP server connect mutation
   const connectMCPServerMutation = useConnectMCPServerMutation({
     onSuccess: (data) => {
       console.log('MCP server connected incrementally:', data);
       refetchUserIntegrations(); // Refresh to get updated integration list
-      
+
       // Invalidate tools cache to ensure new tools are loaded
       queryClient.invalidateQueries({ queryKey: ['tools'] });
-      
+
       onConnectionSuccess?.();
     },
     onError: (error) => {
@@ -54,10 +52,10 @@ export function useMCPConnection({
     onSuccess: (data) => {
       console.log('MCP server disconnected incrementally:', data);
       refetchUserIntegrations(); // Refresh to get updated integration list
-      
+
       // Invalidate tools cache to ensure removed tools are no longer shown
       queryClient.invalidateQueries({ queryKey: ['tools'] });
-      
+
       onDisconnectionSuccess?.();
     },
     onError: (error) => {
@@ -91,7 +89,7 @@ export function useMCPConnection({
   const integrationCallbackMutation = useIntegrationCallbackMutation({
     onSuccess: (response) => {
       console.log('Integration created successfully:', response);
-      
+
       // Use incremental connection instead of full refresh
       // We can get the appSlug from the createConnectTokenMutation variables
       const appSlug = createConnectTokenMutation.variables?.app;
@@ -116,23 +114,23 @@ export function useMCPConnection({
   const createConnectTokenMutation = useCreateConnectTokenMutation({
     onSuccess: async (response) => {
       console.log('=== Connect Token Response ===', response);
-      
+
       if (response.data?.token) {
         console.log('Token received, attempting to use Pipedream SDK...');
-        
+
         try {
           const pipedreamSDK = await import('@pipedream/sdk' as any);
           console.log('SDK imported:', pipedreamSDK);
-          
+
           if (pipedreamSDK.createFrontendClient) {
             console.log('Creating frontend client...');
             const pd = pipedreamSDK.createFrontendClient();
             console.log('Frontend client created:', pd);
-            
+
             const appSlug = createConnectTokenMutation.variables?.app;
             console.log('App slug:', appSlug);
             console.log('Token:', response.data.token);
-            
+
             console.log('Calling connectAccount...');
             pd.connectAccount({
               app: appSlug,
@@ -140,7 +138,7 @@ export function useMCPConnection({
               onSuccess: (account: any) => {
                 console.log(`Account successfully connected: ${account.id}`);
                 console.log('Account details:', account);
-                
+
                 if (user?.id) {
                   integrationCallbackMutation.mutate({
                     account_id: account.id,
@@ -156,7 +154,7 @@ export function useMCPConnection({
                 console.error(`Connection error: ${err.message}`);
                 console.error('Full error:', err);
                 onConnectionError?.(err);
-              }
+              },
             });
             console.log('connectAccount called successfully');
           } else {
@@ -166,7 +164,7 @@ export function useMCPConnection({
         } catch (error) {
           console.error('Failed to load or use Pipedream SDK:', error);
           console.log('Falling back to connect link URL...');
-          
+
           if (response.data?.connect_link_url) {
             console.log('Opening connect link:', response.data.connect_link_url);
             window.open(response.data.connect_link_url, '_blank');
@@ -189,9 +187,9 @@ export function useMCPConnection({
   const deleteIntegrationMutation = useDeleteIntegrationMutation({
     onSuccess: (_, integrationId) => {
       refetchUserIntegrations();
-      
+
       // Find the integration to get the server name for incremental disconnect
-      const integration = userIntegrations.find(i => i._id === integrationId);
+      const integration = userIntegrations.find((i) => i._id === integrationId);
       if (integration?.appSlug) {
         // Convert appSlug to server name (following the pattern: pipedream-{appSlug})
         const serverName = `pipedream-${integration.appSlug}`;
@@ -201,12 +199,12 @@ export function useMCPConnection({
         // Fallback to full refresh and cleanup if we can't determine the server name
         console.log('Fallback to full MCP refresh and cleanup - no appSlug available');
         refreshUserMCPMutation.mutate();
-        
+
         // Cleanup orphaned MCP tools from agents
         setTimeout(() => {
           cleanupOrphanedMCPToolsMutation.mutate();
         }, 1000);
-        
+
         onDisconnectionSuccess?.();
       }
     },
@@ -232,26 +230,30 @@ export function useMCPConnection({
   // Check if integration is connected
   const isIntegrationConnected = (serverName: string) => {
     const integrations = Array.isArray(userIntegrations) ? userIntegrations : [];
-    
+
     // Convert server name to appSlug for integration checking
     // Server names like "pipedream-gmail" should match userIntegrations with appSlug "gmail"
-    const appSlug = serverName.startsWith('pipedream-') ? serverName.replace('pipedream-', '') : serverName;
-    
+    const appSlug = serverName.startsWith('pipedream-')
+      ? serverName.replace('pipedream-', '')
+      : serverName;
+
     return integrations.some(
-      (userIntegration) => userIntegration.appSlug === appSlug && userIntegration.isActive
+      (userIntegration) => userIntegration.appSlug === appSlug && userIntegration.isActive,
     );
   };
 
   // Get user integration for an app
   const getUserIntegration = (serverName: string) => {
     const integrations = Array.isArray(userIntegrations) ? userIntegrations : [];
-    
+
     // Convert server name to appSlug for integration checking
     // Server names like "pipedream-gmail" should match userIntegrations with appSlug "gmail"
-    const appSlug = serverName.startsWith('pipedream-') ? serverName.replace('pipedream-', '') : serverName;
-    
+    const appSlug = serverName.startsWith('pipedream-')
+      ? serverName.replace('pipedream-', '')
+      : serverName;
+
     return integrations.find(
-      (userIntegration) => userIntegration.appSlug === appSlug && userIntegration.isActive
+      (userIntegration) => userIntegration.appSlug === appSlug && userIntegration.isActive,
     );
   };
 
@@ -260,17 +262,25 @@ export function useMCPConnection({
     if (!mcpServers || mcpServers.length === 0) {
       return true; // No MCP servers required
     }
-    
+
     console.log('[MCP Connection Check] Required servers:', mcpServers);
-    console.log('[MCP Connection Check] Available user integrations:', userIntegrations.map(ui => ({ appSlug: ui.appSlug, isActive: ui.isActive })));
-    
-    const result = mcpServers.every(serverName => {
+    console.log(
+      '[MCP Connection Check] Available user integrations:',
+      userIntegrations.map((ui) => ({ appSlug: ui.appSlug, isActive: ui.isActive })),
+    );
+
+    const result = mcpServers.every((serverName) => {
       const connected = isIntegrationConnected(serverName);
-      const appSlug = serverName.startsWith('pipedream-') ? serverName.replace('pipedream-', '') : serverName;
-      console.log(`[MCP Connection Check] Server "${serverName}" (appSlug: "${appSlug}") connected:`, connected);
+      const appSlug = serverName.startsWith('pipedream-')
+        ? serverName.replace('pipedream-', '')
+        : serverName;
+      console.log(
+        `[MCP Connection Check] Server "${serverName}" (appSlug: "${appSlug}") connected:`,
+        connected,
+      );
       return connected;
     });
-    
+
     console.log('[MCP Connection Check] All servers connected:', result);
     return result;
   };
@@ -280,27 +290,30 @@ export function useMCPConnection({
     if (!mcpServers || mcpServers.length === 0) {
       return [];
     }
-    
-    return mcpServers.filter(serverName => !isIntegrationConnected(serverName));
+
+    return mcpServers.filter((serverName) => !isIntegrationConnected(serverName));
   };
 
   return {
     // Connection functions
     handleConnect,
     handleDisconnect,
-    
+
     // Status checking functions
     isIntegrationConnected,
     getUserIntegration,
     areAllMCPServersConnected,
     getMissingMCPServers,
-    
+
     // Loading states (include incremental operations)
-    isConnecting: createConnectTokenMutation.isLoading || integrationCallbackMutation.isLoading || connectMCPServerMutation.isLoading,
+    isConnecting:
+      createConnectTokenMutation.isLoading ||
+      integrationCallbackMutation.isLoading ||
+      connectMCPServerMutation.isLoading,
     isDisconnecting: deleteIntegrationMutation.isLoading || disconnectMCPServerMutation.isLoading,
-    
+
     // Data
     userIntegrations,
     refetchUserIntegrations,
   };
-} 
+}

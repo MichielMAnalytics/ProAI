@@ -4,13 +4,13 @@ const { logger } = require('~/config');
 
 /**
  * PipedreamConnect - Handles Pipedream Connect authentication and token management
- * 
+ *
  * This service manages the core Connect functionality:
  * - Creating connect tokens for users
  * - Managing user account connections
  * - Handling OAuth flow callbacks
  * - User integration lifecycle management
- * 
+ *
  * Based on Pipedream Connect documentation:
  * https://pipedream.com/docs/connect/managed-auth/quickstart/
  */
@@ -43,7 +43,10 @@ class PipedreamConnect {
       });
 
       logger.info('PipedreamConnect: Client initialized successfully');
-      logger.info('Environment:', process.env.NODE_ENV === 'production' ? 'production' : 'development');
+      logger.info(
+        'Environment:',
+        process.env.NODE_ENV === 'production' ? 'production' : 'development',
+      );
     } catch (error) {
       logger.error('PipedreamConnect: Failed to initialize client:', error.message);
       this.client = null;
@@ -55,11 +58,11 @@ class PipedreamConnect {
    */
   isClientConfigured() {
     const hasRequiredEnvVars = !!(
-      process.env.PIPEDREAM_CLIENT_ID && 
-      process.env.PIPEDREAM_CLIENT_SECRET && 
+      process.env.PIPEDREAM_CLIENT_ID &&
+      process.env.PIPEDREAM_CLIENT_SECRET &&
       process.env.PIPEDREAM_PROJECT_ID
     );
-    
+
     if (!hasRequiredEnvVars) {
       logger.warn('PipedreamConnect: Missing required environment variables', {
         hasClientId: !!process.env.PIPEDREAM_CLIENT_ID,
@@ -67,7 +70,7 @@ class PipedreamConnect {
         hasProjectId: !!process.env.PIPEDREAM_PROJECT_ID,
       });
     }
-    
+
     return hasRequiredEnvVars;
   }
 
@@ -79,14 +82,14 @@ class PipedreamConnect {
     if (process.env.ENABLE_PIPEDREAM_INTEGRATION === 'false') {
       return false;
     }
-    
+
     // Check if we have credentials and client
     return this.isClientConfigured() && this.client !== null;
   }
 
   /**
    * Create a Connect Token for a user to initiate account connection
-   * 
+   *
    * @param {string} userId - The external user ID
    * @param {Object} options - Additional options for token creation
    * @param {string} options.app - Specific app to connect (optional)
@@ -132,7 +135,7 @@ class PipedreamConnect {
 
   /**
    * Get user's connected accounts from Pipedream
-   * 
+   *
    * @param {string} userId - The external user ID
    * @param {Object} options - Additional options
    * @param {boolean} options.include_credentials - Whether to include credentials (default: false)
@@ -155,7 +158,9 @@ class PipedreamConnect {
         include_credentials: options.include_credentials ? 1 : 0,
       });
 
-      logger.info(`PipedreamConnect: Retrieved ${accounts?.length || 0} accounts for user ${userId}`);
+      logger.info(
+        `PipedreamConnect: Retrieved ${accounts?.length || 0} accounts for user ${userId}`,
+      );
       return accounts || [];
     } catch (error) {
       logger.error(`PipedreamConnect: Failed to get accounts for user ${userId}:`, {
@@ -169,7 +174,7 @@ class PipedreamConnect {
 
   /**
    * Delete a user's account connection from Pipedream
-   * 
+   *
    * @param {string} accountId - The Pipedream account ID to delete
    * @returns {Promise<void>}
    */
@@ -200,7 +205,7 @@ class PipedreamConnect {
 
   /**
    * Create or update user integration after successful connection
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {Object} accountData - Account data from Pipedream
    * @returns {Promise<Object>} Created or updated integration
@@ -218,9 +223,9 @@ class PipedreamConnect {
       });
 
       const integration = await UserIntegration.findOneAndUpdate(
-        { 
-          userId, 
-          pipedreamAccountId: accountData.id 
+        {
+          userId,
+          pipedreamAccountId: accountData.id,
         },
         {
           userId,
@@ -237,11 +242,11 @@ class PipedreamConnect {
           lastConnectedAt: new Date(),
           lastUsedAt: new Date(),
         },
-        { 
-          upsert: true, 
+        {
+          upsert: true,
           new: true,
-          setDefaultsOnInsert: true 
-        }
+          setDefaultsOnInsert: true,
+        },
       );
 
       logger.info(`PipedreamConnect: Integration created/updated successfully`, {
@@ -264,7 +269,7 @@ class PipedreamConnect {
 
   /**
    * Delete user integration (completely remove from database and optionally revoke from Pipedream)
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {string} integrationId - The integration ID to delete
    * @param {Object} options - Additional options
@@ -286,7 +291,7 @@ class PipedreamConnect {
       // First find the integration to get the pipedreamAccountId before deletion
       const integration = await UserIntegration.findOne({
         _id: integrationId,
-        userId
+        userId,
       });
 
       if (!integration) {
@@ -297,16 +302,21 @@ class PipedreamConnect {
       if (revokeFromPipedream && integration.pipedreamAccountId) {
         try {
           await this.deleteAccount(integration.pipedreamAccountId);
-          logger.info(`PipedreamConnect: Revoked account ${integration.pipedreamAccountId} from Pipedream`);
+          logger.info(
+            `PipedreamConnect: Revoked account ${integration.pipedreamAccountId} from Pipedream`,
+          );
         } catch (error) {
-          logger.warn(`PipedreamConnect: Failed to revoke account from Pipedream (continuing anyway):`, error.message);
+          logger.warn(
+            `PipedreamConnect: Failed to revoke account from Pipedream (continuing anyway):`,
+            error.message,
+          );
         }
       }
 
       // Now actually delete the document from the database
       const deletedIntegration = await UserIntegration.findOneAndDelete({
         _id: integrationId,
-        userId
+        userId,
       });
 
       if (!deletedIntegration) {
@@ -336,7 +346,7 @@ class PipedreamConnect {
   /**
    * Handle successful connection callback from Pipedream
    * This method processes the callback data and creates the user integration
-   * 
+   *
    * @param {Object} callbackData - Data from Pipedream callback
    * @param {string} callbackData.account_id - The connected account ID
    * @param {string} callbackData.external_user_id - The user ID
@@ -347,7 +357,9 @@ class PipedreamConnect {
     const { account_id, external_user_id, app } = callbackData;
 
     if (!account_id || !external_user_id || !app) {
-      throw new Error('Missing required callback data: account_id, external_user_id, and app are required');
+      throw new Error(
+        'Missing required callback data: account_id, external_user_id, and app are required',
+      );
     }
 
     try {
@@ -358,28 +370,30 @@ class PipedreamConnect {
       });
 
       // Get app details from our available integrations
-      const appDetails = await AvailableIntegration.findOne({ 
-        appSlug: app, 
-        isActive: true 
+      const appDetails = await AvailableIntegration.findOne({
+        appSlug: app,
+        isActive: true,
       }).lean();
 
       // For MCP integration, we create the integration directly without fetching account details
       // since the frontend SDK provides us with the necessary information
-      const mcpServerUrl = process.env.PIPEDREAM_ENVIRONMENT === 'production' 
-        ? `https://remote.mcp.pipedream.net/${external_user_id}/${app}`
-        : `https://remote.mcp.pipedream.net/${external_user_id}/${app}`;
+      const mcpServerUrl =
+        process.env.PIPEDREAM_ENVIRONMENT === 'production'
+          ? `https://remote.mcp.pipedream.net/${external_user_id}/${app}`
+          : `https://remote.mcp.pipedream.net/${external_user_id}/${app}`;
 
       const integration = await UserIntegration.findOneAndUpdate(
-        { 
-          userId: external_user_id, 
-          appSlug: app 
+        {
+          userId: external_user_id,
+          appSlug: app,
         },
         {
           userId: external_user_id,
           pipedreamAccountId: account_id,
           pipedreamProjectId: process.env.PIPEDREAM_PROJECT_ID,
           appSlug: app,
-          appName: appDetails?.appName || (app.charAt(0).toUpperCase() + app.slice(1).replace(/_/g, ' ')),
+          appName:
+            appDetails?.appName || app.charAt(0).toUpperCase() + app.slice(1).replace(/_/g, ' '),
           appDescription: appDetails?.appDescription,
           appIcon: appDetails?.appIcon,
           appCategories: appDetails?.appCategories,
@@ -397,11 +411,11 @@ class PipedreamConnect {
           lastConnectedAt: new Date(),
           lastUsedAt: new Date(),
         },
-        { 
-          upsert: true, 
+        {
+          upsert: true,
           new: true,
-          setDefaultsOnInsert: true 
-        }
+          setDefaultsOnInsert: true,
+        },
       );
 
       logger.info(`PipedreamConnect: Connection callback processed successfully`, {
@@ -424,7 +438,7 @@ class PipedreamConnect {
 
   /**
    * Get client instance (for advanced usage)
-   * 
+   *
    * @returns {Object|null} Pipedream client instance
    */
   getClient() {
@@ -434,7 +448,7 @@ class PipedreamConnect {
   /**
    * Get a fresh OAuth access token for API authentication
    * Production-ready implementation with concurrency control and retry logic
-   * 
+   *
    * @returns {Promise<string>} OAuth access token
    */
   async getOAuthAccessToken() {
@@ -444,7 +458,7 @@ class PipedreamConnect {
 
     // Check if we have a valid cached token (with 5 minute buffer)
     const now = Date.now();
-    if (this.cachedToken && this.tokenExpiresAt && (this.tokenExpiresAt - now) > 300000) {
+    if (this.cachedToken && this.tokenExpiresAt && this.tokenExpiresAt - now > 300000) {
       logger.debug('PipedreamConnect: Using cached OAuth access token');
       return this.cachedToken;
     }
@@ -479,55 +493,62 @@ class PipedreamConnect {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        logger.debug(`PipedreamConnect: Fetching new OAuth access token (attempt ${attempt}/${maxRetries})`);
-        
-        const tokenResponse = await axios.post(`${baseURL}/oauth/token`, {
-          grant_type: 'client_credentials',
-          client_id: process.env.PIPEDREAM_CLIENT_ID,
-          client_secret: process.env.PIPEDREAM_CLIENT_SECRET,
-        }, {
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 10000, // 10 second timeout
-        });
-        
+        logger.debug(
+          `PipedreamConnect: Fetching new OAuth access token (attempt ${attempt}/${maxRetries})`,
+        );
+
+        const tokenResponse = await axios.post(
+          `${baseURL}/oauth/token`,
+          {
+            grant_type: 'client_credentials',
+            client_id: process.env.PIPEDREAM_CLIENT_ID,
+            client_secret: process.env.PIPEDREAM_CLIENT_SECRET,
+          },
+          {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 10000, // 10 second timeout
+          },
+        );
+
         const accessToken = tokenResponse.data.access_token;
         const expiresIn = tokenResponse.data.expires_in || 3600; // Default to 1 hour
-        
+
         if (accessToken) {
           // Cache the token with expiration
           const now = Date.now();
           this.cachedToken = accessToken;
-          this.tokenExpiresAt = now + (expiresIn * 1000);
-          
+          this.tokenExpiresAt = now + expiresIn * 1000;
+
           logger.info('PipedreamConnect: Retrieved and cached fresh OAuth access token', {
             expires_in_minutes: Math.floor(expiresIn / 60),
-            attempt: attempt
+            attempt: attempt,
           });
           return accessToken;
         }
-        
+
         throw new Error('No access token in response');
-        
       } catch (error) {
         const isLastAttempt = attempt === maxRetries;
-        
+
         logger.warn(`PipedreamConnect: Token refresh attempt ${attempt}/${maxRetries} failed:`, {
           message: error.message,
           status: error.response?.status,
-          willRetry: !isLastAttempt
+          willRetry: !isLastAttempt,
         });
-        
+
         if (isLastAttempt) {
           logger.error('PipedreamConnect: All token refresh attempts failed:', {
             message: error.message,
             hasClient: !!this.client,
-            isEnabled: this.isEnabled()
+            isEnabled: this.isEnabled(),
           });
-          throw new Error(`Failed to get OAuth access token after ${maxRetries} attempts: ${error.message}`);
+          throw new Error(
+            `Failed to get OAuth access token after ${maxRetries} attempts: ${error.message}`,
+          );
         }
-        
+
         // Wait before retrying (exponential backoff)
-        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+        await new Promise((resolve) => setTimeout(resolve, retryDelay * attempt));
       }
     }
   }
@@ -551,4 +572,4 @@ class PipedreamConnect {
   }
 }
 
-module.exports = new PipedreamConnect(); 
+module.exports = new PipedreamConnect();

@@ -77,10 +77,13 @@ export function Pagination({
   }
 
   return (
-    <div className={`flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between ${className} ${className.includes('premium-pagination') ? 'premium-pagination-wrapper' : ''}`}>
+    <div
+      className={`flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between ${className} ${className.includes('premium-pagination') ? 'premium-pagination-wrapper' : ''}`}
+    >
       {/* Items info */}
       <div className="text-sm text-text-secondary">
-         <span className="font-semibold text-text-primary">{startItem.toLocaleString()}</span>-<span className="font-semibold text-text-primary">{endItem.toLocaleString()}</span> of{' '}
+        <span className="font-semibold text-text-primary">{startItem.toLocaleString()}</span>-
+        <span className="font-semibold text-text-primary">{endItem.toLocaleString()}</span> of{' '}
         <span className="font-semibold text-text-primary">{totalItems.toLocaleString()}</span>
       </div>
 
@@ -92,7 +95,7 @@ export function Pagination({
             <select
               value={itemsPerPage}
               onChange={(e) => onItemsPerPageChange(Number(e.target.value))}
-              className="appearance-none rounded-lg border-none bg-surface-primary backdrop-blur-sm px-3 py-1.5 pr-8 text-sm font-medium text-text-primary focus:outline-none transition-all duration-200"
+              className="appearance-none rounded-lg border-none bg-surface-primary px-3 py-1.5 pr-8 text-sm font-medium text-text-primary backdrop-blur-sm transition-all duration-200 focus:outline-none"
             >
               {ITEMS_PER_PAGE_OPTIONS.map((option) => (
                 <option key={option} value={option}>
@@ -100,9 +103,19 @@ export function Pagination({
                 </option>
               ))}
             </select>
-            <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-              <svg className="h-4 w-4 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+              <svg
+                className="h-4 w-4 text-text-tertiary"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
               </svg>
             </div>
           </div>
@@ -114,10 +127,10 @@ export function Pagination({
           <button
             onClick={() => onPageChange(currentPage - 1)}
             disabled={currentPage === 1}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
               currentPage === 1
-                ? 'text-text-tertiary cursor-not-allowed'
-                : 'text-text-primary hover:text-text-primary hover:bg-surface-hover'
+                ? 'cursor-not-allowed text-text-tertiary'
+                : 'text-text-primary hover:bg-surface-hover hover:text-text-primary'
             }`}
             aria-label="Go to previous page"
           >
@@ -146,10 +159,10 @@ export function Pagination({
               <button
                 key={pageNumber}
                 onClick={() => onPageChange(pageNumber)}
-                className={`h-8 w-8 text-sm font-medium rounded-lg transition-all duration-200 ${
+                className={`h-8 w-8 rounded-lg text-sm font-medium transition-all duration-200 ${
                   isCurrentPage
                     ? 'bg-surface-primary text-green-600 hover:bg-green-50 dark:bg-surface-primary dark:text-green-400 dark:hover:bg-green-900/10'
-                    : 'text-text-primary hover:text-text-primary hover:bg-surface-hover'
+                    : 'text-text-primary hover:bg-surface-hover hover:text-text-primary'
                 }`}
                 aria-label={`Go to page ${pageNumber}`}
                 aria-current={isCurrentPage ? 'page' : undefined}
@@ -163,10 +176,10 @@ export function Pagination({
           <button
             onClick={() => onPageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
               currentPage === totalPages
-                ? 'text-text-tertiary cursor-not-allowed'
-                : 'text-text-primary hover:text-text-primary hover:bg-surface-hover'
+                ? 'cursor-not-allowed text-text-tertiary'
+                : 'text-text-primary hover:bg-surface-hover hover:text-text-primary'
             }`}
             aria-label="Go to next page"
           >

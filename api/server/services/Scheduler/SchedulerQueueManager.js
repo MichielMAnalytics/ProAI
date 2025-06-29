@@ -5,7 +5,7 @@ const { calculatePriority } = require('./utils/priorityUtils');
 class SchedulerQueueManager {
   constructor() {
     // Initialize task queue with concurrency limits
-    this.taskQueue = new PQueue({ 
+    this.taskQueue = new PQueue({
       concurrency: parseInt(process.env.SCHEDULER_CONCURRENCY || '3'), // Max 3 concurrent executions by default
       timeout: parseInt(process.env.SCHEDULER_TASK_TIMEOUT || '300000'), // 5 minute timeout per task
       throwOnTimeout: true,
@@ -14,14 +14,14 @@ class SchedulerQueueManager {
     });
 
     // Initialize retry queue with lower concurrency
-    this.retryQueue = new PQueue({ 
+    this.retryQueue = new PQueue({
       concurrency: parseInt(process.env.SCHEDULER_RETRY_CONCURRENCY || '1'), // More conservative for retries
       timeout: parseInt(process.env.SCHEDULER_TASK_TIMEOUT || '300000'),
       throwOnTimeout: true,
     });
 
     this.setupQueueHandlers();
-    
+
     logger.info('[SchedulerQueueManager] Initialized with settings:', {
       taskConcurrency: this.taskQueue.concurrency,
       retryConcurrency: this.retryQueue.concurrency,
@@ -35,32 +35,44 @@ class SchedulerQueueManager {
   setupQueueHandlers() {
     // Main queue handlers
     this.taskQueue.on('add', () => {
-      logger.debug(`[SchedulerQueueManager] Task added to main queue. Size: ${this.taskQueue.size}, Pending: ${this.taskQueue.pending}`);
+      logger.debug(
+        `[SchedulerQueueManager] Task added to main queue. Size: ${this.taskQueue.size}, Pending: ${this.taskQueue.pending}`,
+      );
     });
 
     this.taskQueue.on('active', () => {
-      logger.debug(`[SchedulerQueueManager] Task started in main queue. Size: ${this.taskQueue.size}, Pending: ${this.taskQueue.pending}`);
+      logger.debug(
+        `[SchedulerQueueManager] Task started in main queue. Size: ${this.taskQueue.size}, Pending: ${this.taskQueue.pending}`,
+      );
     });
 
     this.taskQueue.on('completed', (result) => {
-      logger.debug(`[SchedulerQueueManager] Task completed in main queue. Size: ${this.taskQueue.size}, Pending: ${this.taskQueue.pending}`);
+      logger.debug(
+        `[SchedulerQueueManager] Task completed in main queue. Size: ${this.taskQueue.size}, Pending: ${this.taskQueue.pending}`,
+      );
     });
 
     this.taskQueue.on('error', (error, task) => {
       logger.error(`[SchedulerQueueManager] Main queue error:`, error);
     });
 
-    // Retry queue handlers  
+    // Retry queue handlers
     this.retryQueue.on('add', () => {
-      logger.debug(`[SchedulerQueueManager] Task added to retry queue. Size: ${this.retryQueue.size}, Pending: ${this.retryQueue.pending}`);
+      logger.debug(
+        `[SchedulerQueueManager] Task added to retry queue. Size: ${this.retryQueue.size}, Pending: ${this.retryQueue.pending}`,
+      );
     });
 
     this.retryQueue.on('active', () => {
-      logger.debug(`[SchedulerQueueManager] Task started in retry queue. Size: ${this.retryQueue.size}, Pending: ${this.retryQueue.pending}`);
+      logger.debug(
+        `[SchedulerQueueManager] Task started in retry queue. Size: ${this.retryQueue.size}, Pending: ${this.retryQueue.pending}`,
+      );
     });
 
     this.retryQueue.on('completed', (result) => {
-      logger.debug(`[SchedulerQueueManager] Task completed in retry queue. Size: ${this.retryQueue.size}, Pending: ${this.retryQueue.pending}`);
+      logger.debug(
+        `[SchedulerQueueManager] Task completed in retry queue. Size: ${this.retryQueue.size}, Pending: ${this.retryQueue.pending}`,
+      );
     });
 
     this.retryQueue.on('error', (error, task) => {
@@ -76,15 +88,15 @@ class SchedulerQueueManager {
    */
   addTask(taskFunction, task) {
     const priority = calculatePriority(task);
-    
-    return this.taskQueue.add(taskFunction, { 
+
+    return this.taskQueue.add(taskFunction, {
       priority,
       meta: {
         taskId: task.id,
         taskName: task.name,
         userId: task.user,
         priority,
-      }
+      },
     });
   }
 
@@ -106,7 +118,7 @@ class SchedulerQueueManager {
           userId: task.user,
           priority,
           isRetry: true,
-        }
+        },
       });
     }, delay);
   }
@@ -164,19 +176,24 @@ class SchedulerQueueManager {
    */
   async waitForEmpty(timeout = 60000) {
     const startTime = Date.now();
-    
+
     return new Promise((resolve) => {
       const checkQueues = () => {
-        const isEmpty = this.taskQueue.size === 0 && this.taskQueue.pending === 0 && 
-                       this.retryQueue.size === 0 && this.retryQueue.pending === 0;
-        
+        const isEmpty =
+          this.taskQueue.size === 0 &&
+          this.taskQueue.pending === 0 &&
+          this.retryQueue.size === 0 &&
+          this.retryQueue.pending === 0;
+
         if (isEmpty) {
           resolve(true);
         } else if (Date.now() - startTime >= timeout) {
           logger.warn(`[SchedulerQueueManager] Wait for empty timeout after ${timeout}ms`);
           resolve(false);
         } else {
-          logger.debug(`[SchedulerQueueManager] Waiting for queues to empty: main(${this.taskQueue.size}/${this.taskQueue.pending}), retry(${this.retryQueue.size}/${this.retryQueue.pending})`);
+          logger.debug(
+            `[SchedulerQueueManager] Waiting for queues to empty: main(${this.taskQueue.size}/${this.taskQueue.pending}), retry(${this.retryQueue.size}/${this.retryQueue.pending})`,
+          );
           setTimeout(checkQueues, 1000);
         }
       };
@@ -208,4 +225,4 @@ class SchedulerQueueManager {
   }
 }
 
-module.exports = SchedulerQueueManager; 
+module.exports = SchedulerQueueManager;

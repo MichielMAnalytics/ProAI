@@ -17,9 +17,7 @@ import {
 import type { TAvailableIntegration, TUserIntegration } from 'librechat-data-provider';
 import { useMutation } from '@tanstack/react-query';
 import { dataService } from 'librechat-data-provider';
-import type {
-  TCreateConnectTokenResponse,
-} from 'librechat-data-provider';
+import type { TCreateConnectTokenResponse } from 'librechat-data-provider';
 
 // Helper function to format numbers with suffixes
 const formatCount = (count: number): string => {
@@ -60,25 +58,26 @@ const PRIORITY_APPS = [
   'telegram',
   'coinbase',
   'coinmarketcap',
-  'alchemy'
-
+  'alchemy',
 ];
 
 // Custom sorting function for integrations
-const sortIntegrationsWithPriority = (integrations: TAvailableIntegration[]): TAvailableIntegration[] => {
+const sortIntegrationsWithPriority = (
+  integrations: TAvailableIntegration[],
+): TAvailableIntegration[] => {
   return integrations.sort((a, b) => {
     const aSlug = a.appSlug || '';
     const bSlug = b.appSlug || '';
-    
+
     // Get priority indices using exact matching (-1 if not in priority list)
     const aPriorityIndex = PRIORITY_APPS.indexOf(aSlug);
     const bPriorityIndex = PRIORITY_APPS.indexOf(bSlug);
-    
+
     // If both are priority apps, sort by priority order
     if (aPriorityIndex !== -1 && bPriorityIndex !== -1) {
       return aPriorityIndex - bPriorityIndex;
     }
-    
+
     // If only one is priority, priority comes first
     if (aPriorityIndex !== -1 && bPriorityIndex === -1) {
       return -1;
@@ -86,7 +85,7 @@ const sortIntegrationsWithPriority = (integrations: TAvailableIntegration[]): TA
     if (aPriorityIndex === -1 && bPriorityIndex !== -1) {
       return 1;
     }
-    
+
     // If neither is priority, sort alphabetically by name
     return (a.appName || '').localeCompare(b.appName || '');
   });
@@ -99,7 +98,7 @@ export default function IntegrationsView() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(12);
@@ -111,7 +110,7 @@ export default function IntegrationsView() {
   useEffect(() => {
     const imageUrls = ['/assets/logo.svg', '/assets/pipedream.png', '/assets/zen2.png'];
     let loadedCount = 0;
-    
+
     const handleImageLoad = () => {
       loadedCount++;
       if (loadedCount === imageUrls.length) {
@@ -119,7 +118,7 @@ export default function IntegrationsView() {
       }
     };
 
-    imageUrls.forEach(url => {
+    imageUrls.forEach((url) => {
       const img = new Image();
       img.onload = handleImageLoad;
       img.onerror = handleImageLoad; // Still count as "loaded" to prevent hanging
@@ -224,29 +223,29 @@ export default function IntegrationsView() {
   const createConnectTokenMutation = useCreateConnectTokenMutation({
     onSuccess: async (response) => {
       console.log('=== Connect Token Response ===', response);
-      
+
       // The backend returns { success: true, data: { token, expires_at, connect_link_url } }
       if (response.data?.token) {
         console.log('Token received, attempting to use Pipedream SDK...');
-        
+
         try {
           // Use dynamic import from main package to avoid module resolution issues
           // TypeScript workaround: use type assertion to bypass module resolution
           console.log('Importing Pipedream SDK...');
           const pipedreamSDK = await import('@pipedream/sdk' as any);
           console.log('SDK imported:', pipedreamSDK);
-          
+
           // Check if browser client is available
           if (pipedreamSDK.createFrontendClient) {
             console.log('Creating frontend client...');
             const pd = pipedreamSDK.createFrontendClient();
             console.log('Frontend client created:', pd);
-            
+
             // Get the app slug from the current request
             const appSlug = createConnectTokenMutation.variables?.app;
             console.log('App slug:', appSlug);
             console.log('Token:', response.data.token);
-            
+
             console.log('Calling connectAccount...');
             pd.connectAccount({
               app: appSlug,
@@ -254,7 +253,7 @@ export default function IntegrationsView() {
               onSuccess: (account: any) => {
                 console.log(`Account successfully connected: ${account.id}`);
                 console.log('Account details:', account);
-                
+
                 // Call our backend to create the user integration record
                 if (user?.id) {
                   integrationCallbackMutation.mutate({
@@ -270,7 +269,7 @@ export default function IntegrationsView() {
                 console.error(`Connection error: ${err.message}`);
                 console.error('Full error:', err);
                 // TODO: Show error toast
-              }
+              },
             });
             console.log('connectAccount called successfully');
           } else {
@@ -280,7 +279,7 @@ export default function IntegrationsView() {
         } catch (error) {
           console.error('Failed to load or use Pipedream SDK:', error);
           console.log('Falling back to connect link URL...');
-          
+
           // Fallback to opening the connect link URL
           if (response.data?.connect_link_url) {
             console.log('Opening connect link:', response.data.connect_link_url);
@@ -316,10 +315,10 @@ export default function IntegrationsView() {
   // Get unique categories
   const categories = useMemo(() => {
     const allCategories = new Set<string>();
-    
+
     // Ensure availableIntegrations is an array
     const integrations = Array.isArray(availableIntegrations) ? availableIntegrations : [];
-    
+
     integrations.forEach((integration) => {
       if (integration.appCategories && Array.isArray(integration.appCategories)) {
         integration.appCategories.forEach((category) => allCategories.add(category));
@@ -332,17 +331,19 @@ export default function IntegrationsView() {
   const filteredIntegrations = useMemo(() => {
     // Ensure availableIntegrations is an array
     const integrations = Array.isArray(availableIntegrations) ? availableIntegrations : [];
-    
+
     // If showing "my" integrations, return empty array since we handle this separately
     if (selectedCategory === 'my') {
       return [];
     }
-    
+
     // First filter by category and active status
     const categoryFiltered = integrations.filter((integration) => {
-      const matchesCategory = selectedCategory === 'all' || 
-        (integration.appCategories && Array.isArray(integration.appCategories) && 
-         integration.appCategories.includes(selectedCategory));
+      const matchesCategory =
+        selectedCategory === 'all' ||
+        (integration.appCategories &&
+          Array.isArray(integration.appCategories) &&
+          integration.appCategories.includes(selectedCategory));
       return matchesCategory && integration.isActive;
     });
 
@@ -353,11 +354,11 @@ export default function IntegrationsView() {
 
     // Search with relevance scoring
     const searchTermLower = searchTerm.trim().toLowerCase();
-    
+
     const scoredResults = categoryFiltered
       .map((integration) => {
         let score = 0;
-        
+
         // App name scoring (highest priority)
         if (integration.appName) {
           const appNameLower = integration.appName.toLowerCase();
@@ -369,7 +370,7 @@ export default function IntegrationsView() {
             score += 60; // Contains
           }
         }
-        
+
         // App slug scoring (second priority)
         if (integration.appSlug) {
           const appSlugLower = integration.appSlug.toLowerCase();
@@ -381,10 +382,10 @@ export default function IntegrationsView() {
             score += 50; // Contains
           }
         }
-        
+
         // Categories scoring (third priority)
         if (integration.appCategories && Array.isArray(integration.appCategories)) {
-          integration.appCategories.forEach(category => {
+          integration.appCategories.forEach((category) => {
             const categoryLower = category.toLowerCase();
             if (categoryLower === searchTermLower) {
               score += 40; // Exact match
@@ -393,7 +394,7 @@ export default function IntegrationsView() {
             }
           });
         }
-        
+
         // Description scoring (lowest priority)
         if (integration.appDescription) {
           const descriptionLower = integration.appDescription.toLowerCase();
@@ -401,10 +402,10 @@ export default function IntegrationsView() {
             score += 10; // Contains
           }
         }
-        
+
         return { integration, score };
       })
-      .filter(item => item.score > 0) // Only include matches
+      .filter((item) => item.score > 0) // Only include matches
       .sort((a, b) => {
         // Sort by score (descending), then by name (ascending)
         if (b.score !== a.score) {
@@ -412,7 +413,7 @@ export default function IntegrationsView() {
         }
         return (a.integration.appName || '').localeCompare(b.integration.appName || '');
       })
-      .map(item => item.integration);
+      .map((item) => item.integration);
 
     return scoredResults;
   }, [availableIntegrations, searchTerm, selectedCategory]);
@@ -452,10 +453,10 @@ export default function IntegrationsView() {
       // Remove the query parameter from URL
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
-      
+
       // Refresh user integrations to show the new connection
       refetchUserIntegrations();
-      
+
       // TODO: Show success toast notification
       console.log('Integration connected successfully!');
     }
@@ -507,7 +508,7 @@ export default function IntegrationsView() {
           <Button
             onClick={() => window.location.reload()}
             variant="outline"
-            className="mt-4 btn-neutral"
+            className="btn-neutral mt-4"
           >
             Retry
           </Button>
@@ -521,186 +522,213 @@ export default function IntegrationsView() {
       {/* Close button - Mobile-friendly positioning */}
       <button
         onClick={handleClose}
-        className="fixed top-4 right-4 z-50 flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-800"
+        className="fixed right-4 top-4 z-50 flex h-8 w-8 items-center justify-center rounded-full text-gray-600 transition-all duration-200 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200 sm:h-10 sm:w-10"
         aria-label="Close integrations"
       >
-        <svg className="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        <svg
+          className="h-4 w-4 sm:h-5 sm:w-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M6 18L18 6M6 6l12 12"
+          />
         </svg>
       </button>
 
       {/* Header - Mobile responsive */}
       <div className="integrations-header relative overflow-hidden">
-
-        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-12">
-          <div className="text-center max-w-4xl mx-auto">
+        <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
+          <div className="mx-auto max-w-4xl text-center">
             {/* Badge - Premium design with improved mobile layout */}
-            <div 
-              className="relative inline-flex items-center rounded-2xl bg-gradient-to-r from-blue-50/95 via-indigo-50/90 to-blue-50/95 dark:from-gray-900/80 dark:via-indigo-900/30 dark:to-blue-900/40 px-3 py-2 sm:px-6 sm:py-4 text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-100 mb-4 sm:mb-8 backdrop-blur-xl border border-blue-300/80 dark:border-indigo-400/30 shadow-lg shadow-brand-blue/15 dark:shadow-indigo-400/20 hover:shadow-xl hover:shadow-brand-blue/25 dark:hover:shadow-indigo-400/30 transition-all duration-300 group max-w-sm sm:max-w-none mx-auto cursor-pointer"
+            <div
+              className="group relative mx-auto mb-4 inline-flex max-w-sm cursor-pointer items-center rounded-2xl border border-blue-300/80 bg-gradient-to-r from-blue-50/95 via-indigo-50/90 to-blue-50/95 px-3 py-2 text-sm font-semibold text-gray-800 shadow-lg shadow-brand-blue/15 backdrop-blur-xl transition-all duration-300 hover:shadow-xl hover:shadow-brand-blue/25 dark:border-indigo-400/30 dark:from-gray-900/80 dark:via-indigo-900/30 dark:to-blue-900/40 dark:text-gray-100 dark:shadow-indigo-400/20 dark:hover:shadow-indigo-400/30 sm:mb-8 sm:max-w-none sm:px-6 sm:py-4 sm:text-base"
               onClick={() => {
-                const toolsSection = document.querySelector('.grid.grid-cols-1.sm\\:grid-cols-2.lg\\:grid-cols-3');
+                const toolsSection = document.querySelector(
+                  '.grid.grid-cols-1.sm\\:grid-cols-2.lg\\:grid-cols-3',
+                );
                 if (toolsSection) {
                   toolsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
               }}
             >
               {/* Premium glassmorphism overlay */}
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-brand-blue/8 via-indigo-500/12 to-brand-blue/8 dark:from-indigo-400/10 dark:via-blue-400/15 dark:to-indigo-400/10 z-10"></div>
-              
+              <div className="from-brand-blue/8 via-indigo-500/12 to-brand-blue/8 absolute inset-0 z-10 rounded-2xl bg-gradient-to-r dark:from-indigo-400/10 dark:via-blue-400/15 dark:to-indigo-400/10"></div>
+
               {/* Animated border glow effect */}
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-brand-blue/25 via-indigo-400/35 to-brand-blue/25 dark:from-indigo-300/25 dark:via-blue-300/35 dark:to-indigo-300/25 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm z-10"></div>
-              
+              <div className="absolute inset-0 z-10 rounded-2xl bg-gradient-to-r from-brand-blue/25 via-indigo-400/35 to-brand-blue/25 opacity-0 blur-sm transition-opacity duration-500 group-hover:opacity-100 dark:from-indigo-300/25 dark:via-blue-300/35 dark:to-indigo-300/25"></div>
+
               {/* Content container */}
               <div className="relative z-40 flex items-center gap-2 sm:gap-3">
                 {/* Eve logo with Pipedream attribution underneath */}
-                <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                  <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-xl shadow-lg shadow-brand-blue/30 dark:shadow-indigo-400/30 group-hover:scale-110 group-hover:shadow-brand-blue/40 dark:group-hover:shadow-indigo-400/40 transition-all duration-300 bg-brand-blue flex items-center justify-center">
-                    <img 
-                      src="/assets/logo.svg" 
-                      alt="Eve Logo" 
-                      className="w-full h-full object-contain"
+                <div className="flex flex-shrink-0 flex-col items-center gap-1">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-brand-blue shadow-lg shadow-brand-blue/30 transition-all duration-300 group-hover:scale-110 group-hover:shadow-brand-blue/40 dark:shadow-indigo-400/30 dark:group-hover:shadow-indigo-400/40 sm:h-10 sm:w-10">
+                    <img
+                      src="/assets/logo.svg"
+                      alt="Eve Logo"
+                      className="h-full w-full object-contain"
                       style={{ minHeight: '100%', minWidth: '100%' }}
                     />
                   </div>
-                  
+
                   {/* Pipedream attribution - Under Eve logo */}
                   <div className="flex items-center gap-1">
-                    <span className="text-text-tertiary text-xs font-inter font-medium hidden sm:block">powered by</span>
-                    <div 
-                      className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-green-500 opacity-60 hover:opacity-100 transition-all duration-200 cursor-pointer hover:scale-110 flex items-center justify-center"
+                    <span className="hidden font-inter text-xs font-medium text-text-tertiary sm:block">
+                      powered by
+                    </span>
+                    <div
+                      className="flex h-3 w-3 cursor-pointer items-center justify-center rounded bg-green-500 opacity-60 transition-all duration-200 hover:scale-110 hover:opacity-100 sm:h-4 sm:w-4"
                       title="Visit Pipedream.com"
                       onClick={(e) => {
                         e.stopPropagation(); // Prevent badge scroll behavior
                         window.open('https://pipedream.com', '_blank', 'noopener,noreferrer');
                       }}
                     >
-                      <img 
-                        src="/assets/pipedream.png" 
-                        alt="Pipedream" 
-                        className="w-full h-full object-contain rounded"
+                      <img
+                        src="/assets/pipedream.png"
+                        alt="Pipedream"
+                        className="h-full w-full rounded object-contain"
                         style={{ minHeight: '100%', minWidth: '100%' }}
                       />
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Text content with premium typography - Mobile optimized */}
-                <div className="flex flex-col min-w-0">
+                <div className="flex min-w-0 flex-col">
                   {/* Top line with numbers */}
                   <div className="flex items-center gap-1 whitespace-nowrap">
-                    <span className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-700 dark:from-indigo-300 dark:via-blue-200 dark:to-indigo-300 bg-clip-text text-transparent font-comfortaa font-bold tracking-tight text-sm sm:text-base">
+                    <span className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-700 bg-clip-text font-comfortaa text-sm font-bold tracking-tight text-transparent dark:from-indigo-300 dark:via-blue-200 dark:to-indigo-300 sm:text-base">
                       2,700+
                     </span>
-                    <span className="text-text-primary font-inter font-medium text-sm sm:text-base">Apps &</span>
-                    <span className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-700 dark:from-indigo-300 dark:via-blue-200 dark:to-indigo-300 bg-clip-text text-transparent font-comfortaa font-bold tracking-tight text-sm sm:text-base">
+                    <span className="font-inter text-sm font-medium text-text-primary sm:text-base">
+                      Apps &
+                    </span>
+                    <span className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-700 bg-clip-text font-comfortaa text-sm font-bold tracking-tight text-transparent dark:from-indigo-300 dark:via-blue-200 dark:to-indigo-300 sm:text-base">
                       10,000+
                     </span>
                   </div>
                   {/* Bottom line */}
-                  <div className="text-text-primary font-inter font-medium text-xs sm:text-base leading-tight">
+                  <div className="font-inter text-xs font-medium leading-tight text-text-primary sm:text-base">
                     Tools Available
                   </div>
                 </div>
               </div>
-              
+
               {/* Subtle inner glow */}
-              <div className="absolute inset-px rounded-2xl bg-gradient-to-r from-white/20 via-transparent to-white/20 dark:from-white/10 dark:via-transparent dark:to-white/10 pointer-events-none z-30"></div>
-              
+              <div className="pointer-events-none absolute inset-px z-30 rounded-2xl bg-gradient-to-r from-white/20 via-transparent to-white/20 dark:from-white/10 dark:via-transparent dark:to-white/10"></div>
+
               {/* Premium shine effect */}
-              <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none z-30">
-                <div className="absolute -top-2 -left-2 w-6 h-6 sm:w-8 sm:h-8 bg-white/40 dark:bg-white/20 rounded-full blur-xl opacity-60 group-hover:opacity-80 transition-opacity duration-500"></div>
-                <div className="absolute top-1 left-1 w-12 h-px sm:w-16 bg-gradient-to-r from-transparent via-white/60 dark:via-white/30 to-transparent opacity-50"></div>
+              <div className="pointer-events-none absolute inset-0 z-30 overflow-hidden rounded-2xl">
+                <div className="absolute -left-2 -top-2 h-6 w-6 rounded-full bg-white/40 opacity-60 blur-xl transition-opacity duration-500 group-hover:opacity-80 dark:bg-white/20 sm:h-8 sm:w-8"></div>
+                <div className="absolute left-1 top-1 h-px w-12 bg-gradient-to-r from-transparent via-white/60 to-transparent opacity-50 dark:via-white/30 sm:w-16"></div>
               </div>
 
               {/* Zen character positioned on badge */}
-              <div className="absolute bottom-0.5 right-0.5 sm:bottom-0.5 sm:right-1 w-8 h-8 sm:w-10 sm:h-10 z-20 pointer-events-none">
-                <img 
-                  src="/assets/zen2.png" 
-                  alt="Zen character pointing" 
-                  className="w-full h-full object-contain transform group-hover:scale-110 transition-transform duration-300"
-                  style={{ 
+              <div className="pointer-events-none absolute bottom-0.5 right-0.5 z-20 h-8 w-8 sm:bottom-0.5 sm:right-1 sm:h-10 sm:w-10">
+                <img
+                  src="/assets/zen2.png"
+                  alt="Zen character pointing"
+                  className="h-full w-full transform object-contain transition-transform duration-300 group-hover:scale-110"
+                  style={{
                     filter: 'drop-shadow(0 2px 8px rgba(0, 0, 0, 0.1))',
-                    minHeight: '100%', 
-                    minWidth: '100%' 
+                    minHeight: '100%',
+                    minWidth: '100%',
                   }}
                 />
               </div>
-
             </div>
 
             {/* Main Title - Mobile responsive */}
-            <h1 className="text-2xl sm:text-4xl md:text-5xl heading-primary mb-3 sm:mb-4">
+            <h1 className="heading-primary mb-3 text-2xl sm:mb-4 sm:text-4xl md:text-5xl">
               The Automation
               <br />
-              <span className="text-text-secondary">
-                Toolkit
-              </span>
+              <span className="text-text-secondary">Toolkit</span>
             </h1>
-            
+
             {/* Subtitle - Mobile responsive */}
-            <p className="text base sm:text-lg text-text-secondary mb-6 sm:mb-8 leading-relaxed max-w-3xl mx-auto px-4">
-              Connect your favorite apps, in a single click, and unlock unlimited possibilities with enterprise-grade security.
+            <p className="text base mx-auto mb-6 max-w-3xl px-4 leading-relaxed text-text-secondary sm:mb-8 sm:text-lg">
+              Connect your favorite apps, in a single click, and unlock unlimited possibilities with
+              enterprise-grade security.
             </p>
 
             {/* Feature highlights - Enhanced EVE branded dots */}
-            <div className="flex flex-wrap justify-center gap-4 sm:gap-8 mb-6 sm:mb-8 text-xs sm:text-sm px-4">
+            <div className="mb-6 flex flex-wrap justify-center gap-4 px-4 text-xs sm:mb-8 sm:gap-8 sm:text-sm">
               <div className="flex items-center gap-2 text-text-secondary">
                 <div className="relative">
-                  <div className="w-2 h-2 bg-gradient-to-r from-brand-blue to-indigo-600 dark:bg-indigo-400 rounded-full shadow-md shadow-brand-blue/30 dark:shadow-indigo-400/20 border border-brand-blue/30 dark:border-indigo-400/40"></div>
-                  <div className="absolute inset-0 w-2 h-2 bg-gradient-to-r from-indigo-500 to-purple-500 dark:bg-indigo-400/30 rounded-full animate-pulse opacity-70"></div>
+                  <div className="h-2 w-2 rounded-full border border-brand-blue/30 bg-gradient-to-r from-brand-blue to-indigo-600 shadow-md shadow-brand-blue/30 dark:border-indigo-400/40 dark:bg-indigo-400 dark:shadow-indigo-400/20"></div>
+                  <div className="absolute inset-0 h-2 w-2 animate-pulse rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 opacity-70 dark:bg-indigo-400/30"></div>
                 </div>
                 <span className="font-medium">One-click Setup</span>
               </div>
               <div className="flex items-center gap-2 text-text-secondary">
                 <div className="relative">
-                  <div className="w-2 h-2 bg-gradient-to-r from-brand-blue to-indigo-600 dark:bg-indigo-400 rounded-full shadow-md shadow-brand-blue/30 dark:shadow-indigo-400/20 border border-brand-blue/30 dark:border-indigo-400/40"></div>
-                  <div className="absolute inset-0 w-2 h-2 bg-gradient-to-r from-indigo-500 to-purple-500 dark:bg-indigo-400/30 rounded-full animate-pulse opacity-70"></div>
+                  <div className="h-2 w-2 rounded-full border border-brand-blue/30 bg-gradient-to-r from-brand-blue to-indigo-600 shadow-md shadow-brand-blue/30 dark:border-indigo-400/40 dark:bg-indigo-400 dark:shadow-indigo-400/20"></div>
+                  <div className="absolute inset-0 h-2 w-2 animate-pulse rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 opacity-70 dark:bg-indigo-400/30"></div>
                 </div>
                 <span className="font-medium">Enterprise-grade security</span>
               </div>
               <div className="flex items-center gap-2 text-text-secondary">
                 <div className="relative">
-                  <div className="w-2 h-2 bg-gradient-to-r from-brand-blue to-indigo-600 dark:bg-indigo-400 rounded-full shadow-md shadow-brand-blue/30 dark:shadow-indigo-400/20 border border-brand-blue/30 dark:border-indigo-400/40"></div>
-                  <div className="absolute inset-0 w-2 h-2 bg-gradient-to-r from-indigo-500 to-purple-500 dark:bg-indigo-400/30 rounded-full animate-pulse opacity-70"></div>
+                  <div className="h-2 w-2 rounded-full border border-brand-blue/30 bg-gradient-to-r from-brand-blue to-indigo-600 shadow-md shadow-brand-blue/30 dark:border-indigo-400/40 dark:bg-indigo-400 dark:shadow-indigo-400/20"></div>
+                  <div className="absolute inset-0 h-2 w-2 animate-pulse rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 opacity-70 dark:bg-indigo-400/30"></div>
                 </div>
                 <span className="font-medium">Revoke access any time</span>
               </div>
             </div>
-            
+
             {/* Navigation Toggle - Black/White for light/dark themes */}
-            <div className="relative inline-flex items-center p-1 rounded-lg shadow-sm border border-border-light bg-surface-secondary/50 dark:bg-surface-secondary">
+            <div className="bg-surface-secondary/50 relative inline-flex items-center rounded-lg border border-border-light p-1 shadow-sm dark:bg-surface-secondary">
               <button
                 onClick={() => setSelectedCategory('all')}
-                className={`relative z-10 px-4 sm:px-6 py-2 sm:py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                className={`relative z-10 rounded-md px-4 py-2 text-sm font-medium transition-all duration-200 sm:px-6 sm:py-2.5 ${
                   selectedCategory === 'all' || selectedCategory !== 'my'
-                    ? 'border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm font-semibold'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 bg-transparent border-none hover:bg-surface-hover/50'
+                    ? 'border border-gray-300 bg-white font-semibold shadow-sm dark:border-gray-600 dark:bg-gray-800'
+                    : 'hover:bg-surface-hover/50 border-none bg-transparent text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
                 }`}
               >
                 <span className="relative z-10 flex items-center gap-2">
-                  <span className={selectedCategory === 'all' || selectedCategory !== 'my' ? 'text-gray-900 dark:text-gray-100 font-semibold' : ''}>
+                  <span
+                    className={
+                      selectedCategory === 'all' || selectedCategory !== 'my'
+                        ? 'font-semibold text-gray-900 dark:text-gray-100'
+                        : ''
+                    }
+                  >
                     All Apps
                   </span>
                 </span>
               </button>
               <button
                 onClick={() => setSelectedCategory('my')}
-                className={`relative z-10 px-4 sm:px-6 py-2 sm:py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                className={`relative z-10 rounded-md px-4 py-2 text-sm font-medium transition-all duration-200 sm:px-6 sm:py-2.5 ${
                   selectedCategory === 'my'
-                    ? 'border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm font-semibold'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 bg-transparent border-none hover:bg-surface-hover/50'
+                    ? 'border border-gray-300 bg-white font-semibold shadow-sm dark:border-gray-600 dark:bg-gray-800'
+                    : 'hover:bg-surface-hover/50 border-none bg-transparent text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
                 }`}
               >
                 <span className="relative z-10 flex items-center gap-2">
-                  <span className={selectedCategory === 'my' ? 'text-gray-900 dark:text-gray-100 font-semibold' : ''}>
+                  <span
+                    className={
+                      selectedCategory === 'my'
+                        ? 'font-semibold text-gray-900 dark:text-gray-100'
+                        : ''
+                    }
+                  >
                     My Apps
                   </span>
                   {userIntegrations.length > 0 && (
-                    <span className={`inline-flex items-center justify-center w-5 h-5 text-xs font-medium rounded-full border ml-2 ${
-                      selectedCategory === 'my' 
-                        ? 'text-gray-900 bg-gray-100 border-gray-300 dark:text-gray-100 dark:bg-gray-700 dark:border-gray-600' 
-                        : 'text-text-primary bg-surface-tertiary border-border-light'
-                    }`}>
+                    <span
+                      className={`ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full border text-xs font-medium ${
+                        selectedCategory === 'my'
+                          ? 'border-gray-300 bg-gray-100 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100'
+                          : 'border-border-light bg-surface-tertiary text-text-primary'
+                      }`}
+                    >
                       {formatCount(userIntegrations.length)}
                     </span>
                   )}
@@ -711,35 +739,52 @@ export default function IntegrationsView() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
         {/* Mobile Category Filter Button */}
-        <div className="block lg:hidden mb-4">
+        <div className="mb-4 block lg:hidden">
           <button
             onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-text-primary bg-surface-secondary border border-border-light rounded-lg hover:bg-surface-hover transition-all duration-200"
+            className="flex items-center gap-2 rounded-lg border border-border-light bg-surface-secondary px-4 py-2 text-sm font-medium text-text-primary transition-all duration-200 hover:bg-surface-hover"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4"
+              />
             </svg>
             Categories
-            <svg className={`h-4 w-4 transition-transform duration-200 ${isMobileSidebarOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            <svg
+              className={`h-4 w-4 transition-transform duration-200 ${isMobileSidebarOpen ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
             </svg>
           </button>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
           {/* Left Sidebar - Mobile responsive */}
-          <div className={`w-full lg:w-64 lg:flex-shrink-0 ${
-            isMobileSidebarOpen ? 'block' : 'hidden lg:block'
-          }`}>
-            <h3 className="text-sm heading-secondary mb-4">Categories</h3>
-            <div className="space-y-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-1 gap-2 lg:gap-0 lg:space-y-1">
+          <div
+            className={`w-full lg:w-64 lg:flex-shrink-0 ${
+              isMobileSidebarOpen ? 'block' : 'hidden lg:block'
+            }`}
+          >
+            <h3 className="heading-secondary mb-4 text-sm">Categories</h3>
+            <div className="grid grid-cols-2 gap-2 space-y-1 sm:grid-cols-3 lg:grid-cols-1 lg:gap-0 lg:space-y-1">
               <button
                 onClick={() => setSelectedCategory('all')}
-                className={`w-full text-left px-3 py-2 text-sm rounded-md transition-all duration-200 ${
+                className={`w-full rounded-md px-3 py-2 text-left text-sm transition-all duration-200 ${
                   selectedCategory === 'all'
-                    ? 'bg-surface-primary border border-brand-blue text-brand-blue hover:bg-blue-50 dark:bg-surface-primary dark:text-indigo-400 dark:border-indigo-400 dark:hover:bg-indigo-900/10'
+                    ? 'border border-brand-blue bg-surface-primary text-brand-blue hover:bg-blue-50 dark:border-indigo-400 dark:bg-surface-primary dark:text-indigo-400 dark:hover:bg-indigo-900/10'
                     : 'text-text-primary hover:bg-surface-hover'
                 }`}
               >
@@ -749,9 +794,9 @@ export default function IntegrationsView() {
                 <button
                   key={category}
                   onClick={() => setSelectedCategory(category)}
-                  className={`w-full text-left px-3 py-2 text-sm rounded-md transition-all duration-200 ${
+                  className={`w-full rounded-md px-3 py-2 text-left text-sm transition-all duration-200 ${
                     selectedCategory === category
-                      ? 'bg-surface-primary border border-brand-blue text-brand-blue hover:bg-blue-50 dark:bg-surface-primary dark:text-indigo-400 dark:border-indigo-400 dark:hover:bg-indigo-900/10'
+                      ? 'border border-brand-blue bg-surface-primary text-brand-blue hover:bg-blue-50 dark:border-indigo-400 dark:bg-surface-primary dark:text-indigo-400 dark:hover:bg-indigo-900/10'
                       : 'text-text-primary hover:bg-surface-hover'
                   }`}
                 >
@@ -762,30 +807,50 @@ export default function IntegrationsView() {
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             {/* Search Bar - Mobile responsive */}
             <div className="mb-6">
-              <div className="relative max-w-md ml-auto">
+              <div className="relative ml-auto max-w-md">
                 <Input
                   type="text"
                   placeholder="Search"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full h-10 sm:h-12 pl-4 pr-12 text-sm sm:text-base bg-surface-primary border-border-light rounded-lg shadow-sm focus:border-brand-blue focus:ring-brand-blue/20 text-text-primary placeholder:text-text-tertiary"
+                  className="h-10 w-full rounded-lg border-border-light bg-surface-primary pl-4 pr-12 text-sm text-text-primary shadow-sm placeholder:text-text-tertiary focus:border-brand-blue focus:ring-brand-blue/20 sm:h-12 sm:text-base"
                 />
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-blue dark:text-indigo-400">
-                  <svg className="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  <svg
+                    className="h-4 w-4 sm:h-5 sm:w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
                   </svg>
                 </div>
                 {searchTerm && (
                   <button
                     onClick={() => setSearchTerm('')}
-                    className="absolute right-12 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary transition-colors"
+                    className="absolute right-12 top-1/2 -translate-y-1/2 text-text-tertiary transition-colors hover:text-text-secondary"
                     aria-label="Clear search"
                   >
-                    <svg className="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <svg
+                      className="h-4 w-4 sm:h-5 sm:w-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
                     </svg>
                   </button>
                 )}
@@ -795,26 +860,38 @@ export default function IntegrationsView() {
             {/* Show My Apps or All Apps */}
             {selectedCategory === 'my' ? (
               <div>
-                <h2 className="text-lg sm:text-xl heading-secondary mb-4 sm:mb-6">
+                <h2 className="heading-secondary mb-4 text-lg sm:mb-6 sm:text-xl">
                   My Apps ({formatCount(userIntegrations.length)})
                 </h2>
-                
+
                 {userIntegrations.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 sm:py-16 px-4">
-                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-surface-secondary rounded-full flex items-center justify-center mb-4">
-                      <svg className="w-6 h-6 sm:w-8 sm:h-8 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  <div className="flex flex-col items-center justify-center px-4 py-12 sm:py-16">
+                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-surface-secondary sm:h-16 sm:w-16">
+                      <svg
+                        className="h-6 w-6 text-text-tertiary sm:h-8 sm:w-8"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M13 10V3L4 14h7v7l9-11h-7z"
+                        />
                       </svg>
                     </div>
-                    <h3 className="text-base sm:text-lg heading-secondary mb-2">No connected apps</h3>
-                                          <p className="text-sm sm:text-base body-text text-center max-w-md">
-                        Connect your first app to get started with AI-powered automation.
-                      </p>
+                    <h3 className="heading-secondary mb-2 text-base sm:text-lg">
+                      No connected apps
+                    </h3>
+                    <p className="body-text max-w-md text-center text-sm sm:text-base">
+                      Connect your first app to get started with AI-powered automation.
+                    </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
                     {userIntegrations.map((userIntegration) => {
-                      const integration = Array.isArray(availableIntegrations) 
+                      const integration = Array.isArray(availableIntegrations)
                         ? availableIntegrations.find((ai) => ai.appSlug === userIntegration.appSlug)
                         : null;
                       if (!integration) return null;
@@ -838,22 +915,34 @@ export default function IntegrationsView() {
               <div>
                 {/* Integrations Grid - Mobile responsive */}
                 {filteredIntegrations.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 sm:py-16 px-4">
-                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-surface-secondary rounded-full flex items-center justify-center mb-4">
-                      <svg className="w-6 h-6 sm:w-8 sm:h-8 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  <div className="flex flex-col items-center justify-center px-4 py-12 sm:py-16">
+                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-surface-secondary sm:h-16 sm:w-16">
+                      <svg
+                        className="h-6 w-6 text-text-tertiary sm:h-8 sm:w-8"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
                       </svg>
                     </div>
-                    <h3 className="text-base sm:text-lg heading-secondary mb-2">No integrations found</h3>
-                                          <p className="text-sm sm:text-base body-text text-center max-w-md">
-                        {searchTerm || selectedCategory !== 'all'
-                          ? 'Try adjusting your search criteria or browse all available integrations.'
-                          : 'No integrations are currently available.'}
-                      </p>
+                    <h3 className="heading-secondary mb-2 text-base sm:text-lg">
+                      No integrations found
+                    </h3>
+                    <p className="body-text max-w-md text-center text-sm sm:text-base">
+                      {searchTerm || selectedCategory !== 'all'
+                        ? 'Try adjusting your search criteria or browse all available integrations.'
+                        : 'No integrations are currently available.'}
+                    </p>
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
                       {paginatedIntegrations.map((integration) => (
                         <IntegrationCard
                           key={integration._id || integration.appSlug}
@@ -876,7 +965,9 @@ export default function IntegrationsView() {
                           totalItems={filteredIntegrations.length}
                           totalPages={totalPages}
                           onPageChange={(newPage) => setCurrentPage(newPage)}
-                          onItemsPerPageChange={(newItemsPerPage) => setItemsPerPage(newItemsPerPage)}
+                          onItemsPerPageChange={(newItemsPerPage) =>
+                            setItemsPerPage(newItemsPerPage)
+                          }
                           showItemsPerPage={true}
                         />
                       </div>
@@ -890,4 +981,4 @@ export default function IntegrationsView() {
       </div>
     </div>
   );
-} 
+}

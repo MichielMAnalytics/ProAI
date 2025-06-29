@@ -56,7 +56,6 @@ const useNewConvo = (index = 0) => {
   const saveDrafts = useRecoilValue<boolean>(store.saveDrafts);
   const resetBadges = useResetChatBadges();
 
-
   const { mutateAsync } = useDeleteFilesMutation({
     onSuccess: () => {
       console.log('Files deleted');
@@ -161,11 +160,18 @@ const useNewConvo = (index = 0) => {
             conversation.agent_id = undefined;
           }
 
-          if (!currentAgentId && isAgentEndpoint && agentsMap && Object.keys(agentsMap).length > 0) {
+          if (
+            !currentAgentId &&
+            isAgentEndpoint &&
+            agentsMap &&
+            Object.keys(agentsMap).length > 0
+          ) {
             // Check URL params first, then localStorage, then default
             const urlAgentId = searchParams.get('agent_id');
-            const storedAgentId = localStorage.getItem(`${LocalStorageKeys.AGENT_ID_PREFIX}${index}`);
-            
+            const storedAgentId = localStorage.getItem(
+              `${LocalStorageKeys.AGENT_ID_PREFIX}${index}`,
+            );
+
             if (urlAgentId && agentsMap[urlAgentId]) {
               conversation.agent_id = urlAgentId;
             } else if (storedAgentId && agentsMap[storedAgentId]) {

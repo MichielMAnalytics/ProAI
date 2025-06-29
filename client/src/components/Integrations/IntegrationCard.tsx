@@ -44,24 +44,24 @@ export default function IntegrationCard({
 
   return (
     <>
-      <div 
-        className="group relative cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-surface-primary shadow-sm transition-all duration-300 hover:-translate-y-1 dark:bg-surface-secondary dark:border-gray-700/50 dark:hover:shadow-gray-900/20 flex flex-col h-full"
+      <div
+        className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-xl border border-gray-200 bg-surface-primary shadow-sm transition-all duration-300 hover:-translate-y-1 dark:border-gray-700/50 dark:bg-surface-secondary dark:hover:shadow-gray-900/20"
         onClick={handleCardClick}
       >
         {/* Connected Status Indicator */}
         {isConnected && (
-          <div className="absolute top-4 right-4 z-10">
+          <div className="absolute right-4 top-4 z-10">
             <div className="relative">
-              <div className="h-3 w-3 bg-brand-blue rounded-full"></div>
-              <div className="absolute inset-0 h-3 w-3 bg-indigo-400 rounded-full opacity-40 animate-pulse"></div>
+              <div className="h-3 w-3 rounded-full bg-brand-blue"></div>
+              <div className="absolute inset-0 h-3 w-3 animate-pulse rounded-full bg-indigo-400 opacity-40"></div>
             </div>
           </div>
         )}
 
-        <div className="p-6 flex flex-col h-full">
+        <div className="flex h-full flex-col p-6">
           {/* Header Section */}
-          <div className="flex items-start gap-4 mb-4">
-            <div className="flex-shrink-0 relative">
+          <div className="mb-4 flex items-start gap-4">
+            <div className="relative flex-shrink-0">
               <AppIcon
                 src={integration.appIcon}
                 alt={integration.appName}
@@ -71,20 +71,20 @@ export default function IntegrationCard({
                 className="h-14 w-14"
               />
             </div>
-            
+
             <div className="min-w-0 flex-1">
-              <h3 className="text-lg heading-secondary mb-2 group-hover:text-brand-blue dark:group-hover:text-indigo-400 transition-colors">
+              <h3 className="heading-secondary mb-2 text-lg transition-colors group-hover:text-brand-blue dark:group-hover:text-indigo-400">
                 {integration.appName}
               </h3>
-              
+
               {/* Badges under title */}
-              <div className="flex flex-wrap gap-1.5 mb-3">
+              <div className="mb-3 flex flex-wrap gap-1.5">
                 {integration.appCategories && integration.appCategories.length > 0 && (
-                  <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-brand-blue border border-blue-200/50 dark:bg-surface-secondary dark:text-gray-300 dark:border-gray-700">
+                  <span className="inline-flex items-center rounded-md border border-blue-200/50 bg-blue-50 px-2 py-1 text-xs font-medium text-brand-blue dark:border-gray-700 dark:bg-surface-secondary dark:text-gray-300">
                     {integration.appCategories[0]}
                   </span>
                 )}
-                <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-brand-blue border border-blue-200/50 dark:bg-surface-secondary dark:text-gray-300 dark:border-gray-700">
+                <span className="inline-flex items-center rounded-md border border-blue-200/50 bg-blue-50 px-2 py-1 text-xs font-medium text-brand-blue dark:border-gray-700 dark:bg-surface-secondary dark:text-gray-300">
                   {integration.authType || 'oauth'}
                 </span>
               </div>
@@ -92,8 +92,8 @@ export default function IntegrationCard({
           </div>
 
           {/* Description - Full width and flexible height */}
-          <div className="flex-1 mb-4">
-            <p className="text-sm body-text">
+          <div className="mb-4 flex-1">
+            <p className="body-text text-sm">
               {integration.appDescription || 'No description available'}
             </p>
           </div>
@@ -105,25 +105,17 @@ export default function IntegrationCard({
                 <button
                   onClick={handleDisconnect}
                   disabled={isLoading}
-                  className="btn btn-neutral w-full h-9 text-sm"
+                  className="btn btn-neutral h-9 w-full text-sm"
                 >
-                  {isLoading ? (
-                    <Spinner className="h-4 w-4 mx-auto" />
-                  ) : (
-                    'Disconnect'
-                  )}
+                  {isLoading ? <Spinner className="mx-auto h-4 w-4" /> : 'Disconnect'}
                 </button>
               ) : (
                 <button
                   onClick={handleConnect}
                   disabled={isLoading}
-                  className="btn btn-primary w-full h-9 text-sm"
+                  className="btn btn-primary h-9 w-full text-sm"
                 >
-                  {isLoading ? (
-                    <Spinner className="h-4 w-4 mx-auto" />
-                  ) : (
-                    'Connect'
-                  )}
+                  {isLoading ? <Spinner className="mx-auto h-4 w-4" /> : 'Connect'}
                 </button>
               )}
             </div>
@@ -144,4 +136,4 @@ export default function IntegrationCard({
       />
     </>
   );
-} 
+}

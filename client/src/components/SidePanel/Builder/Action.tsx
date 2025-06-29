@@ -20,7 +20,7 @@ export default function Action({ action, onClick }: { action: Action; onClick: (
           onClick();
         }
       }}
-      className="group flex w-full rounded-lg border border-border-light bg-surface-secondary text-sm transition-colors hover:bg-surface-tertiary hover:cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring-primary"
+      className="group flex w-full rounded-lg border border-border-light bg-surface-secondary text-sm transition-colors hover:cursor-pointer hover:bg-surface-tertiary focus:outline-none focus:ring-2 focus:ring-ring-primary"
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
       aria-label={`Action for ${domain}`}
@@ -29,16 +29,10 @@ export default function Action({ action, onClick }: { action: Action; onClick: (
         {isDomainTooLong ? (
           <TooltipAnchor
             description={domain}
-            render={
-              <div className="truncate text-text-primary">
-                {domain}
-              </div>
-            }
+            render={<div className="truncate text-text-primary">{domain}</div>}
           />
         ) : (
-          <div className="truncate text-text-primary">
-            {domain}
-          </div>
+          <div className="truncate text-text-primary">{domain}</div>
         )}
       </div>
       <div

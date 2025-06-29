@@ -89,4 +89,4 @@ function SchedulerToggle({ conversationId }: { conversationId?: string | null })
   );
 }
 
-export default memo(SchedulerToggle); 
+export default memo(SchedulerToggle);

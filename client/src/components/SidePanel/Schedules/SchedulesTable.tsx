@@ -24,9 +24,9 @@ const SchedulesTable: React.FC<SchedulesTableProps> = ({ tasks }) => {
   const pageSize = 10;
 
   const filteredTasks = tasks.filter(
-    (task) => 
-      task.name && task.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.prompt && task.prompt.toLowerCase().includes(searchQuery.toLowerCase())
+    (task) =>
+      (task.name && task.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (task.prompt && task.prompt.toLowerCase().includes(searchQuery.toLowerCase())),
   );
 
   const currentTasks = filteredTasks.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
@@ -46,7 +46,7 @@ const SchedulesTable: React.FC<SchedulesTableProps> = ({ tasks }) => {
         <Table className="w-full">
           <TableHeader>
             <TableRow className="border-b border-border-light">
-              <TableHead className="bg-surface-secondary py-2 text-left text-xs font-medium text-text-secondary w-16 sm:w-20">
+              <TableHead className="w-16 bg-surface-secondary py-2 text-left text-xs font-medium text-text-secondary sm:w-20">
                 <div className="px-1 sm:px-2">Actions</div>
               </TableHead>
               <TableHead className="bg-surface-secondary py-2 text-left text-xs font-medium text-text-secondary">
@@ -56,9 +56,7 @@ const SchedulesTable: React.FC<SchedulesTableProps> = ({ tasks }) => {
           </TableHeader>
           <TableBody>
             {currentTasks.length ? (
-              currentTasks.map((task) => (
-                <SchedulesTableRow key={task.id} task={task} />
-              ))
+              currentTasks.map((task) => <SchedulesTableRow key={task.id} task={task} />)
             ) : (
               <TableRow>
                 <TableCell colSpan={2} className="h-16 text-center text-xs text-text-secondary">
@@ -103,4 +101,4 @@ const SchedulesTable: React.FC<SchedulesTableProps> = ({ tasks }) => {
   );
 };
 
-export default SchedulesTable; 
+export default SchedulesTable;

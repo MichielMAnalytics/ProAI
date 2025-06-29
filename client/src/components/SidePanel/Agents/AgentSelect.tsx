@@ -61,7 +61,8 @@ export default function AgentSelect({
         [AgentCapabilities.scheduler]: false,
       };
 
-      const agentTools: Array<string | { tool: string; server: string; type: 'global' | 'user' }> = [];
+      const agentTools: Array<string | { tool: string; server: string; type: 'global' | 'user' }> =
+        [];
       (fullAgent.tools ?? []).forEach((tool: any) => {
         // Handle both string tools and MCP tool objects
         if (typeof tool === 'string') {
@@ -107,8 +108,6 @@ export default function AgentSelect({
           formValues[name] = value;
           return;
         }
-
-
 
         if (!keys.has(name)) {
           return;

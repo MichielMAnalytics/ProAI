@@ -297,40 +297,41 @@ export default function AgentConfig({
             </button>
           </div>
         )}
-        {agentPanelConfig.capabilities !== false && (
-          (capabilityItemsConfig.codeExecution !== false && codeEnabled) ||
-          (capabilityItemsConfig.fileSearch !== false && fileSearchEnabled) ||
-          (capabilityItemsConfig.artifacts !== false && artifactsEnabled) ||
-          (capabilityItemsConfig.fileContext !== false && ocrEnabled) ||
-          (capabilityItemsConfig.webSearch !== false && webSearchEnabled) ||
-          (capabilityItemsConfig.scheduler !== false && schedulerEnabled) ||
-          workflowsEnabled ||
-          schedulerEnabled
-        ) && (
-          <div className="mb-4 flex w-full flex-col items-start gap-3">
-            <label className="text-token-text-primary block font-medium">
-              {localize('com_assistants_capabilities')}
-            </label>
-            {/* Code Execution */}
-            {capabilityItemsConfig.codeExecution !== false && codeEnabled && <CodeForm agent_id={agent_id} files={code_files} />}
-            {/* Web Search */}
-            {capabilityItemsConfig.webSearch !== false && webSearchEnabled && <SearchForm />}
-            {/* File Context (OCR) */}
-            {capabilityItemsConfig.fileContext !== false && ocrEnabled && <FileContext agent_id={agent_id} files={context_files} />}
-            {/* Artifacts */}
-            {capabilityItemsConfig.artifacts !== false && artifactsEnabled && <Artifacts />}
-            {/* File Search */}
-            {capabilityItemsConfig.fileSearch !== false && fileSearchEnabled && <FileSearch agent_id={agent_id} files={knowledge_files} />}
-            {/* Scheduler */}
-            {capabilityItemsConfig.scheduler !== false && schedulerEnabled && (
-              <Scheduler />
-            )}
-            {/* Workflows */}
-            {workflowsEnabled && (
-              <Workflows />
-            )}
-          </div>
-        )}
+        {agentPanelConfig.capabilities !== false &&
+          ((capabilityItemsConfig.codeExecution !== false && codeEnabled) ||
+            (capabilityItemsConfig.fileSearch !== false && fileSearchEnabled) ||
+            (capabilityItemsConfig.artifacts !== false && artifactsEnabled) ||
+            (capabilityItemsConfig.fileContext !== false && ocrEnabled) ||
+            (capabilityItemsConfig.webSearch !== false && webSearchEnabled) ||
+            (capabilityItemsConfig.scheduler !== false && schedulerEnabled) ||
+            workflowsEnabled ||
+            schedulerEnabled) && (
+            <div className="mb-4 flex w-full flex-col items-start gap-3">
+              <label className="text-token-text-primary block font-medium">
+                {localize('com_assistants_capabilities')}
+              </label>
+              {/* Code Execution */}
+              {capabilityItemsConfig.codeExecution !== false && codeEnabled && (
+                <CodeForm agent_id={agent_id} files={code_files} />
+              )}
+              {/* Web Search */}
+              {capabilityItemsConfig.webSearch !== false && webSearchEnabled && <SearchForm />}
+              {/* File Context (OCR) */}
+              {capabilityItemsConfig.fileContext !== false && ocrEnabled && (
+                <FileContext agent_id={agent_id} files={context_files} />
+              )}
+              {/* Artifacts */}
+              {capabilityItemsConfig.artifacts !== false && artifactsEnabled && <Artifacts />}
+              {/* File Search */}
+              {capabilityItemsConfig.fileSearch !== false && fileSearchEnabled && (
+                <FileSearch agent_id={agent_id} files={knowledge_files} />
+              )}
+              {/* Scheduler */}
+              {capabilityItemsConfig.scheduler !== false && schedulerEnabled && <Scheduler />}
+              {/* Workflows */}
+              {workflowsEnabled && <Workflows />}
+            </div>
+          )}
         {/* Agent Tools & Actions */}
         {(agentPanelConfig.tools !== false || agentPanelConfig.actions !== false) && (
           <div className="mb-4">
@@ -341,10 +342,13 @@ export default function AgentConfig({
                   ${actionsEnabled === true && agentPanelConfig.actions !== false ? localize('com_assistants_actions') : ''}`}
               </label>
               {(() => {
-                const allToolsCount = agentPanelConfig.tools !== false ? tools?.length ?? 0 : 0;
-                const validActionsCount = agentPanelConfig.actions !== false ? actions?.filter((action) => action.agent_id === agent_id).length ?? 0 : 0;
+                const allToolsCount = agentPanelConfig.tools !== false ? (tools?.length ?? 0) : 0;
+                const validActionsCount =
+                  agentPanelConfig.actions !== false
+                    ? (actions?.filter((action) => action.agent_id === agent_id).length ?? 0)
+                    : 0;
                 const totalCount = allToolsCount + validActionsCount;
-                
+
                 return totalCount > 0 ? (
                   <span className="rounded-full bg-surface-tertiary px-2 py-1 text-xs text-text-secondary">
                     {totalCount}
@@ -355,10 +359,13 @@ export default function AgentConfig({
             <div className="space-y-2">
               {/* Tools and Actions Container with Scrolling */}
               {(() => {
-                const allAgentTools = agentPanelConfig.tools !== false ? tools ?? [] : [];
-                const validActions = agentPanelConfig.actions !== false ? actions?.filter((action) => action.agent_id === agent_id) ?? [] : [];
+                const allAgentTools = agentPanelConfig.tools !== false ? (tools ?? []) : [];
+                const validActions =
+                  agentPanelConfig.actions !== false
+                    ? (actions?.filter((action) => action.agent_id === agent_id) ?? [])
+                    : [];
                 const hasItems = allAgentTools.length > 0 || validActions.length > 0;
-                
+
                 if (!hasItems) {
                   return (
                     <div className="rounded-lg border border-dashed border-border-medium bg-surface-primary p-4 text-center">
@@ -369,55 +376,59 @@ export default function AgentConfig({
                         </div>
                       ) : (
                         <p className="text-sm text-text-secondary">
-                          {toolsEnabled && agentPanelConfig.tools !== false && actionsEnabled && agentPanelConfig.actions !== false
-                            ? 'No tools or actions added yet' 
+                          {toolsEnabled &&
+                          agentPanelConfig.tools !== false &&
+                          actionsEnabled &&
+                          agentPanelConfig.actions !== false
+                            ? 'No tools or actions added yet'
                             : toolsEnabled && agentPanelConfig.tools !== false
-                            ? 'No tools added yet'
-                            : actionsEnabled && agentPanelConfig.actions !== false
-                            ? 'No actions added yet'
-                            : 'Tools and actions not available'
-                          }
+                              ? 'No tools added yet'
+                              : actionsEnabled && agentPanelConfig.actions !== false
+                                ? 'No actions added yet'
+                                : 'Tools and actions not available'}
                         </p>
                       )}
                     </div>
                   );
                 }
-                
+
                 return (
-                  <div 
+                  <div
                     className={cn(
-                      "space-y-2 rounded-lg border border-border-light bg-surface-primary p-2",
-                      (allAgentTools.length + validActions.length) > 4
-                        ? "max-h-60 overflow-y-auto"
-                        : ""
+                      'space-y-2 rounded-lg border border-border-light bg-surface-primary p-2',
+                      allAgentTools.length + validActions.length > 4
+                        ? 'max-h-60 overflow-y-auto'
+                        : '',
                     )}
                     style={{
                       scrollbarWidth: 'thin',
                       scrollbarColor: 'rgb(156 163 175) transparent',
                     }}
                   >
-                    {agentPanelConfig.tools !== false && allAgentTools.map((func, i) => (
-                      <AgentTool
-                        key={`${func}-${i}-${agent_id}`}
-                        tool={func}
-                        allTools={allTools}
-                        agent_id={agent_id}
-                      />
-                    ))}
-                    {agentPanelConfig.actions !== false && validActions.map((action, i) => (
-                      <Action
-                        key={i}
-                        action={action}
-                        onClick={() => {
-                          setAction(action);
-                          setActivePanel(Panel.actions);
-                        }}
-                      />
-                    ))}
+                    {agentPanelConfig.tools !== false &&
+                      allAgentTools.map((func, i) => (
+                        <AgentTool
+                          key={`${func}-${i}-${agent_id}`}
+                          tool={func}
+                          allTools={allTools}
+                          agent_id={agent_id}
+                        />
+                      ))}
+                    {agentPanelConfig.actions !== false &&
+                      validActions.map((action, i) => (
+                        <Action
+                          key={i}
+                          action={action}
+                          onClick={() => {
+                            setAction(action);
+                            setActivePanel(Panel.actions);
+                          }}
+                        />
+                      ))}
                   </div>
                 );
               })()}
-              
+
               {/* Add Tools/Actions Buttons */}
               <div className="flex space-x-2">
                 {(toolsEnabled ?? false) && agentPanelConfig.tools !== false && (

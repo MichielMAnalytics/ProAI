@@ -107,12 +107,23 @@ const getAvailableTools = async (req, res) => {
     }
 
     logger.info('=== getAvailableTools: Starting request ===');
-    logger.info(`Endpoint: ${endpoint}, UserId: ${userId}, addUserSpecificMcpFromDb: ${req.app.locals.addUserSpecificMcpFromDb}`);
+    logger.info(
+      `Endpoint: ${endpoint}, UserId: ${userId}, addUserSpecificMcpFromDb: ${req.app.locals.addUserSpecificMcpFromDb}`,
+    );
+
+    // Check if tools are disabled for this endpoint
+    if (endpoint && req.app.locals[endpoint] && req.app.locals[endpoint].tools === false) {
+      logger.info(`Tools are disabled for endpoint: ${endpoint}`);
+      res.status(200).json([]);
+      return;
+    }
 
     // Check cache first for non-user-specific requests
     const shouldUseCache = !userId || !req.app.locals.addUserSpecificMcpFromDb;
-    logger.info(`Should use cache: ${shouldUseCache} (userId: ${!!userId}, mcpFromDb: ${req.app.locals.addUserSpecificMcpFromDb})`);
-    
+    logger.info(
+      `Should use cache: ${shouldUseCache} (userId: ${!!userId}, mcpFromDb: ${req.app.locals.addUserSpecificMcpFromDb})`,
+    );
+
     if (shouldUseCache) {
       const cache = getLogStores(CacheKeys.CONFIG_STORE);
       const cachedTools = await cache.get(CacheKeys.TOOLS);
@@ -125,10 +136,10 @@ const getAvailableTools = async (req, res) => {
 
     let pluginManifest = availableTools;
     logger.info(`Initial plugin manifest size: ${pluginManifest.length}`);
-    
+
     const customConfig = await getCustomConfig();
     logger.info(`Custom config loaded, has mcpServers: ${!!customConfig?.mcpServers}`);
-    
+
     // Initialize global MCP servers if configured
     if (customConfig?.mcpServers != null) {
       const mcpManager = getMCPManager();
@@ -140,23 +151,23 @@ const getAvailableTools = async (req, res) => {
     if (userId && req.app.locals.addUserSpecificMcpFromDb) {
       logger.info('=== Processing user-specific MCP servers ===');
       logger.info(`Loading user MCP servers for endpoint: ${endpoint || 'default'}`);
-      
+
       // Use standardized MCP initialization
       const MCPInitializer = require('~/server/services/MCPInitializer');
       const mcpInitializer = MCPInitializer.getInstance();
       const mcpResult = await mcpInitializer.ensureUserMCPReady(
-        userId, 
-        'PluginController', 
+        userId,
+        'PluginController',
         req.app.locals.availableTools,
-        { mcpToolRegistry: req.app.locals.mcpToolRegistry }
+        { mcpToolRegistry: req.app.locals.mcpToolRegistry },
       );
-      
+
       // logger.info(`After MCP initialization: availableTools count = ${Object.keys(req.app.locals.availableTools).length}`);
-      
+
       if (mcpResult.success) {
         logger.info(`=== User MCP initialization successful ===`);
         // logger.info(`Servers: ${mcpResult.serverCount}, Tools: ${mcpResult.toolCount}, Duration: ${mcpResult.duration}ms`);
-        
+
         // Use cached manifest tools if available, otherwise load them
         if (mcpResult.manifestTools && mcpResult.manifestTools.length > 0) {
           // logger.info(`Using ${mcpResult.manifestTools.length} cached manifest tools for user ${userId}`);
@@ -166,7 +177,10 @@ const getAvailableTools = async (req, res) => {
           try {
             logger.warn(`No cached manifest tools found, loading them fresh for user ${userId}`);
             const beforeSize = pluginManifest.length;
-            pluginManifest = await mcpResult.mcpManager.loadUserManifestTools(pluginManifest, userId);
+            pluginManifest = await mcpResult.mcpManager.loadUserManifestTools(
+              pluginManifest,
+              userId,
+            );
             const afterSize = pluginManifest.length;
             // logger.info(`After loading user MCP tools, manifest size: ${beforeSize} -> ${afterSize} (added ${afterSize - beforeSize})`);
           } catch (manifestError) {
@@ -182,7 +196,7 @@ const getAvailableTools = async (req, res) => {
       logger.info('User-specific MCP processing skipped:', {
         hasUserId: !!userId,
         mcpFromDbEnabled: req.app.locals.addUserSpecificMcpFromDb,
-        endpoint: endpoint || 'undefined'
+        endpoint: endpoint || 'undefined',
       });
     }
 
@@ -202,7 +216,7 @@ const getAvailableTools = async (req, res) => {
     // logger.info(`Available tools count: ${Object.keys(toolDefinitions).length}`);
     // logger.info(`Sample available tools:`, Object.keys(toolDefinitions).slice(0, 10));
     // logger.info(`Sample plugin keys:`, authenticatedPlugins.slice(0, 5).map(p => p.pluginKey));
-    
+
     const tools = authenticatedPlugins.filter(
       (plugin) =>
         toolDefinitions[plugin.pluginKey] !== undefined ||
@@ -216,23 +230,26 @@ const getAvailableTools = async (req, res) => {
     // No need for additional manual tool registration here
 
     // Count MCP tools in final result (check the MCP tool registry instead of pluginKey)
-    const mcpTools = tools.filter(tool => 
-      tool.pluginKey && req.app.locals.mcpToolRegistry && req.app.locals.mcpToolRegistry.has(tool.pluginKey)
+    const mcpTools = tools.filter(
+      (tool) =>
+        tool.pluginKey &&
+        req.app.locals.mcpToolRegistry &&
+        req.app.locals.mcpToolRegistry.has(tool.pluginKey),
     );
     // logger.info(`=== MCP Tool Analysis ===`);
     // logger.info(`Total tools after filtering: ${tools.length}`);
     // logger.info(`MCP tools found: ${mcpTools.length}`);
     // logger.info(`mcpToolRegistry size: ${req.app.locals.mcpToolRegistry?.size || 0}`);
-    
+
     // if (mcpTools.length > 0) {
-    //   logger.info(`MCP tools details:`, mcpTools.map(t => ({ 
-    //     pluginKey: t.pluginKey, 
+    //   logger.info(`MCP tools details:`, mcpTools.map(t => ({
+    //     pluginKey: t.pluginKey,
     //     name: t.name,
     //     serverName: t.serverName,
     //     appSlug: t.appSlug
     //   })));
     // }
-    
+
     // Filter out the CONFIGURE_COMPONENT tool from the final list sent to the client
     const finalTools = tools.filter((tool) => tool.name !== 'CONFIGURE_COMPONENT');
     logger.info(`Final tools sent to client: ${finalTools.length}`);
@@ -243,7 +260,7 @@ const getAvailableTools = async (req, res) => {
       await cache.set(CacheKeys.TOOLS, tools);
       logger.info(`Cached ${tools.length} tools`);
     }
-    
+
     // logger.info('=== getAvailableTools: Sending response ===');
     // logger.info(`Response size: ${finalTools.length} tools`);
     res.status(200).json(finalTools);
@@ -252,7 +269,7 @@ const getAvailableTools = async (req, res) => {
     logger.error('Error details:', {
       message: error.message,
       stack: error.stack,
-      name: error.name
+      name: error.name,
     });
     res.status(500).json({ message: error.message });
   }

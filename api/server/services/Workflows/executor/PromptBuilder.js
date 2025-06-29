@@ -20,7 +20,7 @@ function generateEmailStepGuidance(step, context) {
         return step.config.parameters[paramName];
       }
 
-      // Fallback: toolParameters object  
+      // Fallback: toolParameters object
       if (step.config.toolParameters?.[paramName]) {
         return step.config.toolParameters[paramName];
       }
@@ -65,10 +65,10 @@ function generateEmailStepGuidance(step, context) {
   } else {
     // Only if no specific parameters are configured, then suggest using previous step data
     guidance += `\n\n📧 NO EMAIL PARAMETERS CONFIGURED - Extract from previous steps:`;
-    
+
     // Look for data that could be used in email
     const availableData = identifyAvailableData(context);
-    
+
     if (availableData.length > 0) {
       guidance += `\n\nAvailable data for email content:`;
       availableData.forEach((dataItem) => {
@@ -77,7 +77,7 @@ function generateEmailStepGuidance(step, context) {
           guidance += ` (${dataItem.usage})`;
         }
       });
-      
+
       guidance += `\n\n📝 EMAIL CONTENT SUGGESTIONS:`;
       guidance += `\n- Create subject line that summarizes the key information`;
       guidance += `\n- Include specific details and data points from previous steps`;
@@ -110,62 +110,108 @@ function identifyAvailableData(context) {
           // Check for agent response with tool results
           if (result.agentResponse) {
             if (typeof result.agentResponse === 'string') {
-              availableData.push({ description: `text response from ${stepId}`, usage: 'Use for email content' });
+              availableData.push({
+                description: `text response from ${stepId}`,
+                usage: 'Use for email content',
+              });
             } else if (typeof result.agentResponse === 'object') {
               // Look for specific data patterns in agent responses
               const responseStr = JSON.stringify(result.agentResponse);
-              
+
               if (responseStr.includes('activity') || responseStr.includes('workout')) {
-                availableData.push({ description: `activity/workout data from ${stepId}`, usage: 'Use for email content' });
+                availableData.push({
+                  description: `activity/workout data from ${stepId}`,
+                  usage: 'Use for email content',
+                });
               }
               if (responseStr.includes('data') || responseStr.includes('items')) {
-                availableData.push({ description: `data/items from ${stepId}`, usage: 'Use for email content' });
+                availableData.push({
+                  description: `data/items from ${stepId}`,
+                  usage: 'Use for email content',
+                });
               }
-              if (responseStr.includes('distance') || responseStr.includes('duration') || responseStr.includes('time')) {
-                availableData.push({ description: `metrics and measurements from ${stepId}`, usage: 'Use for email content' });
+              if (
+                responseStr.includes('distance') ||
+                responseStr.includes('duration') ||
+                responseStr.includes('time')
+              ) {
+                availableData.push({
+                  description: `metrics and measurements from ${stepId}`,
+                  usage: 'Use for email content',
+                });
               }
               if (responseStr.includes('name') || responseStr.includes('title')) {
-                availableData.push({ description: `names and titles from ${stepId}`, usage: 'Use for email content' });
+                availableData.push({
+                  description: `names and titles from ${stepId}`,
+                  usage: 'Use for email content',
+                });
               }
               if (responseStr.includes('date') || responseStr.includes('timestamp')) {
-                availableData.push({ description: `date/time information from ${stepId}`, usage: 'Use for email content' });
+                availableData.push({
+                  description: `date/time information from ${stepId}`,
+                  usage: 'Use for email content',
+                });
               }
-              
+
               // General structured data
-              availableData.push({ description: `structured data from ${stepId}`, usage: 'Use for email content' });
+              availableData.push({
+                description: `structured data from ${stepId}`,
+                usage: 'Use for email content',
+              });
             }
           }
 
           // Check for tool results/calls
           if (result.toolResults || result.toolCalls) {
-            availableData.push({ description: `tool execution results from ${stepId}`, usage: 'Use for email content' });
+            availableData.push({
+              description: `tool execution results from ${stepId}`,
+              usage: 'Use for email content',
+            });
           }
-          
+
           // Check for arrays (lists of items)
           if (Array.isArray(result)) {
-            availableData.push({ description: `list/array data from ${stepId} (${result.length} items)`, usage: 'Use for email content' });
+            availableData.push({
+              description: `list/array data from ${stepId} (${result.length} items)`,
+              usage: 'Use for email content',
+            });
           } else {
             // Check object keys for common patterns
             const keys = Object.keys(result);
             const keyStr = keys.join(' ').toLowerCase();
-            
+
             if (keyStr.includes('id')) {
-              availableData.push({ description: `ID values from ${stepId}`, usage: 'Use for email content' });
+              availableData.push({
+                description: `ID values from ${stepId}`,
+                usage: 'Use for email content',
+              });
             }
             if (keyStr.includes('name') || keyStr.includes('title')) {
-              availableData.push({ description: `names/titles from ${stepId}`, usage: 'Use for email content' });
+              availableData.push({
+                description: `names/titles from ${stepId}`,
+                usage: 'Use for email content',
+              });
             }
             if (keyStr.includes('count') || keyStr.includes('total') || keyStr.includes('number')) {
-              availableData.push({ description: `count/numerical data from ${stepId}`, usage: 'Use for email content' });
+              availableData.push({
+                description: `count/numerical data from ${stepId}`,
+                usage: 'Use for email content',
+              });
             }
           }
         } else if (typeof result === 'string') {
           // Simple string result
           if (result.length > 10) {
-            availableData.push({ description: `text content from ${stepId}`, usage: 'Use for email content' });
+            availableData.push({
+              description: `text content from ${stepId}`,
+              usage: 'Use for email content',
+            });
           }
         } else if (typeof result === 'number') {
-          availableData.push({ description: `numerical value from ${stepId}`, usage: 'Use for email content' });
+          availableData.push({
+            description: `numerical value from ${stepId}`,
+            usage: 'Use for email content',
+          });
         }
       }
     }
@@ -234,7 +280,7 @@ function generateTimezoneAwareDateTimeContext(user) {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
-      weekday: 'long'
+      weekday: 'long',
     }).format(now);
 
     const userTime = new Intl.DateTimeFormat('en-US', {
@@ -242,7 +288,7 @@ function generateTimezoneAwareDateTimeContext(user) {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
-      hour12: true
+      hour12: true,
     }).format(now);
 
     const userDateTime = new Intl.DateTimeFormat('en-US', {
@@ -254,7 +300,7 @@ function generateTimezoneAwareDateTimeContext(user) {
       minute: '2-digit',
       second: '2-digit',
       hour12: true,
-      timeZoneName: 'short'
+      timeZoneName: 'short',
     }).format(now);
 
     return `
@@ -286,9 +332,9 @@ function generateToolSelectionGuidance(step, context) {
   const stepName = step.name.toLowerCase();
   const stepObjective = generateActionInstructions(step.name, step.config);
   const suggestedTool = step.config?.toolName;
-  
+
   let guidance = `**YOUR OBJECTIVE:** ${stepObjective}\n\n`;
-  
+
   if (suggestedTool) {
     guidance += `**CONFIGURED TOOL:** "${suggestedTool}"\n`;
     guidance += `- This tool has been pre-configured for this step\n`;
@@ -297,16 +343,16 @@ function generateToolSelectionGuidance(step, context) {
   } else {
     guidance += `**NO TOOL SPECIFIED:** Select the appropriate tool from your available tools\n\n`;
   }
-  
+
   guidance += `**TOOL SELECTION APPROACH:**\n`;
   guidance += `1. **UNDERSTAND OBJECTIVE:** Know exactly what you need to accomplish\n`;
   guidance += `2. **CHECK CONFIGURED TOOL:** Use pre-configured tool if it exists and is appropriate\n`;
   guidance += `3. **VERIFY PARAMETERS:** Ensure you have all required parameters\n`;
   guidance += `4. **EXECUTE WITH CONFIDENCE:** Call the tool with proper parameters\n\n`;
-  
+
   // Generate capability-based guidance
   guidance += generateCapabilityGuidance(stepName, stepObjective, context);
-  
+
   return guidance;
 }
 
@@ -319,7 +365,7 @@ function generateToolSelectionGuidance(step, context) {
  */
 function generateCapabilityGuidance(stepName, stepObjective, context) {
   let guidance = `**CAPABILITY REQUIREMENTS:**\n`;
-  
+
   // Data retrieval capabilities
   if (stepName.includes('fetch') || stepName.includes('get') || stepName.includes('retrieve')) {
     guidance += `**Data Retrieval Operations Needed:**\n`;
@@ -327,22 +373,26 @@ function generateCapabilityGuidance(stepName, stepObjective, context) {
     guidance += `- Common patterns: *GET*, *FETCH*, *RETRIEVE*, *LIST* in tool names\n`;
     guidance += `- Capabilities needed: data access, filtering, result limiting\n`;
     guidance += `- Focus on tools that match your data source requirements\n\n`;
-    
+
     guidance += `**Expected Parameters:**\n`;
     guidance += `- Filtering parameters (date ranges, specific criteria)\n`;
     guidance += `- Field selection (choose specific data fields)\n`;
     guidance += `- Sorting and ordering options\n`;
     guidance += `- Result limiting (top N results)\n\n`;
   }
-  
+
   // Email capabilities
-  else if (stepName.includes('email') || stepName.includes('message') || stepName.includes('send')) {
+  else if (
+    stepName.includes('email') ||
+    stepName.includes('message') ||
+    stepName.includes('send')
+  ) {
     guidance += `**Email Operations Needed:**\n`;
     guidance += `- Find tools that can send emails or manage messages\n`;
     guidance += `- Common patterns: *EMAIL*, *MESSAGE*, *SEND*, *MAIL* in tool names\n`;
     guidance += `- Capabilities needed: send email, create drafts, manage recipients\n\n`;
   }
-  
+
   // Trello capabilities
   else if (stepName.includes('trello') || stepName.includes('card') || stepName.includes('board')) {
     guidance += `**Trello Operations Needed:**\n`;
@@ -350,7 +400,7 @@ function generateCapabilityGuidance(stepName, stepObjective, context) {
     guidance += `- Common patterns: *TRELLO*, *CARD*, *BOARD*, *LIST* in tool names\n`;
     guidance += `- Capabilities needed: find boards, search lists, create cards\n\n`;
   }
-  
+
   // Search/Find capabilities
   else if (stepName.includes('find') || stepName.includes('search') || stepName.includes('get')) {
     guidance += `**Search/Retrieval Operations Needed:**\n`;
@@ -358,7 +408,7 @@ function generateCapabilityGuidance(stepName, stepObjective, context) {
     guidance += `- Common patterns: *SEARCH*, *FIND*, *GET*, *LIST*, *FETCH* in tool names\n`;
     guidance += `- Consider what platform/service you're searching\n\n`;
   }
-  
+
   // Generic guidance
   else {
     guidance += `**General Operation Requirements:**\n`;
@@ -366,13 +416,13 @@ function generateCapabilityGuidance(stepName, stepObjective, context) {
     guidance += `- Find tools with relevant keywords in their names\n`;
     guidance += `- Consider the platform or service you need to interact with\n\n`;
   }
-  
+
   guidance += `**TOOL SELECTION PRIORITY:**\n`;
   guidance += `1. **EXACT MATCH:** Tools that exactly match your required capability\n`;
   guidance += `2. **PLATFORM MATCH:** Tools for the right platform or service\n`;
   guidance += `3. **CAPABILITY MATCH:** Tools that can perform the required action\n`;
   guidance += `4. **AVOID WRONG TOOLS:** Don't force incompatible tools to work\n\n`;
-  
+
   return guidance;
 }
 
@@ -386,18 +436,19 @@ function generateParameterGuidance(step, context) {
   const toolName = step.config?.toolName;
   const stepName = step.name.toLowerCase();
   const stepObjective = generateActionInstructions(step.name, step.config);
-  
+
   let guidance = '';
-  
+
   // Check if there are any configured parameters that make sense
-  const hasValidParameters = step.config?.parameters && 
+  const hasValidParameters =
+    step.config?.parameters &&
     Object.keys(step.config.parameters).length > 0 &&
     !hasNonsensicalParameters(step.config.parameters);
-  
+
   if (hasValidParameters) {
     guidance += `Use these pre-configured parameters as your starting point:\n\`\`\`json\n${JSON.stringify(step.config.parameters, null, 2)}\n\`\`\`\n\n`;
   }
-  
+
   // Provide tool-specific guidance
   if (toolName) {
     if (toolName.includes('TRELLO')) {
@@ -408,9 +459,10 @@ function generateParameterGuidance(step, context) {
       guidance += generateGenericToolGuidance(toolName, stepName, stepObjective, context);
     }
   } else {
-    guidance += 'No specific tool specified. Determine the appropriate tool and parameters based on your step objective.';
+    guidance +=
+      'No specific tool specified. Determine the appropriate tool and parameters based on your step objective.';
   }
-  
+
   return guidance;
 }
 
@@ -423,16 +475,19 @@ function hasNonsensicalParameters(parameters) {
   for (const [key, value] of Object.entries(parameters)) {
     if (typeof value === 'string') {
       // Check for clearly nonsensical patterns
-      if (value.includes('$ $') || value === '$' || value.trim() === '' || 
-          value.includes('$,') || value.match(/^[,$\s]+$/)) {
+      if (
+        value.includes('$ $') ||
+        value === '$' ||
+        value.trim() === '' ||
+        value.includes('$,') ||
+        value.match(/^[,$\s]+$/)
+      ) {
         return true;
       }
     }
   }
   return false;
 }
-
-
 
 /**
  * Generate Trello guidance
@@ -444,7 +499,7 @@ function hasNonsensicalParameters(parameters) {
  */
 function generateTrelloGuidance(toolName, stepName, stepObjective, context) {
   let guidance = `**Trello API Tool Guidance:**\n`;
-  
+
   if (toolName.includes('SEARCH') || toolName.includes('FIND')) {
     guidance += `- Use "query" parameter to search for boards, lists, or cards\n`;
     guidance += `- Be specific with search terms\n\n`;
@@ -454,14 +509,14 @@ function generateTrelloGuidance(toolName, stepName, stepObjective, context) {
     guidance += `- Use "desc" for card description\n`;
     guidance += `- If adding checklist items, use appropriate checklist parameters\n\n`;
   }
-  
+
   guidance += `**Data Flow Considerations:**\n`;
   if (context.steps && Object.keys(context.steps).length > 0) {
     guidance += `- You may need board/list IDs from previous steps\n`;
     guidance += `- Extract data from previous step results\n`;
     guidance += `- Transform data into appropriate card format\n\n`;
   }
-  
+
   return guidance;
 }
 
@@ -475,13 +530,13 @@ function generateTrelloGuidance(toolName, stepName, stepObjective, context) {
  */
 function generateStravaGuidance(toolName, stepName, stepObjective, context) {
   let guidance = `**Strava API Tool Guidance:**\n`;
-  
+
   if (toolName.includes('ACTIVITIES')) {
     guidance += `- Use "limit" to control number of activities returned\n`;
     guidance += `- Use date parameters if filtering by time range\n`;
     guidance += `- Include detailed activity information if needed\n\n`;
   }
-  
+
   return guidance;
 }
 
@@ -500,7 +555,7 @@ function generateGenericToolGuidance(toolName, stepName, stepObjective, context)
   guidance += `- Use data from previous steps if available\n`;
   guidance += `- Follow the tool's expected parameter format\n`;
   guidance += `- Construct parameters based on the tool's documentation and requirements\n\n`;
-  
+
   return guidance;
 }
 
@@ -512,47 +567,71 @@ function generateGenericToolGuidance(toolName, stepName, stepObjective, context)
  */
 function generateContextUsageInstructions(step, context) {
   const stepName = step.name.toLowerCase();
-  const hasPreviousSteps = (context.steps && Object.keys(context.steps).length > 0) || context.previousStepsOutput;
-  const hasConfiguredParameters = step.config?.parameters && Object.keys(step.config.parameters).length > 0;
-  
+  const hasPreviousSteps =
+    (context.steps && Object.keys(context.steps).length > 0) || context.previousStepsOutput;
+  const hasConfiguredParameters =
+    step.config?.parameters && Object.keys(step.config.parameters).length > 0;
+
   if (!hasPreviousSteps && !hasConfiguredParameters) {
     return ''; // No context to use and no configured parameters
   }
-  
+
   let instructions = `\n\nDATA FLOW INSTRUCTIONS:`;
-  
+
   // If step has configured parameters, emphasize using them first
   if (hasConfiguredParameters) {
     instructions += `\n- ✅ STEP HAS CONFIGURED PARAMETERS - Use the exact parameters listed above`;
     instructions += `\n- ⚠️  Do not override configured parameters with data from previous steps`;
     instructions += `\n- ⚠️  Only use previous step data if parameters contain template variables or placeholders`;
-    
+
     if (hasPreviousSteps) {
       instructions += `\n- 📊 Previous step data is available for reference but parameters take precedence`;
     }
   } else if (hasPreviousSteps) {
     // Only if no configured parameters, then guide on using previous step data
     instructions += `\n- 📊 NO CONFIGURED PARAMETERS - Extract data from previous steps:`;
-    
+
     // Identify the type of current step to give specific guidance
-    if (stepName.includes('send') || stepName.includes('email') || stepName.includes('message') || stepName.includes('notify')) {
+    if (
+      stepName.includes('send') ||
+      stepName.includes('email') ||
+      stepName.includes('message') ||
+      stepName.includes('notify')
+    ) {
       instructions += `\n- This step appears to SEND/COMMUNICATE data - use specific details from previous steps`;
       instructions += `\n- Extract concrete values (names, numbers, dates, metrics) from previous step results`;
       instructions += `\n- Do NOT use generic placeholders - include actual data from the workflow`;
       instructions += `\n- Transform raw data into human-readable content appropriate for communication`;
-    } else if (stepName.includes('format') || stepName.includes('compose') || stepName.includes('generate') || stepName.includes('create')) {
+    } else if (
+      stepName.includes('format') ||
+      stepName.includes('compose') ||
+      stepName.includes('generate') ||
+      stepName.includes('create')
+    ) {
       instructions += `\n- This is a CONTENT CREATION step - use data from previous steps as input`;
       instructions += `\n- Transform the raw data into the required format or structure`;
       instructions += `\n- Include specific details and measurements from previous step results`;
-    } else if (stepName.includes('analyze') || stepName.includes('process') || stepName.includes('extract')) {
+    } else if (
+      stepName.includes('analyze') ||
+      stepName.includes('process') ||
+      stepName.includes('extract')
+    ) {
       instructions += `\n- This is a DATA PROCESSING step - analyze the data from previous steps`;
       instructions += `\n- Look for patterns, key metrics, or specific information to extract`;
       instructions += `\n- Apply calculations, filters, or transformations to the input data`;
-    } else if (stepName.includes('filter') || stepName.includes('search') || stepName.includes('find')) {
+    } else if (
+      stepName.includes('filter') ||
+      stepName.includes('search') ||
+      stepName.includes('find')
+    ) {
       instructions += `\n- This step appears to FILTER/SEARCH data - use criteria from previous steps`;
       instructions += `\n- Apply filters, search terms, or conditions based on previous step results`;
       instructions += `\n- Use specific IDs, names, or values from earlier steps as search parameters`;
-    } else if (stepName.includes('update') || stepName.includes('modify') || stepName.includes('edit')) {
+    } else if (
+      stepName.includes('update') ||
+      stepName.includes('modify') ||
+      stepName.includes('edit')
+    ) {
       instructions += `\n- This is an UPDATE step - use IDs and values from previous steps`;
       instructions += `\n- Extract specific IDs or references that need to be updated`;
       instructions += `\n- Apply changes based on the data gathered in earlier steps`;
@@ -561,7 +640,7 @@ function generateContextUsageInstructions(step, context) {
       instructions += `\n- Extract relevant values, IDs, or information from earlier step results`;
       instructions += `\n- Build upon the context and data flow from previous steps`;
     }
-    
+
     instructions += `\n- Previous step data is provided below - reference it in your tool execution`;
     instructions += `\n- If previous steps contain IDs, names, or specific values you need, use them directly`;
   }
@@ -579,7 +658,8 @@ function formatPreviousStepResults(context) {
   // Check if we have accumulated output from previous steps using the buffer string approach
   if (context.previousStepsOutput) {
     let resultsSection = '-- ACCUMULATED OUTPUT FROM PREVIOUS STEPS --\n\n';
-    resultsSection += 'Use the following accumulated output from previous steps to perform your task. This contains the actual results and data from completed workflow steps.\n\n';
+    resultsSection +=
+      'Use the following accumulated output from previous steps to perform your task. This contains the actual results and data from completed workflow steps.\n\n';
     resultsSection += context.previousStepsOutput;
     resultsSection += '\n\n';
     return resultsSection;
@@ -647,8 +727,8 @@ function createTaskPromptForStep(step, context) {
 2.  **Process Unread Emails:** The data from the 'Fetch Unread Emails' step contains a list of emails. You are to process **each** of these emails.
 3.  **Synthesize and Draft:** For each unread email, you MUST formulate a contextually appropriate response based on its content. The response MUST match the user's writing style you analyzed.
 4.  **Execute Tool:** Call the \`${
-  step.config?.toolName
-}\` tool to create a draft for EACH email. Do not send, only draft. The parameters you provide to the tool (like 'recipient', 'subject', 'body') must be derived from the unread email and your synthesized response.
+          step.config?.toolName
+        }\` tool to create a draft for EACH email. Do not send, only draft. The parameters you provide to the tool (like 'recipient', 'subject', 'body') must be derived from the unread email and your synthesized response.
 `;
       }
     } else if (stepName.includes('fetch unread')) {
@@ -712,4 +792,4 @@ ${generateToolSelectionGuidance(step, context)}
 
 module.exports = {
   createTaskPromptForStep,
-}; 
+};

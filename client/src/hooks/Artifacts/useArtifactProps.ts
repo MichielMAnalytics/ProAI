@@ -15,11 +15,11 @@ export default function useArtifactProps({ artifact }: { artifact: Artifact }) {
 
   const [fileKey, files] = useMemo(() => {
     const key = getKey(artifact.type ?? '', artifact.language);
-    
+
     if (key.includes('mermaid')) {
       return ['App.tsx', getMermaidFiles(artifact.content ?? '')];
     }
-    
+
     if (key.includes('workflow')) {
       return ['App.tsx', getWorkflowFiles(artifact.content ?? '', availableTools || [])];
     }

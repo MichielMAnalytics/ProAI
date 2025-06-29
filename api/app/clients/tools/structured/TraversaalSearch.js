@@ -21,7 +21,7 @@ class TraversaalSearch extends Tool {
       query: z
         .string()
         .describe(
-          'A properly written sentence to be interpreted by an AI to search the web according to the user\'s request.',
+          "A properly written sentence to be interpreted by an AI to search the web according to the user's request.",
         ),
     });
 

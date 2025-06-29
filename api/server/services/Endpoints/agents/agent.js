@@ -160,8 +160,8 @@ const initializeAgent = async ({
 
   if (agent.instructions && agent.instructions !== '') {
     // Filter tools to only include those that are actually connected/available
-    const connectedTools = tools ? tools.map(tool => tool.name).filter(name => name) : [];
-    
+    const connectedTools = tools ? tools.map((tool) => tool.name).filter((name) => name) : [];
+
     // Log for debugging
     logger.info(`[initializeAgent] Agent ${agent.id} tools comparison:`, {
       designedTools: agent.tools,
@@ -171,7 +171,7 @@ const initializeAgent = async ({
       userName: req.user?.name,
       toolsIsNull: tools === null,
       toolsIsUndefined: tools === undefined,
-      toolsType: typeof tools
+      toolsType: typeof tools,
     });
 
     agent.instructions = replaceSpecialVars({

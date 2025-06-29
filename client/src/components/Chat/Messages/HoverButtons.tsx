@@ -230,7 +230,6 @@ const HoverButtons = ({
         isLast={isLast}
       />
 
-
       {/* Regenerate Button */}
       {regenerateEnabled && (
         <HoverButton

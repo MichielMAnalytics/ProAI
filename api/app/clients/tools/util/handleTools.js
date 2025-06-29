@@ -167,49 +167,75 @@ const loadTools = async ({
     scheduler: async (_toolContextMap) => {
       const authFields = getAuthFields('scheduler');
       const authValues = await loadAuthValues({ userId: user, authFields });
-      
+
       const reqEndpoint = options.req?.body?.endpoint;
       const reqModel = options.req?.body?.model;
-      
+
       // Debug logging for request body
-      logger.debug(`[SchedulerTool] Request body keys:`, options.req?.body ? Object.keys(options.req.body) : 'no body');
+      logger.debug(
+        `[SchedulerTool] Request body keys:`,
+        options.req?.body ? Object.keys(options.req.body) : 'no body',
+      );
       logger.debug(`[SchedulerTool] Request body userMessageId:`, options.req?.body?.userMessageId);
-      logger.debug(`[SchedulerTool] Request body overrideUserMessageId:`, options.req?.body?.overrideUserMessageId);
-      logger.debug(`[SchedulerTool] Request body parentMessageId:`, options.req?.body?.parentMessageId);
-      logger.debug(`[SchedulerTool] Request body ephemeralAgent:`, options.req?.body?.ephemeralAgent);
-      logger.debug(`[SchedulerTool] Request body endpointOption:`, options.req?.body?.endpointOption ? {
-        endpoint: options.req?.body?.endpointOption?.endpoint,
-        model: options.req?.body?.endpointOption?.model,
-        model_parameters: options.req?.body?.endpointOption?.model_parameters
-      } : 'none');
-      
+      logger.debug(
+        `[SchedulerTool] Request body overrideUserMessageId:`,
+        options.req?.body?.overrideUserMessageId,
+      );
+      logger.debug(
+        `[SchedulerTool] Request body parentMessageId:`,
+        options.req?.body?.parentMessageId,
+      );
+      logger.debug(
+        `[SchedulerTool] Request body ephemeralAgent:`,
+        options.req?.body?.ephemeralAgent,
+      );
+      logger.debug(
+        `[SchedulerTool] Request body endpointOption:`,
+        options.req?.body?.endpointOption
+          ? {
+              endpoint: options.req?.body?.endpointOption?.endpoint,
+              model: options.req?.body?.endpointOption?.model,
+              model_parameters: options.req?.body?.endpointOption?.model_parameters,
+            }
+          : 'none',
+      );
+
       // Use userMessageId as the parentMessageId for scheduled messages
-      const parentMessageId = options.req?.body?.userMessageId || 
-                            options.req?.body?.overrideUserMessageId || 
-                            options.req?.body?.parentMessageId;
-      
+      const parentMessageId =
+        options.req?.body?.userMessageId ||
+        options.req?.body?.overrideUserMessageId ||
+        options.req?.body?.parentMessageId;
+
       // Determine the endpoint and model/agent_id
       let toolEndpoint, toolModel;
-      
-      logger.info(`[SchedulerTool] Detection logic - reqEndpoint: ${reqEndpoint}, reqModel: ${reqModel}, hasAgent: ${!!(agent && agent.id)}, agentId: ${agent?.id}`);
-      
+
+      logger.info(
+        `[SchedulerTool] Detection logic - reqEndpoint: ${reqEndpoint}, reqModel: ${reqModel}, hasAgent: ${!!(agent && agent.id)}, agentId: ${agent?.id}`,
+      );
+
       if (agent && agent.id && agent.id !== 'ephemeral') {
         // Running within a real user-created agent context
         // Note: reqModel is expected to be undefined here since we use the agent ID instead
         toolEndpoint = 'agents';
         toolModel = agent.id;
-        logger.info(`[SchedulerTool] Using real agent context - endpoint: ${toolEndpoint}, model: ${toolModel} (reqModel undefined is expected for agents)`);
+        logger.info(
+          `[SchedulerTool] Using real agent context - endpoint: ${toolEndpoint}, model: ${toolModel} (reqModel undefined is expected for agents)`,
+        );
       } else if (reqEndpoint && reqModel) {
         // Running within an endpoint context (including when ephemeral agent is present)
         toolEndpoint = reqEndpoint;
         toolModel = reqModel;
-        logger.info(`[SchedulerTool] Using request context - endpoint: ${toolEndpoint}, model: ${toolModel}${agent?.id === 'ephemeral' ? ' (ephemeral agent present but using underlying context)' : ''}`);
+        logger.info(
+          `[SchedulerTool] Using request context - endpoint: ${toolEndpoint}, model: ${toolModel}${agent?.id === 'ephemeral' ? ' (ephemeral agent present but using underlying context)' : ''}`,
+        );
       } else if (options.req?.body?.endpointOption) {
         // Fallback to endpointOption
         const endpointOption = options.req.body.endpointOption;
         toolEndpoint = endpointOption.endpoint;
         toolModel = endpointOption.model;
-        logger.info(`[SchedulerTool] Using endpointOption - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+        logger.info(
+          `[SchedulerTool] Using endpointOption - endpoint: ${toolEndpoint}, model: ${toolModel}`,
+        );
       } else {
         // Final fallback - use configuration-based defaults
         logger.debug(`[SchedulerTool] Using configuration-based fallback`);
@@ -218,15 +244,19 @@ const loadTools = async ({
           const config = await getCustomConfig();
           toolEndpoint = config?.scheduler?.defaultEndpoint || 'openAI';
           toolModel = config?.scheduler?.defaultModel || 'gpt-4o-mini';
-          logger.info(`[SchedulerTool] Using config fallback - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+          logger.info(
+            `[SchedulerTool] Using config fallback - endpoint: ${toolEndpoint}, model: ${toolModel}`,
+          );
         } catch (configError) {
           logger.warn(`[SchedulerTool] Failed to load config, using hard fallback:`, configError);
           toolEndpoint = 'openAI';
           toolModel = 'gpt-4o-mini';
-          logger.warn(`[SchedulerTool] Using hard fallback - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+          logger.warn(
+            `[SchedulerTool] Using hard fallback - endpoint: ${toolEndpoint}, model: ${toolModel}`,
+          );
         }
       }
-      
+
       return new SchedulerTool({
         ...authValues,
         userId: user,
@@ -240,58 +270,84 @@ const loadTools = async ({
     workflows: async (_toolContextMap) => {
       const authFields = getAuthFields('workflows');
       const authValues = await loadAuthValues({ userId: user, authFields });
-      
+
       const reqEndpoint = options.req?.body?.endpoint;
       const reqModel = options.req?.body?.model;
-      
+
       // Debug logging for request body
-      logger.debug(`[WorkflowTool] Request body keys:`, options.req?.body ? Object.keys(options.req.body) : 'no body');
+      logger.debug(
+        `[WorkflowTool] Request body keys:`,
+        options.req?.body ? Object.keys(options.req.body) : 'no body',
+      );
       logger.debug(`[WorkflowTool] Request body userMessageId:`, options.req?.body?.userMessageId);
-      logger.debug(`[WorkflowTool] Request body overrideUserMessageId:`, options.req?.body?.overrideUserMessageId);
-      logger.debug(`[WorkflowTool] Request body parentMessageId:`, options.req?.body?.parentMessageId);
-      logger.debug(`[WorkflowTool] Request body ephemeralAgent:`, options.req?.body?.ephemeralAgent);
-      logger.debug(`[WorkflowTool] Request body endpointOption:`, options.req?.body?.endpointOption ? {
-        endpoint: options.req?.body?.endpointOption?.endpoint,
-        model: options.req?.body?.endpointOption?.model,
-        model_parameters: options.req?.body?.endpointOption?.model_parameters
-      } : 'none');
-      
+      logger.debug(
+        `[WorkflowTool] Request body overrideUserMessageId:`,
+        options.req?.body?.overrideUserMessageId,
+      );
+      logger.debug(
+        `[WorkflowTool] Request body parentMessageId:`,
+        options.req?.body?.parentMessageId,
+      );
+      logger.debug(
+        `[WorkflowTool] Request body ephemeralAgent:`,
+        options.req?.body?.ephemeralAgent,
+      );
+      logger.debug(
+        `[WorkflowTool] Request body endpointOption:`,
+        options.req?.body?.endpointOption
+          ? {
+              endpoint: options.req?.body?.endpointOption?.endpoint,
+              model: options.req?.body?.endpointOption?.model,
+              model_parameters: options.req?.body?.endpointOption?.model_parameters,
+            }
+          : 'none',
+      );
+
       // Use userMessageId as the parentMessageId for workflow messages
-      const parentMessageId = options.req?.body?.userMessageId || 
-                            options.req?.body?.overrideUserMessageId || 
-                            options.req?.body?.parentMessageId;
-      
+      const parentMessageId =
+        options.req?.body?.userMessageId ||
+        options.req?.body?.overrideUserMessageId ||
+        options.req?.body?.parentMessageId;
+
       // Determine the endpoint and model/agent_id
       let toolEndpoint, toolModel;
-      
+
       // Enhanced debug logging for agent detection issues
       logger.debug(`[WorkflowTool] Agent object inspection:`, {
         hasAgent: !!agent,
         agentId: agent?.id,
         agentKeys: agent ? Object.keys(agent) : 'no agent',
         agentType: typeof agent,
-        agentStringified: agent ? JSON.stringify(agent, null, 2).substring(0, 200) : 'no agent'
+        agentStringified: agent ? JSON.stringify(agent, null, 2).substring(0, 200) : 'no agent',
       });
-      
-      logger.info(`[WorkflowTool] Detection logic - reqEndpoint: ${reqEndpoint}, reqModel: ${reqModel}, hasAgent: ${!!(agent && agent.id)}, agentId: ${agent?.id}`);
-      
+
+      logger.info(
+        `[WorkflowTool] Detection logic - reqEndpoint: ${reqEndpoint}, reqModel: ${reqModel}, hasAgent: ${!!(agent && agent.id)}, agentId: ${agent?.id}`,
+      );
+
       if (agent && agent.id && agent.id !== 'ephemeral') {
         // Running within a real user-created agent context
         // Note: reqModel is expected to be undefined here since we use the agent ID instead
         toolEndpoint = 'agents';
         toolModel = agent.id;
-        logger.info(`[WorkflowTool] Using real agent context - endpoint: ${toolEndpoint}, model: ${toolModel} (reqModel undefined is expected for agents)`);
+        logger.info(
+          `[WorkflowTool] Using real agent context - endpoint: ${toolEndpoint}, model: ${toolModel} (reqModel undefined is expected for agents)`,
+        );
       } else if (reqEndpoint && reqModel) {
         // Running within an endpoint context (including when ephemeral agent is present)
         toolEndpoint = reqEndpoint;
         toolModel = reqModel;
-        logger.info(`[WorkflowTool] Using request context - endpoint: ${toolEndpoint}, model: ${toolModel}${agent?.id === 'ephemeral' ? ' (ephemeral agent present but using underlying context)' : ''}`);
+        logger.info(
+          `[WorkflowTool] Using request context - endpoint: ${toolEndpoint}, model: ${toolModel}${agent?.id === 'ephemeral' ? ' (ephemeral agent present but using underlying context)' : ''}`,
+        );
       } else if (options.req?.body?.endpointOption) {
         // Fallback to endpointOption
         const endpointOption = options.req.body.endpointOption;
         toolEndpoint = endpointOption.endpoint;
         toolModel = endpointOption.model;
-        logger.info(`[WorkflowTool] Using endpointOption - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+        logger.info(
+          `[WorkflowTool] Using endpointOption - endpoint: ${toolEndpoint}, model: ${toolModel}`,
+        );
       } else {
         // Final fallback - use configuration-based defaults
         logger.debug(`[WorkflowTool] Using configuration-based fallback`);
@@ -300,15 +356,19 @@ const loadTools = async ({
           const config = await getCustomConfig();
           toolEndpoint = config?.workflows?.defaultEndpoint || 'openAI';
           toolModel = config?.workflows?.defaultModel || 'gpt-4o-mini';
-          logger.info(`[WorkflowTool] Using config fallback - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+          logger.info(
+            `[WorkflowTool] Using config fallback - endpoint: ${toolEndpoint}, model: ${toolModel}`,
+          );
         } catch (configError) {
           logger.warn(`[WorkflowTool] Failed to load config, using hard fallback:`, configError);
           toolEndpoint = 'openAI';
           toolModel = 'gpt-4o-mini';
-          logger.warn(`[WorkflowTool] Using hard fallback - endpoint: ${toolEndpoint}, model: ${toolModel}`);
+          logger.warn(
+            `[WorkflowTool] Using hard fallback - endpoint: ${toolEndpoint}, model: ${toolModel}`,
+          );
         }
       }
-      
+
       return new WorkflowTool({
         ...authValues,
         userId: user,
@@ -458,14 +518,17 @@ Current Date & Time: ${replaceSpecialVars({ text: '{{iso_datetime}}' })}
         });
       };
       continue;
-    } else if (tool && appTools[tool] && 
-               (mcpToolPattern.test(tool) || 
-                (options.req?.app?.locals?.mcpToolRegistry && 
-                 options.req.app.locals.mcpToolRegistry.has(tool)))) {
+    } else if (
+      tool &&
+      appTools[tool] &&
+      (mcpToolPattern.test(tool) ||
+        (options.req?.app?.locals?.mcpToolRegistry &&
+          options.req.app.locals.mcpToolRegistry.has(tool)))
+    ) {
       // const isMCPByPattern = mcpToolPattern.test(tool);
       // const isMCPByRegistry = options.req?.app?.locals?.mcpToolRegistry?.has(tool);
       // logger.info(`[loadTools] MCP tool detected: ${tool} (pattern: ${isMCPByPattern}, registry: ${isMCPByRegistry})`);
-      
+
       requestedTools[tool] = async () =>
         createMCPTool({
           req: options.req,

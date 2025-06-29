@@ -42,7 +42,7 @@ export default function Artifacts() {
   const isShadcnEnabled = artifactsMode === ArtifactModes.SHADCNUI;
 
   return (
-    <div className="w-full flex flex-col gap-3">
+    <div className="flex w-full flex-col gap-3">
       <SwitchItem
         id="artifacts"
         label={localize('com_ui_artifacts_toggle_agent')}

@@ -92,21 +92,30 @@ class PluginsClient extends OpenAIClient {
     );
 
     // Initialize user-specific MCP connections early for plugins execution
-    if (this.options.req && user) {
+    // Check if tools are enabled for this endpoint
+    const endpoint = this.options.endpoint;
+    const endpointConfig = this.options.req?.app.locals[endpoint];
+    const toolsEnabled = endpointConfig?.tools !== false;
+
+    if (this.options.req && user && toolsEnabled) {
       const MCPInitializer = require('~/server/services/MCPInitializer');
       const mcpInitializer = MCPInitializer.getInstance();
       const mcpResult = await mcpInitializer.ensureUserMCPReady(
-        user, 
-        'PluginsClient', 
-        this.options.req.app.locals.availableTools
+        user,
+        'PluginsClient',
+        this.options.req.app.locals.availableTools,
       );
-      
+
       if (mcpResult.success) {
-        logger.info(`[PluginsClient] MCP initialization successful: ${mcpResult.serverCount} servers, ${mcpResult.toolCount} tools in ${mcpResult.duration}ms`);
+        logger.info(
+          `[PluginsClient] MCP initialization successful: ${mcpResult.serverCount} servers, ${mcpResult.toolCount} tools in ${mcpResult.duration}ms`,
+        );
       } else {
         logger.warn(`[PluginsClient] MCP initialization failed: ${mcpResult.error}`);
         // Continue without MCP tools - plugins can still work with other tools
       }
+    } else if (!toolsEnabled) {
+      logger.info(`[PluginsClient] Tools are disabled for endpoint: ${endpoint}`);
     }
 
     // Map Messages to Langchain format
@@ -120,6 +129,15 @@ class PluginsClient extends OpenAIClient {
       llm: model,
       chatHistory: new ChatMessageHistory(pastMessages),
     });
+
+    // Skip loading tools if they're disabled for this endpoint
+    if (!toolsEnabled) {
+      logger.info(
+        `[PluginsClient] Skipping tool loading - tools disabled for endpoint: ${endpoint}`,
+      );
+      this.tools = [];
+      return;
+    }
 
     const { loadedTools } = await loadTools({
       user,

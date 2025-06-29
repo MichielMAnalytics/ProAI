@@ -21,7 +21,7 @@ class WorkflowTool extends Tool {
     this.endpoint = fields.endpoint;
     this.model = fields.model;
     this.req = fields.req;
-    
+
     logger.debug(`[WorkflowTool] Constructor called with:`, {
       userId: this.userId,
       conversationId: this.conversationId,
@@ -31,7 +31,7 @@ class WorkflowTool extends Tool {
       override: this.override,
       hasReq: !!this.req,
     });
-    
+
     this.name = 'workflows';
     this.description = `Create and manage automated workflows that can execute sequences of actions and tools.
     
@@ -415,75 +415,101 @@ class WorkflowTool extends Tool {
     Did you include all filters, limits, and data requirements?
     Are the step configurations complete and executable?`;
 
-    
     this.schema = z.object({
-      action: z.enum([
-        'create_workflow', 
-        'list_workflows', 
-        'get_workflow', 
-        'update_workflow', 
-        'delete_workflow', 
-        'activate_workflow', 
-        'deactivate_workflow', 
-        'test_workflow',
-        // 'get_available_tools', // COMMENTED OUT: Not needed with current architecture (tools available via system prompt variables)
-        'validate_workflow_design'
-      ]).describe('The action to perform'),
-      
+      action: z
+        .enum([
+          'create_workflow',
+          'list_workflows',
+          'get_workflow',
+          'update_workflow',
+          'delete_workflow',
+          'activate_workflow',
+          'deactivate_workflow',
+          'test_workflow',
+          // 'get_available_tools', // COMMENTED OUT: Not needed with current architecture (tools available via system prompt variables)
+          'validate_workflow_design',
+        ])
+        .describe('The action to perform'),
+
       // Workflow creation/update fields
-      name: z.string().optional()
-        .describe('Name of the workflow (required for create_workflow)'),
-      description: z.string().optional()
-        .describe('CRITICAL: Description of the workflow. For update_workflow actions, this field is MANDATORY and must be updated to reflect any changes made (schedule timing, step modifications, recipient changes, etc.). NEVER skip this field when updating workflows!'),
-      trigger: z.object({
-        type: z.enum(['manual', 'schedule']),
-        config: z.record(z.unknown()).optional(),
-      }).optional()
-        .describe('Workflow trigger configuration. Only manual and schedule triggers are currently supported.'),
-      steps: z.array(z.object({
-        id: z.string(),
-        name: z.string(),
-        type: z.enum(['mcp_agent_action']),
-        config: z.record(z.unknown()),
-        onSuccess: z.string().optional(),
-        onFailure: z.string().optional(),
-        position: z.object({
-          x: z.number(),
-          y: z.number(),
-        }),
-      })).optional()
-        .describe('Array of workflow steps. All steps must be type "mcp_agent_action". For updates: provide only the steps you want to add/modify to preserve existing steps, or provide all steps to replace completely'),
-      
-      // Workflow management fields
-      workflow_id: z.string().optional()
-        .describe('Workflow ID for get, update, delete, activate, deactivate, test actions'),
-      
-      // Update-specific options
-      update_mode: z.enum(['merge', 'replace']).optional()
-        .describe('How to handle step updates: "merge" (default) preserves existing steps and updates provided ones, "replace" replaces all steps'),
-      
-      // Validation-specific fields
-      workflow_design: z.object({
-        name: z.string(),
-        description: z.string().optional(),
-        trigger: z.object({
+      name: z.string().optional().describe('Name of the workflow (required for create_workflow)'),
+      description: z
+        .string()
+        .optional()
+        .describe(
+          'CRITICAL: Description of the workflow. For update_workflow actions, this field is MANDATORY and must be updated to reflect any changes made (schedule timing, step modifications, recipient changes, etc.). NEVER skip this field when updating workflows!',
+        ),
+      trigger: z
+        .object({
           type: z.enum(['manual', 'schedule']),
           config: z.record(z.unknown()).optional(),
-        }),
-        steps: z.array(z.object({
-          id: z.string(),
-          name: z.string(),
-          type: z.enum(['mcp_agent_action']),
-          config: z.record(z.unknown()),
-          onSuccess: z.string().optional(),
-          onFailure: z.string().optional(),
-          position: z.object({
-            x: z.number(),
-            y: z.number(),
+        })
+        .optional()
+        .describe(
+          'Workflow trigger configuration. Only manual and schedule triggers are currently supported.',
+        ),
+      steps: z
+        .array(
+          z.object({
+            id: z.string(),
+            name: z.string(),
+            type: z.enum(['mcp_agent_action']),
+            config: z.record(z.unknown()),
+            onSuccess: z.string().optional(),
+            onFailure: z.string().optional(),
+            position: z.object({
+              x: z.number(),
+              y: z.number(),
+            }),
           }),
-        })),
-      }).optional()
-        .describe('Workflow design to validate (required for validate_workflow_design action). Only manual and schedule triggers are supported.'),
+        )
+        .optional()
+        .describe(
+          'Array of workflow steps. All steps must be type "mcp_agent_action". For updates: provide only the steps you want to add/modify to preserve existing steps, or provide all steps to replace completely',
+        ),
+
+      // Workflow management fields
+      workflow_id: z
+        .string()
+        .optional()
+        .describe('Workflow ID for get, update, delete, activate, deactivate, test actions'),
+
+      // Update-specific options
+      update_mode: z
+        .enum(['merge', 'replace'])
+        .optional()
+        .describe(
+          'How to handle step updates: "merge" (default) preserves existing steps and updates provided ones, "replace" replaces all steps',
+        ),
+
+      // Validation-specific fields
+      workflow_design: z
+        .object({
+          name: z.string(),
+          description: z.string().optional(),
+          trigger: z.object({
+            type: z.enum(['manual', 'schedule']),
+            config: z.record(z.unknown()).optional(),
+          }),
+          steps: z.array(
+            z.object({
+              id: z.string(),
+              name: z.string(),
+              type: z.enum(['mcp_agent_action']),
+              config: z.record(z.unknown()),
+              onSuccess: z.string().optional(),
+              onFailure: z.string().optional(),
+              position: z.object({
+                x: z.number(),
+                y: z.number(),
+              }),
+            }),
+          ),
+        })
+        .optional()
+        .describe(
+          'Workflow design to validate (required for validate_workflow_design action). Only manual and schedule triggers are supported.',
+        ),
     });
   }
 
@@ -492,14 +518,14 @@ class WorkflowTool extends Tool {
       // Get MCP tools via MCPInitializer (same pattern as WorkflowExecutor)
       const MCPInitializer = require('~/server/services/MCPInitializer');
       const mcpInitializer = MCPInitializer.getInstance();
-      
+
       const availableTools = {};
       const mcpResult = await mcpInitializer.ensureUserMCPReady(
-        userId, 
+        userId,
         'WorkflowTool',
-        availableTools
+        availableTools,
       );
-      
+
       // Extract MCP tools from availableTools registry
       let mcpTools = [];
       if (mcpResult.success && availableTools) {
@@ -508,11 +534,13 @@ class WorkflowTool extends Tool {
           const tool = availableTools[toolKey];
           if (tool && typeof tool === 'object' && tool.function) {
             // Check if this is an MCP tool by looking at the tool registry
-            const isMCPTool = this.req?.app?.locals?.mcpToolRegistry && this.req.app.locals.mcpToolRegistry.has(toolKey);
-            
+            const isMCPTool =
+              this.req?.app?.locals?.mcpToolRegistry &&
+              this.req.app.locals.mcpToolRegistry.has(toolKey);
+
             if (isMCPTool) {
               const mcpInfo = this.req.app.locals.mcpToolRegistry.get(toolKey);
-              
+
               mcpTools.push({
                 name: tool.function.name,
                 description: tool.function.description || 'No description available',
@@ -532,31 +560,37 @@ class WorkflowTool extends Tool {
           // In agent context, this.model is the agent_id
           const { getAgent } = require('~/models/Agent');
           const agent = await getAgent({ id: this.model });
-          
+
           if (agent && agent.tools && Array.isArray(agent.tools)) {
             // Filter MCP tools to only include those selected for this agent
             const agentToolSet = new Set(agent.tools);
-            mcpTools = mcpTools.filter(tool => {
+            mcpTools = mcpTools.filter((tool) => {
               // Check if the clean tool name is in the agent's tools
               return agentToolSet.has(tool.name);
             });
-            
-            logger.info(`[WorkflowTool] Filtered MCP tools for agent ${this.model}: ${mcpTools.length} tools (from ${agent.tools.length} agent tools)`);
+
+            logger.info(
+              `[WorkflowTool] Filtered MCP tools for agent ${this.model}: ${mcpTools.length} tools (from ${agent.tools.length} agent tools)`,
+            );
           } else {
-            logger.warn(`[WorkflowTool] Agent ${this.model} not found or has no tools, returning all MCP tools`);
+            logger.warn(
+              `[WorkflowTool] Agent ${this.model} not found or has no tools, returning all MCP tools`,
+            );
           }
         } catch (error) {
-          logger.warn(`[WorkflowTool] Failed to get agent tools for filtering: ${error.message}, returning all MCP tools`);
+          logger.warn(
+            `[WorkflowTool] Failed to get agent tools for filtering: ${error.message}, returning all MCP tools`,
+          );
         }
       }
-      
+
       // Get Pipedream integrations
       const integrations = await PipedreamUserIntegrations.getUserIntegrations(userId);
-      
+
       // Format available tools
       const formattedTools = {
         mcpTools,
-        pipedreamActions: integrations.map(integration => ({
+        pipedreamActions: integrations.map((integration) => ({
           name: integration.appName,
           slug: integration.appSlug,
           description: integration.appDescription,
@@ -565,7 +599,9 @@ class WorkflowTool extends Tool {
         })),
       };
 
-      logger.info(`[WorkflowTool] Retrieved tools for user ${userId}: ${mcpTools.length} MCP tools, ${integrations.length} Pipedream integrations`);
+      logger.info(
+        `[WorkflowTool] Retrieved tools for user ${userId}: ${mcpTools.length} MCP tools, ${integrations.length} Pipedream integrations`,
+      );
 
       return {
         success: true,
@@ -575,7 +611,7 @@ class WorkflowTool extends Tool {
           success: mcpResult.success,
           serverCount: mcpResult.serverCount,
           toolCount: mcpResult.toolCount,
-        }
+        },
       };
     } catch (error) {
       logger.error('[WorkflowTool] Error getting available tools:', error);
@@ -595,7 +631,7 @@ class WorkflowTool extends Tool {
   async validateWorkflowDesign(workflowDesign, userId) {
     try {
       logger.info(`[WorkflowTool] Validating workflow design for user ${userId}`);
-      
+
       const validation = {
         isValid: true,
         errors: [],
@@ -615,7 +651,11 @@ class WorkflowTool extends Tool {
         validation.isValid = false;
       }
 
-      if (!workflowDesign.steps || !Array.isArray(workflowDesign.steps) || workflowDesign.steps.length === 0) {
+      if (
+        !workflowDesign.steps ||
+        !Array.isArray(workflowDesign.steps) ||
+        workflowDesign.steps.length === 0
+      ) {
         validation.errors.push('Workflow must have at least one step');
         validation.isValid = false;
       }
@@ -623,7 +663,7 @@ class WorkflowTool extends Tool {
       // Step validation
       if (workflowDesign.steps) {
         const stepIds = new Set();
-        
+
         for (let i = 0; i < workflowDesign.steps.length; i++) {
           const step = workflowDesign.steps[i];
           const stepIndex = i + 1;
@@ -651,33 +691,41 @@ class WorkflowTool extends Tool {
             validation.errors.push(`Step ${stepIndex}: Missing step type`);
             validation.isValid = false;
           } else if (step.type !== 'mcp_agent_action') {
-            validation.errors.push(`Step ${stepIndex}: Invalid step type '${step.type}'. Only 'mcp_agent_action' is supported.`);
+            validation.errors.push(
+              `Step ${stepIndex}: Invalid step type '${step.type}'. Only 'mcp_agent_action' is supported.`,
+            );
             validation.isValid = false;
           }
 
           // Tool validation
           if (step.config?.toolName) {
             validation.toolValidation[step.id] = await this.validateStepTool(step, userId);
-            
+
             if (!validation.toolValidation[step.id].exists) {
-              validation.warnings.push(`Step ${stepIndex}: Tool '${step.config.toolName}' not found in available tools`);
+              validation.warnings.push(
+                `Step ${stepIndex}: Tool '${step.config.toolName}' not found in available tools`,
+              );
             }
           }
 
           // Connection validation
           if (step.onSuccess && !stepIds.has(step.onSuccess)) {
             // Check if this references a step that comes later
-            const referencedStep = workflowDesign.steps.find(s => s.id === step.onSuccess);
+            const referencedStep = workflowDesign.steps.find((s) => s.id === step.onSuccess);
             if (!referencedStep) {
-              validation.errors.push(`Step ${stepIndex}: onSuccess references non-existent step '${step.onSuccess}'`);
+              validation.errors.push(
+                `Step ${stepIndex}: onSuccess references non-existent step '${step.onSuccess}'`,
+              );
               validation.isValid = false;
             }
           }
 
           if (step.onFailure && !stepIds.has(step.onFailure)) {
-            const referencedStep = workflowDesign.steps.find(s => s.id === step.onFailure);
+            const referencedStep = workflowDesign.steps.find((s) => s.id === step.onFailure);
             if (!referencedStep) {
-              validation.errors.push(`Step ${stepIndex}: onFailure references non-existent step '${step.onFailure}'`);
+              validation.errors.push(
+                `Step ${stepIndex}: onFailure references non-existent step '${step.onFailure}'`,
+              );
               validation.isValid = false;
             }
           }
@@ -694,7 +742,7 @@ class WorkflowTool extends Tool {
         try {
           const { calculateNextRun } = require('~/server/services/Scheduler/utils/cronUtils');
           const scheduleConfig = workflowDesign.trigger.config?.schedule;
-          
+
           if (!scheduleConfig) {
             validation.errors.push('Schedule trigger requires a schedule configuration');
             validation.isValid = false;
@@ -704,7 +752,9 @@ class WorkflowTool extends Tool {
               validation.errors.push(`Invalid schedule configuration: ${scheduleConfig}`);
               validation.isValid = false;
             } else {
-              validation.suggestions.push(`Schedule validated: Next run would be ${nextRun.toISOString()}`);
+              validation.suggestions.push(
+                `Schedule validated: Next run would be ${nextRun.toISOString()}`,
+              );
             }
           }
         } catch (error) {
@@ -715,21 +765,27 @@ class WorkflowTool extends Tool {
       // General suggestions
       if (validation.isValid) {
         validation.suggestions.push('Workflow design structure is valid');
-        validation.suggestions.push('Consider testing each step individually before creating the workflow');
-        
-        if (workflowDesign.steps.some(step => step.config?.toolName?.includes('EMAIL'))) {
-          validation.suggestions.push('Email steps detected: Ensure recipient addresses are correct and test email delivery');
+        validation.suggestions.push(
+          'Consider testing each step individually before creating the workflow',
+        );
+
+        if (workflowDesign.steps.some((step) => step.config?.toolName?.includes('EMAIL'))) {
+          validation.suggestions.push(
+            'Email steps detected: Ensure recipient addresses are correct and test email delivery',
+          );
         }
       }
 
-      logger.info(`[WorkflowTool] Workflow validation completed: ${validation.isValid ? 'VALID' : 'INVALID'}, ${validation.errors.length} errors, ${validation.warnings.length} warnings`);
+      logger.info(
+        `[WorkflowTool] Workflow validation completed: ${validation.isValid ? 'VALID' : 'INVALID'}, ${validation.errors.length} errors, ${validation.warnings.length} warnings`,
+      );
 
       return {
         success: true,
         validation,
-        message: validation.isValid ? 
-          'Workflow design is valid and ready for creation' : 
-          `Workflow design has ${validation.errors.length} validation errors that must be fixed`
+        message: validation.isValid
+          ? 'Workflow design is valid and ready for creation'
+          : `Workflow design has ${validation.errors.length} validation errors that must be fixed`,
       };
     } catch (error) {
       logger.error('[WorkflowTool] Error validating workflow design:', error);
@@ -741,7 +797,7 @@ class WorkflowTool extends Tool {
           errors: [`Validation error: ${error.message}`],
           warnings: [],
           suggestions: [],
-        }
+        },
       };
     }
   }
@@ -766,37 +822,37 @@ class WorkflowTool extends Tool {
       }
 
       // Check if tool exists in MCP tools
-      const mcpTool = toolsResult.tools.mcpTools.find(tool => tool.name === toolName);
+      const mcpTool = toolsResult.tools.mcpTools.find((tool) => tool.name === toolName);
       if (mcpTool) {
-        return { 
-          exists: true, 
-          type: 'mcp_tool', 
+        return {
+          exists: true,
+          type: 'mcp_tool',
           tool: mcpTool,
-          reason: `Found MCP tool '${toolName}' in server '${mcpTool.serverName}'`
+          reason: `Found MCP tool '${toolName}' in server '${mcpTool.serverName}'`,
         };
       }
 
       // Check if tool exists in Pipedream actions
-      const pipedreamAction = toolsResult.tools.pipedreamActions.find(action => 
-        action.name === toolName || action.slug === toolName
+      const pipedreamAction = toolsResult.tools.pipedreamActions.find(
+        (action) => action.name === toolName || action.slug === toolName,
       );
       if (pipedreamAction) {
-        return { 
-          exists: true, 
-          type: 'pipedream_action', 
+        return {
+          exists: true,
+          type: 'pipedream_action',
           tool: pipedreamAction,
-          reason: `Found Pipedream action '${toolName}'`
+          reason: `Found Pipedream action '${toolName}'`,
         };
       }
 
-      return { 
-        exists: false, 
-        reason: `Tool '${toolName}' not found in available MCP tools or Pipedream actions` 
+      return {
+        exists: false,
+        reason: `Tool '${toolName}' not found in available MCP tools or Pipedream actions`,
       };
     } catch (error) {
-      return { 
-        exists: false, 
-        reason: `Error validating tool: ${error.message}` 
+      return {
+        exists: false,
+        reason: `Error validating tool: ${error.message}`,
       };
     }
   }
@@ -809,25 +865,29 @@ class WorkflowTool extends Tool {
   validateWorkflowFlow(steps) {
     const warnings = [];
     const suggestions = [];
-    
+
     if (!steps || steps.length === 0) {
       return { warnings, suggestions };
     }
 
     // Find steps that are not referenced by other steps (potential entry points)
     const referencedSteps = new Set();
-    steps.forEach(step => {
+    steps.forEach((step) => {
       if (step.onSuccess) referencedSteps.add(step.onSuccess);
       if (step.onFailure) referencedSteps.add(step.onFailure);
     });
 
-    const entryPoints = steps.filter(step => !referencedSteps.has(step.id));
-    const exitPoints = steps.filter(step => !step.onSuccess && !step.onFailure);
+    const entryPoints = steps.filter((step) => !referencedSteps.has(step.id));
+    const exitPoints = steps.filter((step) => !step.onSuccess && !step.onFailure);
 
     if (entryPoints.length === 0) {
-      warnings.push('No entry point found - all steps are referenced by other steps (circular flow?)');
+      warnings.push(
+        'No entry point found - all steps are referenced by other steps (circular flow?)',
+      );
     } else if (entryPoints.length > 1) {
-      warnings.push(`Multiple entry points found: ${entryPoints.map(s => s.id).join(', ')} - workflow may have disconnected branches`);
+      warnings.push(
+        `Multiple entry points found: ${entryPoints.map((s) => s.id).join(', ')} - workflow may have disconnected branches`,
+      );
     } else {
       suggestions.push(`Entry point: ${entryPoints[0].id} (${entryPoints[0].name})`);
     }
@@ -835,7 +895,7 @@ class WorkflowTool extends Tool {
     if (exitPoints.length === 0) {
       warnings.push('No exit point found - workflow may run indefinitely');
     } else if (exitPoints.length > 1) {
-      suggestions.push(`Multiple exit points: ${exitPoints.map(s => s.id).join(', ')}`);
+      suggestions.push(`Multiple exit points: ${exitPoints.map((s) => s.id).join(', ')}`);
     } else {
       suggestions.push(`Exit point: ${exitPoints[0].id} (${exitPoints[0].name})`);
     }
@@ -851,19 +911,23 @@ class WorkflowTool extends Tool {
   autoFixStepConnections(steps) {
     if (!steps || steps.length === 0) return steps;
 
-    const stepIds = new Set(steps.map(step => step.id));
-    const fixedSteps = steps.map(step => {
+    const stepIds = new Set(steps.map((step) => step.id));
+    const fixedSteps = steps.map((step) => {
       const fixedStep = { ...step };
 
       // Fix onSuccess references
       if (step.onSuccess && !stepIds.has(step.onSuccess)) {
-        logger.warn(`[WorkflowTool] Fixing invalid onSuccess reference: ${step.onSuccess} -> removing reference`);
+        logger.warn(
+          `[WorkflowTool] Fixing invalid onSuccess reference: ${step.onSuccess} -> removing reference`,
+        );
         delete fixedStep.onSuccess;
       }
 
-      // Fix onFailure references  
+      // Fix onFailure references
       if (step.onFailure && !stepIds.has(step.onFailure)) {
-        logger.warn(`[WorkflowTool] Fixing invalid onFailure reference: ${step.onFailure} -> removing reference`);
+        logger.warn(
+          `[WorkflowTool] Fixing invalid onFailure reference: ${step.onFailure} -> removing reference`,
+        );
         delete fixedStep.onFailure;
       }
 
@@ -884,7 +948,7 @@ class WorkflowTool extends Tool {
   fixStepValidation(steps) {
     if (!steps || steps.length === 0) return steps;
 
-    return steps.map(step => {
+    return steps.map((step) => {
       const fixedStep = { ...step };
 
       // Ensure config field exists (required by schema)
@@ -896,13 +960,17 @@ class WorkflowTool extends Tool {
       // Ensure type field exists and is valid
       if (!fixedStep.type) {
         fixedStep.type = 'mcp_agent_action'; // Default to mcp_agent_action
-        logger.warn(`[WorkflowTool] Added missing type field to step: ${step.id}, defaulting to 'mcp_agent_action'`);
+        logger.warn(
+          `[WorkflowTool] Added missing type field to step: ${step.id}, defaulting to 'mcp_agent_action'`,
+        );
       }
 
       const validTypes = ['mcp_agent_action'];
       if (!validTypes.includes(fixedStep.type)) {
         fixedStep.type = 'mcp_agent_action';
-        logger.warn(`[WorkflowTool] Fixed invalid step type for step: ${step.id}, changed to 'mcp_agent_action'`);
+        logger.warn(
+          `[WorkflowTool] Fixed invalid step type for step: ${step.id}, changed to 'mcp_agent_action'`,
+        );
       }
 
       // Fix common parameter structure issues
@@ -911,7 +979,11 @@ class WorkflowTool extends Tool {
       }
 
       // Ensure position exists
-      if (!fixedStep.position || typeof fixedStep.position.x !== 'number' || typeof fixedStep.position.y !== 'number') {
+      if (
+        !fixedStep.position ||
+        typeof fixedStep.position.x !== 'number' ||
+        typeof fixedStep.position.y !== 'number'
+      ) {
         fixedStep.position = { x: 100, y: 100 }; // Default position
         logger.warn(`[WorkflowTool] Added missing/invalid position to step: ${step.id}`);
       }
@@ -933,61 +1005,73 @@ class WorkflowTool extends Tool {
     if (fixedConfig.parameters && fixedConfig.parameters.instruction) {
       try {
         const instructionValue = fixedConfig.parameters.instruction;
-        
+
         // Check if instruction contains key=value patterns
         if (typeof instructionValue === 'string') {
           const keyValueMatches = instructionValue.match(/(\w+)=([^,\s]+)/g);
-          
+
           if (keyValueMatches && keyValueMatches.length > 0) {
-            logger.info(`[WorkflowTool] Found ${keyValueMatches.length} key=value pairs in instruction for step: ${stepName}`);
-            
+            logger.info(
+              `[WorkflowTool] Found ${keyValueMatches.length} key=value pairs in instruction for step: ${stepName}`,
+            );
+
             // Parse key=value pairs and add to parameters
-            keyValueMatches.forEach(match => {
+            keyValueMatches.forEach((match) => {
               const [key, value] = match.split('=');
               if (key && value) {
                 // Try to parse numbers
                 const numValue = Number(value);
                 fixedConfig.parameters[key] = isNaN(numValue) ? value : numValue;
-                logger.debug(`[WorkflowTool] Extracted parameter ${key}=${fixedConfig.parameters[key]} from instruction`);
+                logger.debug(
+                  `[WorkflowTool] Extracted parameter ${key}=${fixedConfig.parameters[key]} from instruction`,
+                );
               }
             });
-            
+
             // Clean up instruction to remove the extracted parameters
             let cleanInstruction = instructionValue;
-            keyValueMatches.forEach(match => {
+            keyValueMatches.forEach((match) => {
               cleanInstruction = cleanInstruction.replace(match, '').trim();
             });
-            
+
             // Update instruction or remove if empty
             if (cleanInstruction.length > 0) {
-              fixedConfig.parameters.instruction = cleanInstruction.replace(/^[,\s]+|[,\s]+$/g, '').trim();
+              fixedConfig.parameters.instruction = cleanInstruction
+                .replace(/^[,\s]+|[,\s]+$/g, '')
+                .trim();
             } else {
               // Remove empty instruction but keep extracted parameters
               delete fixedConfig.parameters.instruction;
             }
           }
-          
+
           // Check if instruction is a JSON string
-          else if (instructionValue.trim().startsWith('{') || instructionValue.trim().startsWith('[')) {
+          else if (
+            instructionValue.trim().startsWith('{') ||
+            instructionValue.trim().startsWith('[')
+          ) {
             const parsedInstruction = JSON.parse(instructionValue);
-            
+
             // If it's an object, merge it into config
             if (typeof parsedInstruction === 'object' && parsedInstruction !== null) {
               // Move the parsed JSON to toolParameters
               if (!fixedConfig.toolParameters) {
                 fixedConfig.toolParameters = parsedInstruction;
               }
-              
+
               // Keep a simpler instruction
               fixedConfig.parameters.instruction = `Execute ${config.toolName || 'tool'} with the configured parameters`;
-              
+
               logger.info(`[WorkflowTool] Fixed JSON instruction parameter for step: ${stepName}`);
             }
           }
         }
       } catch (error) {
         // If parsing fails, keep the original instruction
-        logger.debug(`[WorkflowTool] Could not parse instruction for step: ${stepName}`, error.message);
+        logger.debug(
+          `[WorkflowTool] Could not parse instruction for step: ${stepName}`,
+          error.message,
+        );
       }
     }
 
@@ -1001,12 +1085,12 @@ class WorkflowTool extends Tool {
    */
   validateStepParameters(steps) {
     const warnings = [];
-    
+
     steps.forEach((step, index) => {
       const stepWarnings = this.validateSingleStepParameters(step, index);
       warnings.push(...stepWarnings);
     });
-    
+
     return warnings;
   }
 
@@ -1018,86 +1102,94 @@ class WorkflowTool extends Tool {
    */
   validateSingleStepParameters(step, index) {
     const warnings = [];
-    
+
     // Helper function to check for a parameter - prioritize parameters object
     const findParameter = (paramName) => {
       // Primary location: parameters object
       if (step.config.parameters?.[paramName]) {
         return step.config.parameters[paramName];
       }
-      
+
       // Fallback locations for backward compatibility
       const fallbackLocations = [
         step.config.toolParameters?.[paramName],
         step.config[paramName], // Direct in config
       ];
-      
-      return fallbackLocations.find(val => val !== undefined && val !== null && val !== '');
+
+      return fallbackLocations.find((val) => val !== undefined && val !== null && val !== '');
     };
 
     // Helper function to check if parameter exists in instruction text
     const hasParameterInInstruction = (paramNames) => {
       const instruction = step.config.parameters?.instruction || step.config.instruction || '';
       if (!instruction || typeof instruction !== 'string') return false;
-      
+
       const instructionLower = instruction.toLowerCase();
-      return paramNames.some(paramName => 
-        instructionLower.includes(paramName.toLowerCase() + '=') ||
-        instructionLower.includes(paramName.toLowerCase() + ':') ||
-        instructionLower.includes(paramName.toLowerCase() + ' ')
+      return paramNames.some(
+        (paramName) =>
+          instructionLower.includes(paramName.toLowerCase() + '=') ||
+          instructionLower.includes(paramName.toLowerCase() + ':') ||
+          instructionLower.includes(paramName.toLowerCase() + ' '),
       );
     };
-    
+
     // Only check email steps for critical missing parameters
     if (step.config?.toolName && step.config.toolName.includes('EMAIL')) {
       // Check for recipient - this is critical for email steps
-      const hasRecipient = findParameter('recipient') || 
-                          findParameter('to') || 
-                          findParameter('email') ||
-                          hasParameterInInstruction(['recipient', 'to', 'email']);
-                          
+      const hasRecipient =
+        findParameter('recipient') ||
+        findParameter('to') ||
+        findParameter('email') ||
+        hasParameterInInstruction(['recipient', 'to', 'email']);
+
       if (!hasRecipient) {
         warnings.push({
           step: step.id || `step_${index}`,
           stepName: step.name,
           type: 'missing_recipient',
-          message: 'Email step is missing recipient address. This will likely fail during execution.',
-          suggestion: 'Add recipient parameter: {"parameters": {"recipient": "user@example.com"}}'
+          message:
+            'Email step is missing recipient address. This will likely fail during execution.',
+          suggestion: 'Add recipient parameter: {"parameters": {"recipient": "user@example.com"}}',
         });
       }
-      
+
       // Only warn about subject if no recipient and no content (completely empty email config)
-      const hasSubject = findParameter('subject') || 
-                        findParameter('title') ||
-                        hasParameterInInstruction(['subject', 'title']);
-      const hasContent = findParameter('contentTemplate') || 
-                        findParameter('content') || 
-                        findParameter('message') || 
-                        findParameter('body') ||
-                        hasParameterInInstruction(['content', 'message', 'body']);
-                        
+      const hasSubject =
+        findParameter('subject') ||
+        findParameter('title') ||
+        hasParameterInInstruction(['subject', 'title']);
+      const hasContent =
+        findParameter('contentTemplate') ||
+        findParameter('content') ||
+        findParameter('message') ||
+        findParameter('body') ||
+        hasParameterInInstruction(['content', 'message', 'body']);
+
       if (!hasRecipient && !hasSubject && !hasContent) {
         warnings.push({
           step: step.id || `step_${index}`,
           stepName: step.name,
           type: 'empty_email_config',
           message: 'Email step has no recipient, subject, or content configured.',
-          suggestion: 'Configure at least recipient and content for the email step'
+          suggestion: 'Configure at least recipient and content for the email step',
         });
       }
     }
-    
+
     // Check for completely empty config objects - but only warn if no toolName either
-    if ((!step.config || Object.keys(step.config).length === 0) && step.type === 'mcp_agent_action') {
+    if (
+      (!step.config || Object.keys(step.config).length === 0) &&
+      step.type === 'mcp_agent_action'
+    ) {
       warnings.push({
         step: step.id || `step_${index}`,
         stepName: step.name,
         type: 'empty_config',
         message: 'Action step has empty configuration. Specify toolName or provide instruction.',
-        suggestion: 'Add toolName and parameters or provide instruction for agent execution'
+        suggestion: 'Add toolName and parameters or provide instruction for agent execution',
       });
     }
-    
+
     return warnings;
   }
 
@@ -1141,9 +1233,9 @@ class WorkflowTool extends Tool {
 
     // Validate step parameters and collect warnings
     const parameterWarnings = this.validateStepParameters(fixedSteps);
-    
+
     const workflowId = `workflow_${uuidv4().replace(/-/g, '').substring(0, 12)}`;
-    
+
     // Determine the correct endpoint, model, and agent_id to store
     let workflowEndpoint = endpoint || this.endpoint;
     let workflowModel = model || this.model;
@@ -1166,10 +1258,14 @@ class WorkflowTool extends Tool {
       workflowAgentId = workflowModel;
       // For agents, we'll use the underlying model from the agent during execution
       workflowModel = null; // Will be determined during execution based on agent
-      logger.info(`[WorkflowTool] Creating workflow with agent context: agent_id=${workflowAgentId}`);
+      logger.info(
+        `[WorkflowTool] Creating workflow with agent context: agent_id=${workflowAgentId}`,
+      );
     } else if (workflowEndpoint && workflowModel) {
       // Regular endpoint context
-      logger.info(`[WorkflowTool] Creating workflow with endpoint context: endpoint=${workflowEndpoint}, model=${workflowModel}`);
+      logger.info(
+        `[WorkflowTool] Creating workflow with endpoint context: endpoint=${workflowEndpoint}, model=${workflowModel}`,
+      );
     } else {
       // Fallback to configuration-based defaults
       logger.debug(`[WorkflowTool] Using configuration-based fallback for workflow creation`);
@@ -1179,16 +1275,20 @@ class WorkflowTool extends Tool {
         workflowEndpoint = config?.workflows?.defaultEndpoint || EModelEndpoint.openAI;
         workflowModel = config?.workflows?.defaultModel || 'gpt-4o-mini';
         workflowAgentId = null;
-        logger.info(`[WorkflowTool] Using config fallback for workflow: endpoint=${workflowEndpoint}, model=${workflowModel}`);
+        logger.info(
+          `[WorkflowTool] Using config fallback for workflow: endpoint=${workflowEndpoint}, model=${workflowModel}`,
+        );
       } catch (configError) {
         logger.warn(`[WorkflowTool] Failed to load config, using hard fallback:`, configError);
         workflowEndpoint = EModelEndpoint.openAI;
         workflowModel = 'gpt-4o-mini';
         workflowAgentId = null;
-        logger.warn(`[WorkflowTool] Using hard fallback for workflow: endpoint=${workflowEndpoint}, model=${workflowModel}`);
+        logger.warn(
+          `[WorkflowTool] Using hard fallback for workflow: endpoint=${workflowEndpoint}, model=${workflowModel}`,
+        );
       }
     }
-    
+
     const workflowData = {
       id: workflowId,
       name,
@@ -1208,15 +1308,17 @@ class WorkflowTool extends Tool {
       created_from_agent: true,
     };
 
-    logger.info(`[WorkflowTool] Creating workflow: ${workflowId} (${name}) - will use stored context: endpoint=${workflowEndpoint}, model=${workflowModel}, agent_id=${workflowAgentId}`);
+    logger.info(
+      `[WorkflowTool] Creating workflow: ${workflowId} (${name}) - will use stored context: endpoint=${workflowEndpoint}, model=${workflowModel}, agent_id=${workflowAgentId}`,
+    );
 
     try {
       // Use WorkflowService for proper validation
       const workflowService = new WorkflowService();
       const workflow = await workflowService.createWorkflow(workflowData, userId);
-      
+
       logger.info(`[WorkflowTool] Created workflow: ${workflowId} (${name}) for user ${userId}`);
-      
+
       // Prepare response with warnings if any
       const response = {
         success: true,
@@ -1235,40 +1337,48 @@ class WorkflowTool extends Tool {
           ai_model: workflow.ai_model,
           agent_id: workflow.agent_id,
           version: workflow.version,
-        }
+        },
       };
 
       // Add warnings if any critical parameters are missing
       if (parameterWarnings.length > 0) {
         response.warnings = parameterWarnings;
-        
+
         // Only show warning message for critical issues (like completely empty configs)
-        const criticalWarnings = parameterWarnings.filter(w => 
-          w.type === 'missing_recipient' || w.type === 'empty_email_config' || w.type === 'empty_config'
+        const criticalWarnings = parameterWarnings.filter(
+          (w) =>
+            w.type === 'missing_recipient' ||
+            w.type === 'empty_email_config' ||
+            w.type === 'empty_config',
         );
-        
+
         if (criticalWarnings.length > 0) {
           response.message += ` ⚠️  ${criticalWarnings.length} configuration warning(s) detected`;
         }
-        
+
         // Log all warnings for debugging but focus message on critical ones
-        const warningSummary = parameterWarnings.map(w => `${w.stepName}: ${w.type}`).join(', ');
-        logger.warn(`[WorkflowTool] Parameter warnings for workflow ${workflowId}: ${warningSummary}`);
-        
+        const warningSummary = parameterWarnings.map((w) => `${w.stepName}: ${w.type}`).join(', ');
+        logger.warn(
+          `[WorkflowTool] Parameter warnings for workflow ${workflowId}: ${warningSummary}`,
+        );
+
         // Log full details at debug level
-        logger.debug(`[WorkflowTool] Full parameter warnings for workflow ${workflowId}:`, parameterWarnings);
+        logger.debug(
+          `[WorkflowTool] Full parameter warnings for workflow ${workflowId}:`,
+          parameterWarnings,
+        );
       }
 
       // Add info about auto-connections if they were applied
-      const hasAutoConnections = fixedSteps.some((step, index) => 
-        step.onSuccess && index < steps.length - 1 && !steps[index].onSuccess
+      const hasAutoConnections = fixedSteps.some(
+        (step, index) => step.onSuccess && index < steps.length - 1 && !steps[index].onSuccess,
       );
-      
+
       if (hasAutoConnections) {
         response.message += ` 🔗 Steps automatically connected in sequence`;
         logger.info(`[WorkflowTool] Auto-connected workflow steps for ${workflowId}`);
       }
-      
+
       return response;
     } catch (error) {
       logger.error(`[WorkflowTool] Error creating workflow:`, error);
@@ -1289,15 +1399,18 @@ class WorkflowTool extends Tool {
     if (trigger.type === 'schedule') {
       // Ensure config object exists
       processedTrigger.config = processedTrigger.config || {};
-        
+
       // Handle both 'schedule' and 'cron' fields - normalize to 'schedule'
       let scheduleInput = trigger.config?.schedule || trigger.config?.cron;
       let cronExpression = null;
-      
+
       // If we have a schedule input, check if it's already a cron expression or natural language
       if (scheduleInput) {
-        const { isCronExpression, parseScheduleToUTCCron } = require('~/server/services/Scheduler/utils/cronUtils');
-        
+        const {
+          isCronExpression,
+          parseScheduleToUTCCron,
+        } = require('~/server/services/Scheduler/utils/cronUtils');
+
         if (isCronExpression(scheduleInput)) {
           // It's already a valid cron expression
           cronExpression = scheduleInput;
@@ -1306,43 +1419,58 @@ class WorkflowTool extends Tool {
           // It's natural language, parse it
           cronExpression = parseScheduleToUTCCron(scheduleInput, userTimezone);
           if (cronExpression) {
-            logger.info(`[WorkflowTool] Converted "${scheduleInput}" to UTC cron (${userTimezone}): ${cronExpression}`);
+            logger.info(
+              `[WorkflowTool] Converted "${scheduleInput}" to UTC cron (${userTimezone}): ${cronExpression}`,
+            );
           } else {
-            logger.warn(`[WorkflowTool] Could not parse schedule "${scheduleInput}", will try description`);
+            logger.warn(
+              `[WorkflowTool] Could not parse schedule "${scheduleInput}", will try description`,
+            );
           }
         }
       }
-      
+
       // If no valid cron expression yet, try to extract from description or use default
       if (!cronExpression) {
         // Try to extract schedule from description with user timezone
-        const scheduleFromDescription = this.extractScheduleFromDescription(description, userTimezone);
+        const scheduleFromDescription = this.extractScheduleFromDescription(
+          description,
+          userTimezone,
+        );
         if (scheduleFromDescription) {
           cronExpression = scheduleFromDescription;
-          logger.info(`[WorkflowTool] Extracted schedule from description (${userTimezone}): ${cronExpression}`);
+          logger.info(
+            `[WorkflowTool] Extracted schedule from description (${userTimezone}): ${cronExpression}`,
+          );
         } else {
           // Use the timezone-aware parsing for the default time
           const { parseScheduleToUTCCron } = require('~/server/services/Scheduler/utils/cronUtils');
           cronExpression = parseScheduleToUTCCron('daily at 9 AM', userTimezone) || '0 9 * * *';
-          logger.info(`[WorkflowTool] No schedule found, using default for ${userTimezone}: ${cronExpression}`);
+          logger.info(
+            `[WorkflowTool] No schedule found, using default for ${userTimezone}: ${cronExpression}`,
+          );
         }
       }
-      
+
       // Validate the cron expression using the same validation as scheduler
       const { calculateNextRun } = require('~/server/services/Scheduler/utils/cronUtils');
       const nextRun = calculateNextRun(cronExpression);
       if (!nextRun) {
-        throw new Error(`Invalid cron expression: ${cronExpression}. Please provide a valid cron schedule.`);
+        throw new Error(
+          `Invalid cron expression: ${cronExpression}. Please provide a valid cron schedule.`,
+        );
       }
-      
+
       // Normalize to 'schedule' field and remove 'cron' field if it exists
       processedTrigger.config.schedule = cronExpression;
       if (processedTrigger.config.cron) {
         delete processedTrigger.config.cron;
         logger.debug(`[WorkflowTool] Normalized 'cron' field to 'schedule': ${cronExpression}`);
       }
-      
-      logger.debug(`[WorkflowTool] Processed schedule trigger: ${cronExpression}, next run: ${nextRun.toISOString()}`);
+
+      logger.debug(
+        `[WorkflowTool] Processed schedule trigger: ${cronExpression}, next run: ${nextRun.toISOString()}`,
+      );
     }
 
     return processedTrigger;
@@ -1359,34 +1487,45 @@ class WorkflowTool extends Tool {
 
     // Use the enhanced cronUtils parsing function
     const { parseScheduleToUTCCron } = require('~/server/services/Scheduler/utils/cronUtils');
-    
+
     const cronExpr = parseScheduleToUTCCron(description, userTimezone);
     if (cronExpr) {
-      logger.debug(`[WorkflowTool] Extracted schedule from description "${description}" (${userTimezone}): ${cronExpr}`);
+      logger.debug(
+        `[WorkflowTool] Extracted schedule from description "${description}" (${userTimezone}): ${cronExpr}`,
+      );
       return cronExpr;
     }
 
     // Fallback to basic pattern matching for compatibility
     const desc = description.toLowerCase();
-    
+
     // Common schedule patterns - all treated as UTC-based cron expressions
     const patterns = [
       // "daily at 9 AM" or "daily at 9" -> 9 AM UTC
-      { regex: /daily.*?at\s+(\d{1,2})\s*(?:am|a\.m\.)?/i, handler: (match) => {
-        const hour = parseInt(match[1]);
-        return `0 ${hour} * * *`;
-      }},
+      {
+        regex: /daily.*?at\s+(\d{1,2})\s*(?:am|a\.m\.)?/i,
+        handler: (match) => {
+          const hour = parseInt(match[1]);
+          return `0 ${hour} * * *`;
+        },
+      },
       // "daily at 2 PM" or "daily at 2 p.m." -> 14 UTC (2 PM)
-      { regex: /daily.*?at\s+(\d{1,2})\s*(?:pm|p\.m\.)/i, handler: (match) => {
-        const hour = parseInt(match[1]);
-        const utcHour = hour === 12 ? 12 : hour + 12; // Convert PM to 24-hour
-        return `0 ${utcHour} * * *`;
-      }},
+      {
+        regex: /daily.*?at\s+(\d{1,2})\s*(?:pm|p\.m\.)/i,
+        handler: (match) => {
+          const hour = parseInt(match[1]);
+          const utcHour = hour === 12 ? 12 : hour + 12; // Convert PM to 24-hour
+          return `0 ${utcHour} * * *`;
+        },
+      },
       // "every X minutes" -> */X * * * *
-      { regex: /every\s+(\d+)\s+minutes?/i, handler: (match) => {
-        const minutes = parseInt(match[1]);
-        return `*/${minutes} * * * *`;
-      }},
+      {
+        regex: /every\s+(\d+)\s+minutes?/i,
+        handler: (match) => {
+          const minutes = parseInt(match[1]);
+          return `*/${minutes} * * * *`;
+        },
+      },
       // "every hour" -> 0 * * * *
       { regex: /every\s+hour/i, handler: () => '0 * * * *' },
       // "hourly" -> 0 * * * *
@@ -1396,23 +1535,31 @@ class WorkflowTool extends Tool {
       // "every day" or "daily" -> 9 AM UTC
       { regex: /(?:every\s+day|daily)(?!\s+at)/i, handler: () => '0 9 * * *' },
       // "at 9" or "9 AM" (standalone) -> 9 AM UTC
-      { regex: /(?:^|\s)(?:at\s+)?(\d{1,2})\s*am(?:\s|$)/i, handler: (match) => {
-        const hour = parseInt(match[1]);
-        return `0 ${hour} * * *`;
-      }},
+      {
+        regex: /(?:^|\s)(?:at\s+)?(\d{1,2})\s*am(?:\s|$)/i,
+        handler: (match) => {
+          const hour = parseInt(match[1]);
+          return `0 ${hour} * * *`;
+        },
+      },
       // "at 2 PM" (standalone) -> 14 UTC
-      { regex: /(?:^|\s)(?:at\s+)?(\d{1,2})\s*pm(?:\s|$)/i, handler: (match) => {
-        const hour = parseInt(match[1]);
-        const utcHour = hour === 12 ? 12 : hour + 12;
-        return `0 ${utcHour} * * *`;
-      }},
+      {
+        regex: /(?:^|\s)(?:at\s+)?(\d{1,2})\s*pm(?:\s|$)/i,
+        handler: (match) => {
+          const hour = parseInt(match[1]);
+          const utcHour = hour === 12 ? 12 : hour + 12;
+          return `0 ${utcHour} * * *`;
+        },
+      },
     ];
 
     for (const pattern of patterns) {
       const match = desc.match(pattern.regex);
       if (match) {
         const cronExpr = pattern.handler(match);
-        logger.debug(`[WorkflowTool] Extracted schedule from description "${description}": ${cronExpr}`);
+        logger.debug(
+          `[WorkflowTool] Extracted schedule from description "${description}": ${cronExpr}`,
+        );
         return cronExpr;
       }
     }
@@ -1424,11 +1571,11 @@ class WorkflowTool extends Tool {
     try {
       const workflowService = new WorkflowService();
       const workflows = await workflowService.getUserWorkflows(userId);
-      
+
       return {
         success: true,
         message: `Found ${workflows.length} workflows`,
-        workflows: workflows.map(workflow => ({
+        workflows: workflows.map((workflow) => ({
           id: workflow.id,
           name: workflow.name,
           description: workflow.description,
@@ -1442,7 +1589,7 @@ class WorkflowTool extends Tool {
           failure_count: workflow.failure_count || 0,
           createdAt: workflow.createdAt,
           updatedAt: workflow.updatedAt,
-        }))
+        })),
       };
     } catch (error) {
       logger.error(`[WorkflowTool] Error listing workflows:`, error);
@@ -1458,11 +1605,11 @@ class WorkflowTool extends Tool {
     try {
       const workflowService = new WorkflowService();
       const workflow = await workflowService.getWorkflowById(workflowId, userId);
-      
+
       if (!workflow) {
         return {
           success: false,
-          message: `Workflow with ID ${workflowId} not found`
+          message: `Workflow with ID ${workflowId} not found`,
         };
       }
 
@@ -1484,7 +1631,7 @@ class WorkflowTool extends Tool {
           failure_count: workflow.failure_count || 0,
           createdAt: workflow.createdAt,
           updatedAt: workflow.updatedAt,
-        }
+        },
       };
     } catch (error) {
       logger.error(`[WorkflowTool] Error getting workflow:`, error);
@@ -1501,23 +1648,27 @@ class WorkflowTool extends Tool {
       // Get the current workflow first
       const workflowService = new WorkflowService();
       const currentWorkflow = await workflowService.getWorkflowById(workflowId, userId);
-      
+
       if (!currentWorkflow) {
         return {
           success: false,
-          message: `Workflow with ID ${workflowId} not found`
+          message: `Workflow with ID ${workflowId} not found`,
         };
       }
 
       // Process the update data to handle intelligent step merging
       const processedUpdateData = await this.processWorkflowUpdate(currentWorkflow, updateData);
-      
-      const updatedWorkflow = await workflowService.updateWorkflow(workflowId, userId, processedUpdateData);
-      
+
+      const updatedWorkflow = await workflowService.updateWorkflow(
+        workflowId,
+        userId,
+        processedUpdateData,
+      );
+
       if (!updatedWorkflow) {
         return {
           success: false,
-          message: `Workflow with ID ${workflowId} not found`
+          message: `Workflow with ID ${workflowId} not found`,
         };
       }
 
@@ -1533,7 +1684,7 @@ class WorkflowTool extends Tool {
           isDraft: updatedWorkflow.isDraft,
           isActive: updatedWorkflow.isActive,
           version: updatedWorkflow.version,
-        }
+        },
       };
     } catch (error) {
       logger.error(`[WorkflowTool] Error updating workflow:`, error);
@@ -1554,23 +1705,27 @@ class WorkflowTool extends Tool {
     if (updateData.steps && Array.isArray(updateData.steps)) {
       const currentSteps = currentWorkflow.steps || [];
       const updateMode = updateData.update_mode || 'merge'; // Default to merge mode
-      
+
       if (updateMode === 'replace') {
         // Explicit replace mode - replace all steps
-        logger.info(`[WorkflowTool] Performing explicit step replacement: ${updateData.steps.length} steps`);
+        logger.info(
+          `[WorkflowTool] Performing explicit step replacement: ${updateData.steps.length} steps`,
+        );
         processedData.steps = this.fixStepValidation(updateData.steps);
       } else if (updateMode === 'merge' || updateData.steps.length < currentSteps.length) {
         // Merge mode or intelligent detection of partial update
-        logger.info(`[WorkflowTool] Performing intelligent step merge: ${updateData.steps.length} new/updated steps, ${currentSteps.length} existing steps`);
-        
+        logger.info(
+          `[WorkflowTool] Performing intelligent step merge: ${updateData.steps.length} new/updated steps, ${currentSteps.length} existing steps`,
+        );
+
         // Create a map of current steps by ID
         const currentStepsMap = new Map();
-        currentSteps.forEach(step => {
+        currentSteps.forEach((step) => {
           currentStepsMap.set(step.id, step);
         });
-        
+
         // Update or add the provided steps
-        updateData.steps.forEach(step => {
+        updateData.steps.forEach((step) => {
           if (step.id) {
             const existingStep = currentStepsMap.get(step.id);
             if (existingStep) {
@@ -1580,28 +1735,37 @@ class WorkflowTool extends Tool {
             }
             currentStepsMap.set(step.id, step);
           } else {
-            logger.warn(`[WorkflowTool] Step missing ID, cannot merge: ${step.name || 'unnamed step'}`);
+            logger.warn(
+              `[WorkflowTool] Step missing ID, cannot merge: ${step.name || 'unnamed step'}`,
+            );
           }
         });
-        
+
         // Convert back to array and fix any validation issues
         const mergedSteps = Array.from(currentStepsMap.values());
         processedData.steps = this.fixStepValidation(mergedSteps);
-        
-        logger.info(`[WorkflowTool] Step merge complete: ${processedData.steps.length} total steps`);
+
+        logger.info(
+          `[WorkflowTool] Step merge complete: ${processedData.steps.length} total steps`,
+        );
       } else {
         // Equal or more steps provided than existing - treat as full replacement
-        logger.info(`[WorkflowTool] Performing full step replacement (detected): ${updateData.steps.length} steps`);
+        logger.info(
+          `[WorkflowTool] Performing full step replacement (detected): ${updateData.steps.length} steps`,
+        );
         processedData.steps = this.fixStepValidation(updateData.steps);
       }
-      
+
       // Remove update_mode from the final data as it's not needed in the database
       delete processedData.update_mode;
     }
 
     // Process other update fields normally
     if (updateData.trigger) {
-      processedData.trigger = this.processTriggerConfig(updateData.trigger, updateData.description || currentWorkflow.description);
+      processedData.trigger = this.processTriggerConfig(
+        updateData.trigger,
+        updateData.description || currentWorkflow.description,
+      );
     }
 
     return processedData;
@@ -1615,17 +1779,17 @@ class WorkflowTool extends Tool {
     try {
       const workflowService = new WorkflowService();
       const success = await workflowService.deleteWorkflow(workflowId, userId);
-      
+
       if (!success) {
         return {
           success: false,
-          message: `Workflow with ID ${workflowId} not found`
+          message: `Workflow with ID ${workflowId} not found`,
         };
       }
 
       return {
         success: true,
-        message: `Workflow with ID ${workflowId} deleted successfully`
+        message: `Workflow with ID ${workflowId} deleted successfully`,
       };
     } catch (error) {
       logger.error(`[WorkflowTool] Error deleting workflow:`, error);
@@ -1641,21 +1805,23 @@ class WorkflowTool extends Tool {
     try {
       const workflowService = new WorkflowService();
       const workflow = await workflowService.toggleWorkflow(workflowId, userId, isActive);
-      
+
       if (!workflow) {
         return {
           success: false,
-          message: `Workflow with ID ${workflowId} not found`
+          message: `Workflow with ID ${workflowId} not found`,
         };
       }
 
       return {
         success: true,
-        message: `Workflow "${workflow.name}" ${isActive ? 'activated' : 'deactivated'} successfully`
+        message: `Workflow "${workflow.name}" ${isActive ? 'activated' : 'deactivated'} successfully`,
       };
     } catch (error) {
       logger.error(`[WorkflowTool] Error toggling workflow:`, error);
-      throw new Error(`Failed to ${isActive ? 'activate' : 'deactivate'} workflow: ${error.message}`);
+      throw new Error(
+        `Failed to ${isActive ? 'activate' : 'deactivate'} workflow: ${error.message}`,
+      );
     }
   }
 
@@ -1667,26 +1833,31 @@ class WorkflowTool extends Tool {
     try {
       const workflowService = new WorkflowService();
       const workflow = await workflowService.getWorkflowById(workflowId, userId);
-      
+
       if (!workflow) {
         return {
           success: false,
-          message: `Workflow with ID ${workflowId} not found`
+          message: `Workflow with ID ${workflowId} not found`,
         };
       }
 
-      const execution = await workflowService.executeWorkflow(workflowId, userId, {
-        trigger: {
-          type: 'manual',
-          source: 'agent_test',
-          data: { initiated_by: 'agent' }
-        }
-      }, true); // true indicates this is a test execution
+      const execution = await workflowService.executeWorkflow(
+        workflowId,
+        userId,
+        {
+          trigger: {
+            type: 'manual',
+            source: 'agent_test',
+            data: { initiated_by: 'agent' },
+          },
+        },
+        true,
+      ); // true indicates this is a test execution
 
       return {
         success: true,
         message: `Test execution completed for workflow "${workflow.name}"`,
-        execution: execution
+        execution: execution,
       };
     } catch (error) {
       logger.error(`[WorkflowTool] Error testing workflow:`, error);
@@ -1697,27 +1868,28 @@ class WorkflowTool extends Tool {
   async _call(input, config) {
     try {
       const { action, ...data } = input;
-      
+
       const userId = this.userId;
-      const conversationId = config?.configurable?.thread_id || 
-                           config?.configurable?.conversationId ||
-                           this.conversationId;
-      
+      const conversationId =
+        config?.configurable?.thread_id ||
+        config?.configurable?.conversationId ||
+        this.conversationId;
+
       let parentMessageId = this.req?.body?.userMessageId || this.req?.body?.overrideUserMessageId;
       if (!parentMessageId) {
         parentMessageId = this.parentMessageId;
       }
-      
+
       const endpoint = this.endpoint;
       const model = this.model;
-      
+
       if (!userId) {
         throw new Error('User context not available');
       }
 
-      logger.debug(`[WorkflowTool] Executing action: ${action}`, { 
-        userId, 
-        conversationId, 
+      logger.debug(`[WorkflowTool] Executing action: ${action}`, {
+        userId,
+        conversationId,
         parentMessageId,
         endpoint,
         model,
@@ -1725,36 +1897,43 @@ class WorkflowTool extends Tool {
 
       switch (action) {
         case 'create_workflow':
-          return await this.createWorkflow(data, userId, conversationId, parentMessageId, endpoint, model);
-        
+          return await this.createWorkflow(
+            data,
+            userId,
+            conversationId,
+            parentMessageId,
+            endpoint,
+            model,
+          );
+
         case 'list_workflows':
           return await this.listWorkflows(userId);
-        
+
         case 'get_workflow':
           return await this.getWorkflow(data.workflow_id, userId);
-        
+
         case 'update_workflow':
           const { workflow_id, ...updateData } = data;
           return await this.updateWorkflow(workflow_id, userId, updateData);
-        
+
         case 'delete_workflow':
           return await this.deleteWorkflow(data.workflow_id, userId);
-        
+
         case 'activate_workflow':
           return await this.toggleWorkflow(data.workflow_id, userId, true);
-        
+
         case 'deactivate_workflow':
           return await this.toggleWorkflow(data.workflow_id, userId, false);
-        
+
         case 'test_workflow':
           return await this.testWorkflow(data.workflow_id, userId);
-        
+
         // case 'get_available_tools': // COMMENTED OUT: Not needed with current architecture
         //   return await this.getAvailableTools(userId);
-        
+
         case 'validate_workflow_design':
           return await this.validateWorkflowDesign(data.workflow_design, userId);
-        
+
         default:
           throw new Error(`Unknown action: ${action}`);
       }
@@ -1762,7 +1941,7 @@ class WorkflowTool extends Tool {
       logger.error(`[WorkflowTool] Error in _call:`, error);
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -1778,44 +1957,54 @@ class WorkflowTool extends Tool {
     const connectedSteps = [...steps];
 
     // Check if any steps are already connected
-    const hasConnections = steps.some(step => step.onSuccess || step.onFailure);
+    const hasConnections = steps.some((step) => step.onSuccess || step.onFailure);
 
     // If no connections exist, auto-connect steps in sequence
     if (!hasConnections) {
-      logger.info(`[WorkflowTool] No step connections found, auto-connecting ${steps.length} steps in sequence`);
-      
+      logger.info(
+        `[WorkflowTool] No step connections found, auto-connecting ${steps.length} steps in sequence`,
+      );
+
       for (let i = 0; i < connectedSteps.length - 1; i++) {
         // Connect current step to next step
         connectedSteps[i].onSuccess = connectedSteps[i + 1].id;
-        logger.debug(`[WorkflowTool] Connected step ${connectedSteps[i].id} -> ${connectedSteps[i + 1].id}`);
+        logger.debug(
+          `[WorkflowTool] Connected step ${connectedSteps[i].id} -> ${connectedSteps[i + 1].id}`,
+        );
       }
-      
-      logger.info(`[WorkflowTool] Auto-connected workflow steps: ${connectedSteps.map(s => s.id).join(' -> ')}`);
+
+      logger.info(
+        `[WorkflowTool] Auto-connected workflow steps: ${connectedSteps.map((s) => s.id).join(' -> ')}`,
+      );
     } else {
       // Check for orphaned steps (steps that are not connected and not referenced by other steps)
       const referencedSteps = new Set();
-      steps.forEach(step => {
+      steps.forEach((step) => {
         if (step.onSuccess) referencedSteps.add(step.onSuccess);
         if (step.onFailure) referencedSteps.add(step.onFailure);
       });
 
-      const orphanedSteps = steps.filter(step => 
-        !step.onSuccess && !step.onFailure && !referencedSteps.has(step.id)
+      const orphanedSteps = steps.filter(
+        (step) => !step.onSuccess && !step.onFailure && !referencedSteps.has(step.id),
       );
 
       if (orphanedSteps.length > 0) {
-        logger.warn(`[WorkflowTool] Found ${orphanedSteps.length} orphaned steps: ${orphanedSteps.map(s => s.id).join(', ')}`);
-        
+        logger.warn(
+          `[WorkflowTool] Found ${orphanedSteps.length} orphaned steps: ${orphanedSteps.map((s) => s.id).join(', ')}`,
+        );
+
         // Try to connect orphaned steps to the workflow
         for (const orphan of orphanedSteps) {
           // Find a step that could connect to this orphan
-          const potentialPredecessor = connectedSteps.find(step => 
-            step.id !== orphan.id && !step.onSuccess && step !== orphan
+          const potentialPredecessor = connectedSteps.find(
+            (step) => step.id !== orphan.id && !step.onSuccess && step !== orphan,
           );
-          
+
           if (potentialPredecessor) {
             potentialPredecessor.onSuccess = orphan.id;
-            logger.info(`[WorkflowTool] Connected orphaned step: ${potentialPredecessor.id} -> ${orphan.id}`);
+            logger.info(
+              `[WorkflowTool] Connected orphaned step: ${potentialPredecessor.id} -> ${orphan.id}`,
+            );
           }
         }
       }

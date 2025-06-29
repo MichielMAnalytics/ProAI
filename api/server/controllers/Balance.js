@@ -5,11 +5,11 @@ async function balanceController(req, res) {
   try {
     // Check if client wants detailed balance info
     const detailed = req.query.detailed === 'true';
-    
+
     if (detailed) {
       // Return complete balance information including tier
       const balanceInfo = await BalanceService.getUserBalanceInfo(req.user.id);
-      
+
       res.status(200).json({
         balance: String(balanceInfo.tokenCredits),
         tier: balanceInfo.tier,
@@ -18,7 +18,7 @@ async function balanceController(req, res) {
         refillAmount: balanceInfo.refillAmount,
         refillIntervalValue: balanceInfo.refillIntervalValue,
         refillIntervalUnit: balanceInfo.refillIntervalUnit,
-        lastRefill: balanceInfo.lastRefill
+        lastRefill: balanceInfo.lastRefill,
       });
     } else {
       // Backward compatibility: return just balance as string

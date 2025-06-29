@@ -11,17 +11,17 @@ const { logger } = require('~/config');
 const sendSchedulerMessage = async (req, res) => {
   try {
     const { userId, conversationId, message, taskId, taskName } = req.body;
-    
+
     // Validate required fields
     if (!userId || !conversationId || !message) {
-      return res.status(400).json({ 
-        error: 'Missing required fields: userId, conversationId, message' 
+      return res.status(400).json({
+        error: 'Missing required fields: userId, conversationId, message',
       });
     }
-    
+
     // Verify the requesting user has permission (for now, allow any authenticated user)
     // In production, you might want to add additional authorization checks
-    
+
     // Create a system message from the scheduler
     const messageId = uuidv4();
     const systemMessage = {
@@ -39,60 +39,61 @@ const sendSchedulerMessage = async (req, res) => {
         taskId,
         taskName,
         source: 'scheduler',
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     };
-    
+
     // Save the message to the database
-    const savedMessage = await saveMessage(
-      req,
-      systemMessage,
-      { context: 'api/server/controllers/scheduler.js - sendSchedulerMessage' }
-    );
-    
+    const savedMessage = await saveMessage(req, systemMessage, {
+      context: 'api/server/controllers/scheduler.js - sendSchedulerMessage',
+    });
+
     // Get or create the conversation
     let conversation;
     try {
       conversation = await getConvo(userId, conversationId);
       if (!conversation) {
         // Create a new conversation if it doesn't exist
-        conversation = await saveConvo(req, {
-          conversationId,
-          title: `Scheduler: ${taskName || 'Task Result'}`,
-          user: userId,
-          endpoint: 'scheduler',
-          endpointType: 'scheduler'
-        }, { context: 'api/server/controllers/scheduler.js - sendSchedulerMessage' });
+        conversation = await saveConvo(
+          req,
+          {
+            conversationId,
+            title: `Scheduler: ${taskName || 'Task Result'}`,
+            user: userId,
+            endpoint: 'scheduler',
+            endpointType: 'scheduler',
+          },
+          { context: 'api/server/controllers/scheduler.js - sendSchedulerMessage' },
+        );
       }
     } catch (error) {
       logger.error('Error handling conversation for scheduler message:', error);
       // Continue even if conversation handling fails
       conversation = { conversationId, title: `Scheduler: ${taskName || 'Task Result'}` };
     }
-    
+
     // For now, we'll return success. In a full implementation, you would:
     // 1. Check if the user has an active SSE connection
     // 2. Send the message via SSE if they're online
     // 3. Store for later delivery if they're offline
-    
+
     logger.info(`Scheduler message sent to user ${userId} in conversation ${conversationId}`);
-    
+
     res.json({
       success: true,
       messageId: savedMessage.messageId,
       conversationId: savedMessage.conversationId,
-      message: 'Message delivered successfully'
+      message: 'Message delivered successfully',
     });
-    
   } catch (error) {
     logger.error('Error sending scheduler message:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to send scheduler message',
-      details: error.message 
+      details: error.message,
     });
   }
 };
 
 module.exports = {
-  sendSchedulerMessage
-}; 
+  sendSchedulerMessage,
+};

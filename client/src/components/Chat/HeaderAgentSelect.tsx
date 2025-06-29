@@ -44,8 +44,8 @@ export default function HeaderAgentSelect() {
   // Skip if conversation is new (let useNewConvo handle agent restoration)
   useEffect(() => {
     if (
-      conversation?.endpoint === 'agents' && 
-      !currentAgentId && 
+      conversation?.endpoint === 'agents' &&
+      !currentAgentId &&
       agents.length > 0 &&
       conversation?.conversationId !== 'new'
     ) {
@@ -56,7 +56,14 @@ export default function HeaderAgentSelect() {
         handleSelectAgent(agents[0].id);
       }
     }
-  }, [currentAgentId, agents, conversation?.endpoint, conversation?.conversationId, handleSelectAgent, index]);
+  }, [
+    currentAgentId,
+    agents,
+    conversation?.endpoint,
+    conversation?.conversationId,
+    handleSelectAgent,
+    index,
+  ]);
 
   const agentItems = useMemo(
     () =>
@@ -126,4 +133,4 @@ export default function HeaderAgentSelect() {
       />
     </div>
   );
-} 
+}

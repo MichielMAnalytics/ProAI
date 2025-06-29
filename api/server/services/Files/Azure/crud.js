@@ -7,7 +7,8 @@ const { logger } = require('~/config');
 const { getAzureContainerClient } = require('./initialize');
 
 const defaultBasePath = 'images';
-const { AZURE_STORAGE_PUBLIC_ACCESS = 'true', AZURE_STORAGE_CONTAINER_NAME = 'files' } = process.env;
+const { AZURE_STORAGE_PUBLIC_ACCESS = 'true', AZURE_STORAGE_CONTAINER_NAME = 'files' } =
+  process.env;
 
 /**
  * Uploads a buffer to Azure Blob Storage.

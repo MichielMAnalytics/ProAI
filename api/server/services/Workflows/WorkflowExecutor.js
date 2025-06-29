@@ -33,9 +33,9 @@ function extractMeaningfulContent(result) {
   if (result.content && Array.isArray(result.content)) {
     // Extract text content from agent response content array
     const textParts = result.content
-      .filter(part => part.type === 'text' && part.text && part.text.trim())
-      .map(part => part.text.trim());
-    
+      .filter((part) => part.type === 'text' && part.text && part.text.trim())
+      .map((part) => part.text.trim());
+
     if (textParts.length > 0) {
       return textParts.join('\n').trim();
     }
@@ -55,22 +55,26 @@ function extractMeaningfulContent(result) {
       // Try to extract text from nested agent response content
       if (result.agentResponse.content && Array.isArray(result.agentResponse.content)) {
         const textParts = result.agentResponse.content
-          .filter(part => part.type === 'text' && part.text && part.text.trim())
-          .map(part => part.text.trim());
-        
+          .filter((part) => part.type === 'text' && part.text && part.text.trim())
+          .map((part) => part.text.trim());
+
         if (textParts.length > 0) {
           return textParts.join('\n').trim();
         }
       }
-      
+
       // Check for direct text in agent response
-      if (result.agentResponse.text && typeof result.agentResponse.text === 'string' && result.agentResponse.text.trim()) {
+      if (
+        result.agentResponse.text &&
+        typeof result.agentResponse.text === 'string' &&
+        result.agentResponse.text.trim()
+      ) {
         return result.agentResponse.text.trim();
       }
-      
+
       // Check for message content in agent response
       if (result.agentResponse.content && typeof result.agentResponse.content === 'string') {
-      return result.agentResponse.content;
+        return result.agentResponse.content;
       }
     }
   }
@@ -78,7 +82,7 @@ function extractMeaningfulContent(result) {
   // Check for tool results
   if (result.toolResults && Array.isArray(result.toolResults)) {
     const meaningfulResults = result.toolResults
-      .map(tool => {
+      .map((tool) => {
         if (tool.result && typeof tool.result === 'string') {
           return `Tool "${tool.name || 'unknown'}": ${tool.result}`;
         }
@@ -92,7 +96,7 @@ function extractMeaningfulContent(result) {
         return null;
       })
       .filter(Boolean);
-    
+
     if (meaningfulResults.length > 0) {
       return meaningfulResults.join('\n');
     }
@@ -162,10 +166,10 @@ class WorkflowExecutor {
     if (WorkflowExecutor.instance) {
       return WorkflowExecutor.instance;
     }
-    
+
     this.runningExecutions = new Map(); // Track running executions
     this.mcpInitialized = new Map(); // Track MCP initialization per user
-    
+
     WorkflowExecutor.instance = this;
   }
 
@@ -199,12 +203,12 @@ class WorkflowExecutor {
 
       const availableTools = {};
       const mcpToolRegistry = new Map(); // Create MCP tool registry for workflow execution
-      
+
       const mcpResult = await mcpInitializer.ensureUserMCPReady(
         userId,
         'WorkflowExecutor',
         availableTools,
-        { mcpToolRegistry } // Pass the MCP tool registry
+        { mcpToolRegistry }, // Pass the MCP tool registry
       );
 
       // Store the result
@@ -271,7 +275,7 @@ class WorkflowExecutor {
 
       // Create cancellation controller for this execution
       const abortController = new AbortController();
-      
+
       // Track this execution with cancellation support
       this.runningExecutions.set(executionId, {
         workflowId,
@@ -314,17 +318,18 @@ class WorkflowExecutor {
 
       // Extract workflow name for metadata
       const workflowName = workflow.name?.replace(/^Workflow:\s*/, '') || 'Unnamed Workflow';
-      
+
       // Initialize metadata with isTest flag and workflow info
       const executionMetadata = {
         isTest: context.isTest || false,
         workflowName,
-        steps: workflow.steps?.map(step => ({
-          id: step.id,
-          name: step.name,
-          type: step.type,
-          status: 'pending'
-        })) || []
+        steps:
+          workflow.steps?.map((step) => ({
+            id: step.id,
+            name: step.name,
+            type: step.type,
+            status: 'pending',
+          })) || [],
       };
 
       // Update execution record with serializable context and metadata
@@ -343,7 +348,14 @@ class WorkflowExecutor {
       }
 
       // Execute steps starting from the first step
-      const result = await this.executeStepChain(workflow, execution, firstStep.id, executionContext, executionMetadata, stepMessages);
+      const result = await this.executeStepChain(
+        workflow,
+        execution,
+        firstStep.id,
+        executionContext,
+        executionMetadata,
+        stepMessages,
+      );
 
       // Clean up tracking
       this.runningExecutions.delete(executionId);
@@ -398,12 +410,16 @@ class WorkflowExecutor {
       // Check if execution has been cancelled
       const executionData = this.runningExecutions.get(execution.id);
       if (!executionData) {
-        logger.info(`[WorkflowExecutor] Execution ${execution.id} was stopped, terminating workflow`);
+        logger.info(
+          `[WorkflowExecutor] Execution ${execution.id} was stopped, terminating workflow`,
+        );
         throw new Error('Execution was cancelled by user');
       }
-      
+
       if (executionData.abortController && executionData.abortController.signal.aborted) {
-        logger.info(`[WorkflowExecutor] Execution ${execution.id} was aborted, terminating workflow`);
+        logger.info(
+          `[WorkflowExecutor] Execution ${execution.id} was aborted, terminating workflow`,
+        );
         throw new Error('Execution was cancelled by user');
       }
 
@@ -415,11 +431,11 @@ class WorkflowExecutor {
       logger.info(`[WorkflowExecutor] Executing step: ${step.name} (${step.type})`);
 
       // Update step status to running in metadata
-      const stepMetadata = metadata.steps.find(s => s.id === step.id);
+      const stepMetadata = metadata.steps.find((s) => s.id === step.id);
       if (stepMetadata) {
         stepMetadata.status = 'running';
         stepMetadata.startTime = new Date();
-        
+
         // Update execution with current step status
         await updateSchedulerExecution(execution.id, execution.user, {
           metadata: { ...metadata },
@@ -431,53 +447,59 @@ class WorkflowExecutor {
       if (stepMessages.length > 0) {
         // Convert accumulated step messages into a buffer string for the next step
         const bufferString = getBufferString(stepMessages);
-        
+
         // Add the buffer string as context for the current step
         stepInput = {
           ...context,
           previousStepsOutput: bufferString,
-          steps: context.steps // Keep the structured step results for metadata
+          steps: context.steps, // Keep the structured step results for metadata
         };
-        
+
         logger.debug(
           `[WorkflowExecutor] Passing accumulated output to step ${step.name}: ${bufferString.substring(0, 200)}...`,
         );
       }
 
       // Execute the current step (each step gets a fresh agent)
-      const stepResult = await executeStep(workflow, execution, step, stepInput, executionData.abortController?.signal);
+      const stepResult = await executeStep(
+        workflow,
+        execution,
+        step,
+        stepInput,
+        executionData.abortController?.signal,
+      );
 
       // Add step result to messages array for next step and capture meaningful output
       let meaningfulOutput = '';
       if (stepResult.success && stepResult.result) {
         // First, try to extract meaningful content for both buffer and display
         meaningfulOutput = extractMeaningfulContent(stepResult.result);
-        
+
         // If we found meaningful content, use it for the buffer string
         if (meaningfulOutput) {
           // Create a HumanMessage with the meaningful content for the next step
           stepMessages.push(new HumanMessage(`Step "${step.name}" result: ${meaningfulOutput}`));
-          
+
           logger.debug(
             `[WorkflowExecutor] Added meaningful step result to message chain: ${meaningfulOutput.substring(0, 200)}...`,
           );
         } else {
           // Fallback to raw result if no meaningful content can be extracted
           let resultText = '';
-        if (typeof stepResult.result === 'string') {
-          resultText = stepResult.result;
+          if (typeof stepResult.result === 'string') {
+            resultText = stepResult.result;
             meaningfulOutput = resultText;
           } else {
             resultText = JSON.stringify(stepResult.result, null, 2);
             meaningfulOutput = resultText;
-        }
-        
+          }
+
           // Create a HumanMessage with the fallback result for the next step
-        stepMessages.push(new HumanMessage(`Step "${step.name}" result: ${resultText}`));
-        
-        logger.debug(
+          stepMessages.push(new HumanMessage(`Step "${step.name}" result: ${resultText}`));
+
+          logger.debug(
             `[WorkflowExecutor] Added fallback step result to message chain: ${resultText.substring(0, 200)}...`,
-        );
+          );
         }
       }
 
@@ -485,7 +507,7 @@ class WorkflowExecutor {
       if (stepMetadata) {
         stepMetadata.status = stepResult.success ? 'completed' : 'failed';
         stepMetadata.endTime = new Date();
-        
+
         // Store meaningful output instead of technical metadata
         if (meaningfulOutput) {
           stepMetadata.output = meaningfulOutput;
@@ -495,11 +517,11 @@ class WorkflowExecutor {
           // Fallback to technical metadata if no meaningful content can be extracted
           stepMetadata.output = JSON.stringify(stepResult.result, null, 2);
         }
-        
+
         if (stepResult.error) {
           stepMetadata.error = stepResult.error;
         }
-        
+
         // Update execution with step results
         await updateSchedulerExecution(execution.id, execution.user, {
           metadata: { ...metadata },
@@ -555,12 +577,12 @@ class WorkflowExecutor {
     }
 
     executionResult.result = accumulatedStepResults;
-    
+
     // Create a final summary using the buffer string approach
     if (stepMessages.length > 0) {
       const finalSummary = getBufferString(stepMessages);
       executionResult.finalOutput = finalSummary;
-      
+
       // Update execution record with final summary
       await updateSchedulerExecution(execution.id, execution.user, {
         status: executionResult.success ? 'completed' : 'failed',
@@ -574,7 +596,7 @@ class WorkflowExecutor {
         endTime: new Date(),
       });
     }
-    
+
     return executionResult;
   }
 
@@ -609,41 +631,45 @@ class WorkflowExecutor {
    */
   async stopWorkflowExecutions(workflowId, userId) {
     let stopped = false;
-    
+
     for (const [executionId, data] of this.runningExecutions.entries()) {
       if (data.workflowId === workflowId) {
-        logger.info(`[WorkflowExecutor] Stopping execution ${executionId} for workflow ${workflowId}`);
-        
+        logger.info(
+          `[WorkflowExecutor] Stopping execution ${executionId} for workflow ${workflowId}`,
+        );
+
         // Signal cancellation to abort the execution
         if (data.abortController) {
           data.abortController.abort('Execution stopped by user');
           logger.info(`[WorkflowExecutor] Sent abort signal to execution ${executionId}`);
         }
-        
+
         // Remove from running executions
         this.runningExecutions.delete(executionId);
-        
+
         // Update execution status
         try {
           await updateSchedulerExecution(executionId, userId, {
             status: 'cancelled',
             endTime: new Date(),
-            error: 'Execution stopped by user'
+            error: 'Execution stopped by user',
           });
         } catch (error) {
-          logger.warn(`[WorkflowExecutor] Failed to update execution status for ${executionId}: ${error.message}`);
+          logger.warn(
+            `[WorkflowExecutor] Failed to update execution status for ${executionId}: ${error.message}`,
+          );
         }
-        
+
         stopped = true;
       }
     }
-    
+
     if (stopped) {
       logger.info(`[WorkflowExecutor] Stopped executions for workflow ${workflowId}`);
     } else {
       logger.info(`[WorkflowExecutor] No running executions found for workflow ${workflowId}`);
     }
-    
+
     return stopped;
   }
 
@@ -659,4 +685,4 @@ class WorkflowExecutor {
   }
 }
 
-module.exports = WorkflowExecutor; 
+module.exports = WorkflowExecutor;

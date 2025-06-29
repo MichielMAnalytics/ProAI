@@ -83,25 +83,25 @@ router.post('/enhance-profile', requireJwtAuth, async (req, res) => {
     const userId = req.user.id;
 
     if (!detectedTimezone) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'Detected timezone is required',
-        success: false 
+        success: false,
       });
     }
 
     // Auto-set timezone for user
     await autoSetUserTimezone(userId, detectedTimezone);
-    
-    res.status(200).json({ 
+
+    res.status(200).json({
       message: 'Profile enhanced successfully',
-      success: true
+      success: true,
     });
   } catch (error) {
     logger.error('[AuthRoute] Error enhancing user profile:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Failed to enhance profile',
       success: false,
-      error: error.message
+      error: error.message,
     });
   }
 });

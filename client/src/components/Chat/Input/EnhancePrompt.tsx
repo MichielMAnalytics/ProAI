@@ -14,7 +14,13 @@ interface EnhancePromptProps {
   hasText?: boolean;
 }
 
-export default function EnhancePrompt({ textAreaRef, methods, disabled = false, className, hasText = false }: EnhancePromptProps) {
+export default function EnhancePrompt({
+  textAreaRef,
+  methods,
+  disabled = false,
+  className,
+  hasText = false,
+}: EnhancePromptProps) {
   const localize = useLocalize();
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isSparklingIntro, setIsSparklingIntro] = useState(false);
@@ -26,19 +32,19 @@ export default function EnhancePrompt({ textAreaRef, methods, disabled = false, 
     if (hasText && !disabled && !hasShownIntro) {
       setIsSparklingIntro(true);
       setHasShownIntro(true);
-      
+
       // Clear any existing timeout
       if (sparkleTimeoutRef.current) {
         clearTimeout(sparkleTimeoutRef.current);
       }
-      
+
       // Set new timeout
       sparkleTimeoutRef.current = setTimeout(() => {
         setIsSparklingIntro(false);
         sparkleTimeoutRef.current = null;
       }, 2000); // 2 seconds
     }
-    
+
     // Reset when text is cleared
     if (!hasText) {
       setHasShownIntro(false);
@@ -74,12 +80,12 @@ export default function EnhancePrompt({ textAreaRef, methods, disabled = false, 
       const response = await dataService.enhanceMessage(currentText);
       if (response.enhancedMessage) {
         // Update form state using React Hook Form's setValue
-        methods.setValue('text', response.enhancedMessage, { 
+        methods.setValue('text', response.enhancedMessage, {
           shouldValidate: true,
           shouldDirty: true,
-          shouldTouch: true 
+          shouldTouch: true,
         });
-        
+
         // Force textarea resize
         if (textAreaRef.current) {
           textAreaRef.current.style.height = 'auto';
@@ -93,7 +99,7 @@ export default function EnhancePrompt({ textAreaRef, methods, disabled = false, 
     }
   };
 
-  const tooltipDescription = isEnhancing 
+  const tooltipDescription = isEnhancing
     ? localize('com_ui_enhancing')
     : localize('com_ui_enhance_prompt');
 
@@ -103,8 +109,8 @@ export default function EnhancePrompt({ textAreaRef, methods, disabled = false, 
       side="top"
       role="button"
       className={cn(
-        'flex h-[40px] w-[40px] items-center justify-center transition-all duration-200 hover:opacity-80 rounded-md',
-        disabled && 'opacity-50 cursor-not-allowed',
+        'flex h-[40px] w-[40px] items-center justify-center rounded-md transition-all duration-200 hover:opacity-80',
+        disabled && 'cursor-not-allowed opacity-50',
         className,
       )}
       onClick={handleEnhance}
@@ -113,13 +119,13 @@ export default function EnhancePrompt({ textAreaRef, methods, disabled = false, 
       <Sparkles
         className={cn(
           'h-6 w-6 transition-all duration-200',
-          isEnhancing 
-            ? 'text-yellow-500 animate-pulse [&>*]:fill-current'
+          isEnhancing
+            ? 'animate-pulse text-yellow-500 [&>*]:fill-current'
             : isSparklingIntro
-            ? 'text-yellow-500 animate-bounce [&>*]:fill-current'
-            : disabled
-            ? 'text-text-secondary'
-            : 'text-text-secondary hover:text-yellow-500'
+              ? 'animate-bounce text-yellow-500 [&>*]:fill-current'
+              : disabled
+                ? 'text-text-secondary'
+                : 'text-text-secondary hover:text-yellow-500',
         )}
       />
     </TooltipAnchor>

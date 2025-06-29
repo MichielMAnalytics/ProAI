@@ -159,13 +159,16 @@ export default function AgentPanel({
     onSuccess: ({ agent, mcp_servers_needed }) => {
       // Switch to the new duplicated agent
       setCurrentAgentId(agent.id);
-      
+
       // Log MCP servers that might need to be connected for user awareness
       if (mcp_servers_needed && mcp_servers_needed.length > 0) {
-        console.log('[Agent Duplication] MCP servers that may need to be connected:', mcp_servers_needed);
+        console.log(
+          '[Agent Duplication] MCP servers that may need to be connected:',
+          mcp_servers_needed,
+        );
         // Future: Could show a toast or modal directing user to integrations page
       }
-      
+
       showToast({
         message: localize('com_ui_agent_duplicated'),
         status: 'success',
@@ -223,7 +226,8 @@ export default function AgentPanel({
         // Check if this is a shared collaborative agent that needs to be duplicated
         const agent = agentQuery.data;
         const { instanceProjectId } = startupConfig ?? {};
-        const isSharedGlobal = instanceProjectId && (agent?.projectIds ?? []).includes(instanceProjectId);
+        const isSharedGlobal =
+          instanceProjectId && (agent?.projectIds ?? []).includes(instanceProjectId);
         const isCollaborative = agent?.isCollaborative ?? false;
         const isUserOwner = agent?.author === user?.id;
         const isAdmin = user?.role === SystemRoles.ADMIN;
@@ -311,7 +315,18 @@ export default function AgentPanel({
         recursion_limit,
       });
     },
-    [agent_id, agentQuery.data, startupConfig, user?.id, user?.role, duplicateAgent, update, create, showToast, localize],
+    [
+      agent_id,
+      agentQuery.data,
+      startupConfig,
+      user?.id,
+      user?.role,
+      duplicateAgent,
+      update,
+      create,
+      showToast,
+      localize,
+    ],
   );
 
   const handleSelectAgent = useCallback(() => {

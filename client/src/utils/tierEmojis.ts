@@ -10,7 +10,7 @@
  */
 export const getTierEmoji = (tierName: string, tier: string): string => {
   const tierLower = tier?.toLowerCase();
-  
+
   switch (tierLower) {
     case 'free':
       return '🍼';
@@ -30,7 +30,7 @@ export const TIER_EMOJIS = {
   FREE: '🍼',
   PRO: '🚀',
   MAX: '👑',
-  DEFAULT: '✨'
+  DEFAULT: '✨',
 } as const;
 
 /**
@@ -40,7 +40,7 @@ export const TIER_EMOJIS = {
  */
 export const getTierEmojiByName = (tierName: string): string => {
   const tierLower = tierName?.toLowerCase();
-  
+
   switch (tierLower) {
     case 'free':
       return TIER_EMOJIS.FREE;
@@ -51,4 +51,4 @@ export const getTierEmojiByName = (tierName: string): string => {
     default:
       return TIER_EMOJIS.DEFAULT;
   }
-}; 
+};

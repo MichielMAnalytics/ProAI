@@ -98,7 +98,7 @@ describe('Timezone Utilities', () => {
     it('should fallback to UTC for invalid inputs', () => {
       expect(sanitizeTimezone('invalid_timezone')).toBe('UTC');
       expect(mockConsoleWarn).toHaveBeenCalledWith(
-        'Could not sanitize timezone "invalid_timezone", using UTC'
+        'Could not sanitize timezone "invalid_timezone", using UTC',
       );
     });
   });
@@ -117,7 +117,7 @@ describe('Timezone Utilities', () => {
 
     it('should have proper structure for each option', () => {
       const timezones = getPopularTimezones();
-      timezones.forEach(tz => {
+      timezones.forEach((tz) => {
         expect(tz).toHaveProperty('value');
         expect(tz).toHaveProperty('label');
         expect(tz).toHaveProperty('offset');
@@ -157,7 +157,7 @@ describe('Timezone Utilities', () => {
       expect(offset).toBe('GMT+0');
       expect(mockConsoleWarn).toHaveBeenCalledWith(
         'Failed to get offset for timezone invalid_timezone:',
-        expect.any(Error)
+        expect.any(Error),
       );
     });
   });
@@ -167,10 +167,10 @@ describe('Timezone Integration', () => {
   it('should handle complete timezone detection and validation flow', () => {
     const detected = getDetectedTimezone();
     expect(isValidTimezone(detected)).toBe(true);
-    
+
     const sanitized = sanitizeTimezone(detected);
     expect(isValidTimezone(sanitized)).toBe(true);
-    
+
     const label = formatTimezoneLabel(sanitized);
     expect(typeof label).toBe('string');
     expect(label.length).toBeGreaterThan(0);
@@ -178,7 +178,7 @@ describe('Timezone Integration', () => {
 
   it('should provide consistent timezone options', () => {
     const options = getPopularTimezones();
-    options.forEach(option => {
+    options.forEach((option) => {
       expect(isValidTimezone(option.value)).toBe(true);
       expect(option.label.length).toBeGreaterThan(0);
       expect(option.offset.length).toBeGreaterThan(0);

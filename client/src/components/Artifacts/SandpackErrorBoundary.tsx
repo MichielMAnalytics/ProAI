@@ -41,15 +41,13 @@ class SandpackErrorBoundary extends React.Component<
       }
 
       return (
-        <div className="flex items-center justify-center h-96 bg-gray-50 border border-gray-200 rounded-lg">
-          <div className="text-center max-w-md p-6">
-            <div className="text-lg font-medium text-red-600 mb-2">
-              Rendering Error
-            </div>
-            <div className="text-sm text-gray-600 mb-4">
+        <div className="flex h-96 items-center justify-center rounded-lg border border-gray-200 bg-gray-50">
+          <div className="max-w-md p-6 text-center">
+            <div className="mb-2 text-lg font-medium text-red-600">Rendering Error</div>
+            <div className="mb-4 text-sm text-gray-600">
               The artifact failed to render. This might be due to:
             </div>
-            <ul className="text-xs text-gray-500 text-left mb-6 space-y-1">
+            <ul className="mb-6 space-y-1 text-left text-xs text-gray-500">
               <li>• Network connectivity issues</li>
               <li>• Sandpack bundler timeout</li>
               <li>• Invalid code or dependencies</li>
@@ -58,7 +56,7 @@ class SandpackErrorBoundary extends React.Component<
             <div className="space-y-2">
               <button
                 onClick={this.reset}
-                className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                className="rounded bg-blue-600 px-4 py-2 text-sm text-white transition-colors hover:bg-blue-700"
               >
                 Try Again
               </button>
@@ -68,10 +66,10 @@ class SandpackErrorBoundary extends React.Component<
             </div>
             {this.state.error && (
               <details className="mt-4 text-left">
-                <summary className="text-xs text-gray-500 cursor-pointer">
+                <summary className="cursor-pointer text-xs text-gray-500">
                   Show Error Details
                 </summary>
-                <pre className="text-xs text-red-600 mt-2 p-2 bg-red-50 rounded overflow-auto max-h-32">
+                <pre className="mt-2 max-h-32 overflow-auto rounded bg-red-50 p-2 text-xs text-red-600">
                   {this.state.error.message}
                   {this.state.error.stack && `\n${this.state.error.stack}`}
                 </pre>

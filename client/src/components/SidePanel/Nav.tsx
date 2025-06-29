@@ -19,7 +19,7 @@ export default function Nav({ links, isCollapsed, resize, defaultActive }: NavPr
   return (
     <div
       data-collapsed={isCollapsed}
-      className="bg-surface-primary-alt hide-scrollbar group flex-shrink-0 overflow-x-hidden"
+      className="hide-scrollbar group flex-shrink-0 overflow-x-hidden bg-surface-primary-alt"
     >
       <div className="h-full">
         <div className="flex h-full min-h-0 flex-col">

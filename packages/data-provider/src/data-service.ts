@@ -421,7 +421,11 @@ export const updateAgent = ({
 
 export const duplicateAgent = ({
   agent_id,
-}: m.DuplicateAgentBody): Promise<{ agent: a.Agent; actions: a.Action[]; mcp_servers_needed?: string[] }> => {
+}: m.DuplicateAgentBody): Promise<{
+  agent: a.Agent;
+  actions: a.Action[];
+  mcp_servers_needed?: string[];
+}> => {
   return request.post(
     endpoints.agents({
       path: `${agent_id}/duplicate`,
@@ -825,11 +829,15 @@ export function getUserIntegrations(): Promise<t.TUserIntegration[]> {
   return request.get(endpoints.userIntegrations());
 }
 
-export function createConnectToken(payload: t.TCreateConnectTokenRequest): Promise<t.TCreateConnectTokenResponse> {
+export function createConnectToken(
+  payload: t.TCreateConnectTokenRequest,
+): Promise<t.TCreateConnectTokenResponse> {
   return request.post(endpoints.createConnectToken(), payload);
 }
 
-export function handleIntegrationCallback(payload: t.TIntegrationCallbackRequest): Promise<t.TIntegrationCallbackResponse> {
+export function handleIntegrationCallback(
+  payload: t.TIntegrationCallbackRequest,
+): Promise<t.TIntegrationCallbackResponse> {
   return request.post(endpoints.integrationCallback(), payload);
 }
 
@@ -849,7 +857,9 @@ export function getAppComponents(appSlug: string, type?: string): Promise<t.TApp
   return request.get(endpoints.appComponents(appSlug, type));
 }
 
-export function configureComponent(payload: t.TConfigureComponentRequest): Promise<t.TConfigureComponentResponse> {
+export function configureComponent(
+  payload: t.TConfigureComponentRequest,
+): Promise<t.TConfigureComponentResponse> {
   return request.post(endpoints.configureComponent(), payload);
 }
 
@@ -863,11 +873,19 @@ export function deployTrigger(payload: t.TDeployTriggerRequest): Promise<t.TDepl
 
 /* User MCP */
 
-export function getUserMCPStatus(): Promise<{ enabled: boolean; hasUserMCPServers: boolean; userId: string }> {
+export function getUserMCPStatus(): Promise<{
+  enabled: boolean;
+  hasUserMCPServers: boolean;
+  userId: string;
+}> {
   return request.get(endpoints.userMCPStatus());
 }
 
-export function refreshUserMCP(): Promise<{ success: boolean; message: string; mcpServers: string[] }> {
+export function refreshUserMCP(): Promise<{
+  success: boolean;
+  message: string;
+  mcpServers: string[];
+}> {
   return request.post(endpoints.refreshUserMCP());
 }
 
@@ -897,7 +915,10 @@ export function getSchedulerTask(taskId: string): Promise<t.TSchedulerTask> {
   return request.get(endpoints.schedulerTask(taskId)).then((response: any) => response.task);
 }
 
-export function updateSchedulerTask(taskId: string, data: Partial<t.TSchedulerTask>): Promise<t.TSchedulerTask> {
+export function updateSchedulerTask(
+  taskId: string,
+  data: Partial<t.TSchedulerTask>,
+): Promise<t.TSchedulerTask> {
   return request.put(endpoints.schedulerTask(taskId), data).then((response: any) => response.task);
 }
 
@@ -907,16 +928,22 @@ export function deleteSchedulerTask(taskId: string): Promise<void> {
 
 export function toggleSchedulerTask(taskId: string, enabled: boolean): Promise<t.TSchedulerTask> {
   const action = enabled ? 'enable' : 'disable';
-  return request.post(endpoints.schedulerTaskAction(taskId, action)).then((response: any) => response.task);
+  return request
+    .post(endpoints.schedulerTaskAction(taskId, action))
+    .then((response: any) => response.task);
 }
 
 /* Scheduler Executions */
 export function getSchedulerExecutions(taskId?: string): Promise<t.TSchedulerExecution[]> {
-  return request.get(endpoints.schedulerExecutions(taskId)).then((response: any) => response.executions || []);
+  return request
+    .get(endpoints.schedulerExecutions(taskId))
+    .then((response: any) => response.executions || []);
 }
 
 export function getSchedulerExecution(executionId: string): Promise<t.TSchedulerExecution> {
-  return request.get(endpoints.schedulerExecution(executionId)).then((response: any) => response.execution);
+  return request
+    .get(endpoints.schedulerExecution(executionId))
+    .then((response: any) => response.execution);
 }
 
 /* Workflows */
@@ -932,8 +959,13 @@ export function createWorkflow(data: Partial<t.TUserWorkflow>): Promise<t.TUserW
   return request.post(endpoints.workflows(), data).then((response: any) => response.workflow);
 }
 
-export function updateWorkflow(workflowId: string, data: Partial<t.TUserWorkflow>): Promise<t.TUserWorkflow> {
-  return request.put(endpoints.workflow(workflowId), data).then((response: any) => response.workflow);
+export function updateWorkflow(
+  workflowId: string,
+  data: Partial<t.TUserWorkflow>,
+): Promise<t.TUserWorkflow> {
+  return request
+    .put(endpoints.workflow(workflowId), data)
+    .then((response: any) => response.workflow);
 }
 
 export function deleteWorkflow(workflowId: string): Promise<void> {
@@ -942,11 +974,15 @@ export function deleteWorkflow(workflowId: string): Promise<void> {
 
 export function toggleWorkflow(workflowId: string, isActive: boolean): Promise<t.TUserWorkflow> {
   const action = isActive ? 'activate' : 'deactivate';
-  return request.post(endpoints.workflowAction(workflowId, action)).then((response: any) => response.workflow);
+  return request
+    .post(endpoints.workflowAction(workflowId, action))
+    .then((response: any) => response.workflow);
 }
 
 export function testWorkflow(workflowId: string): Promise<t.TWorkflowExecution> {
-  return request.post(endpoints.workflowTest(workflowId)).then((response: any) => response.execution);
+  return request
+    .post(endpoints.workflowTest(workflowId))
+    .then((response: any) => response.execution);
 }
 
 export function stopWorkflow(workflowId: string): Promise<void> {
@@ -954,11 +990,18 @@ export function stopWorkflow(workflowId: string): Promise<void> {
 }
 
 export function getWorkflowExecutions(workflowId: string): Promise<t.TWorkflowExecution[]> {
-  return request.get(endpoints.workflowExecutions(workflowId)).then((response: any) => response.executions || []);
+  return request
+    .get(endpoints.workflowExecutions(workflowId))
+    .then((response: any) => response.executions || []);
 }
 
-export function getWorkflowExecution(workflowId: string, executionId: string): Promise<t.TWorkflowExecution> {
-  return request.get(endpoints.workflowExecution(workflowId, executionId)).then((response: any) => response.execution);
+export function getWorkflowExecution(
+  workflowId: string,
+  executionId: string,
+): Promise<t.TWorkflowExecution> {
+  return request
+    .get(endpoints.workflowExecution(workflowId, executionId))
+    .then((response: any) => response.execution);
 }
 
 /* Memories */

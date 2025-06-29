@@ -24,4 +24,4 @@ const WorkflowsPanel = () => {
   return <WorkflowsTable workflows={workflows || []} />;
 };
 
-export default WorkflowsPanel; 
+export default WorkflowsPanel;

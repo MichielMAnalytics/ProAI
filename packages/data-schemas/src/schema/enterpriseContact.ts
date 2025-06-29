@@ -9,18 +9,18 @@ export interface IEnterpriseContact extends Document {
   workEmail: string;
   phoneNumber?: string;
   companyWebsite?: string;
-  
+
   // Step 2: Additional questions
   problemToSolve?: string;
   endUsersCount?: string;
   currentTools?: string;
   useCases: string[];
   complianceNeeds: string[];
-  
+
   // Step 3: Additional information
   timeline?: string;
   additionalInfo?: string;
-  
+
   // System fields
   status: 'new' | 'contacted' | 'qualified' | 'closed';
   contactedAt?: Date;
@@ -52,7 +52,7 @@ const enterpriseContactSchema = new Schema<IEnterpriseContact>(
       trim: true,
       lowercase: true,
       validate: {
-        validator: function(email: string) {
+        validator: function (email: string) {
           return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
         },
         message: 'Please enter a valid email address',
@@ -66,7 +66,7 @@ const enterpriseContactSchema = new Schema<IEnterpriseContact>(
       type: String,
       trim: true,
     },
-    
+
     // Step 2: Additional questions
     problemToSolve: {
       type: String,
@@ -80,30 +80,28 @@ const enterpriseContactSchema = new Schema<IEnterpriseContact>(
       type: String,
       trim: true,
     },
-    useCases: [{
-      type: String,
-      enum: [
-        'Product Prototype Development',
-        'Internal Tool Building',
-        'Customer Portal Creation',
-        'MVP Development',
-        'UI/UX Prototyping',
-        'Custom Web Applications',
-        'SaaS Product Development',
-        'Other',
-      ],
-    }],
-    complianceNeeds: [{
-      type: String,
-      enum: [
-        'SOC 2',
-        'HIPAA',
-        'GDPR',
-        'On-prem hosting',
-        'None / Unsure',
-      ],
-    }],
-    
+    useCases: [
+      {
+        type: String,
+        enum: [
+          'Product Prototype Development',
+          'Internal Tool Building',
+          'Customer Portal Creation',
+          'MVP Development',
+          'UI/UX Prototyping',
+          'Custom Web Applications',
+          'SaaS Product Development',
+          'Other',
+        ],
+      },
+    ],
+    complianceNeeds: [
+      {
+        type: String,
+        enum: ['SOC 2', 'HIPAA', 'GDPR', 'On-prem hosting', 'None / Unsure'],
+      },
+    ],
+
     // Step 3: Additional information
     timeline: {
       type: String,
@@ -120,7 +118,7 @@ const enterpriseContactSchema = new Schema<IEnterpriseContact>(
       type: String,
       trim: true,
     },
-    
+
     // System fields
     status: {
       type: String,
@@ -135,7 +133,7 @@ const enterpriseContactSchema = new Schema<IEnterpriseContact>(
       trim: true,
     },
   },
-  { 
+  {
     timestamps: true,
     collection: 'enterprisecontacts',
   },
@@ -154,4 +152,4 @@ enterpriseContactSchema.index({ workEmail: 1 });
 enterpriseContactSchema.index({ status: 1 });
 enterpriseContactSchema.index({ createdAt: -1 });
 
-export default enterpriseContactSchema; 
+export default enterpriseContactSchema;

@@ -46,7 +46,7 @@ export default function AssistantTool({
 
   // Handle disconnected tools
   const isDisconnected = !currentTool;
-  const toolName = isDisconnected 
+  const toolName = isDisconnected
     ? tool.charAt(0).toUpperCase() + tool.slice(1).replace(/_/g, ' ').replace(/-/g, ' ')
     : currentTool.name;
 
@@ -54,9 +54,9 @@ export default function AssistantTool({
     <OGDialog>
       <div
         className={cn(
-          'flex w-full items-center rounded-lg text-sm border',
-          isDisconnected 
-            ? 'border-orange-300 bg-orange-50 dark:bg-orange-900/20 dark:border-orange-600/50'
+          'flex w-full items-center rounded-lg border text-sm',
+          isDisconnected
+            ? 'border-orange-300 bg-orange-50 dark:border-orange-600/50 dark:bg-orange-900/20'
             : 'border-transparent',
           !assistant_id ? 'opacity-40' : '',
         )}
@@ -80,13 +80,13 @@ export default function AssistantTool({
           ) : null}
           <div
             className={cn(
-              "h-9 grow px-3 py-2",
-              isDisconnected ? "text-orange-700 dark:text-orange-300" : "text-text-primary"
+              'h-9 grow px-3 py-2',
+              isDisconnected ? 'text-orange-700 dark:text-orange-300' : 'text-text-primary',
             )}
             style={{ textOverflow: 'ellipsis', wordBreak: 'break-all', overflow: 'hidden' }}
           >
             {toolName}
-            {isDisconnected && <span className="text-xs ml-1">(Disconnected)</span>}
+            {isDisconnected && <span className="ml-1 text-xs">(Disconnected)</span>}
           </div>
         </div>
 
@@ -107,10 +107,9 @@ export default function AssistantTool({
         className="max-w-[450px]"
         main={
           <Label className="text-left text-sm font-medium">
-            {isDisconnected 
+            {isDisconnected
               ? `Remove this disconnected tool "${toolName}" from the assistant?`
-              : localize('com_ui_delete_tool_confirm')
-            }
+              : localize('com_ui_delete_tool_confirm')}
           </Label>
         }
         selection={{

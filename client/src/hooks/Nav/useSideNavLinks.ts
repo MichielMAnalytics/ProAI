@@ -1,5 +1,13 @@
 import { useMemo } from 'react';
-import { MessageSquareQuote, ArrowRightToLine, Settings2, Database, Bookmark, Calendar, Workflow } from 'lucide-react';
+import {
+  MessageSquareQuote,
+  ArrowRightToLine,
+  Settings2,
+  Database,
+  Bookmark,
+  Calendar,
+  Workflow,
+} from 'lucide-react';
 import {
   isAssistantsEndpoint,
   isAgentsEndpoint,

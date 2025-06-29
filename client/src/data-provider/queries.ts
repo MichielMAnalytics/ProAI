@@ -532,16 +532,12 @@ export const useGetRandomPrompts = (
 export const useUserTermsQuery = (
   config?: UseQueryOptions<t.TUserTermsResponse>,
 ): QueryObserverResult<t.TUserTermsResponse> => {
-  return useQuery<t.TUserTermsResponse>(
-    [QueryKeys.userTerms],
-    () => dataService.getUserTerms(),
-    {
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      refetchOnMount: false,
-      ...config,
-    },
-  );
+  return useQuery<t.TUserTermsResponse>([QueryKeys.userTerms], () => dataService.getUserTerms(), {
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    ...config,
+  });
 };
 
 /* Integrations */
@@ -598,16 +594,12 @@ export const useUserIntegrationsQuery = (
 export const useMCPConfigQuery = (
   config?: UseQueryOptions<t.TMCPConfigResponse>,
 ): QueryObserverResult<t.TMCPConfigResponse> => {
-  return useQuery<t.TMCPConfigResponse>(
-    [QueryKeys.mcpConfig],
-    () => dataService.getMCPConfig(),
-    {
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      refetchOnMount: false,
-      ...config,
-    },
-  );
+  return useQuery<t.TMCPConfigResponse>([QueryKeys.mcpConfig], () => dataService.getMCPConfig(), {
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    ...config,
+  });
 };
 
 export const useAppDetailsQuery = (
@@ -652,7 +644,7 @@ export const useAppComponentsQuery = (
 // Scheduler Tasks
 export const useSchedulerTasksQuery = (
   type?: 'task' | 'workflow',
-  options?: UseQueryOptions<t.TSchedulerTask[]>
+  options?: UseQueryOptions<t.TSchedulerTask[]>,
 ) =>
   useQuery<t.TSchedulerTask[]>({
     queryKey: [QueryKeys.schedulerTasks, type],
@@ -665,7 +657,7 @@ export const useSchedulerTasksQuery = (
 
 export const useSchedulerTaskQuery = (
   taskId: string,
-  options?: UseQueryOptions<t.TSchedulerTask>
+  options?: UseQueryOptions<t.TSchedulerTask>,
 ) =>
   useQuery<t.TSchedulerTask>({
     queryKey: [QueryKeys.schedulerTask, taskId],
@@ -678,7 +670,11 @@ export const useSchedulerTaskQuery = (
   });
 
 export const useUpdateSchedulerTaskMutation = (
-  options?: UseMutationOptions<t.TSchedulerTask, unknown, { taskId: string; data: Partial<t.TSchedulerTask> }>
+  options?: UseMutationOptions<
+    t.TSchedulerTask,
+    unknown,
+    { taskId: string; data: Partial<t.TSchedulerTask> }
+  >,
 ) => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -693,7 +689,7 @@ export const useUpdateSchedulerTaskMutation = (
 };
 
 export const useDeleteSchedulerTaskMutation = (
-  options?: UseMutationOptions<void, unknown, string>
+  options?: UseMutationOptions<void, unknown, string>,
 ) => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -706,7 +702,7 @@ export const useDeleteSchedulerTaskMutation = (
 };
 
 export const useToggleSchedulerTaskMutation = (
-  options?: UseMutationOptions<t.TSchedulerTask, unknown, { taskId: string; enabled: boolean }>
+  options?: UseMutationOptions<t.TSchedulerTask, unknown, { taskId: string; enabled: boolean }>,
 ) => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -723,7 +719,7 @@ export const useToggleSchedulerTaskMutation = (
 // Scheduler Executions
 export const useSchedulerExecutionsQuery = (
   taskId?: string,
-  options?: UseQueryOptions<t.TSchedulerExecution[]>
+  options?: UseQueryOptions<t.TSchedulerExecution[]>,
 ) =>
   useQuery<t.TSchedulerExecution[]>({
     queryKey: [QueryKeys.schedulerExecutions, taskId],
@@ -736,7 +732,7 @@ export const useSchedulerExecutionsQuery = (
 
 export const useSchedulerExecutionQuery = (
   executionId: string,
-  options?: UseQueryOptions<t.TSchedulerExecution>
+  options?: UseQueryOptions<t.TSchedulerExecution>,
 ) =>
   useQuery<t.TSchedulerExecution>({
     queryKey: [QueryKeys.schedulerExecution, executionId],
@@ -759,10 +755,7 @@ export const useWorkflowsQuery = (options?: UseQueryOptions<t.TUserWorkflow[]>) 
     ...options,
   });
 
-export const useWorkflowQuery = (
-  workflowId: string,
-  options?: UseQueryOptions<t.TUserWorkflow>
-) =>
+export const useWorkflowQuery = (workflowId: string, options?: UseQueryOptions<t.TUserWorkflow>) =>
   useQuery<t.TUserWorkflow>({
     queryKey: [QueryKeys.workflow, workflowId],
     queryFn: () => dataService.getWorkflow(workflowId),
@@ -774,7 +767,7 @@ export const useWorkflowQuery = (
   });
 
 export const useCreateWorkflowMutation = (
-  options?: UseMutationOptions<t.TUserWorkflow, unknown, Partial<t.TUserWorkflow>>
+  options?: UseMutationOptions<t.TUserWorkflow, unknown, Partial<t.TUserWorkflow>>,
 ) => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -787,7 +780,11 @@ export const useCreateWorkflowMutation = (
 };
 
 export const useUpdateWorkflowMutation = (
-  options?: UseMutationOptions<t.TUserWorkflow, unknown, { workflowId: string; data: Partial<t.TUserWorkflow> }>
+  options?: UseMutationOptions<
+    t.TUserWorkflow,
+    unknown,
+    { workflowId: string; data: Partial<t.TUserWorkflow> }
+  >,
 ) => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -801,9 +798,7 @@ export const useUpdateWorkflowMutation = (
   });
 };
 
-export const useDeleteWorkflowMutation = (
-  options?: UseMutationOptions<void, unknown, string>
-) => {
+export const useDeleteWorkflowMutation = (options?: UseMutationOptions<void, unknown, string>) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (workflowId: string) => dataService.deleteWorkflow(workflowId),
@@ -815,7 +810,7 @@ export const useDeleteWorkflowMutation = (
 };
 
 export const useToggleWorkflowMutation = (
-  options?: UseMutationOptions<t.TUserWorkflow, unknown, { workflowId: string; isActive: boolean }>
+  options?: UseMutationOptions<t.TUserWorkflow, unknown, { workflowId: string; isActive: boolean }>,
 ) => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -830,7 +825,7 @@ export const useToggleWorkflowMutation = (
 };
 
 export const useTestWorkflowMutation = (
-  options?: UseMutationOptions<t.TWorkflowExecution, unknown, string>
+  options?: UseMutationOptions<t.TWorkflowExecution, unknown, string>,
 ) => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -842,9 +837,7 @@ export const useTestWorkflowMutation = (
   });
 };
 
-export const useStopWorkflowMutation = (
-  options?: UseMutationOptions<void, unknown, string>
-) => {
+export const useStopWorkflowMutation = (options?: UseMutationOptions<void, unknown, string>) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (workflowId: string) => dataService.stopWorkflow(workflowId),
@@ -857,7 +850,7 @@ export const useStopWorkflowMutation = (
 
 export const useWorkflowExecutionsQuery = (
   workflowId: string,
-  options?: UseQueryOptions<t.TWorkflowExecution[]>
+  options?: UseQueryOptions<t.TWorkflowExecution[]>,
 ) =>
   useQuery<t.TWorkflowExecution[]>({
     queryKey: [QueryKeys.workflowExecutions, workflowId],
@@ -872,7 +865,7 @@ export const useWorkflowExecutionsQuery = (
 export const useWorkflowExecutionQuery = (
   workflowId: string,
   executionId: string,
-  options?: UseQueryOptions<t.TWorkflowExecution>
+  options?: UseQueryOptions<t.TWorkflowExecution>,
 ) =>
   useQuery<t.TWorkflowExecution>({
     queryKey: [QueryKeys.workflowExecution, workflowId, executionId],

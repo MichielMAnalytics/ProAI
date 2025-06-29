@@ -27,4 +27,4 @@ const SchedulesPanel = () => {
   );
 };
 
-export default SchedulesPanel; 
+export default SchedulesPanel;

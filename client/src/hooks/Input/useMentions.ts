@@ -157,21 +157,23 @@ export default function useMentions({
     });
 
     const mentions = [
-      ...(interfaceConfig.modelSelect === true && modelSpecs.length > 0 ? modelSpecs : []).map((modelSpec) => ({
-        value: modelSpec.name,
-        label: modelSpec.label,
-        description: modelSpec.description,
-        icon: EndpointIcon({
-          conversation: {
-            ...modelSpec.preset,
-            iconURL: modelSpec.iconURL,
-          },
-          endpointsConfig,
-          context: 'menu-item',
-          size: 20,
+      ...(interfaceConfig.modelSelect === true && modelSpecs.length > 0 ? modelSpecs : []).map(
+        (modelSpec) => ({
+          value: modelSpec.name,
+          label: modelSpec.label,
+          description: modelSpec.description,
+          icon: EndpointIcon({
+            conversation: {
+              ...modelSpec.preset,
+              iconURL: modelSpec.iconURL,
+            },
+            endpointsConfig,
+            context: 'menu-item',
+            size: 20,
+          }),
+          type: 'modelSpec' as const,
         }),
-        type: 'modelSpec' as const,
-      })),
+      ),
       ...(interfaceConfig.modelSelect === true ? validEndpoints : []).map((endpoint) => ({
         value: endpoint,
         label: alternateName[endpoint as string] ?? endpoint ?? '',

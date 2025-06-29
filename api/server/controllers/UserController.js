@@ -22,7 +22,11 @@ const {
 } = require('~/models');
 const { updateUserPluginAuth, deleteUserPluginAuth } = require('~/server/services/PluginService');
 const { updateUserPluginsService, deleteUserKey } = require('~/server/services/UserService');
-const { verifyEmail, resendVerificationEmail, isValidTimezone } = require('~/server/services/AuthService');
+const {
+  verifyEmail,
+  resendVerificationEmail,
+  isValidTimezone,
+} = require('~/server/services/AuthService');
 const { needsRefresh, getNewS3URL } = require('~/server/services/Files/S3/crud');
 const { processDeleteRequest } = require('~/server/services/Files/process');
 const { Transaction, Balance, User } = require('~/db/models');
@@ -167,7 +171,7 @@ const deleteUserController = async (req, res) => {
     } catch (error) {
       logger.error('[deleteUserController] Error deleting messages, continuing deletion', error);
     }
-    
+
     await deleteAllUserSessions({ userId: user.id }); // delete user sessions
     await Transaction.deleteMany({ user: user.id }); // delete user transactions
     await deleteUserKey({ userId: user.id, all: true }); // delete user keys
@@ -180,13 +184,13 @@ const deleteUserController = async (req, res) => {
       logger.error('[deleteUserController] Error deleting user convos, likely no convos', error);
     }
     await deleteUserPluginAuth(user.id, null, true); // delete user plugin auth
-    
+
     // Delete additional user collections
     try {
       await UserIntegration.deleteMany({ userId: user.id }); // delete user integrations
       await deleteSchedulerTasksByUser(user.id); // delete scheduler tasks
       await deleteSchedulerExecutionsByUser(user.id); // delete scheduler executions
-      
+
       // Delete memory entries
       const memories = await getAllUserMemories(user.id);
       for (const memory of memories) {
@@ -195,7 +199,7 @@ const deleteUserController = async (req, res) => {
     } catch (error) {
       logger.error('[deleteUserController] Error deleting additional user data', error);
     }
-    
+
     await deleteUserById(user.id); // delete user
     await deleteAllSharedLinks(user.id); // delete user shared links
     await deleteUserFiles(req); // delete user files
@@ -245,45 +249,45 @@ const updateUserTimezoneController = async (req, res) => {
 
     // Validate timezone
     if (!timezone || typeof timezone !== 'string') {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'Invalid timezone provided',
-        error: 'Timezone must be a valid string'
+        error: 'Timezone must be a valid string',
       });
     }
 
     // Use standardized timezone validation
     if (!isValidTimezone(timezone)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'Invalid timezone format',
-        error: 'Use IANA timezone identifiers like "America/New_York" or "UTC"'
+        error: 'Use IANA timezone identifiers like "America/New_York" or "UTC"',
       });
     }
 
     // Update user timezone
     const updatedUser = await updateUser(userId, { timezone });
-    
+
     if (!updatedUser) {
-      return res.status(404).json({ 
-        message: 'User not found'
+      return res.status(404).json({
+        message: 'User not found',
       });
     }
 
     logger.info(`[UserController] Updated timezone for user ${userId}: ${timezone}`);
-    
+
     // Return success response without sensitive data
     const userData = { ...updatedUser };
     delete userData.totpSecret;
     delete userData.password;
-    
+
     res.status(200).json({
       message: 'Timezone updated successfully',
-      user: userData
+      user: userData,
     });
   } catch (error) {
     logger.error('[UserController] Error updating user timezone:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Failed to update timezone',
-      error: error.message
+      error: error.message,
     });
   }
 };

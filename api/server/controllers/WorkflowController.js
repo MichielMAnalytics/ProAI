@@ -1,11 +1,7 @@
 const { logger } = require('~/config');
 const WorkflowService = require('~/server/services/Workflows/WorkflowService');
-const { 
-  getSchedulerTasksByUser 
-} = require('~/models/SchedulerTask');
-const {
-  getSchedulerExecutionsByTask
-} = require('~/models/SchedulerExecution');
+const { getSchedulerTasksByUser } = require('~/models/SchedulerTask');
+const { getSchedulerExecutionsByTask } = require('~/models/SchedulerExecution');
 
 /**
  * Get all workflows for the authenticated user
@@ -16,7 +12,7 @@ const getUserWorkflows = async (req, res) => {
   try {
     const userId = req.user.id;
     const { isActive, isDraft } = req.query;
-    
+
     const filters = {};
     if (isActive !== undefined) {
       filters.isActive = isActive === 'true';
@@ -24,13 +20,11 @@ const getUserWorkflows = async (req, res) => {
     if (isDraft !== undefined) {
       filters.isDraft = isDraft === 'true';
     }
-    
+
     const workflowService = new WorkflowService();
     const workflows = await workflowService.getUserWorkflows(userId, filters);
-    
 
-    
-    const mappedWorkflows = workflows.map(workflow => ({
+    const mappedWorkflows = workflows.map((workflow) => ({
       id: workflow.id,
       name: workflow.name,
       description: workflow.description,
@@ -56,18 +50,16 @@ const getUserWorkflows = async (req, res) => {
       createdAt: workflow.createdAt,
       updatedAt: workflow.updatedAt,
     }));
-    
 
-    
     res.json({
       success: true,
-      workflows: mappedWorkflows
+      workflows: mappedWorkflows,
     });
   } catch (error) {
     logger.error('[WorkflowController] Error getting user workflows:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 };
@@ -82,17 +74,17 @@ const getWorkflowById = async (req, res) => {
   try {
     const userId = req.user.id;
     const { workflowId } = req.params;
-    
+
     const workflowService = new WorkflowService();
     const workflow = await workflowService.getWorkflowById(workflowId, userId);
-    
+
     if (!workflow) {
       return res.status(404).json({
         success: false,
-        error: 'Workflow not found'
+        error: 'Workflow not found',
       });
     }
-    
+
     res.json({
       success: true,
       workflow: {
@@ -120,13 +112,13 @@ const getWorkflowById = async (req, res) => {
         dedicatedConversationId: workflow.metadata?.dedicatedConversationId, // Expose dedicated conversation ID
         createdAt: workflow.createdAt,
         updatedAt: workflow.updatedAt,
-      }
+      },
     });
   } catch (error) {
     logger.error('[WorkflowController] Error getting workflow:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 };
@@ -140,10 +132,10 @@ const createWorkflow = async (req, res) => {
   try {
     const userId = req.user.id;
     const workflowData = req.body;
-    
+
     const workflowService = new WorkflowService();
     const workflow = await workflowService.createWorkflow(workflowData, userId);
-    
+
     res.status(201).json({
       success: true,
       message: `Workflow "${workflow.name}" created successfully`,
@@ -159,13 +151,13 @@ const createWorkflow = async (req, res) => {
         version: workflow.version,
         created_from_agent: workflow.created_from_agent,
         dedicatedConversationId: workflow.metadata?.dedicatedConversationId, // Expose dedicated conversation ID
-      }
+      },
     });
   } catch (error) {
     logger.error('[WorkflowController] Error creating workflow:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 };
@@ -181,17 +173,17 @@ const updateWorkflow = async (req, res) => {
     const userId = req.user.id;
     const { workflowId } = req.params;
     const updateData = req.body;
-    
+
     const workflowService = new WorkflowService();
     const updatedWorkflow = await workflowService.updateWorkflow(workflowId, userId, updateData);
-    
+
     if (!updatedWorkflow) {
       return res.status(404).json({
         success: false,
-        error: 'Workflow not found'
+        error: 'Workflow not found',
       });
     }
-    
+
     res.json({
       success: true,
       message: `Workflow "${updatedWorkflow.name}" updated successfully`,
@@ -207,13 +199,13 @@ const updateWorkflow = async (req, res) => {
         version: updatedWorkflow.version,
         next_run: updatedWorkflow.next_run,
         dedicatedConversationId: updatedWorkflow.metadata?.dedicatedConversationId, // Expose dedicated conversation ID
-      }
+      },
     });
   } catch (error) {
     logger.error('[WorkflowController] Error updating workflow:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 };
@@ -228,26 +220,26 @@ const deleteWorkflow = async (req, res) => {
   try {
     const userId = req.user.id;
     const { workflowId } = req.params;
-    
+
     const workflowService = new WorkflowService();
     const success = await workflowService.deleteWorkflow(workflowId, userId);
-    
+
     if (!success) {
       return res.status(404).json({
         success: false,
-        error: 'Workflow not found'
+        error: 'Workflow not found',
       });
     }
-    
+
     res.json({
       success: true,
-      message: 'Workflow deleted successfully'
+      message: 'Workflow deleted successfully',
     });
   } catch (error) {
     logger.error('[WorkflowController] Error deleting workflow:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 };
@@ -262,17 +254,17 @@ const activateWorkflow = async (req, res) => {
   try {
     const userId = req.user.id;
     const { workflowId } = req.params;
-    
+
     const workflowService = new WorkflowService();
     const workflow = await workflowService.toggleWorkflow(workflowId, userId, true);
-    
+
     if (!workflow) {
       return res.status(404).json({
         success: false,
-        error: 'Workflow not found'
+        error: 'Workflow not found',
       });
     }
-    
+
     res.json({
       success: true,
       message: `Workflow "${workflow.name}" activated successfully`,
@@ -282,13 +274,13 @@ const activateWorkflow = async (req, res) => {
         isActive: workflow.isActive,
         isDraft: workflow.isDraft,
         dedicatedConversationId: workflow.metadata?.dedicatedConversationId, // Expose dedicated conversation ID
-      }
+      },
     });
   } catch (error) {
     logger.error('[WorkflowController] Error activating workflow:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 };
@@ -303,17 +295,17 @@ const deactivateWorkflow = async (req, res) => {
   try {
     const userId = req.user.id;
     const { workflowId } = req.params;
-    
+
     const workflowService = new WorkflowService();
     const workflow = await workflowService.toggleWorkflow(workflowId, userId, false);
-    
+
     if (!workflow) {
       return res.status(404).json({
         success: false,
-        error: 'Workflow not found'
+        error: 'Workflow not found',
       });
     }
-    
+
     res.json({
       success: true,
       message: `Workflow "${workflow.name}" deactivated successfully`,
@@ -323,13 +315,13 @@ const deactivateWorkflow = async (req, res) => {
         isActive: workflow.isActive,
         isDraft: workflow.isDraft,
         dedicatedConversationId: workflow.metadata?.dedicatedConversationId, // Expose dedicated conversation ID
-      }
+      },
     });
   } catch (error) {
     logger.error('[WorkflowController] Error deactivating workflow:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 };
@@ -345,20 +337,20 @@ const testWorkflow = async (req, res) => {
     const userId = req.user.id;
     const { workflowId } = req.params;
     const { context = {} } = req.body;
-    
+
     const workflowService = new WorkflowService();
     const result = await workflowService.executeWorkflow(workflowId, userId, context, true);
-    
+
     res.json({
       success: true,
       message: 'Workflow test execution completed',
-      result
+      result,
     });
   } catch (error) {
     logger.error('[WorkflowController] Error testing workflow:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 };
@@ -373,20 +365,20 @@ const stopWorkflow = async (req, res) => {
   try {
     const userId = req.user.id;
     const { workflowId } = req.params;
-    
+
     const workflowService = new WorkflowService();
     const result = await workflowService.stopWorkflow(workflowId, userId);
-    
+
     res.json({
       success: true,
       message: 'Workflow execution stopped',
-      result
+      result,
     });
   } catch (error) {
     logger.error('[WorkflowController] Error stopping workflow:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 };
@@ -402,20 +394,20 @@ const executeWorkflow = async (req, res) => {
     const userId = req.user.id;
     const { workflowId } = req.params;
     const { context = {} } = req.body;
-    
+
     const workflowService = new WorkflowService();
     const result = await workflowService.executeWorkflow(workflowId, userId, context, false);
-    
+
     res.json({
       success: true,
       message: 'Workflow execution completed',
-      result
+      result,
     });
   } catch (error) {
     logger.error('[WorkflowController] Error executing workflow:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 };
@@ -431,17 +423,17 @@ const getWorkflowExecutions = async (req, res) => {
     const { workflowId } = req.params;
     const userId = req.user.id;
     const limit = parseInt(req.query.limit) || 10;
-    
+
     logger.info(`[WorkflowController] Getting executions for workflow ${workflowId}`);
-    
+
     // Convert workflow ID to scheduler task ID
     const schedulerTaskId = `workflow_${workflowId.replace('workflow_', '')}`;
-    
+
     // Get scheduler executions for this workflow
     const executions = await getSchedulerExecutionsByTask(schedulerTaskId, userId, limit);
-    
+
     // Convert scheduler executions to workflow execution format
-    const formattedExecutions = executions.map(exec => ({
+    const formattedExecutions = executions.map((exec) => ({
       id: exec.id,
       workflowId: exec.metadata?.workflowId || workflowId,
       workflowName: exec.metadata?.workflowName || exec.task_name.replace('Workflow: ', ''),
@@ -449,24 +441,26 @@ const getWorkflowExecutions = async (req, res) => {
       trigger: exec.trigger || { type: 'unknown' },
       result: exec.result,
       error: exec.error,
-      duration: exec.end_time && exec.start_time ? 
-        new Date(exec.end_time) - new Date(exec.start_time) : null,
+      duration:
+        exec.end_time && exec.start_time
+          ? new Date(exec.end_time) - new Date(exec.start_time)
+          : null,
       startTime: exec.start_time,
       endTime: exec.end_time,
       isTest: exec.metadata?.isTest || false,
       createdAt: exec.createdAt,
     }));
-    
+
     res.status(200).json({
       success: true,
       message: `Found ${formattedExecutions.length} executions`,
-      executions: formattedExecutions
+      executions: formattedExecutions,
     });
   } catch (error) {
     logger.error('[WorkflowController] Error getting workflow executions:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 };
@@ -479,25 +473,25 @@ const getWorkflowExecutions = async (req, res) => {
 const getSchedulerStatus = async (req, res) => {
   try {
     const userId = req.user.id;
-    
+
     // Get workflow-related scheduler tasks
     const allTasks = await getSchedulerTasksByUser(userId);
-    
+
     // Filter for workflow tasks
-    const workflowTasks = allTasks.filter(task => 
-      task.prompt && task.prompt.startsWith('WORKFLOW_EXECUTION:')
+    const workflowTasks = allTasks.filter(
+      (task) => task.prompt && task.prompt.startsWith('WORKFLOW_EXECUTION:'),
     );
-    
+
     // Calculate statistics
     const stats = {
       totalWorkflowTasks: workflowTasks.length,
-      activeWorkflowTasks: workflowTasks.filter(task => task.enabled).length,
-      pendingWorkflowTasks: workflowTasks.filter(task => task.status === 'pending').length,
-      failedWorkflowTasks: workflowTasks.filter(task => task.status === 'failed').length,
+      activeWorkflowTasks: workflowTasks.filter((task) => task.enabled).length,
+      pendingWorkflowTasks: workflowTasks.filter((task) => task.status === 'pending').length,
+      failedWorkflowTasks: workflowTasks.filter((task) => task.status === 'failed').length,
     };
-    
+
     // Format scheduled workflows info
-    const scheduledWorkflows = workflowTasks.map(task => {
+    const scheduledWorkflows = workflowTasks.map((task) => {
       const workflowInfo = task.prompt.split(':');
       return {
         taskId: task.id,
@@ -510,19 +504,19 @@ const getSchedulerStatus = async (req, res) => {
         nextRun: task.next_run,
       };
     });
-    
+
     res.json({
       success: true,
       status: {
         ...stats,
         scheduledWorkflows,
-      }
+      },
     });
   } catch (error) {
     logger.error('[WorkflowController] Error getting scheduler status:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 };
@@ -540,4 +534,4 @@ module.exports = {
   executeWorkflow,
   getWorkflowExecutions,
   getSchedulerStatus,
-}; 
+};

@@ -4,4 +4,4 @@ const WorkflowExecutor = require('./WorkflowExecutor');
 module.exports = {
   WorkflowService,
   WorkflowExecutor,
-}; 
+};

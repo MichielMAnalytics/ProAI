@@ -24,12 +24,16 @@ const WorkflowsTable: React.FC<WorkflowsTableProps> = ({ workflows }) => {
   const pageSize = 10;
 
   const filteredWorkflows = workflows.filter(
-    (workflow) => 
-      workflow.name && workflow.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      workflow.description && workflow.description.toLowerCase().includes(searchQuery.toLowerCase())
+    (workflow) =>
+      (workflow.name && workflow.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (workflow.description &&
+        workflow.description.toLowerCase().includes(searchQuery.toLowerCase())),
   );
 
-  const currentWorkflows = filteredWorkflows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
+  const currentWorkflows = filteredWorkflows.slice(
+    pageIndex * pageSize,
+    (pageIndex + 1) * pageSize,
+  );
 
   return (
     <div role="region" aria-label="User Workflows" className="mt-2 space-y-2">
@@ -42,7 +46,7 @@ const WorkflowsTable: React.FC<WorkflowsTableProps> = ({ workflows }) => {
         />
       </div>
 
-      <div className="rounded-lg border border-border-light bg-transparent shadow-sm transition-colors overflow-hidden">
+      <div className="overflow-hidden rounded-lg border border-border-light bg-transparent shadow-sm transition-colors">
         <Table className="w-full table-fixed">
           <colgroup>
             <col className="w-32 sm:w-36" />
@@ -107,4 +111,4 @@ const WorkflowsTable: React.FC<WorkflowsTableProps> = ({ workflows }) => {
   );
 };
 
-export default WorkflowsTable; 
+export default WorkflowsTable;

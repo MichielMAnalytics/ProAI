@@ -440,11 +440,11 @@ export class MCPManager {
       entries.map(async ([serverName, _config], i) => {
         /** Process env for user-specific connections */
         const config = this.processMCPEnv ? this.processMCPEnv(_config, userId) : _config;
-        
+
         try {
           // Create new connection directly (similar to app-level initialization)
           const connection = new MCPConnection(serverName, config, this.logger, userId);
-          
+
           // Initialize the connection with timeout
           const connectionTimeout = new Promise<void>((_, reject) =>
             setTimeout(() => reject(new Error('Connection timeout')), 30000),
@@ -454,12 +454,12 @@ export class MCPManager {
             `[MCP][User: ${userId}][${serverName}]`,
           );
           await Promise.race([connectionAttempt, connectionTimeout]);
-          
+
           if (await connection.isConnected()) {
             initializedServers.add(i);
             // Store in user connections map
             this.userConnections.get(userId)?.set(serverName, connection);
-            
+
             const serverCapabilities = connection.client.getServerCapabilities();
             //this.logger.info(
             //  `[MCP][User: ${userId}][${serverName}] Capabilities: ${JSON.stringify(serverCapabilities)}`,
@@ -514,7 +514,10 @@ export class MCPManager {
   /**
    * Loads tools from user-specific connections into the manifest.
    */
-  public async loadUserManifestTools(manifestTools: t.LCToolManifest, userId: string): Promise<t.LCToolManifest> {
+  public async loadUserManifestTools(
+    manifestTools: t.LCToolManifest,
+    userId: string,
+  ): Promise<t.LCToolManifest> {
     if (!userId) {
       this.logger.warn('[MCP] No userId provided for user manifest tool loading');
       return manifestTools;
@@ -542,7 +545,7 @@ export class MCPManager {
 
           const tools = await connection.fetchTools();
           const serverTools: t.LCManifestTool[] = [];
-          
+
           for (const tool of tools) {
             const pluginKey = tool.name;
             const manifestTool: t.LCManifestTool = {
@@ -559,13 +562,16 @@ export class MCPManager {
             }
             serverTools.push(manifestTool);
           }
-          
+
           return serverTools;
         } catch (error) {
-          this.logger.error(`[MCP][User: ${userId}][${serverName}] Error fetching tools for manifest:`, error);
+          this.logger.error(
+            `[MCP][User: ${userId}][${serverName}] Error fetching tools for manifest:`,
+            error,
+          );
           return [];
         }
-      })
+      }),
     );
 
     // Collect all successful results
@@ -575,7 +581,9 @@ export class MCPManager {
       }
     }
 
-    this.logger.info(`[MCP][User: ${userId}] Loaded ${mcpTools.length} user-specific MCP tools into manifest`);
+    this.logger.info(
+      `[MCP][User: ${userId}] Loaded ${mcpTools.length} user-specific MCP tools into manifest`,
+    );
     return [...mcpTools, ...manifestTools];
   }
 
@@ -583,7 +591,11 @@ export class MCPManager {
    * Maps user-specific tools from user connections into the provided object.
    * The object is modified in place.
    */
-  public async mapUserAvailableTools(availableTools: t.LCAvailableTools, userId: string, mcpToolRegistry?: Map<string, any>): Promise<void> {
+  public async mapUserAvailableTools(
+    availableTools: t.LCAvailableTools,
+    userId: string,
+    mcpToolRegistry?: Map<string, any>,
+  ): Promise<void> {
     if (!userId) {
       this.logger.warn('[MCP] No userId provided for user tool mapping');
       return;
@@ -609,7 +621,7 @@ export class MCPManager {
 
           const tools = await connection.fetchTools();
           const serverTools: Array<{ name: string; tool: any }> = [];
-          
+
           for (const tool of tools) {
             const name = tool.name;
             const toolDef = {
@@ -621,27 +633,34 @@ export class MCPManager {
               },
             };
             serverTools.push({ name, tool: toolDef });
-            
+
             // Register this tool in the MCP tool registry with server information
             if (mcpToolRegistry) {
               const toolInfo = {
                 serverName,
-                appSlug: serverName.startsWith('pipedream-') ? serverName.replace('pipedream-', '') : serverName,
+                appSlug: serverName.startsWith('pipedream-')
+                  ? serverName.replace('pipedream-', '')
+                  : serverName,
                 toolName: name,
               };
               mcpToolRegistry.set(name, toolInfo);
               //this.logger.info(`[MCP][User: ${userId}] Registered tool '${name}' in registry: ${JSON.stringify(toolInfo)}`);
             } else {
-              this.logger.warn(`[MCP][User: ${userId}] mcpToolRegistry not available, cannot register tool '${name}'`);
+              this.logger.warn(
+                `[MCP][User: ${userId}] mcpToolRegistry not available, cannot register tool '${name}'`,
+              );
             }
           }
-          
+
           return serverTools;
         } catch (error) {
-          this.logger.warn(`[MCP][User: ${userId}][${serverName}] Error fetching tools for mapping:`, error);
+          this.logger.warn(
+            `[MCP][User: ${userId}][${serverName}] Error fetching tools for mapping:`,
+            error,
+          );
           return [];
         }
-      })
+      }),
     );
 
     // Collect all successful results and add them to availableTools

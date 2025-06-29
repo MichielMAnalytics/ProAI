@@ -1,1 +1,1 @@
-export { default as WorkflowsPanel } from './WorkflowsPanel'; 
+export { default as WorkflowsPanel } from './WorkflowsPanel';

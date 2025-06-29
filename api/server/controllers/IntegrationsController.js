@@ -12,11 +12,11 @@ const { logger } = require('~/config');
 const getAvailableIntegrations = async (req, res) => {
   const startTime = Date.now();
   logger.info('=== getAvailableIntegrations: Starting request ===');
-  
+
   try {
     logger.info('Calling PipedreamApps.getAvailableIntegrations()');
     const integrations = await PipedreamApps.getAvailableIntegrations();
-        
+
     // Return the integrations array directly (not wrapped in response object)
     res.json(integrations);
   } catch (error) {
@@ -24,9 +24,9 @@ const getAvailableIntegrations = async (req, res) => {
     logger.error('Error details:', {
       message: error.message,
       stack: error.stack,
-      name: error.name
+      name: error.name,
     });
-    
+
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve available integrations',
@@ -41,10 +41,10 @@ const getAvailableIntegrations = async (req, res) => {
 const getUserIntegrations = async (req, res) => {
   const startTime = Date.now();
   const userId = req.user?.id;
-  
+
   logger.info('=== getUserIntegrations: Starting request ===');
   logger.info(`User ID: ${userId}`);
-  
+
   try {
     if (!userId) {
       logger.error('No user ID found in request');
@@ -53,23 +53,26 @@ const getUserIntegrations = async (req, res) => {
         message: 'User not authenticated',
       });
     }
-    
+
     logger.info(`Calling PipedreamUserIntegrations.getUserIntegrations(${userId})`);
     const integrations = await PipedreamUserIntegrations.getUserIntegrations(userId);
-    
+
     logger.info(`Retrieved ${integrations?.length || 0} user integrations`);
     if (integrations?.length > 0) {
-      logger.info('User integrations summary:', integrations.map(int => ({
-        id: int._id,
-        appSlug: int.appSlug,
-        appName: int.appName,
-        isActive: int.isActive,
-        lastUsedAt: int.lastUsedAt
-      })));
+      logger.info(
+        'User integrations summary:',
+        integrations.map((int) => ({
+          id: int._id,
+          appSlug: int.appSlug,
+          appName: int.appName,
+          isActive: int.isActive,
+          lastUsedAt: int.lastUsedAt,
+        })),
+      );
     }
-    
+
     logger.info(`getUserIntegrations completed in ${Date.now() - startTime}ms`);
-    
+
     // Return the integrations array directly (not wrapped in response object)
     res.json(integrations);
   } catch (error) {
@@ -78,9 +81,9 @@ const getUserIntegrations = async (req, res) => {
       message: error.message,
       stack: error.stack,
       name: error.name,
-      userId
+      userId,
     });
-    
+
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve user integrations',
@@ -95,11 +98,11 @@ const getUserIntegrations = async (req, res) => {
 const createConnectToken = async (req, res) => {
   const startTime = Date.now();
   const userId = req.user?.id;
-  
+
   logger.info('=== createConnectToken: Starting request ===');
   logger.info(`User ID: ${userId}`);
   logger.info('Request body:', req.body);
-  
+
   try {
     if (!userId) {
       logger.error('No user ID found in request');
@@ -108,7 +111,7 @@ const createConnectToken = async (req, res) => {
         message: 'User not authenticated',
       });
     }
-    
+
     const { app, redirect_url } = req.body;
 
     const options = {};
@@ -116,20 +119,20 @@ const createConnectToken = async (req, res) => {
     if (redirect_url) options.redirect_url = redirect_url;
 
     logger.info('Connect token options:', options);
-    
+
     const tokenData = await PipedreamConnect.createConnectToken(userId, options);
-    
+
     logger.info('Connect token created successfully:', {
       hasToken: !!tokenData.token,
       hasConnectUrl: !!tokenData.connect_link_url,
-      expiresAt: tokenData.expires_at
+      expiresAt: tokenData.expires_at,
     });
-    
+
     const response = {
       success: true,
       data: tokenData,
     };
-    
+
     logger.info(`createConnectToken completed in ${Date.now() - startTime}ms`);
     res.json(response);
   } catch (error) {
@@ -139,9 +142,9 @@ const createConnectToken = async (req, res) => {
       stack: error.stack,
       name: error.name,
       userId,
-      requestBody: req.body
+      requestBody: req.body,
     });
-    
+
     res.status(500).json({
       success: false,
       message: 'Failed to create connection token',
@@ -155,13 +158,13 @@ const createConnectToken = async (req, res) => {
  */
 const handleConnectionCallback = async (req, res) => {
   const startTime = Date.now();
-  
+
   logger.info('=== handleConnectionCallback: Starting request ===');
   logger.info('Request body:', req.body);
-  
+
   try {
     const { account_id, external_user_id, app } = req.body;
-    
+
     if (!account_id || !external_user_id) {
       logger.error('Missing required parameters:', { account_id, external_user_id, app });
       return res.status(400).json({
@@ -171,30 +174,30 @@ const handleConnectionCallback = async (req, res) => {
     }
 
     logger.info(`Processing connection callback for external_user_id: ${external_user_id}`);
-    
+
     // Use the new PipedreamConnect service to handle the callback
     const integration = await PipedreamConnect.handleConnectionCallback({
       account_id,
       external_user_id,
       app,
     });
-    
+
     logger.info('Integration connected successfully:', {
       integrationId: integration._id,
       userId: external_user_id,
       appSlug: integration.appSlug,
-      appName: integration.appName
+      appName: integration.appName,
     });
 
     // Note: MCP cache clearing is now handled automatically by UserIntegration schema middleware
     // No manual cache refresh needed - the middleware clears cache when integrations are modified
-    
+
     const response = {
       success: true,
       message: 'Integration connected successfully',
       data: integration,
     };
-    
+
     logger.info(`handleConnectionCallback completed in ${Date.now() - startTime}ms`);
     res.json(response);
   } catch (error) {
@@ -203,9 +206,9 @@ const handleConnectionCallback = async (req, res) => {
       message: error.message,
       stack: error.stack,
       name: error.name,
-      requestBody: req.body
+      requestBody: req.body,
     });
-    
+
     res.status(500).json({
       success: false,
       message: 'Failed to process connection',
@@ -221,7 +224,7 @@ const deleteIntegration = async (req, res) => {
   const startTime = Date.now();
   const userId = req.user?.id;
   const { integrationId } = req.params;
-  
+
   logger.info('=== deleteIntegration: Starting request ===');
   logger.info(`User ID: ${userId}, Integration ID: ${integrationId}`);
 
@@ -235,23 +238,23 @@ const deleteIntegration = async (req, res) => {
     }
 
     const integration = await PipedreamConnect.deleteUserIntegration(userId, integrationId);
-    
+
     logger.info('Integration deleted successfully:', {
       id: integration._id,
       appSlug: integration.appSlug,
       appName: integration.appName,
-      isActive: integration.isActive
+      isActive: integration.isActive,
     });
 
     // Note: MCP cache clearing is now handled automatically by UserIntegration schema middleware
     // No manual cache refresh needed - the middleware clears cache when integrations are deleted
-    
+
     const response = {
       success: true,
       message: 'Integration deleted successfully',
       data: integration,
     };
-    
+
     logger.info(`deleteIntegration completed in ${Date.now() - startTime}ms`);
     res.json(response);
   } catch (error) {
@@ -261,9 +264,9 @@ const deleteIntegration = async (req, res) => {
       stack: error.stack,
       name: error.name,
       userId,
-      integrationId
+      integrationId,
     });
-    
+
     res.status(500).json({
       success: false,
       message: 'Failed to delete integration',
@@ -278,7 +281,7 @@ const deleteIntegration = async (req, res) => {
 const getMCPConfig = async (req, res) => {
   const startTime = Date.now();
   const userId = req.user?.id;
-  
+
   logger.info('=== getMCPConfig: Starting request ===');
   logger.info(`User ID: ${userId}`);
 
@@ -290,19 +293,19 @@ const getMCPConfig = async (req, res) => {
         message: 'User not authenticated',
       });
     }
-    
+
     const mcpConfig = await PipedreamUserIntegrations.generateMCPConfig(userId);
-    
+
     logger.info('MCP config generated:', {
       serverCount: Object.keys(mcpConfig || {}).length,
-      servers: Object.keys(mcpConfig || {})
+      servers: Object.keys(mcpConfig || {}),
     });
-    
+
     const response = {
       success: true,
       data: mcpConfig,
     };
-    
+
     logger.info(`getMCPConfig completed in ${Date.now() - startTime}ms`);
     res.json(response);
   } catch (error) {
@@ -311,9 +314,9 @@ const getMCPConfig = async (req, res) => {
       message: error.message,
       stack: error.stack,
       name: error.name,
-      userId
+      userId,
     });
-    
+
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve MCP configuration',
@@ -327,21 +330,21 @@ const getMCPConfig = async (req, res) => {
  */
 const getIntegrationStatus = async (req, res) => {
   const startTime = Date.now();
-  
+
   logger.info('=== getIntegrationStatus: Starting request ===');
 
   try {
     const isEnabled = PipedreamConnect.isEnabled();
-    
+
     logger.info('Integration status check:', {
       enabled: isEnabled,
       nodeEnv: process.env.NODE_ENV,
       pipedreamEnabled: process.env.ENABLE_PIPEDREAM_INTEGRATION,
       hasClientId: !!process.env.PIPEDREAM_CLIENT_ID,
       hasClientSecret: !!process.env.PIPEDREAM_CLIENT_SECRET,
-      hasProjectId: !!process.env.PIPEDREAM_PROJECT_ID
+      hasProjectId: !!process.env.PIPEDREAM_PROJECT_ID,
     });
-    
+
     const response = {
       success: true,
       data: {
@@ -350,7 +353,7 @@ const getIntegrationStatus = async (req, res) => {
         version: '1.0.0',
       },
     };
-    
+
     logger.info(`getIntegrationStatus completed in ${Date.now() - startTime}ms`);
     res.json(response);
   } catch (error) {
@@ -358,9 +361,9 @@ const getIntegrationStatus = async (req, res) => {
     logger.error('Error details:', {
       message: error.message,
       stack: error.stack,
-      name: error.name
+      name: error.name,
     });
-    
+
     res.status(500).json({
       success: false,
       message: 'Failed to get integration status',
@@ -376,10 +379,10 @@ const getAppDetails = async (req, res) => {
   const startTime = Date.now();
   const userId = req.user?.id;
   const { appSlug } = req.params;
-  
+
   logger.info('=== getAppDetails: Starting request ===');
   logger.info(`User ID: ${userId}, App Slug: ${appSlug}`);
-  
+
   try {
     if (!userId) {
       logger.error('No user ID found in request');
@@ -396,21 +399,26 @@ const getAppDetails = async (req, res) => {
         message: 'App slug is required',
       });
     }
-    
+
     logger.info(`Calling PipedreamApps.getAppDetails(${appSlug})`);
     const appDetails = await PipedreamApps.getAppDetails(appSlug);
-    
+
     // Enhanced logging to inspect the appDetails object structure
-    logger.info(`AppDetails object received from service for ${appSlug}:`, JSON.stringify(appDetails, null, 2));
+    logger.info(
+      `AppDetails object received from service for ${appSlug}:`,
+      JSON.stringify(appDetails, null, 2),
+    );
     if (appDetails) {
-      logger.info(`Fields in appDetails for ${appSlug}: id: ${!!appDetails.id}, name_slug: ${!!appDetails.name_slug}, name: ${!!appDetails.name}, img_src: ${!!appDetails.img_src}`);
+      logger.info(
+        `Fields in appDetails for ${appSlug}: id: ${!!appDetails.id}, name_slug: ${!!appDetails.name_slug}, name: ${!!appDetails.name}, img_src: ${!!appDetails.img_src}`,
+      );
     } else {
       logger.warn(`appDetails object from service is null or undefined for ${appSlug}`);
     }
-    
+
     logger.info(`Retrieved app details for ${appSlug}`);
     logger.info(`getAppDetails completed in ${Date.now() - startTime}ms`);
-    
+
     res.json({
       success: true,
       data: appDetails,
@@ -422,9 +430,9 @@ const getAppDetails = async (req, res) => {
       stack: error.stack,
       name: error.name,
       userId,
-      appSlug
+      appSlug,
     });
-    
+
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve app details',
@@ -441,10 +449,10 @@ const getAppComponents = async (req, res) => {
   const userId = req.user?.id;
   const { appSlug } = req.params;
   const { type } = req.query; // 'actions', 'triggers', or undefined for both
-  
+
   logger.info('=== getAppComponents: Starting request ===');
   logger.info(`User ID: ${userId}, App Slug: ${appSlug}, Type: ${type}`);
-  
+
   try {
     if (!userId) {
       logger.error('No user ID found in request');
@@ -461,13 +469,15 @@ const getAppComponents = async (req, res) => {
         message: 'App slug is required',
       });
     }
-    
+
     logger.info(`Calling PipedreamComponents.getAppComponents(${appSlug}, ${type})`);
     const components = await PipedreamComponents.getAppComponents(appSlug, type);
-    
-    logger.info(`Retrieved ${components?.actions?.length || 0} actions and ${components?.triggers?.length || 0} triggers for ${appSlug}`);
+
+    logger.info(
+      `Retrieved ${components?.actions?.length || 0} actions and ${components?.triggers?.length || 0} triggers for ${appSlug}`,
+    );
     logger.info(`getAppComponents completed in ${Date.now() - startTime}ms`);
-    
+
     res.json({
       success: true,
       data: components,
@@ -480,9 +490,9 @@ const getAppComponents = async (req, res) => {
       name: error.name,
       userId,
       appSlug,
-      type
+      type,
     });
-    
+
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve app components',
@@ -497,11 +507,11 @@ const getAppComponents = async (req, res) => {
 const configureComponent = async (req, res) => {
   const startTime = Date.now();
   const userId = req.user?.id;
-  
+
   logger.info('=== configureComponent: Starting request ===');
   logger.info(`User ID: ${userId}`);
   logger.info('Request body:', req.body);
-  
+
   try {
     if (!userId) {
       logger.error('No user ID found in request');
@@ -520,7 +530,7 @@ const configureComponent = async (req, res) => {
         message: 'Component ID and prop name are required',
       });
     }
-    
+
     logger.info(`Calling PipedreamComponents.configureComponent`);
     const configuration = await PipedreamComponents.configureComponent(userId, {
       componentId,
@@ -528,10 +538,10 @@ const configureComponent = async (req, res) => {
       configuredProps,
       dynamicPropsId,
     });
-    
+
     logger.info('Component configured successfully');
     logger.info(`configureComponent completed in ${Date.now() - startTime}ms`);
-    
+
     res.json({
       success: true,
       data: configuration,
@@ -543,9 +553,9 @@ const configureComponent = async (req, res) => {
       stack: error.stack,
       name: error.name,
       userId,
-      requestBody: req.body
+      requestBody: req.body,
     });
-    
+
     res.status(500).json({
       success: false,
       message: 'Failed to configure component',
@@ -560,11 +570,11 @@ const configureComponent = async (req, res) => {
 const runAction = async (req, res) => {
   const startTime = Date.now();
   const userId = req.user?.id;
-  
+
   logger.info('=== runAction: Starting request ===');
   logger.info(`User ID: ${userId}`);
   logger.info('Request body:', req.body);
-  
+
   try {
     if (!userId) {
       logger.error('No user ID found in request');
@@ -583,17 +593,17 @@ const runAction = async (req, res) => {
         message: 'Component ID is required',
       });
     }
-    
+
     logger.info(`Calling PipedreamComponents.runAction`);
     const result = await PipedreamComponents.runAction(userId, {
       componentId,
       configuredProps,
       dynamicPropsId,
     });
-    
+
     logger.info('Action executed successfully');
     logger.info(`runAction completed in ${Date.now() - startTime}ms`);
-    
+
     res.json({
       success: true,
       data: result,
@@ -605,9 +615,9 @@ const runAction = async (req, res) => {
       stack: error.stack,
       name: error.name,
       userId,
-      requestBody: req.body
+      requestBody: req.body,
     });
-    
+
     res.status(500).json({
       success: false,
       message: 'Failed to run action',
@@ -622,11 +632,11 @@ const runAction = async (req, res) => {
 const deployTrigger = async (req, res) => {
   const startTime = Date.now();
   const userId = req.user?.id;
-  
+
   logger.info('=== deployTrigger: Starting request ===');
   logger.info(`User ID: ${userId}`);
   logger.info('Request body:', req.body);
-  
+
   try {
     if (!userId) {
       logger.error('No user ID found in request');
@@ -653,7 +663,7 @@ const deployTrigger = async (req, res) => {
         message: 'Either webhook URL or workflow ID is required',
       });
     }
-    
+
     logger.info(`Calling PipedreamComponents.deployTrigger`);
     const deployment = await PipedreamComponents.deployTrigger(userId, {
       componentId,
@@ -662,10 +672,10 @@ const deployTrigger = async (req, res) => {
       workflowId,
       dynamicPropsId,
     });
-    
+
     logger.info('Trigger deployed successfully');
     logger.info(`deployTrigger completed in ${Date.now() - startTime}ms`);
-    
+
     res.json({
       success: true,
       data: deployment,
@@ -677,9 +687,9 @@ const deployTrigger = async (req, res) => {
       stack: error.stack,
       name: error.name,
       userId,
-      requestBody: req.body
+      requestBody: req.body,
     });
-    
+
     res.status(500).json({
       success: false,
       message: 'Failed to deploy trigger',
@@ -701,4 +711,4 @@ module.exports = {
   configureComponent,
   runAction,
   deployTrigger,
-}; 
+};

@@ -137,7 +137,7 @@ const checkBalance = async ({ req, res, txData }) => {
 
   // Fetch full balance record to get tier information
   const balanceRecord = await Balance.findOne({ user: txData.user }).lean();
-  
+
   const type = ViolationTypes.TOKEN_BALANCE;
   const errorMessage = {
     type,

@@ -32,11 +32,11 @@ async function deleteUserData(userIdentifier) {
   try {
     // Connect to database
     await connectDb();
-    
+
     // Find user by email or ID
     let user;
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(userIdentifier);
-    
+
     if (isObjectId) {
       // Search by user ID
       user = await User.findById(userIdentifier);
@@ -44,56 +44,55 @@ async function deleteUserData(userIdentifier) {
       // Search by email
       user = await User.findOne({ email: userIdentifier.toLowerCase() });
     }
-    
+
     if (!user) {
       throw new Error(`User not found with identifier: ${userIdentifier}`);
     }
-    
+
     console.log(`📧 Found user: ${user.name || user.username || 'N/A'} (${user.email})`);
     console.log(`🆔 User ID: ${user._id}`);
-    
+
     // Find all conversations for this user
     const conversations = await Conversation.find({ user: user._id }).select('conversationId');
-    const conversationIds = conversations.map(c => c.conversationId);
-    
+    const conversationIds = conversations.map((c) => c.conversationId);
+
     console.log(`📁 Found ${conversations.length} conversations for user`);
-    
+
     if (conversationIds.length === 0) {
       console.log('✅ No conversations found for user - nothing to delete');
       return {
         conversations: { deletedCount: 0 },
-        messages: { deletedCount: 0 }
+        messages: { deletedCount: 0 },
       };
     }
-    
+
     // Delete all messages for these conversations
     console.log('🗑️  Deleting messages...');
     const deleteMessagesResult = await Message.deleteMany({
-      conversationId: { $in: conversationIds }
+      conversationId: { $in: conversationIds },
     });
-    
+
     console.log(`✅ Deleted ${deleteMessagesResult.deletedCount} messages`);
-    
+
     // Delete all conversations for this user
     console.log('🗑️  Deleting conversations...');
     const deleteConversationsResult = await Conversation.deleteMany({
-      user: user._id
+      user: user._id,
     });
-    
+
     console.log(`✅ Deleted ${deleteConversationsResult.deletedCount} conversations`);
-    
+
     const result = {
       conversations: deleteConversationsResult,
-      messages: deleteMessagesResult
+      messages: deleteMessagesResult,
     };
-    
+
     console.log(`🎉 Successfully deleted all data for user!`);
     console.log(`📊 Summary:`);
     console.log(`   - Conversations deleted: ${result.conversations.deletedCount}`);
     console.log(`   - Messages deleted: ${result.messages.deletedCount}`);
-    
+
     return result;
-    
   } catch (error) {
     console.error('❌ Error deleting user data:', error.message);
     throw error;
@@ -103,7 +102,7 @@ async function deleteUserData(userIdentifier) {
 // CLI interface
 if (require.main === module) {
   const args = process.argv.slice(2);
-  
+
   if (args.length !== 1) {
     console.log('Usage: node delete-user-data.js <user-identifier>');
     console.log('');
@@ -114,12 +113,14 @@ if (require.main === module) {
     console.log('  node delete-user-data.js user@example.com');
     console.log('  node delete-user-data.js 507f1f77bcf86cd799439011');
     console.log('');
-    console.log('⚠️  WARNING: This will permanently delete ALL conversations and messages for the specified user!');
+    console.log(
+      '⚠️  WARNING: This will permanently delete ALL conversations and messages for the specified user!',
+    );
     process.exit(1);
   }
-  
+
   const userIdentifier = args[0];
-  
+
   // Validate email format if it looks like an email
   if (userIdentifier.includes('@')) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -128,14 +129,16 @@ if (require.main === module) {
       process.exit(1);
     }
   }
-  
+
   // Confirmation prompt for safety
-  console.log('⚠️  WARNING: This will permanently delete ALL conversations and messages for the user!');
+  console.log(
+    '⚠️  WARNING: This will permanently delete ALL conversations and messages for the user!',
+  );
   console.log(`🎯 Target user: ${userIdentifier}`);
   console.log('');
   console.log('This action cannot be undone. Make sure you have a backup if needed.');
   console.log('');
-  
+
   deleteUserData(userIdentifier)
     .then(() => {
       console.log('🎉 Done!');

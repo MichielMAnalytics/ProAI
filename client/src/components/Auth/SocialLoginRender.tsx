@@ -1,4 +1,11 @@
-import { GoogleIcon, FacebookIcon, OpenIDIcon, GithubIcon, DiscordIcon, AppleIcon } from '~/components';
+import {
+  GoogleIcon,
+  FacebookIcon,
+  OpenIDIcon,
+  GithubIcon,
+  DiscordIcon,
+  AppleIcon,
+} from '~/components';
 
 import SocialButton from './SocialButton';
 

@@ -2,10 +2,10 @@ const { logger } = require('~/config');
 
 /**
  * Condition evaluator for workflow conditions
- * 
+ *
  * Safely evaluates condition expressions using workflow context.
  * Supports basic comparison operations and logical operators.
- * 
+ *
  * Examples:
  * - "{{steps.step1.result.status}} === 'success'"
  * - "{{variables.count}} > 10"
@@ -24,12 +24,12 @@ function evaluateCondition(condition, context) {
 
     // Replace context variables in the condition
     const resolvedCondition = resolveVariables(condition, context);
-    
+
     logger.debug(`[ConditionEvaluator] Resolved condition: ${resolvedCondition}`);
 
     // Safely evaluate the condition
     const result = safeEvaluate(resolvedCondition);
-    
+
     logger.debug(`[ConditionEvaluator] Evaluation result: ${result}`);
 
     return Boolean(result);
@@ -48,11 +48,11 @@ function evaluateCondition(condition, context) {
 function resolveVariables(condition, context) {
   return condition.replace(/\{\{([^}]+)\}\}/g, (match, varPath) => {
     const value = getValueFromPath(context, varPath.trim());
-    
+
     if (value === undefined || value === null) {
       return 'null';
     }
-    
+
     // Handle different value types
     if (typeof value === 'string') {
       return JSON.stringify(value); // Properly escape strings
@@ -88,13 +88,26 @@ function safeEvaluate(expression) {
   // List of allowed operators and keywords
   const allowedTokens = [
     // Comparison operators
-    '===', '!==', '==', '!=', '>', '<', '>=', '<=',
+    '===',
+    '!==',
+    '==',
+    '!=',
+    '>',
+    '<',
+    '>=',
+    '<=',
     // Logical operators
-    '&&', '||', '!',
+    '&&',
+    '||',
+    '!',
     // Parentheses
-    '(', ')',
+    '(',
+    ')',
     // Literals
-    'true', 'false', 'null', 'undefined',
+    'true',
+    'false',
+    'null',
+    'undefined',
     // Numbers (will be validated separately)
     // Strings (will be validated separately)
   ];
@@ -110,10 +123,10 @@ function safeEvaluate(expression) {
     /global\./i,
     /window\./i,
     /document\./i,
-    /\[.*\]/,  // Array access
-    /\.\w+\s*\(/,  // Method calls
-    /=(?!=)/,  // Assignment operators
-    /\+\+|--/,  // Increment/decrement
+    /\[.*\]/, // Array access
+    /\.\w+\s*\(/, // Method calls
+    /=(?!=)/, // Assignment operators
+    /\+\+|--/, // Increment/decrement
   ];
 
   // Check for dangerous patterns
@@ -125,7 +138,7 @@ function safeEvaluate(expression) {
 
   // Tokenize the expression
   const tokens = tokenize(expression);
-  
+
   // Validate all tokens
   for (const token of tokens) {
     if (!isValidToken(token, allowedTokens)) {
@@ -224,7 +237,7 @@ const ConditionHelpers = {
    * @param {string} substring - Substring to search for
    * @returns {string} Condition expression
    */
-  variableContains: (varName, substring) => 
+  variableContains: (varName, substring) =>
     `{{variables.${varName}}}.indexOf("${substring}") !== -1`,
 };
 
@@ -233,4 +246,4 @@ module.exports = {
   resolveVariables,
   safeEvaluate,
   ConditionHelpers,
-}; 
+};

@@ -110,4 +110,4 @@ router.post('/:workflowId/execute', requireJwtAuth, executeWorkflow);
  */
 router.get('/:workflowId/executions', requireJwtAuth, getWorkflowExecutions);
 
-module.exports = router; 
+module.exports = router;

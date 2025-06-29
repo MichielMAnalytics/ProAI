@@ -1,5 +1,16 @@
 import React, { useState } from 'react';
-import { Clock, CheckCircle, XCircle, AlertCircle, RefreshCw, Calendar, User, Play, ChevronDown, ChevronRight } from 'lucide-react';
+import {
+  Clock,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  RefreshCw,
+  Calendar,
+  User,
+  Play,
+  ChevronDown,
+  ChevronRight,
+} from 'lucide-react';
 import { useSchedulerExecutionsQuery } from '~/data-provider';
 import type { TSchedulerExecution } from 'librechat-data-provider';
 
@@ -10,9 +21,14 @@ interface ExecutionDashboardProps {
 const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) => {
   // Transform workflowId to match scheduler task_id format
   const taskId = workflowId ? `workflow_${workflowId.replace('workflow_', '')}` : '';
-  
+
   // Use the real API query
-  const { data: executions = [], isLoading: loading, error, refetch } = useSchedulerExecutionsQuery(taskId, {
+  const {
+    data: executions = [],
+    isLoading: loading,
+    error,
+    refetch,
+  } = useSchedulerExecutionsQuery(taskId, {
     enabled: !!taskId,
     refetchInterval: 30000, // Refetch every 30 seconds to get latest executions
   });
@@ -39,7 +55,7 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
       case 'cancelled':
         return <AlertCircle className="h-4 w-4 text-orange-500" />;
       case 'running':
-        return <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />;
+        return <RefreshCw className="h-4 w-4 animate-spin text-blue-500" />;
       default:
         return <Clock className="h-4 w-4 text-gray-500" />;
     }
@@ -47,21 +63,31 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'completed': return 'Completed';
-      case 'failed': return 'Failed';
-      case 'cancelled': return 'Cancelled';
-      case 'running': return 'Running';
-      default: return 'Unknown';
+      case 'completed':
+        return 'Completed';
+      case 'failed':
+        return 'Failed';
+      case 'cancelled':
+        return 'Cancelled';
+      case 'running':
+        return 'Running';
+      default:
+        return 'Unknown';
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20';
-      case 'failed': return 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20';
-      case 'cancelled': return 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20';
-      case 'running': return 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20';
-      default: return 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20';
+      case 'completed':
+        return 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20';
+      case 'failed':
+        return 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20';
+      case 'cancelled':
+        return 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20';
+      case 'running':
+        return 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20';
+      default:
+        return 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20';
     }
   };
 
@@ -74,13 +100,20 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
     } else {
       dateObj = date as Date;
     }
-    return dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return (
+      dateObj.toLocaleDateString() +
+      ' ' +
+      dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    );
   };
 
-  const calculateDuration = (startTime: Date | { $date: string } | string, endTime?: Date | { $date: string } | string) => {
+  const calculateDuration = (
+    startTime: Date | { $date: string } | string,
+    endTime?: Date | { $date: string } | string,
+  ) => {
     let start: Date;
     let end: Date;
-    
+
     if (typeof startTime === 'string') {
       start = new Date(startTime);
     } else if (startTime && typeof startTime === 'object' && '$date' in startTime) {
@@ -88,7 +121,7 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
     } else {
       start = startTime as Date;
     }
-    
+
     if (endTime) {
       if (typeof endTime === 'string') {
         end = new Date(endTime);
@@ -100,9 +133,9 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
     } else {
       end = new Date();
     }
-    
+
     const duration = Math.floor((end.getTime() - start.getTime()) / 1000);
-    
+
     if (duration < 60) return `${duration}s`;
     if (duration < 3600) return `${Math.floor(duration / 60)}m ${duration % 60}s`;
     return `${Math.floor(duration / 3600)}h ${Math.floor((duration % 3600) / 60)}m`;
@@ -110,10 +143,12 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
           <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
-          <span className="text-sm text-gray-600 dark:text-gray-400">Loading execution history...</span>
+          <span className="text-sm text-gray-600 dark:text-gray-400">
+            Loading execution history...
+          </span>
         </div>
       </div>
     );
@@ -121,9 +156,9 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-center">
         <div className="text-center">
-          <XCircle className="h-8 w-8 text-red-500 mx-auto mb-2" />
+          <XCircle className="mx-auto mb-2 h-8 w-8 text-red-500" />
           <p className="text-sm text-red-600 dark:text-red-400">
             {error instanceof Error ? error.message : 'Failed to load execution history'}
           </p>
@@ -133,7 +168,7 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
   }
 
   return (
-    <div className="h-full flex flex-col bg-surface-primary">
+    <div className="flex h-full flex-col bg-surface-primary">
       {/* Header */}
       <div className="border-b border-border-medium bg-surface-primary-alt p-4">
         <div className="flex items-center justify-between">
@@ -149,9 +184,11 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
       {/* Executions List */}
       <div className="flex-1 overflow-auto p-4">
         {executions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <Clock className="h-12 w-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-600 dark:text-gray-400 mb-2">No executions yet</h3>
+          <div className="flex h-full flex-col items-center justify-center text-center">
+            <Clock className="mb-4 h-12 w-12 text-gray-400" />
+            <h3 className="mb-2 text-lg font-medium text-gray-600 dark:text-gray-400">
+              No executions yet
+            </h3>
             <p className="text-sm text-gray-500 dark:text-gray-500">
               Run the workflow to see execution history here.
             </p>
@@ -161,11 +198,11 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
             {executions.map((execution) => (
               <div
                 key={execution.id}
-                className="bg-surface-secondary border border-border-medium rounded-lg p-3 hover:bg-surface-hover transition-colors overflow-hidden"
+                className="overflow-hidden rounded-lg border border-border-medium bg-surface-secondary p-3 transition-colors hover:bg-surface-hover"
               >
                 <div className="flex flex-col">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                    <div className="flex min-w-0 flex-1 items-center space-x-3">
                       {getStatusIcon(execution.status)}
                       <div className="flex items-center space-x-2">
                         <span
@@ -213,7 +250,7 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
                         <div className="mb-1 text-xs font-medium text-green-600 dark:text-green-400">
                           Output:
                         </div>
-                        <div className="font-mono text-xs text-green-700 dark:text-green-300 break-all whitespace-pre-wrap overflow-hidden">
+                        <div className="overflow-hidden whitespace-pre-wrap break-all font-mono text-xs text-green-700 dark:text-green-300">
                           {execution.output}
                         </div>
                       </div>
@@ -256,7 +293,7 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
                             {execution.metadata.steps.map((step, index) => (
                               <div
                                 key={step.id}
-                                className="rounded border border-border-light bg-surface-primary p-2 overflow-hidden"
+                                className="overflow-hidden rounded border border-border-light bg-surface-primary p-2"
                               >
                                 <div className="flex items-start justify-between">
                                   <div className="flex flex-1 items-start space-x-2">
@@ -293,7 +330,7 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
                                           <div className="mb-0.5 text-xs font-medium text-green-600 dark:text-green-400">
                                             Output:
                                           </div>
-                                          <div className="whitespace-pre-wrap font-mono text-xs text-green-700 dark:text-green-300 break-all overflow-hidden">
+                                          <div className="overflow-hidden whitespace-pre-wrap break-all font-mono text-xs text-green-700 dark:text-green-300">
                                             {step.output}
                                           </div>
                                         </div>
@@ -304,7 +341,7 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
                                           <div className="mb-0.5 text-xs font-medium text-red-600 dark:text-red-400">
                                             Error:
                                           </div>
-                                          <div className="whitespace-pre-wrap font-mono text-xs text-red-700 dark:text-red-300 break-all overflow-hidden">
+                                          <div className="overflow-hidden whitespace-pre-wrap break-all font-mono text-xs text-red-700 dark:text-red-300">
                                             {step.error}
                                           </div>
                                         </div>

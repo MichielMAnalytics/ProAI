@@ -108,4 +108,4 @@ router.delete('/:integrationId', requireJwtAuth, deleteIntegration);
  */
 router.get('/mcp-config', requireJwtAuth, getMCPConfig);
 
-module.exports = router; 
+module.exports = router;

@@ -9,7 +9,7 @@ import { useGetEndpointsQuery } from '~/data-provider';
 export default function AgentsButton() {
   const { navVisible, setNavVisible } = useOutletContext<ContextType>();
   const { data: endpointsConfig = {} } = useGetEndpointsQuery();
-  
+
   const hasAccessToAgents = useHasAccess({
     permissionType: PermissionTypes.AGENTS,
     permission: Permissions.USE,
@@ -37,7 +37,7 @@ export default function AgentsButton() {
   return (
     <button
       onClick={handleClick}
-      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-text-primary hover:bg-surface-hover transition-colors"
+      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-surface-hover"
       title="Open Agents Panel"
     >
       <Blocks className="h-4 w-4" />

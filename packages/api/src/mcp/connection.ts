@@ -102,7 +102,7 @@ export class MCPConnection extends EventEmitter {
   private isAuthenticationError(errorMessage: string): boolean {
     const authErrorPatterns = [
       'HTTP 401',
-      'HTTP 403', 
+      'HTTP 403',
       'HTTP 500',
       'Unauthorized',
       'Forbidden',
@@ -110,11 +110,11 @@ export class MCPConnection extends EventEmitter {
       'Authentication failed',
       'Invalid token',
       'Token expired',
-      'access_token'
+      'access_token',
     ];
-    
-    return authErrorPatterns.some(pattern => 
-      errorMessage.toLowerCase().includes(pattern.toLowerCase())
+
+    return authErrorPatterns.some((pattern) =>
+      errorMessage.toLowerCase().includes(pattern.toLowerCase()),
     );
   }
 
@@ -133,14 +133,14 @@ export class MCPConnection extends EventEmitter {
       }
 
       this.logger?.info(`${this.getLogPrefix()} Attempting to refresh Pipedream auth token`);
-      
+
       // Dynamically import PipedreamConnect to avoid circular dependencies
       const PipedreamConnect = require('../../../api/server/services/Pipedream/PipedreamConnect');
-      
+
       if (PipedreamConnect.isEnabled()) {
         // Clear cached token since it's likely expired/invalid
         PipedreamConnect.clearTokenCache();
-        
+
         const newToken = await PipedreamConnect.getOAuthAccessToken();
         if (newToken) {
           this.options.headers['Authorization'] = `Bearer ${newToken}`;
@@ -148,14 +148,13 @@ export class MCPConnection extends EventEmitter {
           return true;
         }
       }
-      
+
       return false;
     } catch (error) {
       this.logger?.error(`${this.getLogPrefix()} Failed to refresh auth token:`, error);
       return false;
     }
   }
-
 
   private emitError(error: unknown, errorContext: string): void {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -267,13 +266,15 @@ export class MCPConnection extends EventEmitter {
           transport.onerror = (error: Error | unknown) => {
             const errorMessage = error instanceof Error ? error.message : String(error);
             this.logger?.error(`${this.getLogPrefix()} Streamable-http transport error:`, error);
-            
+
             // Check if this is an authentication error (HTTP 401/403/500 with auth-related message)
             if (this.isAuthenticationError(errorMessage)) {
-              this.logger?.warn(`${this.getLogPrefix()} Authentication error detected - token may have expired`);
+              this.logger?.warn(
+                `${this.getLogPrefix()} Authentication error detected - token may have expired`,
+              );
               this.emit('authenticationError', error);
             }
-            
+
             this.emitError(error, 'Streamable-http transport error');
           };
 
@@ -326,7 +327,9 @@ export class MCPConnection extends EventEmitter {
 
     // Handle authentication errors with token refresh
     this.on('authenticationError', async () => {
-      this.logger?.info(`${this.getLogPrefix()} Handling authentication error with token refresh attempt`);
+      this.logger?.info(
+        `${this.getLogPrefix()} Handling authentication error with token refresh attempt`,
+      );
       try {
         const refreshed = await this.refreshAuthToken();
         if (refreshed) {
@@ -334,7 +337,10 @@ export class MCPConnection extends EventEmitter {
           // Attempt reconnection with new token
           setTimeout(() => {
             this.handleReconnection().catch((reconnectError) => {
-              this.logger?.error(`${this.getLogPrefix()} Reconnection after token refresh failed:`, reconnectError);
+              this.logger?.error(
+                `${this.getLogPrefix()} Reconnection after token refresh failed:`,
+                reconnectError,
+              );
             });
           }, 1000);
         }
@@ -473,10 +479,10 @@ export class MCPConnection extends EventEmitter {
     try {
       await this.disconnect();
       await this.connectClient();
-      
+
       // Wait a bit for connection to stabilize before checking
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       if (!(await this.isConnected())) {
         throw new Error('Connection not established');
       }
@@ -626,7 +632,7 @@ export class MCPConnection extends EventEmitter {
     if (this.connectionState !== 'connected' || !this.transport) {
       return false;
     }
-    
+
     try {
       await this.client.ping();
       return true;

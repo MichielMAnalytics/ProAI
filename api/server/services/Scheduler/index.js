@@ -16,7 +16,7 @@ const mockUtils = require('./utils/mockUtils');
 module.exports = {
   // Main service
   SchedulerExecutionService,
-  
+
   // Component services
   SchedulerQueueManager,
   SchedulerTaskExecutor,
@@ -25,13 +25,13 @@ module.exports = {
   SchedulerNotificationManager,
   SchedulerRetryManager,
   SchedulerService,
-  
+
   // Notification system
   NotificationManager,
   notificationManager,
-  
+
   // Utility modules
   ...cronUtils,
   ...priorityUtils,
   ...mockUtils,
-}; 
+};

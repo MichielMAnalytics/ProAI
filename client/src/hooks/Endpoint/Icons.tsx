@@ -53,10 +53,10 @@ const AgentAvatar = ({ className = '', avatar = '', agentName, size }: AgentIcon
   }
 
   return (
-    <img 
-      src="/assets/logo.svg" 
-      alt="Eve Agent" 
-      className={cn(agentName === '' ? 'icon-2xl' : '', className)} 
+    <img
+      src="/assets/logo.svg"
+      alt="Eve Agent"
+      className={cn(agentName === '' ? 'icon-2xl' : '', className)}
       style={{ width: size, height: size }}
     />
   );

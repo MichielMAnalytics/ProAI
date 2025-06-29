@@ -31,7 +31,10 @@ export const TimezoneInitializer: React.FC = () => {
 
         // Check if user already has a valid timezone from their profile
         if (user?.timezone && isValidTimezone(user.timezone)) {
-          console.debug('[TimezoneInitializer] User already has valid timezone in profile:', user.timezone);
+          console.debug(
+            '[TimezoneInitializer] User already has valid timezone in profile:',
+            user.timezone,
+          );
           // Clear any OAuth timezone storage since user is properly set up
           clearOAuthTimezone();
           return;

@@ -67,9 +67,9 @@ const schedulerExecutionSchema: Schema<ISchedulerExecution> = new Schema(
       default: undefined,
     },
   },
-  { 
+  {
     timestamps: true,
-    versionKey: false
+    versionKey: false,
   },
 );
 
@@ -78,4 +78,4 @@ schedulerExecutionSchema.index({ task_id: 1, start_time: -1 });
 schedulerExecutionSchema.index({ user: 1 });
 schedulerExecutionSchema.index({ user: 1, task_id: 1 });
 
-export default schedulerExecutionSchema; 
+export default schedulerExecutionSchema;

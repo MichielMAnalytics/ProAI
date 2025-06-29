@@ -76,7 +76,7 @@ async function updateSchedulerExecution(id, userId, updateData) {
     return await SchedulerExecution.findOneAndUpdate(
       { id, user: userId },
       { ...updateData, updatedAt: new Date() },
-      { new: true }
+      { new: true },
     ).lean();
   } catch (error) {
     throw new Error(`Error updating scheduler execution: ${error.message}`);
@@ -137,24 +137,24 @@ async function cleanupOldSchedulerExecutions(userId, keepCount = 10) {
   try {
     // Get all tasks for the user
     const tasks = await SchedulerExecution.distinct('task_id', { user: userId });
-    
+
     let totalDeleted = 0;
-    
+
     for (const taskId of tasks) {
       // Get executions for this task, sorted by start_time descending
       const executions = await SchedulerExecution.find({ task_id: taskId, user: userId })
         .sort({ start_time: -1 })
         .select('_id')
         .lean();
-      
+
       // If we have more than keepCount executions, delete the oldest ones
       if (executions.length > keepCount) {
-        const toDelete = executions.slice(keepCount).map(exec => exec._id);
+        const toDelete = executions.slice(keepCount).map((exec) => exec._id);
         const result = await SchedulerExecution.deleteMany({ _id: { $in: toDelete } });
         totalDeleted += result.deletedCount || 0;
       }
     }
-    
+
     return { deletedCount: totalDeleted };
   } catch (error) {
     throw new Error(`Error cleaning up scheduler executions: ${error.message}`);
@@ -171,4 +171,4 @@ module.exports = {
   deleteSchedulerExecutionsByUser,
   getRunningSchedulerExecutions,
   cleanupOldSchedulerExecutions,
-}; 
+};

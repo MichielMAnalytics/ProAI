@@ -20,14 +20,14 @@ router.post('/', async (req, res) => {
 
     const fileStrategy = req.app.locals.fileStrategy;
     const desiredFormat = req.app.locals.imageOutputType;
-    
+
     // Add detailed logging for debugging
     logger.info(`[Avatar Upload] Starting upload for user: ${userId}`);
     logger.info(`[Avatar Upload] File strategy: ${fileStrategy}`);
     logger.info(`[Avatar Upload] Manual upload: ${manual}`);
     logger.info(`[Avatar Upload] Original file path: ${req.file.path}`);
     logger.info(`[Avatar Upload] Original file size: ${req.file.size} bytes`);
-    
+
     const resizedBuffer = await resizeAvatar({
       userId,
       input,
@@ -37,10 +37,12 @@ router.post('/', async (req, res) => {
     logger.info(`[Avatar Upload] Resized buffer size: ${resizedBuffer.length} bytes`);
 
     const { processAvatar } = getStrategyFunctions(fileStrategy);
-    logger.info(`[Avatar Upload] Using strategy: ${fileStrategy}, processAvatar function: ${processAvatar?.name || 'unknown'}`);
-    
+    logger.info(
+      `[Avatar Upload] Using strategy: ${fileStrategy}, processAvatar function: ${processAvatar?.name || 'unknown'}`,
+    );
+
     const url = await processAvatar({ buffer: resizedBuffer, userId, manual });
-    
+
     logger.info(`[Avatar Upload] Upload completed. Final URL: ${url}`);
 
     res.json({ url });

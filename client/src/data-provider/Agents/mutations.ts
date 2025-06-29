@@ -133,36 +133,41 @@ export const useDeleteAgentMutation = (
  */
 export const useDuplicateAgentMutation = (
   options?: t.DuplicateAgentMutationOptions,
-): UseMutationResult<{ agent: t.Agent; actions: t.Action[]; mcp_servers_needed?: string[] }, Error, t.DuplicateAgentBody> => {
+): UseMutationResult<
+  { agent: t.Agent; actions: t.Action[]; mcp_servers_needed?: string[] },
+  Error,
+  t.DuplicateAgentBody
+> => {
   const queryClient = useQueryClient();
 
-  return useMutation<{ agent: t.Agent; actions: t.Action[]; mcp_servers_needed?: string[] }, Error, t.DuplicateAgentBody>(
-    (params: t.DuplicateAgentBody) => dataService.duplicateAgent(params),
-    {
-      onMutate: options?.onMutate,
-      onError: options?.onError,
-      onSuccess: ({ agent, actions, mcp_servers_needed }, variables, context) => {
-        const listRes = queryClient.getQueryData<t.AgentListResponse>([
-          QueryKeys.agents,
-          defaultOrderQuery,
-        ]);
+  return useMutation<
+    { agent: t.Agent; actions: t.Action[]; mcp_servers_needed?: string[] },
+    Error,
+    t.DuplicateAgentBody
+  >((params: t.DuplicateAgentBody) => dataService.duplicateAgent(params), {
+    onMutate: options?.onMutate,
+    onError: options?.onError,
+    onSuccess: ({ agent, actions, mcp_servers_needed }, variables, context) => {
+      const listRes = queryClient.getQueryData<t.AgentListResponse>([
+        QueryKeys.agents,
+        defaultOrderQuery,
+      ]);
 
-        if (listRes) {
-          const currentAgents = [agent, ...listRes.data];
-          queryClient.setQueryData<t.AgentListResponse>([QueryKeys.agents, defaultOrderQuery], {
-            ...listRes,
-            data: currentAgents,
-          });
-        }
+      if (listRes) {
+        const currentAgents = [agent, ...listRes.data];
+        queryClient.setQueryData<t.AgentListResponse>([QueryKeys.agents, defaultOrderQuery], {
+          ...listRes,
+          data: currentAgents,
+        });
+      }
 
-        const existingActions = queryClient.getQueryData<t.Action[]>([QueryKeys.actions]) || [];
+      const existingActions = queryClient.getQueryData<t.Action[]>([QueryKeys.actions]) || [];
 
-        queryClient.setQueryData<t.Action[]>([QueryKeys.actions], existingActions.concat(actions));
+      queryClient.setQueryData<t.Action[]>([QueryKeys.actions], existingActions.concat(actions));
 
-        return options?.onSuccess?.({ agent, actions, mcp_servers_needed }, variables, context);
-      },
+      return options?.onSuccess?.({ agent, actions, mcp_servers_needed }, variables, context);
     },
-  );
+  });
 };
 
 /**

@@ -4,7 +4,7 @@ const { logger } = require('~/config');
 
 /**
  * UserMCPService - Manages user-specific MCP servers from database
- * 
+ *
  * This service handles:
  * - Converting user integrations to MCP server configurations
  * - Merging user-specific MCP servers with global ones
@@ -22,7 +22,7 @@ class UserMCPService {
 
   /**
    * Get user-specific MCP servers configuration from user integrations
-   * 
+   *
    * @param {string} userId - The user ID
    * @returns {Promise<Object>} Object of user MCP server configurations
    */
@@ -32,13 +32,13 @@ class UserMCPService {
 
   /**
    * Static method: Get user-specific MCP servers configuration from user integrations
-   * 
+   *
    * @param {string} userId - The user ID
    * @returns {Promise<Object>} Object of user MCP server configurations
    */
   static async getUserMCPServers(userId) {
     logger.info(`=== UserMCPService.getUserMCPServers: Starting for user ${userId} ===`);
-    
+
     if (!userId) {
       logger.warn('UserMCPService.getUserMCPServers: No userId provided');
       return {};
@@ -48,34 +48,41 @@ class UserMCPService {
       // Check cache first
       if (UserMCPService.userMCPServersCache.has(userId)) {
         const cached = UserMCPService.userMCPServersCache.get(userId);
-        logger.info(`UserMCPService: Returning cached MCP servers for user ${userId}, count: ${Object.keys(cached).length}`);
+        logger.info(
+          `UserMCPService: Returning cached MCP servers for user ${userId}, count: ${Object.keys(cached).length}`,
+        );
         return cached;
       }
 
       // logger.info(`UserMCPService: Fetching user integrations from database for user ${userId}`);
-      
+
       // Get user integrations with MCP server configurations
       const UserIntegration = require('~/models/UserIntegration');
-      
+
       // First, let's see ALL integrations for this user
       const allIntegrations = await UserIntegration.find({ userId }).lean();
-      logger.info(`UserMCPService: Found ${allIntegrations.length} total integrations for user ${userId}`);
-      
+      logger.info(
+        `UserMCPService: Found ${allIntegrations.length} total integrations for user ${userId}`,
+      );
+
       if (allIntegrations.length > 0) {
-        logger.info(`UserMCPService: Integration details:`, allIntegrations.map(i => ({
-          id: i._id,
-          appSlug: i.appSlug,
-          appName: i.appName,
-          isActive: i.isActive,
-          hasMcpConfig: !!i.mcpServerConfig,
-          mcpServerName: i.mcpServerConfig?.serverName
-        })));
+        logger.info(
+          `UserMCPService: Integration details:`,
+          allIntegrations.map((i) => ({
+            id: i._id,
+            appSlug: i.appSlug,
+            appName: i.appName,
+            isActive: i.isActive,
+            hasMcpConfig: !!i.mcpServerConfig,
+            mcpServerName: i.mcpServerConfig?.serverName,
+          })),
+        );
       }
-      
+
       const integrations = await UserIntegration.find({
         userId,
         isActive: true,
-        mcpServerConfig: { $exists: true, $ne: null }
+        mcpServerConfig: { $exists: true, $ne: null },
       }).lean();
 
       // logger.info(`UserMCPService: Found ${integrations.length} active integrations with MCP configs for user ${userId}`);
@@ -91,13 +98,13 @@ class UserMCPService {
       for (const integration of integrations) {
         const { mcpServerConfig, appSlug } = integration;
         const serverName = mcpServerConfig.serverName;
-        
+
         // logger.info(`UserMCPService: Processing integration ${appSlug} with server name ${serverName}`);
 
         // Build the server URL
         const baseURL = process.env.PIPEDREAM_MCP_BASE_URL || 'https://remote.mcp.pipedream.net';
         const serverUrl = `${baseURL}/${userId}/${appSlug}`;
-        
+
         mcpServers[serverName] = {
           type: 'streamable-http',
           url: serverUrl,
@@ -131,11 +138,16 @@ class UserMCPService {
             const accessToken = await PipedreamConnect.getOAuthAccessToken();
             if (accessToken) {
               mcpServers[serverName].headers['Authorization'] = `Bearer ${accessToken}`;
-              logger.info(`UserMCPService: Added Pipedream auth token for server ${serverName} using SDK`);
+              logger.info(
+                `UserMCPService: Added Pipedream auth token for server ${serverName} using SDK`,
+              );
             }
           }
         } catch (authError) {
-          logger.warn(`UserMCPService: Failed to get Pipedream auth token for server ${serverName}:`, authError.message);
+          logger.warn(
+            `UserMCPService: Failed to get Pipedream auth token for server ${serverName}:`,
+            authError.message,
+          );
           // Continue without auth token - the MCP server will handle the auth flow
         }
 
@@ -146,16 +158,19 @@ class UserMCPService {
         // });
       }
 
-      logger.info(`UserMCPService: Built ${Object.keys(mcpServers).length} MCP servers for user ${userId}:`, Object.keys(mcpServers));
-      
+      logger.info(
+        `UserMCPService: Built ${Object.keys(mcpServers).length} MCP servers for user ${userId}:`,
+        Object.keys(mcpServers),
+      );
+
       // Cache the result
       UserMCPService.userMCPServersCache.set(userId, mcpServers);
-      
+
       return mcpServers;
     } catch (error) {
       logger.error(`UserMCPService: Error getting MCP servers for user ${userId}:`, {
         message: error.message,
-        stack: error.stack
+        stack: error.stack,
       });
       return {};
     }
@@ -163,7 +178,7 @@ class UserMCPService {
 
   /**
    * Merge global MCP servers with user-specific ones
-   * 
+   *
    * @param {Object} globalMCPServers - Global MCP servers from librechat.yaml
    * @param {string} userId - The user ID
    * @returns {Promise<Object>} Merged MCP servers configuration
@@ -175,7 +190,7 @@ class UserMCPService {
 
     try {
       const userMCPServers = await this.getUserMCPServers(userId);
-      
+
       // Merge global and user-specific servers
       // User-specific servers take precedence over global ones with same name
       const mergedServers = {
@@ -183,18 +198,23 @@ class UserMCPService {
         ...userMCPServers,
       };
 
-      logger.info(`UserMCPService: Merged ${Object.keys(globalMCPServers).length} global + ${Object.keys(userMCPServers).length} user servers for user ${userId}`);
-      
+      logger.info(
+        `UserMCPService: Merged ${Object.keys(globalMCPServers).length} global + ${Object.keys(userMCPServers).length} user servers for user ${userId}`,
+      );
+
       return mergedServers;
     } catch (error) {
-      logger.error(`UserMCPService: Failed to merge MCP servers for user ${userId}:`, error.message);
+      logger.error(
+        `UserMCPService: Failed to merge MCP servers for user ${userId}:`,
+        error.message,
+      );
       return globalMCPServers;
     }
   }
 
   /**
    * Get user-specific MCP tools for display in UI
-   * 
+   *
    * @param {string} userId - The user ID
    * @returns {Promise<Array>} Array of user MCP tools
    */
@@ -221,18 +241,21 @@ class UserMCPService {
 
       return tools;
     } catch (error) {
-      logger.error(`UserMCPService: Failed to get user MCP tools for user ${userId}:`, error.message);
+      logger.error(
+        `UserMCPService: Failed to get user MCP tools for user ${userId}:`,
+        error.message,
+      );
       return [];
     }
   }
 
   /**
    * Clear cached user MCP servers
-   * 
-   * Note: As of the new architecture, cache clearing is handled automatically by 
+   *
+   * Note: As of the new architecture, cache clearing is handled automatically by
    * UserIntegration schema middleware when integrations are created, updated, or deleted.
    * This method is kept for manual troubleshooting and the explicit refresh endpoint.
-   * 
+   *
    * @param {string} userId - The user ID (optional, clears all if not provided)
    */
   clearCache(userId = null) {
@@ -241,7 +264,7 @@ class UserMCPService {
 
   /**
    * Static method: Clear cached user MCP servers
-   * 
+   *
    * @param {string} userId - The user ID (optional, clears all if not provided)
    */
   static clearCache(userId = null) {
@@ -256,11 +279,11 @@ class UserMCPService {
 
   /**
    * Refresh user MCP servers (useful when integrations change)
-   * 
+   *
    * Note: This method is primarily kept for the manual refresh API endpoint.
-   * In normal operation, cache clearing is handled automatically by UserIntegration 
+   * In normal operation, cache clearing is handled automatically by UserIntegration
    * schema middleware when database operations occur.
-   * 
+   *
    * @param {string} userId - The user ID
    * @returns {Promise<Object>} Updated MCP servers configuration
    */
@@ -270,7 +293,7 @@ class UserMCPService {
 
   /**
    * Static method: Refresh user MCP servers (useful when integrations change)
-   * 
+   *
    * @param {string} userId - The user ID
    * @returns {Promise<Object>} Updated MCP servers configuration
    */
@@ -281,14 +304,14 @@ class UserMCPService {
 
     // Clear cache first
     UserMCPService.clearCache(userId);
-    
+
     // Fetch fresh data
     return await UserMCPService.getUserMCPServers(userId);
   }
 
   /**
    * Static method: Get a single server configuration for a specific user and server
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {string} serverName - The server name to get
    * @returns {Promise<Object|null>} Server configuration or null if not found
@@ -302,35 +325,52 @@ class UserMCPService {
       const allServers = await UserMCPService.getUserMCPServers(userId);
       return allServers[serverName] || null;
     } catch (error) {
-      logger.error(`UserMCPService: Failed to get single server '${serverName}' for user ${userId}:`, error.message);
+      logger.error(
+        `UserMCPService: Failed to get single server '${serverName}' for user ${userId}:`,
+        error.message,
+      );
       return null;
     }
   }
 
-
   /**
    * Clean up tools from registries for a specific disconnected server
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {string} disconnectedServerName - The server that was disconnected
    * @param {string[]} toolsToRemove - Array of tool names to remove from registries (if empty, will be discovered from registry)
    * @param {Map} mcpToolRegistry - Optional MCP tool registry for discovering tools
    * @returns {Promise<Object>} Cleanup result with statistics
    */
-  async cleanupToolsForDisconnectedServer(userId, disconnectedServerName, toolsToRemove = [], mcpToolRegistry = null) {
-    return UserMCPService.cleanupToolsForDisconnectedServer(userId, disconnectedServerName, toolsToRemove, mcpToolRegistry);
+  async cleanupToolsForDisconnectedServer(
+    userId,
+    disconnectedServerName,
+    toolsToRemove = [],
+    mcpToolRegistry = null,
+  ) {
+    return UserMCPService.cleanupToolsForDisconnectedServer(
+      userId,
+      disconnectedServerName,
+      toolsToRemove,
+      mcpToolRegistry,
+    );
   }
 
   /**
    * Static method: Clean up tools from registries for a specific disconnected server
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {string} disconnectedServerName - The server that was disconnected
    * @param {string[]} toolsToRemove - Array of tool names to remove from registries (if empty, will be discovered from registry)
    * @param {Map} mcpToolRegistry - Optional MCP tool registry for discovering tools
    * @returns {Promise<Object>} Cleanup result with statistics
    */
-  static async cleanupToolsForDisconnectedServer(userId, disconnectedServerName, toolsToRemove = [], mcpToolRegistry = null) {
+  static async cleanupToolsForDisconnectedServer(
+    userId,
+    disconnectedServerName,
+    toolsToRemove = [],
+    mcpToolRegistry = null,
+  ) {
     if (!userId || !disconnectedServerName) {
       return {
         toolsRemoved: 0,
@@ -342,8 +382,10 @@ class UserMCPService {
     try {
       // If no tools are specified, discover them from the MCP tool registry
       if (!Array.isArray(toolsToRemove) || toolsToRemove.length === 0) {
-        logger.info(`UserMCPService: Discovering tools to remove for server '${disconnectedServerName}' from MCP tool registry`);
-        
+        logger.info(
+          `UserMCPService: Discovering tools to remove for server '${disconnectedServerName}' from MCP tool registry`,
+        );
+
         try {
           // Use the provided MCP tool registry to discover tools
           if (mcpToolRegistry && mcpToolRegistry.size > 0) {
@@ -354,16 +396,25 @@ class UserMCPService {
               }
             }
             toolsToRemove = discoveredTools;
-            logger.info(`UserMCPService: Discovered ${toolsToRemove.length} tools for server '${disconnectedServerName}': [${toolsToRemove.join(', ')}]`);
+            logger.info(
+              `UserMCPService: Discovered ${toolsToRemove.length} tools for server '${disconnectedServerName}': [${toolsToRemove.join(', ')}]`,
+            );
           } else {
-            logger.warn(`UserMCPService: No MCP tool registry provided to discover tools for server '${disconnectedServerName}'`);
+            logger.warn(
+              `UserMCPService: No MCP tool registry provided to discover tools for server '${disconnectedServerName}'`,
+            );
           }
         } catch (discoveryError) {
-          logger.warn(`UserMCPService: Failed to discover tools for server '${disconnectedServerName}':`, discoveryError.message);
+          logger.warn(
+            `UserMCPService: Failed to discover tools for server '${disconnectedServerName}':`,
+            discoveryError.message,
+          );
         }
-        
+
         if (toolsToRemove.length === 0) {
-          logger.info(`UserMCPService: No tools found for cleanup for server '${disconnectedServerName}'`);
+          logger.info(
+            `UserMCPService: No tools found for cleanup for server '${disconnectedServerName}'`,
+          );
           return {
             toolsRemoved: 0,
             disconnectedServer: disconnectedServerName,
@@ -372,7 +423,9 @@ class UserMCPService {
         }
       }
 
-      logger.info(`UserMCPService: Starting registry cleanup for disconnected server '${disconnectedServerName}' for user ${userId}`);
+      logger.info(
+        `UserMCPService: Starting registry cleanup for disconnected server '${disconnectedServerName}' for user ${userId}`,
+      );
       logger.info(`UserMCPService: Tools to remove from registries: [${toolsToRemove.join(', ')}]`);
 
       const result = {
@@ -388,14 +441,17 @@ class UserMCPService {
 
       return result;
     } catch (error) {
-      logger.error(`UserMCPService: Failed to cleanup tools for disconnected server '${disconnectedServerName}' for user ${userId}:`, error);
+      logger.error(
+        `UserMCPService: Failed to cleanup tools for disconnected server '${disconnectedServerName}' for user ${userId}:`,
+        error,
+      );
       throw error;
     }
   }
 
   /**
    * Check if user has any MCP servers configured
-   * 
+   *
    * @param {string} userId - The user ID
    * @returns {Promise<boolean>} True if user has MCP servers
    */
@@ -405,7 +461,7 @@ class UserMCPService {
 
   /**
    * Static method: Check if user has any MCP servers configured
-   * 
+   *
    * @param {string} userId - The user ID
    * @returns {Promise<boolean>} True if user has MCP servers
    */
@@ -418,10 +474,13 @@ class UserMCPService {
       const userMCPServers = await UserMCPService.getUserMCPServers(userId);
       return Object.keys(userMCPServers).length > 0;
     } catch (error) {
-      logger.error(`UserMCPService: Failed to check MCP servers for user ${userId}:`, error.message);
+      logger.error(
+        `UserMCPService: Failed to check MCP servers for user ${userId}:`,
+        error.message,
+      );
       return false;
     }
   }
 }
 
-module.exports = UserMCPService; 
+module.exports = UserMCPService;

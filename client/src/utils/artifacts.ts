@@ -134,7 +134,7 @@ const standardDependencies = {
 
 const workflowDependencies = Object.assign(
   {
-    'reactflow': '^11.11.4',
+    reactflow: '^11.11.4',
     '@reactflow/core': '^11.11.4',
     '@reactflow/background': '^11.3.14',
     '@reactflow/controls': '^11.2.14',

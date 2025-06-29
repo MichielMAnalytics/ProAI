@@ -50,7 +50,7 @@ class StripeService {
         userEmail,
         userId,
         credits,
-        idempotencyKey
+        idempotencyKey,
       });
 
       const sessionOptions = {
@@ -85,9 +85,11 @@ class StripeService {
       };
 
       // Add idempotency key if provided
-      const requestOptions = idempotencyKey ? {
-        idempotencyKey
-      } : {};
+      const requestOptions = idempotencyKey
+        ? {
+            idempotencyKey,
+          }
+        : {};
 
       const session = await this.stripe.checkout.sessions.create(sessionOptions, requestOptions);
 
@@ -177,7 +179,7 @@ class StripeService {
 
     try {
       const baseUrl = this.getBaseUrl();
-      
+
       const session = await this.stripe.billingPortal.sessions.create({
         customer: customerId,
         return_url: returnUrl || `${baseUrl}/pricing`,
@@ -209,7 +211,7 @@ class StripeService {
       return this.stripe.webhooks.constructEvent(
         payload,
         signature,
-        process.env.STRIPE_WEBHOOK_SECRET
+        process.env.STRIPE_WEBHOOK_SECRET,
       );
     } catch (error) {
       logger.error('Error verifying webhook signature:', error);
@@ -218,4 +220,4 @@ class StripeService {
   }
 }
 
-module.exports = new StripeService(); 
+module.exports = new StripeService();

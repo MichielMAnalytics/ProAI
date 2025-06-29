@@ -3,7 +3,7 @@ const { logger } = require('~/config');
 
 /**
  * PipedreamUserIntegrations - Manages user-specific integrations
- * 
+ *
  * This service handles:
  * - User integration queries and management
  * - MCP server configuration generation
@@ -17,7 +17,7 @@ class PipedreamUserIntegrations {
 
   /**
    * Get user's connected integrations
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {Object} options - Query options
    * @param {boolean} options.includeInactive - Include inactive integrations (default: false)
@@ -38,11 +38,11 @@ class PipedreamUserIntegrations {
       });
 
       const query = { userId };
-      
+
       if (!includeInactive) {
         query.isActive = true;
       }
-      
+
       if (appSlug) {
         query.appSlug = appSlug;
       }
@@ -51,18 +51,23 @@ class PipedreamUserIntegrations {
         .sort({ lastUsedAt: -1, lastConnectedAt: -1 })
         .lean();
 
-      logger.info(`PipedreamUserIntegrations: Found ${integrations.length} integrations for user ${userId}`);
-      
+      logger.info(
+        `PipedreamUserIntegrations: Found ${integrations.length} integrations for user ${userId}`,
+      );
+
       return integrations;
     } catch (error) {
-      logger.error(`PipedreamUserIntegrations: Failed to get integrations for user ${userId}:`, error.message);
+      logger.error(
+        `PipedreamUserIntegrations: Failed to get integrations for user ${userId}:`,
+        error.message,
+      );
       throw new Error(`Failed to retrieve user integrations: ${error.message}`);
     }
   }
 
   /**
    * Get a specific user integration
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {string} integrationId - The integration ID
    * @returns {Promise<Object|null>} Integration or null if not found
@@ -73,7 +78,9 @@ class PipedreamUserIntegrations {
     }
 
     try {
-      logger.info(`PipedreamUserIntegrations: Getting integration ${integrationId} for user ${userId}`);
+      logger.info(
+        `PipedreamUserIntegrations: Getting integration ${integrationId} for user ${userId}`,
+      );
 
       const integration = await UserIntegration.findOne({
         _id: integrationId,
@@ -82,21 +89,28 @@ class PipedreamUserIntegrations {
       }).lean();
 
       if (integration) {
-        logger.info(`PipedreamUserIntegrations: Found integration ${integrationId} for user ${userId}`);
+        logger.info(
+          `PipedreamUserIntegrations: Found integration ${integrationId} for user ${userId}`,
+        );
       } else {
-        logger.warn(`PipedreamUserIntegrations: Integration ${integrationId} not found for user ${userId}`);
+        logger.warn(
+          `PipedreamUserIntegrations: Integration ${integrationId} not found for user ${userId}`,
+        );
       }
 
       return integration;
     } catch (error) {
-      logger.error(`PipedreamUserIntegrations: Failed to get integration ${integrationId} for user ${userId}:`, error.message);
+      logger.error(
+        `PipedreamUserIntegrations: Failed to get integration ${integrationId} for user ${userId}:`,
+        error.message,
+      );
       throw new Error(`Failed to retrieve integration: ${error.message}`);
     }
   }
 
   /**
    * Update integration usage timestamp
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {string} integrationId - The integration ID
    * @returns {Promise<Object>} Updated integration
@@ -107,12 +121,14 @@ class PipedreamUserIntegrations {
     }
 
     try {
-      logger.info(`PipedreamUserIntegrations: Updating usage for integration ${integrationId}, user ${userId}`);
+      logger.info(
+        `PipedreamUserIntegrations: Updating usage for integration ${integrationId}, user ${userId}`,
+      );
 
       const integration = await UserIntegration.findOneAndUpdate(
         { _id: integrationId, userId, isActive: true },
         { lastUsedAt: new Date() },
-        { new: true }
+        { new: true },
       );
 
       if (!integration) {
@@ -122,14 +138,17 @@ class PipedreamUserIntegrations {
       logger.info(`PipedreamUserIntegrations: Updated usage for integration ${integrationId}`);
       return integration;
     } catch (error) {
-      logger.error(`PipedreamUserIntegrations: Failed to update usage for integration ${integrationId}:`, error.message);
+      logger.error(
+        `PipedreamUserIntegrations: Failed to update usage for integration ${integrationId}:`,
+        error.message,
+      );
       throw error;
     }
   }
 
   /**
    * Check if user has a specific integration connected
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {string} appSlug - The app slug to check
    * @returns {Promise<boolean>} True if user has the integration connected
@@ -147,18 +166,23 @@ class PipedreamUserIntegrations {
       }).lean();
 
       const hasIntegration = !!integration;
-      logger.info(`PipedreamUserIntegrations: User ${userId} ${hasIntegration ? 'has' : 'does not have'} ${appSlug} integration`);
-      
+      logger.info(
+        `PipedreamUserIntegrations: User ${userId} ${hasIntegration ? 'has' : 'does not have'} ${appSlug} integration`,
+      );
+
       return hasIntegration;
     } catch (error) {
-      logger.error(`PipedreamUserIntegrations: Failed to check integration ${appSlug} for user ${userId}:`, error.message);
+      logger.error(
+        `PipedreamUserIntegrations: Failed to check integration ${appSlug} for user ${userId}:`,
+        error.message,
+      );
       return false;
     }
   }
 
   /**
    * Get integration statistics for a user
-   * 
+   *
    * @param {string} userId - The user ID
    * @returns {Promise<Object>} Integration statistics
    */
@@ -173,10 +197,10 @@ class PipedreamUserIntegrations {
       const [activeCount, totalCount, recentlyUsed] = await Promise.all([
         UserIntegration.countDocuments({ userId, isActive: true }),
         UserIntegration.countDocuments({ userId }),
-        UserIntegration.find({ 
-          userId, 
+        UserIntegration.find({
+          userId,
           isActive: true,
-          lastUsedAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // Last 30 days
+          lastUsedAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }, // Last 30 days
         }).countDocuments(),
       ]);
 
@@ -190,14 +214,17 @@ class PipedreamUserIntegrations {
       logger.info(`PipedreamUserIntegrations: Stats for user ${userId}:`, stats);
       return stats;
     } catch (error) {
-      logger.error(`PipedreamUserIntegrations: Failed to get stats for user ${userId}:`, error.message);
+      logger.error(
+        `PipedreamUserIntegrations: Failed to get stats for user ${userId}:`,
+        error.message,
+      );
       throw new Error(`Failed to retrieve integration statistics: ${error.message}`);
     }
   }
 
   /**
    * Generate MCP server configuration for user's integrations
-   * 
+   *
    * @param {string} userId - The user ID
    * @returns {Promise<Object>} MCP server configuration
    */
@@ -238,17 +265,22 @@ class PipedreamUserIntegrations {
         }
       }
 
-      logger.info(`PipedreamUserIntegrations: Generated MCP config with ${Object.keys(mcpServers).length} servers for user ${userId}`);
+      logger.info(
+        `PipedreamUserIntegrations: Generated MCP config with ${Object.keys(mcpServers).length} servers for user ${userId}`,
+      );
       return mcpServers;
     } catch (error) {
-      logger.error(`PipedreamUserIntegrations: Failed to generate MCP config for user ${userId}:`, error.message);
+      logger.error(
+        `PipedreamUserIntegrations: Failed to generate MCP config for user ${userId}:`,
+        error.message,
+      );
       throw new Error(`Failed to generate MCP configuration: ${error.message}`);
     }
   }
 
   /**
    * Update integration MCP configuration
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {string} integrationId - The integration ID
    * @param {Object} mcpConfig - MCP server configuration
@@ -260,12 +292,14 @@ class PipedreamUserIntegrations {
     }
 
     try {
-      logger.info(`PipedreamUserIntegrations: Updating MCP config for integration ${integrationId}, user ${userId}`);
+      logger.info(
+        `PipedreamUserIntegrations: Updating MCP config for integration ${integrationId}, user ${userId}`,
+      );
 
       const integration = await UserIntegration.findOneAndUpdate(
         { _id: integrationId, userId, isActive: true },
         { mcpServerConfig: mcpConfig },
-        { new: true }
+        { new: true },
       );
 
       if (!integration) {
@@ -275,14 +309,17 @@ class PipedreamUserIntegrations {
       logger.info(`PipedreamUserIntegrations: Updated MCP config for integration ${integrationId}`);
       return integration;
     } catch (error) {
-      logger.error(`PipedreamUserIntegrations: Failed to update MCP config for integration ${integrationId}:`, error.message);
+      logger.error(
+        `PipedreamUserIntegrations: Failed to update MCP config for integration ${integrationId}:`,
+        error.message,
+      );
       throw error;
     }
   }
 
   /**
    * Get integrations by category
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {string} category - The category to filter by
    * @returns {Promise<Array>} Array of integrations in the category
@@ -300,20 +337,25 @@ class PipedreamUserIntegrations {
         isActive: true,
         appCategories: { $in: [category] },
       })
-      .sort({ lastUsedAt: -1 })
-      .lean();
+        .sort({ lastUsedAt: -1 })
+        .lean();
 
-      logger.info(`PipedreamUserIntegrations: Found ${integrations.length} ${category} integrations for user ${userId}`);
+      logger.info(
+        `PipedreamUserIntegrations: Found ${integrations.length} ${category} integrations for user ${userId}`,
+      );
       return integrations;
     } catch (error) {
-      logger.error(`PipedreamUserIntegrations: Failed to get ${category} integrations for user ${userId}:`, error.message);
+      logger.error(
+        `PipedreamUserIntegrations: Failed to get ${category} integrations for user ${userId}:`,
+        error.message,
+      );
       throw new Error(`Failed to retrieve integrations by category: ${error.message}`);
     }
   }
 
   /**
    * Search user integrations
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {string} searchTerm - The search term
    * @returns {Promise<Array>} Array of matching integrations
@@ -324,7 +366,9 @@ class PipedreamUserIntegrations {
     }
 
     try {
-      logger.info(`PipedreamUserIntegrations: Searching integrations for user ${userId} with term: ${searchTerm}`);
+      logger.info(
+        `PipedreamUserIntegrations: Searching integrations for user ${userId} with term: ${searchTerm}`,
+      );
 
       const integrations = await UserIntegration.find({
         userId,
@@ -336,20 +380,25 @@ class PipedreamUserIntegrations {
           { appCategories: { $in: [new RegExp(searchTerm, 'i')] } },
         ],
       })
-      .sort({ lastUsedAt: -1 })
-      .lean();
+        .sort({ lastUsedAt: -1 })
+        .lean();
 
-      logger.info(`PipedreamUserIntegrations: Found ${integrations.length} integrations matching "${searchTerm}" for user ${userId}`);
+      logger.info(
+        `PipedreamUserIntegrations: Found ${integrations.length} integrations matching "${searchTerm}" for user ${userId}`,
+      );
       return integrations;
     } catch (error) {
-      logger.error(`PipedreamUserIntegrations: Failed to search integrations for user ${userId}:`, error.message);
+      logger.error(
+        `PipedreamUserIntegrations: Failed to search integrations for user ${userId}:`,
+        error.message,
+      );
       throw new Error(`Failed to search integrations: ${error.message}`);
     }
   }
 
   /**
    * Bulk update integrations
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {Array} updates - Array of update operations
    * @returns {Promise<Object>} Update results
@@ -360,63 +409,75 @@ class PipedreamUserIntegrations {
     }
 
     try {
-      logger.info(`PipedreamUserIntegrations: Bulk updating ${updates.length} integrations for user ${userId}`);
+      logger.info(
+        `PipedreamUserIntegrations: Bulk updating ${updates.length} integrations for user ${userId}`,
+      );
 
       const results = await Promise.allSettled(
         updates.map(async (update) => {
           const { integrationId, data } = update;
-          return await UserIntegration.findOneAndUpdate(
-            { _id: integrationId, userId },
-            data,
-            { new: true }
-          );
-        })
+          return await UserIntegration.findOneAndUpdate({ _id: integrationId, userId }, data, {
+            new: true,
+          });
+        }),
       );
 
-      const successful = results.filter(r => r.status === 'fulfilled').length;
-      const failed = results.filter(r => r.status === 'rejected').length;
+      const successful = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.filter((r) => r.status === 'rejected').length;
 
-      logger.info(`PipedreamUserIntegrations: Bulk update completed for user ${userId}: ${successful} successful, ${failed} failed`);
-      
+      logger.info(
+        `PipedreamUserIntegrations: Bulk update completed for user ${userId}: ${successful} successful, ${failed} failed`,
+      );
+
       return {
         successful,
         failed,
         results,
       };
     } catch (error) {
-      logger.error(`PipedreamUserIntegrations: Failed to bulk update integrations for user ${userId}:`, error.message);
+      logger.error(
+        `PipedreamUserIntegrations: Failed to bulk update integrations for user ${userId}:`,
+        error.message,
+      );
       throw new Error(`Failed to bulk update integrations: ${error.message}`);
     }
   }
 
   /**
    * Clean up inactive integrations older than specified days
-   * 
+   *
    * @param {number} daysOld - Number of days to consider for cleanup (default: 90)
    * @returns {Promise<Object>} Cleanup results
    */
   async cleanupInactiveIntegrations(daysOld = 90) {
     try {
-      logger.info(`PipedreamUserIntegrations: Cleaning up inactive integrations older than ${daysOld} days`);
+      logger.info(
+        `PipedreamUserIntegrations: Cleaning up inactive integrations older than ${daysOld} days`,
+      );
 
       const cutoffDate = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000);
-      
+
       const result = await UserIntegration.deleteMany({
         isActive: false,
         updatedAt: { $lt: cutoffDate },
       });
 
-      logger.info(`PipedreamUserIntegrations: Cleaned up ${result.deletedCount} inactive integrations`);
-      
+      logger.info(
+        `PipedreamUserIntegrations: Cleaned up ${result.deletedCount} inactive integrations`,
+      );
+
       return {
         deletedCount: result.deletedCount,
         cutoffDate,
       };
     } catch (error) {
-      logger.error('PipedreamUserIntegrations: Failed to cleanup inactive integrations:', error.message);
+      logger.error(
+        'PipedreamUserIntegrations: Failed to cleanup inactive integrations:',
+        error.message,
+      );
       throw new Error(`Failed to cleanup inactive integrations: ${error.message}`);
     }
   }
 }
 
-module.exports = new PipedreamUserIntegrations(); 
+module.exports = new PipedreamUserIntegrations();

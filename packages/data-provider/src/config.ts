@@ -187,6 +187,7 @@ export const baseEndpointSchema = z.object({
   baseURL: z.string().optional(),
   titlePrompt: z.string().optional(),
   titleModel: z.string().optional(),
+  tools: z.boolean().optional(),
 });
 
 export type TBaseEndpoint = z.infer<typeof baseEndpointSchema>;
@@ -553,7 +554,7 @@ export const intefaceSchema = z
       .object({
         // Hide the actions section in agent builder (keeps capability enabled)
         actions: z.boolean().optional().default(true),
-        // Hide the tools section in agent builder (keeps capability enabled)  
+        // Hide the tools section in agent builder (keeps capability enabled)
         tools: z.boolean().optional().default(true),
         // Hide the capabilities section in agent builder
         capabilities: z.boolean().optional().default(true),
@@ -746,21 +747,28 @@ export const balanceSchema = z.object({
 });
 
 export const schedulerSchema = z.object({
-  notifications: z.object({
-    sound: z.boolean().optional().default(true),
-    volume: z.number().min(0).max(1).optional().default(0.3),
-  }).optional(),
+  notifications: z
+    .object({
+      sound: z.boolean().optional().default(true),
+      volume: z.number().min(0).max(1).optional().default(0.3),
+    })
+    .optional(),
 });
 
 export type TSchedulerConfig = z.infer<typeof schedulerSchema>;
 
 export const workflowsSchema = z.object({
   defaultModel: z.string().optional().default('gpt-4o-mini'),
-  defaultEndpoint: z.enum(['openAI', 'anthropic', 'google', 'azureOpenAI', 'custom', 'bedrock']).optional().default('openAI'),
-  notifications: z.object({
-    sound: z.boolean().optional().default(true),
-    volume: z.number().min(0).max(1).optional().default(0.3),
-  }).optional(),
+  defaultEndpoint: z
+    .enum(['openAI', 'anthropic', 'google', 'azureOpenAI', 'custom', 'bedrock'])
+    .optional()
+    .default('openAI'),
+  notifications: z
+    .object({
+      sound: z.boolean().optional().default(true),
+      volume: z.number().min(0).max(1).optional().default(0.3),
+    })
+    .optional(),
 });
 
 export type TWorkflowsConfig = z.infer<typeof workflowsSchema>;

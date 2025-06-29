@@ -108,9 +108,7 @@ async function loadDefaultInterface(config, configDefaults, roleName = SystemRol
   };
 
   if ((!loadedInterface.presets && !config?.modelSpecs?.enforce) ?? true) {
-    logger.warn(
-      'Presets are disabled; users will send requests without preset configurations',
-    );
+    logger.warn('Presets are disabled; users will send requests without preset configurations');
     i === 0 && i++;
   }
 

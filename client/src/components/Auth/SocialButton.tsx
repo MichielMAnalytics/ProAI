@@ -10,12 +10,12 @@ const SocialButton = ({ id, enabled, serverDomain, oauthPath, Icon, label }) => 
 
   const handleOAuthClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    
+
     // Get timezone and add it to the OAuth URL
     const timezone = ensureTimezoneForOAuth();
     const oauthUrl = new URL(`${serverDomain}/oauth/${oauthPath}`, window.location.origin);
     oauthUrl.searchParams.set('timezone', timezone);
-    
+
     // Navigate to OAuth URL with timezone parameter
     window.location.href = oauthUrl.toString();
   };

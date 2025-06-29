@@ -95,15 +95,15 @@ function ControlCombobox({
       const currentLabel = item.label || '';
       return currentLabel.length > longest.length ? currentLabel : longest;
     }, '');
-    
+
     // Estimate width based on content: approximately 8px per character + padding for icon + margins
     const estimatedContentWidth = longestLabel.length * 8 + 60; // 60px for icon, padding, and margins
-    
+
     // Use the larger of button width or content width, but cap at reasonable limits
     const minWidth = Math.max(buttonWidth ?? 300, 300); // At least 300px or button width
     const maxWidth = Math.min(500, window.innerWidth * 0.9); // Max 500px or 90% of viewport width
     const optimalWidth = Math.max(minWidth, Math.min(estimatedContentWidth, maxWidth));
-    
+
     return `${optimalWidth}px`;
   }, [isCollapsed, items, buttonWidth]);
 

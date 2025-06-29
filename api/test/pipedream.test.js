@@ -42,7 +42,7 @@ describe('PipedreamService', () => {
   beforeEach(() => {
     // Clear all mocks
     jest.clearAllMocks();
-    
+
     // Get the mocked client
     mockClient = pipedreamService.client;
   });
@@ -80,7 +80,7 @@ describe('PipedreamService', () => {
       });
 
       const result = await pipedreamService.getAvailableIntegrations();
-      
+
       expect(result).toEqual(mockCachedIntegrations);
       expect(mockClient.getApps).not.toHaveBeenCalled();
     });
@@ -182,7 +182,7 @@ describe('PipedreamService', () => {
       for (const responseFormat of testCases) {
         // Reset mocks
         jest.clearAllMocks();
-        
+
         // Mock stale cache
         AvailableIntegration.find.mockReturnValue({
           sort: jest.fn().mockReturnValue({
@@ -214,7 +214,7 @@ describe('PipedreamService', () => {
 
       expect(mockLogger.error).toHaveBeenCalledWith(
         'Failed to fetch apps from Pipedream API:',
-        expect.any(Error)
+        expect.any(Error),
       );
       expect(mockLogger.info).toHaveBeenCalledWith('Using mock integration data for development');
       expect(result).toEqual([]);
@@ -253,7 +253,7 @@ describe('PipedreamService', () => {
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'Pipedream API returned unexpected format:',
-        'string'
+        'string',
       );
       expect(result).toEqual([]);
     });
@@ -307,7 +307,7 @@ describe('PipedreamService', () => {
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'updateAvailableIntegrations called with non-array:',
-        'string'
+        'string',
       );
       expect(AvailableIntegration.bulkWrite).not.toHaveBeenCalled();
     });
@@ -331,7 +331,7 @@ describe('PipedreamService', () => {
       AvailableIntegration.bulkWrite.mockRejectedValue(new Error('Database error'));
 
       await expect(pipedreamService.updateAvailableIntegrations(mockApps)).rejects.toThrow(
-        'Database error'
+        'Database error',
       );
     });
   });
@@ -361,7 +361,7 @@ describe('PipedreamService', () => {
       mockClient.createConnectToken.mockRejectedValue(new Error('API Error'));
 
       await expect(pipedreamService.createConnectToken('user123')).rejects.toThrow(
-        'Failed to create connect token'
+        'Failed to create connect token',
       );
     });
   });
@@ -400,7 +400,7 @@ describe('PipedreamService', () => {
       });
 
       await expect(pipedreamService.getUserIntegrations('user123')).rejects.toThrow(
-        'Failed to retrieve user integrations'
+        'Failed to retrieve user integrations',
       );
     });
   });
@@ -434,4 +434,4 @@ describe('PipedreamService', () => {
       expect(pipedreamService.isEnabled()).toBe(true);
     });
   });
-}); 
+});

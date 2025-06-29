@@ -87,10 +87,10 @@ const errorMessages = {
   },
   token_balance: (json: TTokenBalance) => {
     const { balance, tokenCost, promptTokens, generations, tier, tierName } = json;
-    
+
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const navigate = useNavigate();
-    
+
     const handleUpgrade = () => {
       navigate('/pricing');
     };
@@ -103,7 +103,7 @@ const errorMessages = {
         // Extract tier number
         const tierMatch = tier.match(/(\d+)/);
         const tierNumber = tierMatch ? parseInt(tierMatch[1]) : 1;
-        
+
         if (tierNumber < 8) {
           // User can upgrade to next tier
           const nextTierNumber = tierNumber + 1;
@@ -111,7 +111,7 @@ const errorMessages = {
           return `Upgrade to Pro Tier ${nextTierNumber} to get ${formatCredits(nextTierCredits)} credits per month.`;
         } else {
           // User is on highest tier
-          return 'You\'re on our highest tier! Your credits will automatically refill next month.';
+          return "You're on our highest tier! Your credits will automatically refill next month.";
         }
       }
       return 'Upgrade to Pro to get more credits and continue your conversations.';
@@ -149,38 +149,43 @@ const errorMessages = {
       }
       return true; // Show for free users
     };
-    
+
     return (
       <>
         <div className="mb-4">
-          <div 
-            className="rounded-lg p-4 mb-4 border"
+          <div
+            className="mb-4 rounded-lg border p-4"
             style={{
               backgroundColor: 'var(--surface-secondary)',
-              borderColor: 'var(--border-light)'
+              borderColor: 'var(--border-light)',
             }}
           >
             <div className="flex items-start">
               <div className="flex-shrink-0">
-                <svg className="h-5 w-5" style={{ color: 'var(--text-secondary)' }} viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                <svg
+                  className="h-5 w-5"
+                  style={{ color: 'var(--text-secondary)' }}
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                    clipRule="evenodd"
+                  />
                 </svg>
               </div>
               <div className="ml-3 flex-1">
-                <h3 className="text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>
-                  {tier && tierName && (
-                    <span className="mr-2">{getTierEmoji(tierName, tier)}</span>
-                  )}
+                <h3 className="mb-2 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                  {tier && tierName && <span className="mr-2">{getTierEmoji(tierName, tier)}</span>}
                   You've reached your credit limit
                 </h3>
-                <p className="text-sm mb-3" style={{ color: 'var(--text-secondary)' }}>
+                <p className="mb-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
                   {getUpgradeMessage()}
                 </p>
-                <div className="text-xs mb-3" style={{ color: 'var(--text-tertiary)' }}>
+                <div className="mb-3 text-xs" style={{ color: 'var(--text-tertiary)' }}>
                   Balance: {balance} • Cost: {tokenCost} • Tokens: {promptTokens}
-                  {tier && tierName && (
-                    <span className="ml-2">• Tier: {tierName}</span>
-                  )}
+                  {tier && tierName && <span className="ml-2">• Tier: {tierName}</span>}
                 </div>
                 {shouldShowUpgradeButton() && (
                   <div>
@@ -189,7 +194,7 @@ const errorMessages = {
                       className="btn btn-primary px-4 py-2 text-sm"
                       style={{
                         background: 'linear-gradient(90deg, #904887 10.79%, #8b257e 87.08%)',
-                        borderColor: '#8b257e'
+                        borderColor: '#8b257e',
                       }}
                     >
                       {tier === 'free' ? 'Upgrade to Pro →' : 'Upgrade Tier →'}

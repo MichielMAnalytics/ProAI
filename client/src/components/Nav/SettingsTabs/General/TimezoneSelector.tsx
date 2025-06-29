@@ -11,15 +11,15 @@ export const TimezoneSelector: React.FC = () => {
   const timezoneOptions = useMemo(() => {
     const popularTimezones = getPopularTimezones();
     const detectedTimezone = getDetectedTimezone();
-    
+
     // Add auto-detect option
     const options = [
-      { 
-        value: 'auto', 
-        label: `${localize('com_nav_timezone_auto')} (${formatTimezoneLabel(detectedTimezone)})` 
+      {
+        value: 'auto',
+        label: `${localize('com_nav_timezone_auto')} (${formatTimezoneLabel(detectedTimezone)})`,
       },
       { value: 'divider', label: '---', disabled: true },
-      ...popularTimezones.map(tz => ({
+      ...popularTimezones.map((tz) => ({
         value: tz.value,
         label: tz.label,
       })),
@@ -30,7 +30,7 @@ export const TimezoneSelector: React.FC = () => {
 
   const handleTimezoneChange = async (value: string) => {
     if (value === 'divider') return;
-    
+
     try {
       if (value === 'auto') {
         // When auto is selected, use the detected timezone
@@ -55,13 +55,11 @@ export const TimezoneSelector: React.FC = () => {
   return (
     <div className="flex items-center justify-between">
       <div>
-        <div className="text-sm text-text-primary">
-          {localize('com_nav_timezone')}
-        </div>
-        <div className="text-xs text-text-secondary mt-1">
+        <div className="text-sm text-text-primary">{localize('com_nav_timezone')}</div>
+        <div className="mt-1 text-xs text-text-secondary">
           {localize('com_nav_timezone_description')}
           {isError && (
-            <div className="text-red-500 mt-1">
+            <div className="mt-1 text-red-500">
               {(error as Error)?.message || 'Failed to update timezone'}
             </div>
           )}
@@ -77,4 +75,4 @@ export const TimezoneSelector: React.FC = () => {
       />
     </div>
   );
-}; 
+};

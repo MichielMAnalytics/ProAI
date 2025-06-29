@@ -428,10 +428,10 @@ const getListAgents = async (searchParameter) => {
   // Get user's duplicated agent original IDs to filter them out from global agents
   const userDuplicates = await Agent.find(
     { author, originalAgentId: { $exists: true, $ne: null } },
-    { originalAgentId: 1, _id: 0 }
+    { originalAgentId: 1, _id: 0 },
   ).lean();
-  
-  const duplicatedOriginalIds = userDuplicates.map(agent => agent.originalAgentId);
+
+  const duplicatedOriginalIds = userDuplicates.map((agent) => agent.originalAgentId);
   const agents = (
     await Agent.find(query, {
       id: 1,
@@ -446,24 +446,24 @@ const getListAgents = async (searchParameter) => {
       tools: 1,
     }).lean()
   )
-  .filter((agent) => {
-    // Filter out original shared agents if user has duplicated them
-    if (agent.author?.toString() !== author && duplicatedOriginalIds.includes(agent.id)) {
-      return false;
-    }
-    return true;
-  })
-  .map((agent) => {
-    if (agent.author?.toString() !== author) {
-      delete agent.author;
-    }
-    if (agent.author) {
-      agent.author = agent.author.toString();
-    }
-    // Don't expose originalAgentId in the response
-    delete agent.originalAgentId;
-    return agent;
-  });
+    .filter((agent) => {
+      // Filter out original shared agents if user has duplicated them
+      if (agent.author?.toString() !== author && duplicatedOriginalIds.includes(agent.id)) {
+        return false;
+      }
+      return true;
+    })
+    .map((agent) => {
+      if (agent.author?.toString() !== author) {
+        delete agent.author;
+      }
+      if (agent.author) {
+        agent.author = agent.author.toString();
+      }
+      // Don't expose originalAgentId in the response
+      delete agent.originalAgentId;
+      return agent;
+    });
 
   const hasMore = agents.length > 0;
   const firstId = agents.length > 0 ? agents[0].id : null;

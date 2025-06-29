@@ -22,7 +22,7 @@ const getUserMCPTools = async (req, res) => {
     // Check if user-specific MCP is enabled in config
     const config = req.app.locals;
     const addUserSpecificMcp = config.addUserSpecificMcpFromDb;
-    
+
     if (!addUserSpecificMcp) {
       logger.info('UserMCPController: User-specific MCP is disabled in config');
       return res.json([]);
@@ -33,7 +33,7 @@ const getUserMCPTools = async (req, res) => {
     const userMCPTools = await userMCPService.getUserMCPTools(userId);
 
     // Transform to LibreChat tool format
-    const formattedTools = userMCPTools.map(tool => ({
+    const formattedTools = userMCPTools.map((tool) => ({
       pluginKey: tool.name, // Use clean tool name as pluginKey
       name: tool.name,
       description: tool.description,
@@ -74,7 +74,7 @@ const initializeUserMCP = async (req, res) => {
     // Check if user-specific MCP is enabled
     const config = req.app.locals;
     const addUserSpecificMcp = config.addUserSpecificMcpFromDb;
-    
+
     if (!addUserSpecificMcp) {
       return res.json({
         success: true,
@@ -85,23 +85,28 @@ const initializeUserMCP = async (req, res) => {
 
     // Get the MCP manager instance for this user
     const mcpManager = getMCPManager(userId);
-    
+
     // Get user-specific MCP servers
     const userMCPServers = await UserMCPService.getUserMCPServers(userId);
-    
+
     // Initialize user-specific MCP servers if any exist
     if (Object.keys(userMCPServers).length > 0) {
       try {
         // Initialize the user-specific MCP servers
         await mcpManager.initializeUserMCP(userMCPServers, userId);
-        
+
         // Map the available tools
         const availableTools = req.app.locals.availableTools || {};
         await mcpManager.mapAvailableTools(availableTools);
-        
-        logger.info(`UserMCPController: Initialized ${Object.keys(userMCPServers).length} MCP servers for user ${userId}`);
+
+        logger.info(
+          `UserMCPController: Initialized ${Object.keys(userMCPServers).length} MCP servers for user ${userId}`,
+        );
       } catch (mcpError) {
-        logger.warn(`UserMCPController: Failed to initialize some MCP servers for user ${userId}:`, mcpError.message);
+        logger.warn(
+          `UserMCPController: Failed to initialize some MCP servers for user ${userId}:`,
+          mcpError.message,
+        );
         // Continue even if some servers fail to initialize
       }
     }
@@ -112,7 +117,10 @@ const initializeUserMCP = async (req, res) => {
       mcpServers: Object.keys(userMCPServers),
     });
   } catch (error) {
-    logger.error(`UserMCPController: Error initializing user MCP for user ${req.user?.id}:`, error.message);
+    logger.error(
+      `UserMCPController: Error initializing user MCP for user ${req.user?.id}:`,
+      error.message,
+    );
     res.status(500).json({
       error: 'Failed to initialize user MCP servers',
       message: error.message,
@@ -139,7 +147,7 @@ const refreshUserMCP = async (req, res) => {
     // Check if user-specific MCP is enabled
     const config = req.app.locals;
     const addUserSpecificMcp = config.addUserSpecificMcpFromDb;
-    
+
     if (!addUserSpecificMcp) {
       return res.json({
         success: true,
@@ -149,12 +157,12 @@ const refreshUserMCP = async (req, res) => {
 
     // Refresh user MCP servers cache
     const refreshedServers = await UserMCPService.refreshUserMCPServers(userId);
-    
+
     // Reinitialize if there are servers
     if (Object.keys(refreshedServers).length > 0) {
       const mcpManager = getMCPManager(userId);
       await mcpManager.initializeUserMCP(refreshedServers, userId);
-      
+
       const availableTools = req.app.locals.availableTools || {};
       await mcpManager.mapAvailableTools(availableTools);
     }
@@ -165,14 +173,16 @@ const refreshUserMCP = async (req, res) => {
       mcpServers: Object.keys(refreshedServers),
     });
   } catch (error) {
-    logger.error(`UserMCPController: Error refreshing user MCP for user ${req.user?.id}:`, error.message);
+    logger.error(
+      `UserMCPController: Error refreshing user MCP for user ${req.user?.id}:`,
+      error.message,
+    );
     res.status(500).json({
       error: 'Failed to refresh user MCP servers',
       message: error.message,
     });
   }
 };
-
 
 /**
  * Get status of user MCP servers
@@ -191,8 +201,8 @@ const getUserMCPStatus = async (req, res) => {
     // Check if user-specific MCP is enabled
     const config = req.app.locals;
     const addUserSpecificMcp = config.addUserSpecificMcpFromDb;
-    
-    const hasUserMCPServers = addUserSpecificMcp 
+
+    const hasUserMCPServers = addUserSpecificMcp
       ? await UserMCPService.hasUserMCPServers(userId)
       : false;
 
@@ -202,7 +212,10 @@ const getUserMCPStatus = async (req, res) => {
       userId,
     });
   } catch (error) {
-    logger.error(`UserMCPController: Error getting user MCP status for user ${req.user?.id}:`, error.message);
+    logger.error(
+      `UserMCPController: Error getting user MCP status for user ${req.user?.id}:`,
+      error.message,
+    );
     res.status(500).json({
       error: 'Failed to get user MCP status',
       message: error.message,
@@ -237,7 +250,7 @@ const connectMCPServer = async (req, res) => {
     // Check if user-specific MCP is enabled
     const config = req.app.locals;
     const addUserSpecificMcp = config.addUserSpecificMcpFromDb;
-    
+
     if (!addUserSpecificMcp) {
       return res.status(400).json({
         error: 'User-specific MCP is disabled',
@@ -253,7 +266,7 @@ const connectMCPServer = async (req, res) => {
       userId,
       serverName,
       'UserMCPController.connectMCPServer',
-      req.app.locals.availableTools || {}
+      req.app.locals.availableTools || {},
     );
 
     if (result.success) {
@@ -263,7 +276,7 @@ const connectMCPServer = async (req, res) => {
       if (result.connectedTools) {
         MCPInitializer.updateAppLevelCaches(req.app, userId, serverName, result.connectedTools, []);
       }
-      
+
       res.json({
         success: true,
         message: `Successfully connected to MCP server '${serverName}'`,
@@ -281,7 +294,10 @@ const connectMCPServer = async (req, res) => {
       });
     }
   } catch (error) {
-    logger.error(`UserMCPController: Error connecting MCP server for user ${req.user?.id}:`, error.message);
+    logger.error(
+      `UserMCPController: Error connecting MCP server for user ${req.user?.id}:`,
+      error.message,
+    );
     res.status(500).json({
       error: 'Failed to connect MCP server',
       message: error.message,
@@ -316,7 +332,7 @@ const disconnectMCPServer = async (req, res) => {
     // Check if user-specific MCP is enabled
     const config = req.app.locals;
     const addUserSpecificMcp = config.addUserSpecificMcpFromDb;
-    
+
     if (!addUserSpecificMcp) {
       return res.status(400).json({
         error: 'User-specific MCP is disabled',
@@ -332,7 +348,7 @@ const disconnectMCPServer = async (req, res) => {
       userId,
       serverName,
       'UserMCPController.disconnectMCPServer',
-      req.app.locals.availableTools || {}
+      req.app.locals.availableTools || {},
     );
 
     if (result.success) {
@@ -342,9 +358,9 @@ const disconnectMCPServer = async (req, res) => {
           userId,
           serverName,
           [], // Let it discover tools from registry
-          req.app.locals.mcpToolRegistry
+          req.app.locals.mcpToolRegistry,
         );
-        
+
         // Remove tools from availableTools and mcpToolRegistry
         if (cleanupResult.removedToolKeys && cleanupResult.removedToolKeys.length > 0) {
           const MCPInitializer = require('~/server/services/MCPInitializer');
@@ -353,13 +369,18 @@ const disconnectMCPServer = async (req, res) => {
             userId,
             serverName,
             {}, // No tools to add
-            cleanupResult.removedToolKeys // Tools to remove
+            cleanupResult.removedToolKeys, // Tools to remove
           );
         }
-        
-        logger.info(`UserMCPController: Cleaned up ${cleanupResult.toolsRemoved} tools for disconnected server '${serverName}'`);
+
+        logger.info(
+          `UserMCPController: Cleaned up ${cleanupResult.toolsRemoved} tools for disconnected server '${serverName}'`,
+        );
       } catch (cleanupError) {
-        logger.warn(`UserMCPController: Failed to cleanup tools for disconnected server '${serverName}':`, cleanupError.message);
+        logger.warn(
+          `UserMCPController: Failed to cleanup tools for disconnected server '${serverName}':`,
+          cleanupError.message,
+        );
         // Don't fail the disconnect operation if cleanup fails
       }
 
@@ -378,7 +399,10 @@ const disconnectMCPServer = async (req, res) => {
       });
     }
   } catch (error) {
-    logger.error(`UserMCPController: Error disconnecting MCP server for user ${req.user?.id}:`, error.message);
+    logger.error(
+      `UserMCPController: Error disconnecting MCP server for user ${req.user?.id}:`,
+      error.message,
+    );
     res.status(500).json({
       error: 'Failed to disconnect MCP server',
       message: error.message,
@@ -393,4 +417,4 @@ module.exports = {
   getUserMCPStatus,
   connectMCPServer,
   disconnectMCPServer,
-}; 
+};

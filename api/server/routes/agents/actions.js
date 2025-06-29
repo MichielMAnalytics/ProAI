@@ -106,17 +106,17 @@ router.post('/:agent_id', async (req, res) => {
     const tools = _tools
       .filter((tool) => {
         if (!tool) return true;
-        
+
         // Handle enhanced tool format (objects with MCP metadata)
         if (typeof tool === 'object' && tool.tool) {
           return !(tool.tool.includes(domain) || tool.tool.includes(action_id));
         }
-        
+
         // Handle regular tool format (strings)
         if (typeof tool === 'string') {
           return !(tool.includes(domain) || tool.includes(action_id));
         }
-        
+
         return true;
       })
       .concat(functions.map((tool) => `${tool.function.name}${actionDelimiter}${domain}`));
@@ -186,17 +186,17 @@ router.delete('/:agent_id/:action_id', async (req, res) => {
 
     const updatedTools = tools.filter((tool) => {
       if (!tool) return true;
-      
+
       // Handle enhanced tool format (objects with MCP metadata)
       if (typeof tool === 'object' && tool.tool) {
         return !tool.tool.includes(domain);
       }
-      
+
       // Handle regular tool format (strings)
       if (typeof tool === 'string') {
         return !tool.includes(domain);
       }
-      
+
       return true;
     });
 

@@ -4,33 +4,33 @@ const { Constants } = require('librechat-data-provider');
 
 /**
  * MCPInitializer - Centralized MCP initialization and cache management
- * 
+ *
  * This service is the SINGLE SOURCE OF TRUTH for all MCP-related caching and initialization.
- * It coordinates multiple underlying services to maintain consistency and avoid the 
+ * It coordinates multiple underlying services to maintain consistency and avoid the
  * anti-pattern of multiple overlapping caches.
- * 
+ *
  * Architecture:
- * 
+ *
  * 1. **MCPInitializer** (this service) - High-level orchestration & result caching
  *    - Caches initialization results and tool mappings
  *    - Prevents redundant initialization attempts
  *    - Coordinates cache clearing across all layers
- * 
+ *
  * 2. **UserMCPService** - Database-to-config conversion & server list caching
  *    - Converts user integrations to MCP server configurations
  *    - Caches server configuration lists
  *    - Managed by MCPInitializer
- * 
+ *
  * 3. **MCPManager** - Low-level connection management & connection pooling
  *    - Manages WebSocket/SSE connections to MCP servers
  *    - Pools connections for performance
  *    - Managed by MCPInitializer
- * 
+ *
  * Cache Invalidation:
  * - Use MCPInitializer.clearUserCache(userId) for user-specific clearing
  * - Use MCPInitializer.clearAllCaches() for system-wide clearing
  * - All other cache clearing methods are internal implementation details
- * 
+ *
  * Usage:
  * - UserIntegration schema middleware automatically calls clearUserCache() on changes
  * - Controllers use ensureUserMCPReady() for initialization
@@ -48,7 +48,7 @@ class MCPInitializer {
 
   /**
    * Get singleton instance for cache sharing across the application
-   * 
+   *
    * @static
    * @returns {MCPInitializer} Singleton instance
    */
@@ -61,7 +61,7 @@ class MCPInitializer {
 
   /**
    * Check if user MCP initialization is cached and still valid
-   * 
+   *
    * @private
    * @param {string} userId - The user ID
    * @returns {Object|null} Cached result or null if expired/not found
@@ -83,7 +83,7 @@ class MCPInitializer {
 
   /**
    * Cache user MCP initialization result
-   * 
+   *
    * @private
    * @param {string} userId - The user ID
    * @param {Object} result - Initialization result
@@ -97,19 +97,19 @@ class MCPInitializer {
 
   /**
    * Clear user initialization cache (useful for configuration changes)
-   * 
+   *
    * This is the SINGLE SOURCE OF TRUTH for MCP cache clearing.
    * It internally coordinates clearing all related caches to maintain consistency.
-   * 
+   *
    * @param {string} userId - The user ID
    */
   static clearUserCache(userId) {
     const instance = MCPInitializer.getInstance();
-    
+
     // 1. Clear MCPInitializer's own cache
     instance.userInitializationCache.delete(userId);
     instance.pendingInitializations.delete(userId);
-    
+
     // 2. Clear UserMCPService cache (if available)
     try {
       const UserMCPService = require('~/server/services/UserMCPService');
@@ -117,7 +117,7 @@ class MCPInitializer {
     } catch (error) {
       // UserMCPService might not be available in all contexts
     }
-    
+
     // 3. Disconnect MCPManager user connections (if available)
     try {
       const { getMCPManager } = require('~/config');
@@ -125,31 +125,36 @@ class MCPInitializer {
       if (mcpManager && typeof mcpManager.disconnectUserConnections === 'function') {
         // Use async/await pattern but don't block the main flow
         mcpManager.disconnectUserConnections(userId).catch((error) => {
-          logger.warn(`[MCPInitializer] Failed to disconnect user connections for user ${userId}:`, error.message);
+          logger.warn(
+            `[MCPInitializer] Failed to disconnect user connections for user ${userId}:`,
+            error.message,
+          );
         });
       }
     } catch (error) {
       // MCPManager might not be available in all contexts
     }
-    
-    logger.info(`[MCPInitializer] ✅ Cleared ALL MCP caches (MCPInitializer + UserMCPService + MCPManager) for user ${userId}`);
+
+    logger.info(
+      `[MCPInitializer] ✅ Cleared ALL MCP caches (MCPInitializer + UserMCPService + MCPManager) for user ${userId}`,
+    );
   }
 
   /**
    * Clear user caches without disconnecting active connections
-   * 
+   *
    * Use this for individual server operations where connections should remain active.
    * This clears caches to force fresh data loading but preserves existing connections.
-   * 
+   *
    * @param {string} userId - The user ID
    */
   static clearUserCacheOnly(userId) {
     const instance = MCPInitializer.getInstance();
-    
+
     // 1. Clear MCPInitializer's own cache
     instance.userInitializationCache.delete(userId);
     instance.pendingInitializations.delete(userId);
-    
+
     // 2. Clear UserMCPService cache (if available)
     try {
       const UserMCPService = require('~/server/services/UserMCPService');
@@ -157,44 +162,50 @@ class MCPInitializer {
     } catch (error) {
       // UserMCPService might not be available in all contexts
     }
-    
+
     // Note: We deliberately DO NOT disconnect connections here
     // This method is for cache clearing only, preserving active connections
-    
-    logger.info(`[MCPInitializer] ✅ Cleared MCP caches (MCPInitializer + UserMCPService) for user ${userId} without disconnecting connections`);
+
+    logger.info(
+      `[MCPInitializer] ✅ Cleared MCP caches (MCPInitializer + UserMCPService) for user ${userId} without disconnecting connections`,
+    );
   }
 
   /**
    * Clear only UserMCPService cache to refresh integration data
-   * 
+   *
    * Use this for individual operations where the user's integration list has changed
    * but you want to preserve MCPInitializer cache and connections.
-   * 
+   *
    * @param {string} userId - The user ID
    */
   static clearUserMCPServiceCacheOnly(userId) {
     try {
       const UserMCPService = require('~/server/services/UserMCPService');
       UserMCPService.clearCache(userId);
-      logger.info(`[MCPInitializer] ✅ Cleared UserMCPService cache for user ${userId} to refresh integration data`);
+      logger.info(
+        `[MCPInitializer] ✅ Cleared UserMCPService cache for user ${userId} to refresh integration data`,
+      );
     } catch (error) {
-      logger.warn(`[MCPInitializer] Failed to clear UserMCPService cache for user ${userId}:`, error.message);
+      logger.warn(
+        `[MCPInitializer] Failed to clear UserMCPService cache for user ${userId}:`,
+        error.message,
+      );
     }
   }
 
-
   /**
    * Clear all caches (useful for system restart scenarios)
-   * 
+   *
    * This coordinates clearing all MCP-related caches system-wide.
    */
   static clearAllCaches() {
     const instance = MCPInitializer.getInstance();
-    
+
     // 1. Clear MCPInitializer's own caches
     instance.userInitializationCache.clear();
     instance.pendingInitializations.clear();
-    
+
     // 2. Clear UserMCPService cache (if available)
     try {
       const UserMCPService = require('~/server/services/UserMCPService');
@@ -202,7 +213,7 @@ class MCPInitializer {
     } catch (error) {
       // UserMCPService might not be available in all contexts
     }
-    
+
     // 3. Disconnect all MCPManager connections (if available)
     try {
       const { getMCPManager } = require('~/config');
@@ -215,13 +226,13 @@ class MCPInitializer {
     } catch (error) {
       // MCPManager might not be available in all contexts
     }
-    
+
     logger.info(`[MCPInitializer] ✅ Cleared ALL MCP caches system-wide`);
   }
 
   /**
    * Ensure user MCP servers are ready for use with smart caching
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {string} context - Context identifier for logging (e.g., 'SchedulerService', 'PluginController')
    * @param {Object} availableTools - Tools registry to enhance with MCP tools
@@ -252,10 +263,14 @@ class MCPInitializer {
 
     // Check for pending initialization to prevent concurrent attempts
     if (this.pendingInitializations.has(userId)) {
-      logger.debug(`[MCPInitializer][${context}] Waiting for pending initialization for user ${userId}`);
+      logger.debug(
+        `[MCPInitializer][${context}] Waiting for pending initialization for user ${userId}`,
+      );
       try {
         const result = await this.pendingInitializations.get(userId);
-        logger.info(`[MCPInitializer][${context}] Used pending initialization result for user ${userId} in ${Date.now() - startTime}ms`);
+        logger.info(
+          `[MCPInitializer][${context}] Used pending initialization result for user ${userId} in ${Date.now() - startTime}ms`,
+        );
         return {
           ...result,
           duration: Date.now() - startTime,
@@ -263,7 +278,10 @@ class MCPInitializer {
           pendingWait: true,
         };
       } catch (error) {
-        logger.warn(`[MCPInitializer][${context}] Pending initialization failed for user ${userId}:`, error.message);
+        logger.warn(
+          `[MCPInitializer][${context}] Pending initialization failed for user ${userId}:`,
+          error.message,
+        );
         this.pendingInitializations.delete(userId);
       }
     }
@@ -272,11 +290,15 @@ class MCPInitializer {
     if (!forceRefresh) {
       const cached = this.getUserInitializationCache(userId);
       if (cached) {
-        logger.info(`[MCPInitializer][${context}] Using cached MCP initialization for user ${userId} (age: ${Math.floor((Date.now() - cached.timestamp) / 1000)}s)`);
-      
-      // Debug: Log if cached result has mcpToolRegistry
-      logger.info(`[MCPInitializer][${context}] Cached result has mcpToolRegistry: ${!!cached.mcpToolRegistry}, size: ${cached.mcpToolRegistry?.size || 0}`);
-        
+        logger.info(
+          `[MCPInitializer][${context}] Using cached MCP initialization for user ${userId} (age: ${Math.floor((Date.now() - cached.timestamp) / 1000)}s)`,
+        );
+
+        // Debug: Log if cached result has mcpToolRegistry
+        logger.info(
+          `[MCPInitializer][${context}] Cached result has mcpToolRegistry: ${!!cached.mcpToolRegistry}, size: ${cached.mcpToolRegistry?.size || 0}`,
+        );
+
         // Apply cached tools to current availableTools registry
         let reportedToolCount = 0;
         if (cached.mcpTools && Object.keys(cached.mcpTools).length > 0) {
@@ -284,36 +306,44 @@ class MCPInitializer {
           Object.assign(availableTools, cached.mcpTools);
           const toolsAfter = Object.keys(availableTools).length;
           const newlyAppliedCount = toolsAfter - toolsBefore;
-          
+
           // Report the total number of MCP tools available for this user, not just newly applied
           reportedToolCount = Object.keys(cached.mcpTools).length;
-          
-          logger.debug(`[MCPInitializer][${context}] Applied ${Object.keys(cached.mcpTools).length} cached MCP tools to availableTools (${newlyAppliedCount} newly added, ${reportedToolCount} total for user)`);
+
+          logger.debug(
+            `[MCPInitializer][${context}] Applied ${Object.keys(cached.mcpTools).length} cached MCP tools to availableTools (${newlyAppliedCount} newly added, ${reportedToolCount} total for user)`,
+          );
         }
 
         // CRITICAL FIX: Restore the cached mcpToolRegistry to the passed-in registry
         if (mcpToolRegistry && cached.mcpTools) {
           // Get the current registry size for comparison
           const initialRegistrySize = mcpToolRegistry.size;
-          
+
           if (cached.mcpToolRegistry && cached.mcpToolRegistry.size > 0) {
             // Add cached registry entries to the existing registry (don't clear existing ones)
             let restoredCount = 0;
             for (const [key, value] of cached.mcpToolRegistry.entries()) {
-              if (!mcpToolRegistry.has(key)) { // Only add if not already present
+              if (!mcpToolRegistry.has(key)) {
+                // Only add if not already present
                 mcpToolRegistry.set(key, value);
                 restoredCount++;
               }
             }
-            logger.info(`[MCPInitializer][${context}] Restored ${restoredCount} new tools to mcpToolRegistry from cache (registry had ${initialRegistrySize}, now has ${mcpToolRegistry.size})`);
+            logger.info(
+              `[MCPInitializer][${context}] Restored ${restoredCount} new tools to mcpToolRegistry from cache (registry had ${initialRegistrySize}, now has ${mcpToolRegistry.size})`,
+            );
           } else {
             // Fallback: If cached result doesn't have mcpToolRegistry, regenerate it from cached tools
-            logger.warn(`[MCPInitializer][${context}] Cached result missing mcpToolRegistry, regenerating from cached tools`);
-            
+            logger.warn(
+              `[MCPInitializer][${context}] Cached result missing mcpToolRegistry, regenerating from cached tools`,
+            );
+
             // Rebuild registry from cached tools (this handles old cache entries)
             let regeneratedCount = 0;
             for (const toolKey of Object.keys(cached.mcpTools)) {
-              if (!mcpToolRegistry.has(toolKey)) { // Only add if not already present
+              if (!mcpToolRegistry.has(toolKey)) {
+                // Only add if not already present
                 // Extract server name from tool key (assuming format: toolname-servername or servername-toolname)
                 let serverName = 'unknown';
                 if (toolKey.includes('-')) {
@@ -322,7 +352,19 @@ class MCPInitializer {
                   if (parts.length >= 2) {
                     // Check if first part matches known server patterns
                     const possibleServer = parts[0];
-                    if (['gmail', 'slack', 'google_calendar', 'trello', 'zendesk', 'notion', 'hubspot', 'google_drive', 'google_sheets'].includes(possibleServer)) {
+                    if (
+                      [
+                        'gmail',
+                        'slack',
+                        'google_calendar',
+                        'trello',
+                        'zendesk',
+                        'notion',
+                        'hubspot',
+                        'google_drive',
+                        'google_sheets',
+                      ].includes(possibleServer)
+                    ) {
                       serverName = `pipedream-${possibleServer}`;
                     } else {
                       // Fallback: use last part as server
@@ -330,7 +372,7 @@ class MCPInitializer {
                     }
                   }
                 }
-                
+
                 mcpToolRegistry.set(toolKey, {
                   serverName,
                   toolName: toolKey,
@@ -339,7 +381,9 @@ class MCPInitializer {
                 regeneratedCount++;
               }
             }
-            logger.info(`[MCPInitializer][${context}] Regenerated ${regeneratedCount} tools in mcpToolRegistry from cached tools (registry had ${initialRegistrySize}, now has ${mcpToolRegistry.size})`);
+            logger.info(
+              `[MCPInitializer][${context}] Regenerated ${regeneratedCount} tools in mcpToolRegistry from cached tools (registry had ${initialRegistrySize}, now has ${mcpToolRegistry.size})`,
+            );
           }
         }
 
@@ -353,7 +397,13 @@ class MCPInitializer {
     }
 
     // Create promise for concurrent requests
-    const initializationPromise = this.performUserMCPInitialization(userId, context, availableTools, startTime, mcpToolRegistry);
+    const initializationPromise = this.performUserMCPInitialization(
+      userId,
+      context,
+      availableTools,
+      startTime,
+      mcpToolRegistry,
+    );
     this.pendingInitializations.set(userId, initializationPromise);
 
     try {
@@ -367,7 +417,7 @@ class MCPInitializer {
 
   /**
    * Perform the actual MCP initialization for a user
-   * 
+   *
    * @private
    * @param {string} userId - The user ID
    * @param {string} context - Context identifier for logging
@@ -376,7 +426,13 @@ class MCPInitializer {
    * @param {Map} mcpToolRegistry - The MCP tool registry for storing tool metadata
    * @returns {Promise<Object>} Initialization result
    */
-  async performUserMCPInitialization(userId, context, availableTools, startTime, mcpToolRegistry = null) {
+  async performUserMCPInitialization(
+    userId,
+    context,
+    availableTools,
+    startTime,
+    mcpToolRegistry = null,
+  ) {
     try {
       const mcpManager = getMCPManager(userId);
       if (!mcpManager) {
@@ -399,12 +455,16 @@ class MCPInitializer {
       const userMCPServers = await UserMCPService.getUserMCPServers(userId);
       const serverCount = Object.keys(userMCPServers).length;
 
-      logger.info(`[MCPInitializer][${context}] Found ${serverCount} user MCP servers for user ${userId}: ${Object.keys(userMCPServers).join(', ')}`);
-      
+      logger.info(
+        `[MCPInitializer][${context}] Found ${serverCount} user MCP servers for user ${userId}: ${Object.keys(userMCPServers).join(', ')}`,
+      );
+
       // Enhanced logging for global MCP servers
       const globalMCPServers = mcpManager.getAllConnections();
       const globalServerCount = globalMCPServers.size;
-      logger.info(`[MCPInitializer][${context}] Global MCP servers available: ${globalServerCount} (${Array.from(globalMCPServers.keys()).join(', ')})`)
+      logger.info(
+        `[MCPInitializer][${context}] Global MCP servers available: ${globalServerCount} (${Array.from(globalMCPServers.keys()).join(', ')})`,
+      );
 
       let toolCount = 0;
       const mcpTools = {}; // Store tools for caching
@@ -412,13 +472,20 @@ class MCPInitializer {
 
       // Always check for global MCP tools, regardless of user-specific servers
       // globalMCPServers already declared above
-      
+
       if (serverCount > 0) {
         // Initialize user-specific MCP servers
-        logger.info(`[MCPInitializer][${context}] Initializing user MCP servers for user ${userId}`);
-        logger.debug(`[MCPInitializer][${context}] Passing the following server config to mcpManager.initializeUserMCP:`, JSON.stringify(userMCPServers, null, 2));
+        logger.info(
+          `[MCPInitializer][${context}] Initializing user MCP servers for user ${userId}`,
+        );
+        logger.debug(
+          `[MCPInitializer][${context}] Passing the following server config to mcpManager.initializeUserMCP:`,
+          JSON.stringify(userMCPServers, null, 2),
+        );
         await mcpManager.initializeUserMCP(userMCPServers, userId);
-        logger.info(`[MCPInitializer][${context}] Successfully initialized ${serverCount} MCP servers for user ${userId}`);
+        logger.info(
+          `[MCPInitializer][${context}] Successfully initialized ${serverCount} MCP servers for user ${userId}`,
+        );
 
         // Verify connections are ready
         // let readyConnections = 0;
@@ -440,17 +507,21 @@ class MCPInitializer {
 
         // Map tools to availableTools registry and count them
         const toolCountBefore = Object.keys(availableTools).length;
-        
+
         // Pass the MCP tool registry so tools can be registered properly
         await mcpManager.mapUserAvailableTools(availableTools, userId, mcpToolRegistry);
         const toolCountAfter = Object.keys(availableTools).length;
         toolCount = toolCountAfter - toolCountBefore;
-        
+
         // Debug: Log registry size after tool mapping
-        logger.info(`[MCPInitializer][${context}] MCP tool registry size after mapping: ${mcpToolRegistry?.size || 0}`);
+        logger.info(
+          `[MCPInitializer][${context}] MCP tool registry size after mapping: ${mcpToolRegistry?.size || 0}`,
+        );
         if (mcpToolRegistry && mcpToolRegistry.size > 0) {
           const registryKeys = Array.from(mcpToolRegistry.keys()).slice(0, 5); // Show first 5 keys
-          logger.info(`[MCPInitializer][${context}] Sample registry keys: ${registryKeys.join(', ')}`);
+          logger.info(
+            `[MCPInitializer][${context}] Sample registry keys: ${registryKeys.join(', ')}`,
+          );
         }
 
         // Store the MCP tools for caching
@@ -458,7 +529,7 @@ class MCPInitializer {
         // and we know they're all MCP tools, we can store them all
         const allToolKeys = Object.keys(availableTools);
         const newToolKeys = allToolKeys.slice(-toolCount); // Get the last N tools that were added
-        
+
         for (const toolKey of newToolKeys) {
           mcpTools[toolKey] = availableTools[toolKey];
         }
@@ -468,9 +539,14 @@ class MCPInitializer {
         try {
           // Use an empty base manifest since we only want the user's MCP tools
           manifestTools = await mcpManager.loadUserManifestTools([], userId);
-          logger.info(`[MCPInitializer][${context}] Cached ${manifestTools.length} manifest tools for user ${userId}`);
+          logger.info(
+            `[MCPInitializer][${context}] Cached ${manifestTools.length} manifest tools for user ${userId}`,
+          );
         } catch (manifestError) {
-          logger.warn(`[MCPInitializer][${context}] Failed to cache manifest tools for user ${userId}:`, manifestError.message);
+          logger.warn(
+            `[MCPInitializer][${context}] Failed to cache manifest tools for user ${userId}:`,
+            manifestError.message,
+          );
           manifestTools = [];
         }
 
@@ -480,21 +556,23 @@ class MCPInitializer {
       // CRITICAL FIX: Always register global MCP tools for all users, regardless of user-specific servers
       if (globalServerCount > 0) {
         logger.info(`[MCPInitializer][${context}] Registering global MCP tools for user ${userId}`);
-        
+
         // Count how many global MCP tools are currently in availableTools
         let globalToolsInRegistry = 0;
         let globalToolsRegistered = 0;
-        
+
         for (const [serverName, connection] of globalMCPServers.entries()) {
           try {
             if (await connection.isConnected()) {
               const tools = await connection.fetchTools();
-              logger.info(`[MCPInitializer][${context}] Global server '${serverName}' has ${tools.length} tools: ${tools.map(t => t.name).join(', ')}`);
-              
+              logger.info(
+                `[MCPInitializer][${context}] Global server '${serverName}' has ${tools.length} tools: ${tools.map((t) => t.name).join(', ')}`,
+              );
+
               for (const tool of tools) {
                 if (availableTools[tool.name]) {
                   globalToolsInRegistry++;
-                  
+
                   // CRITICAL FIX: Always register global tools in the MCP tool registry
                   if (mcpToolRegistry) {
                     mcpToolRegistry.set(tool.name, {
@@ -504,27 +582,40 @@ class MCPInitializer {
                       isGlobal: true,
                     });
                     globalToolsRegistered++;
-                    logger.info(`[MCPInitializer][${context}] Registered global MCP tool '${tool.name}' from server '${serverName}' in registry`);
-                    
+                    logger.info(
+                      `[MCPInitializer][${context}] Registered global MCP tool '${tool.name}' from server '${serverName}' in registry`,
+                    );
+
                     // Also add to cached tools for future use
                     mcpTools[tool.name] = availableTools[tool.name];
                   } else {
-                    logger.warn(`[MCPInitializer][${context}] No mcpToolRegistry provided to register global tool '${tool.name}'`);
+                    logger.warn(
+                      `[MCPInitializer][${context}] No mcpToolRegistry provided to register global tool '${tool.name}'`,
+                    );
                   }
                 } else {
-                  logger.warn(`[MCPInitializer][${context}] Global MCP tool '${tool.name}' from server '${serverName}' NOT found in availableTools`);
+                  logger.warn(
+                    `[MCPInitializer][${context}] Global MCP tool '${tool.name}' from server '${serverName}' NOT found in availableTools`,
+                  );
                 }
               }
             } else {
-              logger.warn(`[MCPInitializer][${context}] Global server '${serverName}' is not connected`);
+              logger.warn(
+                `[MCPInitializer][${context}] Global server '${serverName}' is not connected`,
+              );
             }
           } catch (error) {
-            logger.warn(`[MCPInitializer][${context}] Error checking global server '${serverName}':`, error.message);
+            logger.warn(
+              `[MCPInitializer][${context}] Error checking global server '${serverName}':`,
+              error.message,
+            );
           }
         }
-        
-        logger.info(`[MCPInitializer][${context}] Global MCP tools found in availableTools: ${globalToolsInRegistry}, registered: ${globalToolsRegistered}`);
-        
+
+        logger.info(
+          `[MCPInitializer][${context}] Global MCP tools found in availableTools: ${globalToolsInRegistry}, registered: ${globalToolsRegistered}`,
+        );
+
         // Update tool count to include global tools
         toolCount += globalToolsRegistered;
       }
@@ -543,14 +634,18 @@ class MCPInitializer {
 
       // Cache the result for future use
       this.setUserInitializationCache(userId, result);
-      
-      logger.info(`[MCPInitializer][${context}] MCP initialization complete for user ${userId} in ${result.duration}ms (${serverCount} servers, ${toolCount} tools, ${manifestTools.length} manifest tools)`);
-      
-      return result;
 
+      logger.info(
+        `[MCPInitializer][${context}] MCP initialization complete for user ${userId} in ${result.duration}ms (${serverCount} servers, ${toolCount} tools, ${manifestTools.length} manifest tools)`,
+      );
+
+      return result;
     } catch (error) {
-      logger.error(`[MCPInitializer][${context}] MCP initialization failed for user ${userId}:`, error);
-      
+      logger.error(
+        `[MCPInitializer][${context}] MCP initialization failed for user ${userId}:`,
+        error,
+      );
+
       const result = {
         success: false,
         error: error.message,
@@ -565,14 +660,14 @@ class MCPInitializer {
 
       // Cache failed result briefly to prevent rapid retries
       this.setUserInitializationCache(userId, result);
-      
+
       return result;
     }
   }
 
   /**
    * Get cache statistics for monitoring
-   * 
+   *
    * @returns {Object} Cache statistics
    */
   static getCacheStats() {
@@ -586,7 +681,7 @@ class MCPInitializer {
 
   /**
    * Connect a single MCP server for a user
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {string} serverName - The MCP server name to connect
    * @param {string} context - Context identifier for logging
@@ -616,7 +711,9 @@ class MCPInitializer {
       };
     }
 
-    logger.info(`[MCPInitializer][${context}] Connecting single MCP server '${serverName}' for user ${userId}`);
+    logger.info(
+      `[MCPInitializer][${context}] Connecting single MCP server '${serverName}' for user ${userId}`,
+    );
 
     try {
       const mcpManager = getMCPManager(userId);
@@ -639,17 +736,21 @@ class MCPInitializer {
         const allUserMCPServers = await UserMCPService.getUserMCPServers(userId);
         if (allUserMCPServers[serverName]) {
           singleServerConfig = { [serverName]: allUserMCPServers[serverName] };
-          logger.debug(`[MCPInitializer][${context}] Found server '${serverName}' in cached configurations`);
+          logger.debug(
+            `[MCPInitializer][${context}] Found server '${serverName}' in cached configurations`,
+          );
         }
       } catch (cacheError) {
-        logger.debug(`[MCPInitializer][${context}] Cache miss for server configurations, will fetch fresh`);
+        logger.debug(
+          `[MCPInitializer][${context}] Cache miss for server configurations, will fetch fresh`,
+        );
       }
 
       // If not found in cache, fetch fresh and look for the specific server
       if (!singleServerConfig) {
         // Force refresh to get latest integrations
         const freshUserMCPServers = await UserMCPService.refreshUserMCPServers(userId);
-        
+
         if (!freshUserMCPServers[serverName]) {
           return {
             success: false,
@@ -661,11 +762,15 @@ class MCPInitializer {
         }
 
         singleServerConfig = { [serverName]: freshUserMCPServers[serverName] };
-        logger.debug(`[MCPInitializer][${context}] Found server '${serverName}' in fresh configurations`);
+        logger.debug(
+          `[MCPInitializer][${context}] Found server '${serverName}' in fresh configurations`,
+        );
       }
 
       // Store the server config in mcpManager for getUserConnection() to find
-      logger.debug(`[MCPInitializer][${context}] Adding server config and establishing connection for '${serverName}' for user ${userId}`);
+      logger.debug(
+        `[MCPInitializer][${context}] Adding server config and establishing connection for '${serverName}' for user ${userId}`,
+      );
       mcpManager.addServerConfig(serverName, singleServerConfig[serverName]);
 
       // Get or create the connection (this will initialize it if needed)
@@ -682,13 +787,13 @@ class MCPInitializer {
 
       // Map tools from this specific server
       const toolCountBefore = Object.keys(availableTools).length;
-      
+
       // Get tools from this specific server
       try {
         const tools = await connection.fetchTools();
         let mappedToolsCount = 0;
         const connectedTools = {}; // Store the tools to return in result
-        
+
         for (const tool of tools) {
           const toolName = tool.name; // Use actual tool name without delimiter
           const toolDef = {
@@ -699,19 +804,23 @@ class MCPInitializer {
               parameters: tool.inputSchema,
             },
           };
-          
+
           availableTools[toolName] = toolDef;
           connectedTools[toolName] = toolDef; // Store for result
           mappedToolsCount++;
         }
 
-        logger.info(`[MCPInitializer][${context}] Successfully connected server '${serverName}' for user ${userId} and mapped ${mappedToolsCount} tools`);
+        logger.info(
+          `[MCPInitializer][${context}] Successfully connected server '${serverName}' for user ${userId} and mapped ${mappedToolsCount} tools`,
+        );
 
         // Update the cache incrementally
         this.updateCacheForSingleServer(userId, serverName, mappedToolsCount, availableTools);
 
         // Update manifest tools cache incrementally
-        logger.info(`[MCPInitializer][${context}] Updating manifest tools cache after connecting server '${serverName}'`);
+        logger.info(
+          `[MCPInitializer][${context}] Updating manifest tools cache after connecting server '${serverName}'`,
+        );
         try {
           const cached = this.getUserInitializationCache(userId);
           if (cached) {
@@ -720,10 +829,15 @@ class MCPInitializer {
             cached.manifestTools = updatedManifestTools;
             cached.timestamp = Date.now();
             this.setUserInitializationCache(userId, cached);
-            logger.info(`[MCPInitializer][${context}] Updated manifest tools cache: ${updatedManifestTools.length} total manifest tools`);
+            logger.info(
+              `[MCPInitializer][${context}] Updated manifest tools cache: ${updatedManifestTools.length} total manifest tools`,
+            );
           }
         } catch (manifestError) {
-          logger.warn(`[MCPInitializer][${context}] Failed to update manifest tools cache:`, manifestError.message);
+          logger.warn(
+            `[MCPInitializer][${context}] Failed to update manifest tools cache:`,
+            manifestError.message,
+          );
         }
 
         return {
@@ -734,7 +848,10 @@ class MCPInitializer {
           duration: Date.now() - startTime,
         };
       } catch (toolError) {
-        logger.warn(`[MCPInitializer][${context}] Connected to server '${serverName}' but failed to fetch tools:`, toolError.message);
+        logger.warn(
+          `[MCPInitializer][${context}] Connected to server '${serverName}' but failed to fetch tools:`,
+          toolError.message,
+        );
         return {
           success: true,
           serverName,
@@ -743,10 +860,12 @@ class MCPInitializer {
           warning: `Connected but no tools available: ${toolError.message}`,
         };
       }
-
     } catch (error) {
-      logger.error(`[MCPInitializer][${context}] Failed to connect single MCP server '${serverName}' for user ${userId}:`, error);
-      
+      logger.error(
+        `[MCPInitializer][${context}] Failed to connect single MCP server '${serverName}' for user ${userId}:`,
+        error,
+      );
+
       return {
         success: false,
         error: error.message,
@@ -759,7 +878,7 @@ class MCPInitializer {
 
   /**
    * Disconnect a single MCP server for a user
-   * 
+   *
    * @param {string} userId - The user ID
    * @param {string} serverName - The MCP server name to disconnect
    * @param {string} context - Context identifier for logging
@@ -789,7 +908,9 @@ class MCPInitializer {
       };
     }
 
-    logger.info(`[MCPInitializer][${context}] Disconnecting single MCP server '${serverName}' for user ${userId}`);
+    logger.info(
+      `[MCPInitializer][${context}] Disconnecting single MCP server '${serverName}' for user ${userId}`,
+    );
 
     try {
       const mcpManager = getMCPManager(userId);
@@ -807,12 +928,16 @@ class MCPInitializer {
       // The disconnection will automatically remove tools from memory/connections
       await mcpManager.disconnectUserConnection(userId, serverName);
 
-      logger.info(`[MCPInitializer][${context}] Successfully disconnected server '${serverName}' for user ${userId}`);
+      logger.info(
+        `[MCPInitializer][${context}] Successfully disconnected server '${serverName}' for user ${userId}`,
+      );
 
       // Note: Only update manifest tools cache here. Tool cleanup is no longer performed automatically.
 
       // Update manifest tools cache incrementally
-      logger.info(`[MCPInitializer][${context}] Updating manifest tools cache after disconnecting server '${serverName}'`);
+      logger.info(
+        `[MCPInitializer][${context}] Updating manifest tools cache after disconnecting server '${serverName}'`,
+      );
       try {
         const cached = this.getUserInitializationCache(userId);
         if (cached) {
@@ -821,10 +946,15 @@ class MCPInitializer {
           cached.manifestTools = updatedManifestTools;
           cached.timestamp = Date.now();
           this.setUserInitializationCache(userId, cached);
-          logger.info(`[MCPInitializer][${context}] Updated manifest tools cache: ${updatedManifestTools.length} total manifest tools`);
+          logger.info(
+            `[MCPInitializer][${context}] Updated manifest tools cache: ${updatedManifestTools.length} total manifest tools`,
+          );
         }
       } catch (manifestError) {
-        logger.warn(`[MCPInitializer][${context}] Failed to update manifest tools cache:`, manifestError.message);
+        logger.warn(
+          `[MCPInitializer][${context}] Failed to update manifest tools cache:`,
+          manifestError.message,
+        );
       }
 
       return {
@@ -834,10 +964,12 @@ class MCPInitializer {
         removedToolKeys: [], // Tool removal is no longer performed automatically
         duration: Date.now() - startTime,
       };
-
     } catch (error) {
-      logger.error(`[MCPInitializer][${context}] Failed to disconnect single MCP server '${serverName}' for user ${userId}:`, error);
-      
+      logger.error(
+        `[MCPInitializer][${context}] Failed to disconnect single MCP server '${serverName}' for user ${userId}:`,
+        error,
+      );
+
       return {
         success: false,
         error: error.message,
@@ -850,7 +982,7 @@ class MCPInitializer {
 
   /**
    * Update Express app-level caches (availableTools and mcpToolRegistry) for individual server operations
-   * 
+   *
    * @private
    * @param {Express.Application} app - Express app instance
    * @param {string} userId - The user ID
@@ -865,7 +997,7 @@ class MCPInitializer {
     }
 
     const { availableTools, mcpToolRegistry } = app.locals;
-    
+
     if (!availableTools || !mcpToolRegistry) {
       logger.warn(`[MCPInitializer] app.locals.availableTools or mcpToolRegistry not found`);
       return;
@@ -876,17 +1008,21 @@ class MCPInitializer {
       let addedCount = 0;
       for (const [toolName, toolDef] of Object.entries(toolsToAdd)) {
         availableTools[toolName] = toolDef;
-        
+
         // Tool name is already the actual name (no delimiter parsing needed)
         const toolInfo = {
           serverName,
-          appSlug: serverName.startsWith('pipedream-') ? serverName.replace('pipedream-', '') : serverName,
+          appSlug: serverName.startsWith('pipedream-')
+            ? serverName.replace('pipedream-', '')
+            : serverName,
           toolName,
         };
         mcpToolRegistry.set(toolName, toolInfo);
         addedCount++;
       }
-      logger.info(`[MCPInitializer] Added ${addedCount} tools to app.locals for server '${serverName}'`);
+      logger.info(
+        `[MCPInitializer] Added ${addedCount} tools to app.locals for server '${serverName}'`,
+      );
     }
 
     // Remove tools from availableTools and mcpToolRegistry
@@ -897,21 +1033,25 @@ class MCPInitializer {
           delete availableTools[toolName];
           removedCount++;
         }
-        
+
         // Tool name is already the actual name (no delimiter parsing needed)
         if (mcpToolRegistry.has(toolName)) {
           mcpToolRegistry.delete(toolName);
         }
       }
-      logger.info(`[MCPInitializer] Removed ${removedCount} tools from app.locals for server '${serverName}'`);
+      logger.info(
+        `[MCPInitializer] Removed ${removedCount} tools from app.locals for server '${serverName}'`,
+      );
     }
 
-    logger.info(`[MCPInitializer] Updated app.locals caches for user ${userId}, server '${serverName}' (total tools: ${Object.keys(availableTools).length}, registry size: ${mcpToolRegistry.size})`);
+    logger.info(
+      `[MCPInitializer] Updated app.locals caches for user ${userId}, server '${serverName}' (total tools: ${Object.keys(availableTools).length}, registry size: ${mcpToolRegistry.size})`,
+    );
   }
 
   /**
    * Update cache incrementally when a server is added
-   * 
+   *
    * @private
    * @param {string} userId - The user ID
    * @param {string} serverName - The server name that was added
@@ -924,7 +1064,7 @@ class MCPInitializer {
       // Update the cached data
       cached.serverCount = cached.serverCount + 1;
       cached.toolCount = cached.toolCount + toolCount;
-      
+
       // Ensure cached tools object exists
       if (!cached.mcpTools) {
         cached.mcpTools = {};
@@ -933,21 +1073,27 @@ class MCPInitializer {
       // Since this method is called after tools are already added to availableTools,
       // we need to add the newly connected tools to the cache
       // This is a simplified approach - in a more complex system, we'd track server ownership
-      logger.debug(`[MCPInitializer] Note: Incremental cache update for connect - actual cache update happens elsewhere`);
+      logger.debug(
+        `[MCPInitializer] Note: Incremental cache update for connect - actual cache update happens elsewhere`,
+      );
 
       // Update timestamp and save
       cached.timestamp = Date.now();
       this.setUserInitializationCache(userId, cached);
-      
-      logger.info(`[MCPInitializer] Updated cache for user ${userId}: added server '${serverName}' with ${toolCount} tools (total cached tools: ${Object.keys(cached.mcpTools).length})`);
+
+      logger.info(
+        `[MCPInitializer] Updated cache for user ${userId}: added server '${serverName}' with ${toolCount} tools (total cached tools: ${Object.keys(cached.mcpTools).length})`,
+      );
     } else {
-      logger.warn(`[MCPInitializer] No cached data found for user ${userId} to update incrementally`);
+      logger.warn(
+        `[MCPInitializer] No cached data found for user ${userId} to update incrementally`,
+      );
     }
   }
 
   /**
    * Update cache incrementally when a server is removed
-   * 
+   *
    * @private
    * @param {string} userId - The user ID
    * @param {string} serverName - The server name that was removed
@@ -960,7 +1106,7 @@ class MCPInitializer {
       // Update the cached data
       cached.serverCount = Math.max(0, cached.serverCount - 1);
       cached.toolCount = Math.max(0, cached.toolCount - removedToolKeys.length);
-      
+
       // Remove tools from the cache
       if (cached.mcpTools) {
         for (const toolKey of removedToolKeys) {
@@ -971,13 +1117,17 @@ class MCPInitializer {
       // Update timestamp and save
       cached.timestamp = Date.now();
       this.setUserInitializationCache(userId, cached);
-      
-      logger.info(`[MCPInitializer] Updated cache for user ${userId}: removed server '${serverName}' and ${removedToolKeys.length} tools (total cached tools: ${cached.mcpTools ? Object.keys(cached.mcpTools).length : 0})`);
+
+      logger.info(
+        `[MCPInitializer] Updated cache for user ${userId}: removed server '${serverName}' and ${removedToolKeys.length} tools (total cached tools: ${cached.mcpTools ? Object.keys(cached.mcpTools).length : 0})`,
+      );
     } else {
-      logger.warn(`[MCPInitializer] No cached data found for user ${userId} to update incrementally`);
+      logger.warn(
+        `[MCPInitializer] No cached data found for user ${userId} to update incrementally`,
+      );
     }
   }
 }
 
 // Export both the class and singleton instance
-module.exports = MCPInitializer; 
+module.exports = MCPInitializer;

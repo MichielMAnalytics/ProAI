@@ -60,21 +60,15 @@ async function getReadySchedulerTasks() {
         // Pending tasks that are ready to run
         {
           status: 'pending',
-          $or: [
-            { next_run: { $lte: now } },
-            { next_run: null }
-          ]
+          $or: [{ next_run: { $lte: now } }, { next_run: null }],
         },
         // Only recurring tasks (not do_only_once) that have completed and are ready for next run
         {
           status: 'completed',
           do_only_once: false,
-          $or: [
-            { next_run: { $lte: now } },
-            { next_run: null }
-          ]
-        }
-      ]
+          $or: [{ next_run: { $lte: now } }, { next_run: null }],
+        },
+      ],
     }).lean();
   } catch (error) {
     throw new Error(`Error fetching ready scheduler tasks: ${error.message}`);
@@ -93,7 +87,7 @@ async function updateSchedulerTask(id, userId, updateData) {
     return await SchedulerTask.findOneAndUpdate(
       { id, user: userId },
       { ...updateData, updatedAt: new Date() },
-      { new: true }
+      { new: true },
     ).lean();
   } catch (error) {
     throw new Error(`Error updating scheduler task: ${error.message}`);
@@ -138,7 +132,7 @@ async function enableSchedulerTask(id, userId) {
     return await SchedulerTask.findOneAndUpdate(
       { id, user: userId },
       { enabled: true, status: 'pending', updatedAt: new Date() },
-      { new: true }
+      { new: true },
     ).lean();
   } catch (error) {
     throw new Error(`Error enabling scheduler task: ${error.message}`);
@@ -156,7 +150,7 @@ async function disableSchedulerTask(id, userId) {
     return await SchedulerTask.findOneAndUpdate(
       { id, user: userId },
       { enabled: false, status: 'disabled', updatedAt: new Date() },
-      { new: true }
+      { new: true },
     ).lean();
   } catch (error) {
     throw new Error(`Error disabling scheduler task: ${error.message}`);
@@ -214,4 +208,4 @@ module.exports = {
   enableSchedulerTask,
   disableSchedulerTask,
   getAllSchedulerTasks,
-}; 
+};

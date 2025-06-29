@@ -37,6 +37,16 @@ router.get('/', async function (req, res) {
   const ldap = getLdapConfig();
 
   try {
+    // Extract endpoints configuration from app.locals for frontend access
+    const endpoints = {};
+    const endpointKeys = ['openAI', 'google', 'anthropic', 'bedrock', 'agents', 'assistants', 'azureOpenAI', 'azureAssistants', 'gptPlugins'];
+    
+    endpointKeys.forEach((key) => {
+      if (req.app.locals[key]) {
+        endpoints[key] = req.app.locals[key];
+      }
+    });
+
     /** @type {TStartupConfig} */
     const payload = {
       appTitle: process.env.APP_TITLE || 'LibreChat',
@@ -79,6 +89,7 @@ router.get('/', async function (req, res) {
       modelSpecs: req.app.locals.modelSpecs,
       balance: req.app.locals.balance,
       scheduler: req.app.locals.scheduler,
+      endpoints,
       sharedLinksEnabled,
       publicSharedLinksEnabled,
       analyticsGtmId: process.env.ANALYTICS_GTM_ID,

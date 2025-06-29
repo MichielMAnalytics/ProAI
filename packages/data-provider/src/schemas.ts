@@ -106,7 +106,13 @@ export const isEphemeralAgent = (
   const hasSearchSelected = (ephemeralAgent?.web_search ?? false) === true;
   const hasSchedulerSelected = (ephemeralAgent?.scheduler ?? false) === true;
   const hasWorkflowSelected = (ephemeralAgent?.workflow ?? false) === true;
-  return hasMCPSelected || hasCodeSelected || hasSearchSelected || hasSchedulerSelected || hasWorkflowSelected;
+  return (
+    hasMCPSelected ||
+    hasCodeSelected ||
+    hasSearchSelected ||
+    hasSchedulerSelected ||
+    hasWorkflowSelected
+  );
 };
 
 export const isParamEndpoint = (

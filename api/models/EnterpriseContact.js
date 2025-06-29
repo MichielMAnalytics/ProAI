@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 const { enterpriseContactSchema } = require('@librechat/data-schemas');
 
-const EnterpriseContact = mongoose.models.EnterpriseContact || 
-  mongoose.model('EnterpriseContact', enterpriseContactSchema);
+const EnterpriseContact =
+  mongoose.models.EnterpriseContact || mongoose.model('EnterpriseContact', enterpriseContactSchema);
 
 /**
  * Creates a new enterprise contact
@@ -27,22 +27,18 @@ const createEnterpriseContact = async (contactData) => {
  * @param {Object} options.sort - Sort criteria
  * @returns {Promise<Object>} Paginated results
  */
-const getEnterpriseContacts = async ({ 
-  filter = {}, 
-  page = 1, 
-  limit = 20, 
-  sort = { createdAt: -1 } 
+const getEnterpriseContacts = async ({
+  filter = {},
+  page = 1,
+  limit = 20,
+  sort = { createdAt: -1 },
 } = {}) => {
   try {
     const skip = (page - 1) * limit;
-    
+
     const [contacts, total] = await Promise.all([
-      EnterpriseContact.find(filter)
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      EnterpriseContact.countDocuments(filter)
+      EnterpriseContact.find(filter).sort(sort).skip(skip).limit(limit).lean(),
+      EnterpriseContact.countDocuments(filter),
     ]);
 
     return {
@@ -53,8 +49,8 @@ const getEnterpriseContacts = async ({
         total,
         pages: Math.ceil(total / limit),
         hasNext: page * limit < total,
-        hasPrev: page > 1
-      }
+        hasPrev: page > 1,
+      },
     };
   } catch (error) {
     throw new Error(`Error getting enterprise contacts: ${error.message}`);
@@ -82,11 +78,10 @@ const getEnterpriseContactById = async (contactId) => {
  */
 const updateEnterpriseContact = async (contactId, updateData) => {
   try {
-    return await EnterpriseContact.findOneAndUpdate(
-      { contactId },
-      updateData,
-      { new: true, runValidators: true }
-    ).lean();
+    return await EnterpriseContact.findOneAndUpdate({ contactId }, updateData, {
+      new: true,
+      runValidators: true,
+    }).lean();
   } catch (error) {
     throw new Error(`Error updating enterprise contact: ${error.message}`);
   }
@@ -113,4 +108,4 @@ module.exports = {
   getEnterpriseContactById,
   updateEnterpriseContact,
   deleteEnterpriseContact,
-}; 
+};

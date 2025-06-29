@@ -16,18 +16,16 @@ export default function IntegrationsButton() {
           variant="outline"
           data-testid="integrations-button"
           aria-label={localize('com_ui_integrations')}
-          className="rounded-xl border border-border-light bg-surface-secondary hover:bg-surface-hover transition-all duration-200 flex items-center gap-2 px-3 py-2 min-w-fit h-auto"
+          className="flex h-auto min-w-fit items-center gap-2 rounded-xl border border-border-light bg-surface-secondary px-3 py-2 transition-all duration-200 hover:bg-surface-hover"
           onClick={() => navigate('/d/integrations')}
         >
           {/* Icon and text container */}
           <div className="flex items-center gap-2">
             <MCPIcon className="icon-md flex-shrink-0" />
-            <span className="text-sm font-medium text-text-primary whitespace-nowrap">
-              Apps
-            </span>
+            <span className="whitespace-nowrap text-sm font-medium text-text-primary">Apps</span>
           </div>
         </Button>
       }
     />
   );
-} 
+}

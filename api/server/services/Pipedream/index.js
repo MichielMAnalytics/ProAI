@@ -1,9 +1,9 @@
 /**
  * Pipedream Services Index
- * 
+ *
  * This file exports all Pipedream-related services for easy importing.
  * The services are organized by functionality:
- * 
+ *
  * - PipedreamConnect: Core Connect functionality (authentication, tokens, account management)
  * - PipedreamApps: Available integrations and app discovery
  * - PipedreamUserIntegrations: User-specific integration management
@@ -20,4 +20,4 @@ module.exports = {
   PipedreamApps,
   PipedreamUserIntegrations,
   PipedreamComponents,
-}; 
+};

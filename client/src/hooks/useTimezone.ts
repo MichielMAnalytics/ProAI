@@ -4,13 +4,13 @@ import { useMutation } from '@tanstack/react-query';
 import store from '~/store';
 import { useAuthContext } from '~/hooks/AuthContext';
 import { logger } from '~/utils';
-import { 
+import {
   getDetectedTimezone,
   formatDateInTimezone,
   formatDateTimeInTimezone,
   formatTimeInTimezone,
   formatRelativeTimeInTimezone,
-  getTimezoneAbbreviation
+  getTimezoneAbbreviation,
 } from '~/utils/timezone';
 
 interface UpdateTimezoneResponse {
@@ -52,7 +52,7 @@ export const useTimezone = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ timezone: newTimezone }),
       });
@@ -121,28 +121,46 @@ export const useTimezone = () => {
   const effectiveTimezone = user?.timezone || timezone || getDetectedTimezone();
 
   // Timezone-aware formatting functions
-  const formatDate = useCallback((dateInput: string | Date, isSmallScreen = false) => {
-    return formatDateInTimezone(dateInput, effectiveTimezone, isSmallScreen);
-  }, [effectiveTimezone]);
+  const formatDate = useCallback(
+    (dateInput: string | Date, isSmallScreen = false) => {
+      return formatDateInTimezone(dateInput, effectiveTimezone, isSmallScreen);
+    },
+    [effectiveTimezone],
+  );
 
-  const formatDateTime = useCallback((dateInput: string | Date, options?: {
-    showSeconds?: boolean;
-    showTimezone?: boolean;
-    use24Hour?: boolean;
-  }) => {
-    return formatDateTimeInTimezone(dateInput, effectiveTimezone, options);
-  }, [effectiveTimezone]);
+  const formatDateTime = useCallback(
+    (
+      dateInput: string | Date,
+      options?: {
+        showSeconds?: boolean;
+        showTimezone?: boolean;
+        use24Hour?: boolean;
+      },
+    ) => {
+      return formatDateTimeInTimezone(dateInput, effectiveTimezone, options);
+    },
+    [effectiveTimezone],
+  );
 
-  const formatTime = useCallback((dateInput: string | Date, options?: {
-    showSeconds?: boolean;
-    use24Hour?: boolean;
-  }) => {
-    return formatTimeInTimezone(dateInput, effectiveTimezone, options);
-  }, [effectiveTimezone]);
+  const formatTime = useCallback(
+    (
+      dateInput: string | Date,
+      options?: {
+        showSeconds?: boolean;
+        use24Hour?: boolean;
+      },
+    ) => {
+      return formatTimeInTimezone(dateInput, effectiveTimezone, options);
+    },
+    [effectiveTimezone],
+  );
 
-  const formatRelativeTime = useCallback((dateInput: string | Date) => {
-    return formatRelativeTimeInTimezone(dateInput, effectiveTimezone);
-  }, [effectiveTimezone]);
+  const formatRelativeTime = useCallback(
+    (dateInput: string | Date) => {
+      return formatRelativeTimeInTimezone(dateInput, effectiveTimezone);
+    },
+    [effectiveTimezone],
+  );
 
   const getTimezoneAbbr = useCallback(() => {
     return getTimezoneAbbreviation(effectiveTimezone);
@@ -161,4 +179,4 @@ export const useTimezone = () => {
     formatRelativeTime,
     getTimezoneAbbr,
   };
-}; 
+};

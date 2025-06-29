@@ -55,10 +55,10 @@ const startServer = async () => {
   /* Middleware */
   app.use(noIndex);
   app.use(errorController);
-  
+
   // Handle Stripe webhook with raw body BEFORE any parsing middleware
   app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
-  
+
   // JSON parsing middleware for all other routes
   app.use(express.json({ limit: '3mb' }));
   app.use(express.urlencoded({ extended: true, limit: '3mb' }));
@@ -154,7 +154,7 @@ const startServer = async () => {
     } else {
       logger.info(`Server listening at http://${host == '0.0.0.0' ? 'localhost' : host}:${port}`);
     }
-    
+
     // Start the scheduler execution service
     try {
       const schedulerService = new SchedulerExecutionService();

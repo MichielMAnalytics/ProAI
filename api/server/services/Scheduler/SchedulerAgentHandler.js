@@ -19,19 +19,21 @@ class SchedulerAgentHandler {
     }
 
     const mockReq = createMockRequest(task);
-    
+
     const agent = await loadAgent({
       req: mockReq,
       agent_id: task.agent_id,
       endpoint: task.endpoint,
-      model_parameters: { model: task.ai_model }
+      model_parameters: { model: task.ai_model },
     });
-    
+
     if (!agent) {
       // Try to get agent details for error context
       const agentDetails = await getAgent({ id: task.agent_id });
       if (agentDetails) {
-        logger.warn(`[SchedulerAgentHandler] Agent ${task.agent_id} found but not accessible for user ${task.user}`);
+        logger.warn(
+          `[SchedulerAgentHandler] Agent ${task.agent_id} found but not accessible for user ${task.user}`,
+        );
         // Return agent details for fallback
         return { fallback: true, ...agentDetails };
       } else {
@@ -52,78 +54,94 @@ class SchedulerAgentHandler {
    */
   async createEphemeralAgentSetup(task, user) {
     logger.info(`[SchedulerAgentHandler] Creating ephemeral agent setup for task ${task.id}`);
-    
+
     // Ensure user ID is properly formatted as string (convert from ObjectId if needed)
     const userId = user.toString();
     logger.debug(`[SchedulerAgentHandler] Converted user ID: ${userId} (type: ${typeof userId})`);
-    
+
     // Create mock request structure for agent initialization
     const mockReq = createMockRequest(task);
     logger.debug(`[SchedulerAgentHandler] Created mock request for task ${task.id}`);
-    logger.debug(`[SchedulerAgentHandler] Mock request user ID: ${mockReq.user.id} (type: ${typeof mockReq.user.id})`);
-    logger.debug(`[SchedulerAgentHandler] Initial availableTools count: ${Object.keys(mockReq.app.locals.availableTools).length}`);
-    
+    logger.debug(
+      `[SchedulerAgentHandler] Mock request user ID: ${mockReq.user.id} (type: ${typeof mockReq.user.id})`,
+    );
+    logger.debug(
+      `[SchedulerAgentHandler] Initial availableTools count: ${Object.keys(mockReq.app.locals.availableTools).length}`,
+    );
+
     // Initialize MCP tools and populate availableTools using the standardized initialization
     const MCPInitializer = require('~/server/services/MCPInitializer');
     const mcpInitializer = MCPInitializer.getInstance();
-    
-    logger.info(`[SchedulerAgentHandler] Calling ensureUserMCPReady for user ${userId} with availableTools reference`);
-    
+
+    logger.info(
+      `[SchedulerAgentHandler] Calling ensureUserMCPReady for user ${userId} with availableTools reference`,
+    );
+
     const mcpResult = await mcpInitializer.ensureUserMCPReady(
       userId, // Use the properly formatted string user ID
       'SchedulerAgentHandler.createEphemeralAgentSetup',
-      mockReq.app.locals.availableTools
+      mockReq.app.locals.availableTools,
     );
-    
+
     logger.info(`[SchedulerAgentHandler] MCP initialization complete for task ${task.id}:`, {
       success: mcpResult.success,
       serverCount: mcpResult.serverCount,
       toolCount: mcpResult.toolCount,
       error: mcpResult.error,
       finalAvailableToolsCount: Object.keys(mockReq.app.locals.availableTools).length,
-      cached: mcpResult.cached
+      cached: mcpResult.cached,
     });
-    
+
     if (!mcpResult.success) {
       logger.warn(`[SchedulerAgentHandler] MCP initialization failed: ${mcpResult.error}`);
     } else {
-      logger.info(`[SchedulerAgentHandler] MCP initialized: ${mcpResult.serverCount} servers, ${mcpResult.toolCount} tools`);
+      logger.info(
+        `[SchedulerAgentHandler] MCP initialized: ${mcpResult.serverCount} servers, ${mcpResult.toolCount} tools`,
+      );
     }
-    
+
     // Log the actual available tools
     const availableToolKeys = Object.keys(mockReq.app.locals.availableTools);
-    logger.debug(`[SchedulerAgentHandler] Available tools after MCP init: ${availableToolKeys.join(', ')}`);
-    
+    logger.debug(
+      `[SchedulerAgentHandler] Available tools after MCP init: ${availableToolKeys.join(', ')}`,
+    );
+
     // Extract MCP server names from available tools
     const mcpServerNames = this.extractMCPServerNames(mockReq.app.locals.availableTools);
-    
+
     logger.info(`[SchedulerAgentHandler] Extracted MCP server names: ${mcpServerNames.join(', ')}`);
-    
+
     if (mcpServerNames.length === 0) {
-      logger.warn(`[SchedulerAgentHandler] No MCP server names extracted despite ${Object.keys(mockReq.app.locals.availableTools).length} available tools`);
+      logger.warn(
+        `[SchedulerAgentHandler] No MCP server names extracted despite ${Object.keys(mockReq.app.locals.availableTools).length} available tools`,
+      );
       logger.warn(`[SchedulerAgentHandler] Available tool keys: ${availableToolKeys.join(', ')}`);
-      
+
       // Check if MCP was supposed to be successful but we got no tools
       if (mcpResult.success && mcpResult.serverCount > 0) {
-        logger.error(`[SchedulerAgentHandler] CRITICAL: MCP reported success with ${mcpResult.serverCount} servers but no tools extracted!`);
+        logger.error(
+          `[SchedulerAgentHandler] CRITICAL: MCP reported success with ${mcpResult.serverCount} servers but no tools extracted!`,
+        );
       }
     }
-    
+
     // Set up ephemeral agent configuration
     const underlyingEndpoint = task.endpoint || EModelEndpoint.openAI;
     const underlyingModel = task.ai_model || 'gpt-4o-mini';
-    
-    logger.info(`[SchedulerAgentHandler] Using underlying endpoint: ${underlyingEndpoint}, model: ${underlyingModel}`);
-    
+
+    logger.info(
+      `[SchedulerAgentHandler] Using underlying endpoint: ${underlyingEndpoint}, model: ${underlyingModel}`,
+    );
+
     // Create ephemeral agent configuration
     const ephemeralAgent = {
       scheduler: true,
       workflow: true,
       execute_code: false,
       web_search: true,
-      mcp: mcpServerNames
+      mcp: mcpServerNames,
     };
-    
+
     // Update request body for agent loading
     updateRequestForEphemeralAgent(
       mockReq,
@@ -132,23 +150,23 @@ class SchedulerAgentHandler {
       underlyingEndpoint,
       underlyingModel,
     );
-    
+
     logger.info(`[SchedulerAgentHandler] Ephemeral agent config:`, {
       scheduler: ephemeralAgent.scheduler,
       workflow: ephemeralAgent.workflow,
       execute_code: ephemeralAgent.execute_code,
       web_search: ephemeralAgent.web_search,
       mcpServers: ephemeralAgent.mcp,
-      availableToolsCount: Object.keys(mockReq.app.locals.availableTools).length
+      availableToolsCount: Object.keys(mockReq.app.locals.availableTools).length,
     });
-    
+
     return {
       mockReq,
       ephemeralAgent,
       underlyingEndpoint,
       underlyingModel,
       mcpServerNames,
-      availableToolsCount: Object.keys(mockReq.app.locals.availableTools).length
+      availableToolsCount: Object.keys(mockReq.app.locals.availableTools).length,
     };
   }
 
@@ -159,61 +177,64 @@ class SchedulerAgentHandler {
    */
   async loadEphemeralAgent(setupResult) {
     const { mockReq, underlyingEndpoint, underlyingModel } = setupResult;
-    
+
     logger.info(`[SchedulerAgentHandler] Loading ephemeral agent with parameters:`, {
       underlyingEndpoint,
       underlyingModel,
       expectedMcpServers: setupResult.mcpServerNames,
-      availableToolsInReq: Object.keys(mockReq.app.locals.availableTools).length
+      availableToolsInReq: Object.keys(mockReq.app.locals.availableTools).length,
     });
-    
+
     // Load ephemeral agent using the loadAgent function
     const agent = await loadAgent({
       req: mockReq,
       agent_id: Constants.EPHEMERAL_AGENT_ID,
       endpoint: underlyingEndpoint,
-      model_parameters: { model: underlyingModel }
+      model_parameters: { model: underlyingModel },
     });
-    
+
     if (!agent) {
       throw new Error('Failed to load ephemeral agent');
     }
-    
+
     logger.info(`[SchedulerAgentHandler] Loaded ephemeral agent successfully:`, {
       agentId: agent.id,
       model: agent.model,
       provider: agent.provider,
       toolsCount: agent.tools?.length || 0,
-      allTools: agent.tools || []
+      allTools: agent.tools || [],
     });
-    
+
     // Log MCP tools specifically
-    const mcpTools = agent.tools?.filter(tool => {
-      // Handle enhanced tool format (objects with MCP metadata)
-      if (typeof tool === 'object' && tool.tool) {
-        return tool.tool.includes(Constants.mcp_delimiter);
-      }
-      // Handle regular tool format (strings)
-      return typeof tool === 'string' && tool.includes(Constants.mcp_delimiter);
-    }) || [];
+    const mcpTools =
+      agent.tools?.filter((tool) => {
+        // Handle enhanced tool format (objects with MCP metadata)
+        if (typeof tool === 'object' && tool.tool) {
+          return tool.tool.includes(Constants.mcp_delimiter);
+        }
+        // Handle regular tool format (strings)
+        return typeof tool === 'string' && tool.includes(Constants.mcp_delimiter);
+      }) || [];
     logger.info(`[SchedulerAgentHandler] Ephemeral agent MCP tools analysis:`, {
       mcpToolsCount: mcpTools.length,
       mcpTools: mcpTools,
       mcpDelimiter: Constants.mcp_delimiter,
-      expectedMcpServers: setupResult.mcpServerNames
+      expectedMcpServers: setupResult.mcpServerNames,
     });
-    
+
     if (mcpTools.length === 0 && setupResult.mcpServerNames.length > 0) {
       logger.error(`[SchedulerAgentHandler] CRITICAL: Expected MCP tools but agent has none!`, {
         expectedServers: setupResult.mcpServerNames,
         availableToolsCount: setupResult.availableToolsCount,
         allAgentTools: agent.tools,
-        availableToolsKeys: Object.keys(mockReq.app.locals.availableTools)
+        availableToolsKeys: Object.keys(mockReq.app.locals.availableTools),
       });
     } else if (mcpTools.length > 0) {
-      logger.info(`[SchedulerAgentHandler] SUCCESS: Ephemeral agent has ${mcpTools.length} MCP tools: ${mcpTools.join(', ')}`);
+      logger.info(
+        `[SchedulerAgentHandler] SUCCESS: Ephemeral agent has ${mcpTools.length} MCP tools: ${mcpTools.join(', ')}`,
+      );
     }
-    
+
     return agent;
   }
 
@@ -225,21 +246,23 @@ class SchedulerAgentHandler {
   extractMCPServerNames(availableTools) {
     const mcpServerNames = [];
     const availableToolKeys = Object.keys(availableTools);
-    
+
     logger.debug(`[SchedulerAgentHandler] Available tool keys: ${availableToolKeys.join(', ')}`);
-    
+
     for (const toolKey of availableToolKeys) {
       if (toolKey.includes(Constants.mcp_delimiter)) {
         const serverName = toolKey.split(Constants.mcp_delimiter)[1];
         if (serverName && !mcpServerNames.includes(serverName)) {
           mcpServerNames.push(serverName);
-          logger.debug(`[SchedulerAgentHandler] Extracted MCP server name: ${serverName} from tool: ${toolKey}`);
+          logger.debug(
+            `[SchedulerAgentHandler] Extracted MCP server name: ${serverName} from tool: ${toolKey}`,
+          );
         }
       }
     }
-    
+
     logger.info(`[SchedulerAgentHandler] Found MCP server names: ${mcpServerNames.join(', ')}`);
-    
+
     return mcpServerNames;
   }
 
@@ -256,16 +279,20 @@ class SchedulerAgentHandler {
     if (agentDetails && agentDetails.model) {
       endpoint = agentDetails.provider || EModelEndpoint.openAI;
       model = agentDetails.model;
-      logger.info(`[SchedulerAgentHandler] Using agent fallback: endpoint=${endpoint}, model=${model}`);
+      logger.info(
+        `[SchedulerAgentHandler] Using agent fallback: endpoint=${endpoint}, model=${model}`,
+      );
     } else {
       // Last resort fallback
       endpoint = EModelEndpoint.openAI;
       model = 'gpt-4o-mini';
-      logger.info(`[SchedulerAgentHandler] Using default fallback: endpoint=${endpoint}, model=${model}`);
+      logger.info(
+        `[SchedulerAgentHandler] Using default fallback: endpoint=${endpoint}, model=${model}`,
+      );
     }
 
     return { endpoint, model };
   }
 }
 
-module.exports = SchedulerAgentHandler; 
+module.exports = SchedulerAgentHandler;

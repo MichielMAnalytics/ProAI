@@ -68,7 +68,7 @@ export default function FileSearch({
   return (
     <div className="w-full">
       <FileSearchCheckbox />
-      <div className="flex flex-col gap-3 mt-4">
+      <div className="mt-4 flex flex-col gap-3">
         {/* File Search (RAG API) Files */}
         <FileRow
           files={files}

@@ -35,7 +35,7 @@ const userSchema = new Schema<IUser>(
     },
     email: {
       type: String,
-      required: [true, 'can\'t be blank'],
+      required: [true, "can't be blank"],
       lowercase: true,
       unique: true,
       match: [/\S+@\S+\.\S+/, 'is invalid'],
@@ -69,13 +69,16 @@ const userSchema = new Schema<IUser>(
       type: String,
       default: 'UTC',
       validate: {
-        validator: function(v: string) {
+        validator: function (v: string) {
           // Basic validation for timezone strings
           // Accept IANA timezone identifiers and UTC
-          return !v || v === 'UTC' || /^[A-Za-z_]+\/[A-Za-z_]+/.test(v) || /^GMT[+-]\d{1,2}/.test(v);
+          return (
+            !v || v === 'UTC' || /^[A-Za-z_]+\/[A-Za-z_]+/.test(v) || /^GMT[+-]\d{1,2}/.test(v)
+          );
         },
-        message: 'Invalid timezone format. Use IANA timezone identifiers like "America/New_York" or "UTC"'
-      }
+        message:
+          'Invalid timezone format. Use IANA timezone identifiers like "America/New_York" or "UTC"',
+      },
     },
     googleId: {
       type: String,

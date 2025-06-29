@@ -52,24 +52,24 @@ const AuthContextProvider = ({
     try {
       const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       console.log('[AuthContext] Enhancing user profile with timezone:', detectedTimezone);
-      
+
       const response = await fetch('/api/auth/enhance-profile', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
+          Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({ timezone: detectedTimezone }),
       });
-      
+
       if (!response.ok) {
         console.error('[AuthContext] Profile enhancement failed with status:', response.status);
         return;
       }
-      
+
       const result = await response.json();
       console.log('[AuthContext] Profile enhancement result:', result);
-      
+
       // Note: We don't need to handle the response since this is best-effort enhancement
       // The user's timezone will be properly loaded from the database on next page load
     } catch (error) {

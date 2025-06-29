@@ -3,13 +3,13 @@ export const formatToolName = (name: string): string => {
     .replace(/-/g, ' ')
     .replace(/_/g, ' ')
     .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(' ');
 };
 
 export const cleanDescription = (text: string): string => {
   if (!text) return 'No description available';
-  
+
   return text
     .replace(/\[See the docs?\]/gi, '')
     .replace(/\[See the docs here\]/gi, '')

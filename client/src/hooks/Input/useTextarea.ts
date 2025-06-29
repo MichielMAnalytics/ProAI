@@ -81,11 +81,11 @@ export default function useTextarea({
       if (isMcpChecking) {
         return localize('com_ui_checking_connections');
       }
-      
+
       if (disabled) {
         return localize('com_endpoint_config_placeholder');
       }
-      
+
       const currentEndpoint = conversation?.endpoint ?? '';
       const currentAgentId = conversation?.agent_id ?? '';
       const currentAssistantId = conversation?.assistant_id ?? '';

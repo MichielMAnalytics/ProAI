@@ -61,7 +61,7 @@ const enhanceToolsWithMCPMetadata = (tools, availableTools = {}, mcpToolRegistry
   }
 
   const enhancedTools = [];
-  
+
   for (const tool of tools) {
     if (typeof tool === 'string') {
       // Check if this tool is an MCP tool by looking it up in the registry
@@ -72,7 +72,7 @@ const enhanceToolsWithMCPMetadata = (tools, availableTools = {}, mcpToolRegistry
           enhancedTools.push({
             tool: tool,
             server: mcpInfo.serverName || 'unknown',
-            type: mcpInfo.isGlobal ? 'global' : 'user'
+            type: mcpInfo.isGlobal ? 'global' : 'user',
           });
         } else {
           // Fallback to regular tool if no MCP info found
@@ -84,7 +84,7 @@ const enhanceToolsWithMCPMetadata = (tools, availableTools = {}, mcpToolRegistry
       }
     }
   }
-  
+
   return enhancedTools;
 };
 
@@ -99,7 +99,7 @@ const filterOutMCPTools = (tools) => {
   }
 
   const nonMCPTools = [];
-  
+
   for (const tool of tools) {
     if (typeof tool === 'string') {
       // Keep regular/system tools
@@ -107,10 +107,9 @@ const filterOutMCPTools = (tools) => {
     }
     // Skip MCP tool objects (they have tool/server/type properties)
   }
-  
+
   return nonMCPTools;
 };
-
 
 /**
  * Creates an Agent.
@@ -254,7 +253,7 @@ const updateAgentHandler = async (req, res) => {
   try {
     const id = req.params.id;
     const { projectIds, removeProjectIds, ...updateData } = req.body;
-    
+
     // Handle tools update - preserve MCP tool objects and validate strings
     if (updateData.tools) {
       const validTools = [];
@@ -282,11 +281,11 @@ const updateAgentHandler = async (req, res) => {
           validTools.push(tool);
         }
       }
-      
+
       // Store the validated tools directly (MCP objects are already enhanced)
       updateData.tools = validTools;
     }
-    
+
     const isAdmin = req.user.role === SystemRoles.ADMIN;
     const existingAgent = await getAgent({ id });
     const isAuthor = existingAgent.author.toString() === req.user.id;
@@ -298,36 +297,49 @@ const updateAgentHandler = async (req, res) => {
     // Check if this is a global agent that should be cloned instead of modified
     const globalProject = await getProjectByName(Constants.GLOBAL_PROJECT_NAME, 'agentIds');
     const isGlobalAgent = globalProject && (globalProject.agentIds?.includes(id) ?? false);
-    const shouldCloneInsteadOfUpdate = isGlobalAgent && existingAgent.isCollaborative && !isAuthor && !isAdmin;
+    const shouldCloneInsteadOfUpdate =
+      isGlobalAgent && existingAgent.isCollaborative && !isAuthor && !isAdmin;
 
     if (shouldCloneInsteadOfUpdate) {
       // Instead of updating the global agent, create a duplicate for the user
-      const { id: _id, _id: __id, author: _author, createdAt: _createdAt, updatedAt: _updatedAt, tool_resources: _tool_resources = {}, ...cloneData } = existingAgent;
-      
+      const {
+        id: _id,
+        _id: __id,
+        author: _author,
+        createdAt: _createdAt,
+        updatedAt: _updatedAt,
+        tool_resources: _tool_resources = {},
+        ...cloneData
+      } = existingAgent;
+
       // Apply the updates to the clone data
       Object.assign(cloneData, updateData);
-      
+
       // Remove MCP tools from duplicated agents so users need to connect their own integrations
       if (cloneData.tools && Array.isArray(cloneData.tools)) {
         const originalToolCount = cloneData.tools.length;
         const mcpToolRegistry = req.app.locals.mcpToolRegistry;
-        const mcpTools = cloneData.tools.filter(tool => 
-          typeof tool === 'string' && mcpToolRegistry && mcpToolRegistry.has(tool)
+        const mcpTools = cloneData.tools.filter(
+          (tool) => typeof tool === 'string' && mcpToolRegistry && mcpToolRegistry.has(tool),
         );
-        
-        cloneData.tools = cloneData.tools.filter(tool => {
+
+        cloneData.tools = cloneData.tools.filter((tool) => {
           if (typeof tool === 'string') {
             // Check if this is an MCP tool using the registry
             return !(mcpToolRegistry && mcpToolRegistry.has(tool));
           }
           return true;
         });
-        
+
         if (mcpTools.length > 0) {
-          logger.info(`[/agents/:id] Removed ${mcpTools.length} MCP tools during auto-duplication for user ${req.user.id}. User can add their own integrations. Tools removed: ${mcpTools.join(', ')}`);
+          logger.info(
+            `[/agents/:id] Removed ${mcpTools.length} MCP tools during auto-duplication for user ${req.user.id}. User can add their own integrations. Tools removed: ${mcpTools.join(', ')}`,
+          );
         }
-        
-        logger.info(`[/agents/:id] Tool count: ${originalToolCount} -> ${cloneData.tools.length} (removed ${originalToolCount - cloneData.tools.length} MCP tools)`);
+
+        logger.info(
+          `[/agents/:id] Tool count: ${originalToolCount} -> ${cloneData.tools.length} (removed ${originalToolCount - cloneData.tools.length} MCP tools)`,
+        );
       }
 
       if (_tool_resources?.[EToolResources.ocr]) {
@@ -393,9 +405,11 @@ const updateAgentHandler = async (req, res) => {
       newAgentData.actions = agentActions;
 
       const newAgent = await createAgent(newAgentData);
-      
-      logger.info(`[/agents/:id] Auto-duplicated global agent ${id} to ${newAgentId} for user ${req.user.id} due to modification attempt`);
-      
+
+      logger.info(
+        `[/agents/:id] Auto-duplicated global agent ${id} to ${newAgentId} for user ${req.user.id} due to modification attempt`,
+      );
+
       return res.status(201).json({
         ...newAgent,
         actions: newActionsList,
@@ -494,31 +508,35 @@ const duplicateAgentHandler = async (req, res) => {
     }
 
     const newAgentId = `agent_${nanoid()}`;
-    
+
     // Remove MCP tools from duplicated agents so users need to connect their own integrations
     // MCP tools are personal and should not be inherited during duplication
     if (cloneData.tools && Array.isArray(cloneData.tools)) {
       const originalToolCount = cloneData.tools.length;
       const mcpToolRegistry = req.app.locals.mcpToolRegistry;
-      const mcpTools = cloneData.tools.filter(tool => 
-        typeof tool === 'string' && mcpToolRegistry && mcpToolRegistry.has(tool)
+      const mcpTools = cloneData.tools.filter(
+        (tool) => typeof tool === 'string' && mcpToolRegistry && mcpToolRegistry.has(tool),
       );
-      
-      cloneData.tools = cloneData.tools.filter(tool => {
+
+      cloneData.tools = cloneData.tools.filter((tool) => {
         if (typeof tool === 'string') {
           // Check if this is an MCP tool using the registry
           return !(mcpToolRegistry && mcpToolRegistry.has(tool));
         }
         return true;
       });
-      
+
       if (mcpTools.length > 0) {
-        logger.info(`[/agents/:id/duplicate] Removed ${mcpTools.length} MCP tools during duplication for user ${userId}. User can add their own integrations. Tools removed: ${mcpTools.join(', ')}`);
+        logger.info(
+          `[/agents/:id/duplicate] Removed ${mcpTools.length} MCP tools during duplication for user ${userId}. User can add their own integrations. Tools removed: ${mcpTools.join(', ')}`,
+        );
       }
-      
-      logger.info(`[/agents/:id/duplicate] Tool count: ${originalToolCount} -> ${cloneData.tools.length} (removed ${originalToolCount - cloneData.tools.length} MCP tools)`);
+
+      logger.info(
+        `[/agents/:id/duplicate] Tool count: ${originalToolCount} -> ${cloneData.tools.length} (removed ${originalToolCount - cloneData.tools.length} MCP tools)`,
+      );
     }
-    
+
     const newAgentData = Object.assign(cloneData, {
       id: newAgentId,
       author: userId,
@@ -577,8 +595,8 @@ const duplicateAgentHandler = async (req, res) => {
     if (Array.isArray(newAgentData.tools)) {
       for (const tool of newAgentData.tools) {
         if (typeof tool === 'object' && tool.server && tool.type) {
-          const appSlug = tool.server.startsWith('pipedream-') 
-            ? tool.server.replace('pipedream-', '') 
+          const appSlug = tool.server.startsWith('pipedream-')
+            ? tool.server.replace('pipedream-', '')
             : tool.server;
           if (!mcpServersNeeded.includes(appSlug)) {
             mcpServersNeeded.push(appSlug);

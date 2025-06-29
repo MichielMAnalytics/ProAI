@@ -31,8 +31,8 @@ function LoadingSpinner() {
         {/* Invisible placeholder to maintain layout */}
       </div>
       {/* Portal-like fixed spinner that ignores all layout changes */}
-      <div 
-        className="fixed inset-0 flex items-center justify-center z-[100] pointer-events-none"
+      <div
+        className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center"
         style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
       >
         <Spinner className="text-text-primary" />
@@ -46,7 +46,7 @@ function ChatView({ index = 0 }: { index?: number }) {
   const rootSubmission = useRecoilValue(store.submissionByIndex(index));
   const addedSubmission = useRecoilValue(store.submissionByIndex(index + 1));
   const centerFormOnLanding = useRecoilValue(store.centerFormOnLanding);
-  
+
   const [isMcpChecking, setIsMcpChecking] = useState(false);
   const [showAgentSelectModal, setShowAgentSelectModal] = useState(false);
 
@@ -66,7 +66,7 @@ function ChatView({ index = 0 }: { index?: number }) {
 
   const chatHelpers = useChatHelpers(index, conversationId);
   const addedChatHelpers = useAddedResponse({ rootIndex: index });
-  
+
   const { areAllMCPServersConnected } = useMCPConnection();
 
   // Fetch agent data if we have an agent_id
@@ -90,20 +90,20 @@ function ChatView({ index = 0 }: { index?: number }) {
       textArea.focus();
     }
   };
-  
+
   // Check if we need to show agent select modal
   const shouldShowAgentModal = (() => {
     const { conversation } = chatHelpers;
     if (!conversation) return false;
-    
+
     const endpoint = conversation.endpointType ?? conversation.endpoint;
     const currentAgentId = conversation.agent_id ?? '';
-    
+
     // Check if we're on an agent endpoint and need to select an agent
     if (isAgentsEndpoint(endpoint)) {
       // Don't show modal if agentsMap is not loaded yet to prevent flash
       if (!agentsMap) return false;
-      
+
       const { isAgent } = getEntity({
         endpoint,
         agentsMap,
@@ -111,11 +111,11 @@ function ChatView({ index = 0 }: { index?: number }) {
         agent_id: currentAgentId,
         assistant_id: undefined,
       });
-      
+
       // Show modal if it's an agent endpoint but no valid agent is selected
       return isAgent && (!currentAgentId || !agentsMap[currentAgentId]);
     }
-    
+
     return false;
   })();
 
@@ -152,11 +152,7 @@ function ChatView({ index = 0 }: { index?: number }) {
       // Not an agent endpoint, or no agent is selected, so reset to default state
       setIsMcpChecking(false);
     }
-  }, [
-    chatHelpers.conversation,
-    isAgentLoading,
-    agentData,
-  ]);
+  }, [chatHelpers.conversation, isAgentLoading, agentData]);
 
   let content: JSX.Element | null | undefined;
   const isLandingPage =
@@ -179,10 +175,10 @@ function ChatView({ index = 0 }: { index?: number }) {
       <ChatContext.Provider value={chatHelpers}>
         <AddedChatContext.Provider value={addedChatHelpers}>
           <Presentation>
-            <div 
+            <div
               className={cn(
-                "flex h-full w-full flex-col",
-                shouldShowAgentModal && "blur-sm pointer-events-none"
+                'flex h-full w-full flex-col',
+                shouldShowAgentModal && 'pointer-events-none blur-sm',
               )}
             >
               {!isLoading && <Header />}
@@ -204,18 +200,21 @@ function ChatView({ index = 0 }: { index?: number }) {
                   >
                     <div className="relative">
                       {/* Show DefaultPrompts above ChatForm when conversation has started */}
-                      {!isMcpChecking && chatHelpers.conversation && 
-                        !isLandingPage && agentData?.default_prompts && agentData.default_prompts.length > 0 && (
-                        <div className="mx-auto flex w-full max-w-3xl xl:max-w-4xl justify-center gap-3 sm:px-2 mb-0.5">
-                          <div className="relative flex h-full flex-1 items-stretch md:flex-col">
-                            <DefaultPrompts
-                              conversation={chatHelpers.conversation}
-                              onPromptSelect={handlePromptSelect}
-                              isCompact={true}
-                            />
+                      {!isMcpChecking &&
+                        chatHelpers.conversation &&
+                        !isLandingPage &&
+                        agentData?.default_prompts &&
+                        agentData.default_prompts.length > 0 && (
+                          <div className="mx-auto mb-0.5 flex w-full max-w-3xl justify-center gap-3 sm:px-2 xl:max-w-4xl">
+                            <div className="relative flex h-full flex-1 items-stretch md:flex-col">
+                              <DefaultPrompts
+                                conversation={chatHelpers.conversation}
+                                onPromptSelect={handlePromptSelect}
+                                isCompact={true}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
                       <ChatForm
                         index={index}
                         isMcpChecking={isMcpChecking}
@@ -224,8 +223,7 @@ function ChatView({ index = 0 }: { index?: number }) {
                       />
                     </div>
                     {/* Show DefaultPrompts for new conversations with agents that have default prompts */}
-                    {!isMcpChecking && chatHelpers.conversation && 
-                      isLandingPage && (
+                    {!isMcpChecking && chatHelpers.conversation && isLandingPage && (
                       <DefaultPrompts
                         conversation={chatHelpers.conversation}
                         onPromptSelect={handlePromptSelect}
@@ -237,7 +235,7 @@ function ChatView({ index = 0 }: { index?: number }) {
                 {isLandingPage && <Footer />}
               </>
             </div>
-            
+
             {/* Agent Select Modal */}
             <AgentSelectModal
               isOpen={showAgentSelectModal}

@@ -15,4 +15,4 @@ export const formatBalance = (balance: number): string => {
   }
 };
 
-export default formatBalance; 
+export default formatBalance;

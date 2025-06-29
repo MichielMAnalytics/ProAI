@@ -46,7 +46,7 @@ const oauthHandler = async (req, res) => {
     if (req.banned) {
       return;
     }
-    
+
     // Extract timezone from OAuth state parameter if available
     if (req.query.state) {
       try {
@@ -62,7 +62,7 @@ const oauthHandler = async (req, res) => {
         logger.warn('[OAuth Callback] Failed to extract timezone from state:', stateError.message);
       }
     }
-    
+
     if (
       req.user &&
       req.user.provider == 'openid' &&
@@ -95,7 +95,7 @@ router.get('/google', (req, res, next) => {
   if (req.query.timezone) {
     const storeKey = `${Date.now()}-${Math.random()}`;
     oauthTimezoneStore.set(storeKey, req.query.timezone);
-    
+
     // Clean up old entries (older than 5 minutes)
     const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
     for (const [key] of oauthTimezoneStore.entries()) {
@@ -104,14 +104,16 @@ router.get('/google', (req, res, next) => {
         oauthTimezoneStore.delete(key);
       }
     }
-    
+
     // Pass the store key as state parameter
     req.oauthTimezoneKey = storeKey;
-    logger.info(`[OAuth Google] Stored timezone with key: ${storeKey}, timezone: ${req.query.timezone}`);
+    logger.info(
+      `[OAuth Google] Stored timezone with key: ${storeKey}, timezone: ${req.query.timezone}`,
+    );
   } else {
     logger.warn('[OAuth Google] No timezone provided in query parameters');
   }
-  
+
   passport.authenticate('google', {
     scope: ['openid', 'profile', 'email'],
     session: false,
@@ -139,7 +141,7 @@ router.get('/facebook', (req, res, next) => {
   if (req.query.timezone) {
     const storeKey = `${Date.now()}-${Math.random()}`;
     oauthTimezoneStore.set(storeKey, req.query.timezone);
-    
+
     // Clean up old entries (older than 5 minutes)
     const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
     for (const [key] of oauthTimezoneStore.entries()) {
@@ -148,14 +150,16 @@ router.get('/facebook', (req, res, next) => {
         oauthTimezoneStore.delete(key);
       }
     }
-    
+
     // Pass the store key as state parameter
     req.oauthTimezoneKey = storeKey;
-    logger.info(`[OAuth Facebook] Stored timezone with key: ${storeKey}, timezone: ${req.query.timezone}`);
+    logger.info(
+      `[OAuth Facebook] Stored timezone with key: ${storeKey}, timezone: ${req.query.timezone}`,
+    );
   } else {
     logger.warn('[OAuth Facebook] No timezone provided in query parameters');
   }
-  
+
   passport.authenticate('facebook', {
     scope: ['public_profile'],
     profileFields: ['id', 'email', 'name'],
@@ -206,7 +210,7 @@ router.get('/github', (req, res, next) => {
   if (req.query.timezone) {
     const storeKey = `${Date.now()}-${Math.random()}`;
     oauthTimezoneStore.set(storeKey, req.query.timezone);
-    
+
     // Clean up old entries (older than 5 minutes)
     const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
     for (const [key] of oauthTimezoneStore.entries()) {
@@ -215,14 +219,16 @@ router.get('/github', (req, res, next) => {
         oauthTimezoneStore.delete(key);
       }
     }
-    
+
     // Pass the store key as state parameter
     req.oauthTimezoneKey = storeKey;
-    logger.info(`[OAuth GitHub] Stored timezone with key: ${storeKey}, timezone: ${req.query.timezone}`);
+    logger.info(
+      `[OAuth GitHub] Stored timezone with key: ${storeKey}, timezone: ${req.query.timezone}`,
+    );
   } else {
     logger.warn('[OAuth GitHub] No timezone provided in query parameters');
   }
-  
+
   passport.authenticate('github', {
     scope: ['user:email', 'read:user'],
     session: false,

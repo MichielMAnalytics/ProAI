@@ -89,4 +89,4 @@ function WorkflowToggle({ conversationId }: { conversationId?: string | null }) 
   );
 }
 
-export default memo(WorkflowToggle); 
+export default memo(WorkflowToggle);

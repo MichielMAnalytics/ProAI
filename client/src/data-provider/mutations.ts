@@ -1034,9 +1034,15 @@ export const useAcceptTermsMutation = (
  */
 export const useCreateConnectTokenMutation = (
   options?: t.MutationOptions<t.TCreateConnectTokenResponse, t.TCreateConnectTokenRequest>,
-): UseMutationResult<t.TCreateConnectTokenResponse, unknown, t.TCreateConnectTokenRequest, unknown> => {
+): UseMutationResult<
+  t.TCreateConnectTokenResponse,
+  unknown,
+  t.TCreateConnectTokenRequest,
+  unknown
+> => {
   return useMutation([MutationKeys.createConnectToken], {
-    mutationFn: (variables: t.TCreateConnectTokenRequest) => dataService.createConnectToken(variables),
+    mutationFn: (variables: t.TCreateConnectTokenRequest) =>
+      dataService.createConnectToken(variables),
     ...(options || {}),
   });
 };
@@ -1046,10 +1052,16 @@ export const useCreateConnectTokenMutation = (
  */
 export const useIntegrationCallbackMutation = (
   options?: t.MutationOptions<t.TIntegrationCallbackResponse, t.TIntegrationCallbackRequest>,
-): UseMutationResult<t.TIntegrationCallbackResponse, unknown, t.TIntegrationCallbackRequest, unknown> => {
+): UseMutationResult<
+  t.TIntegrationCallbackResponse,
+  unknown,
+  t.TIntegrationCallbackRequest,
+  unknown
+> => {
   const queryClient = useQueryClient();
   return useMutation([MutationKeys.integrationCallback], {
-    mutationFn: (variables: t.TIntegrationCallbackRequest) => dataService.handleIntegrationCallback(variables),
+    mutationFn: (variables: t.TIntegrationCallbackRequest) =>
+      dataService.handleIntegrationCallback(variables),
     onSuccess: (data, variables, context) => {
       // Invalidate user integrations to refresh the list
       queryClient.invalidateQueries([QueryKeys.userIntegrations]);
@@ -1086,9 +1098,15 @@ export const useDeleteIntegrationMutation = (
  */
 export const useConfigureComponentMutation = (
   options?: t.MutationOptions<t.TConfigureComponentResponse, t.TConfigureComponentRequest>,
-): UseMutationResult<t.TConfigureComponentResponse, unknown, t.TConfigureComponentRequest, unknown> => {
+): UseMutationResult<
+  t.TConfigureComponentResponse,
+  unknown,
+  t.TConfigureComponentRequest,
+  unknown
+> => {
   return useMutation([MutationKeys.configureComponent], {
-    mutationFn: (variables: t.TConfigureComponentRequest) => dataService.configureComponent(variables),
+    mutationFn: (variables: t.TConfigureComponentRequest) =>
+      dataService.configureComponent(variables),
     ...(options || {}),
   });
 };

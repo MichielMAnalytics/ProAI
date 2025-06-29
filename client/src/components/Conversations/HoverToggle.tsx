@@ -28,7 +28,9 @@ const HoverToggle = ({
           isActiveConvo
             ? 'from-surface-primary-alt from-85% to-transparent group-hover:bg-gradient-to-l group-hover:from-surface-active dark:from-surface-primary-alt dark:group-hover:from-surface-primary-alt'
             : 'z-50 from-surface-primary-alt from-0% to-transparent hover:bg-gradient-to-l hover:from-surface-active dark:from-surface-primary-alt dark:hover:from-surface-primary-alt',
-          isPopoverActive && !isActiveConvo ? 'from-surface-primary-alt dark:from-surface-primary-alt' : '',
+          isPopoverActive && !isActiveConvo
+            ? 'from-surface-primary-alt dark:from-surface-primary-alt'
+            : '',
           className,
         )}
       >

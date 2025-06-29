@@ -36,7 +36,7 @@ function getInitialTimezone(): string {
         return stored;
       }
     }
-    
+
     // Then try browser detection
     const detected = getDetectedTimezone();
     localStorage.setItem('timezone', JSON.stringify(detected));

@@ -124,10 +124,10 @@ const Registration: React.FC = () => {
             aria-label="Registration form"
             method="POST"
             onSubmit={handleSubmit((data: TRegisterUser) =>
-              registerUser.mutate({ 
-                ...data, 
+              registerUser.mutate({
+                ...data,
                 token: token ?? undefined,
-                timezone: getDetectedTimezone()
+                timezone: getDetectedTimezone(),
               }),
             )}
           >

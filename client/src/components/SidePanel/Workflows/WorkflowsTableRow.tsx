@@ -4,10 +4,7 @@ import { useSetRecoilState, useRecoilValue } from 'recoil';
 import type { TUserWorkflow } from 'librechat-data-provider';
 import { EModelEndpoint } from 'librechat-data-provider';
 import { Button, TableCell, TableRow } from '~/components/ui';
-import {
-  useDeleteWorkflowMutation,
-  useToggleWorkflowMutation,
-} from '~/data-provider';
+import { useDeleteWorkflowMutation, useToggleWorkflowMutation } from '~/data-provider';
 import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
 import { useNavigateToConvo } from '~/hooks';
@@ -25,12 +22,12 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
   const { navigateToConvo } = useNavigateToConvo();
   const toggleMutation = useToggleWorkflowMutation();
   const deleteMutation = useDeleteWorkflowMutation();
-  
+
   // Artifact state management
   const setArtifacts = useSetRecoilState(store.artifactsState);
   const setCurrentArtifactId = useSetRecoilState(store.currentArtifactId);
   const setArtifactsVisible = useSetRecoilState(store.artifactsVisibility);
-  
+
   // Check if this workflow is currently being tested
   const testingWorkflows = useRecoilValue(store.testingWorkflows);
   const isWorkflowTesting = testingWorkflows.has(workflow.id);
@@ -52,7 +49,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
             severity: NotificationSeverity.ERROR,
           });
         },
-      }
+      },
     );
   };
 
@@ -74,25 +71,23 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
     });
   };
 
-
-
   const handleView = () => {
     try {
       console.log('Opening workflow visualization for:', workflow);
       console.log('Workflow conversation_id:', workflow.conversation_id);
       console.log('Workflow fields:', Object.keys(workflow));
-      
+
       // Create workflow artifact with proper positioning
       const artifactId = `workflow-${workflow.id}`;
-      
+
       // Generate positions for steps that don't have them
       const nodesWithPositions = workflow.steps.map((step, index) => {
         // If step doesn't have position, create a default layout
         const defaultPosition = step.position || {
           x: 100 + (index % 3) * 200, // Arrange in columns
-          y: 150 + Math.floor(index / 3) * 100 // Arrange in rows
+          y: 150 + Math.floor(index / 3) * 100, // Arrange in rows
         };
-        
+
         return {
           id: step.id,
           type: step.type,
@@ -100,8 +95,8 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
           data: {
             label: step.name,
             config: step.config,
-            status: 'pending' // Default status for viewing
-          }
+            status: 'pending', // Default status for viewing
+          },
         };
       });
 
@@ -115,25 +110,25 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
       workflow.steps.forEach((step) => {
         if (step.onSuccess) {
           // Check if target step exists
-          const targetExists = workflow.steps.some(s => s.id === step.onSuccess);
+          const targetExists = workflow.steps.some((s) => s.id === step.onSuccess);
           if (targetExists) {
             edges.push({
               id: `${step.id}-success-${step.onSuccess}`,
               source: step.id,
               target: step.onSuccess,
-              type: 'success'
+              type: 'success',
             });
           }
         }
         if (step.onFailure) {
           // Check if target step exists
-          const targetExists = workflow.steps.some(s => s.id === step.onFailure);
+          const targetExists = workflow.steps.some((s) => s.id === step.onFailure);
           if (targetExists) {
             edges.push({
               id: `${step.id}-failure-${step.onFailure}`,
               source: step.id,
               target: step.onFailure,
-              type: 'failure'
+              type: 'failure',
             });
           }
         }
@@ -145,11 +140,11 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
           name: workflow.name,
           description: workflow.description,
           trigger: workflow.trigger,
-          steps: workflow.steps
+          steps: workflow.steps,
         },
         nodes: nodesWithPositions,
         edges: edges,
-        trigger: workflow.trigger
+        trigger: workflow.trigger,
       };
 
       console.log('Generated workflow data:', workflowData);
@@ -175,23 +170,25 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
           title: `Workflow: ${workflow.name}`,
           endpoint: (workflow.endpoint as EModelEndpoint) || null,
           model: workflow.ai_model || null,
-          createdAt: workflow.createdAt ? 
-            (typeof workflow.createdAt === 'object' && '$date' in workflow.createdAt ? 
-              workflow.createdAt.$date : workflow.createdAt.toString()) : 
-            new Date().toISOString(),
-          updatedAt: workflow.updatedAt ? 
-            (typeof workflow.updatedAt === 'object' && '$date' in workflow.updatedAt ? 
-              workflow.updatedAt.$date : workflow.updatedAt.toString()) : 
-            new Date().toISOString(),
+          createdAt: workflow.createdAt
+            ? typeof workflow.createdAt === 'object' && '$date' in workflow.createdAt
+              ? workflow.createdAt.$date
+              : workflow.createdAt.toString()
+            : new Date().toISOString(),
+          updatedAt: workflow.updatedAt
+            ? typeof workflow.updatedAt === 'object' && '$date' in workflow.updatedAt
+              ? workflow.updatedAt.$date
+              : workflow.updatedAt.toString()
+            : new Date().toISOString(),
           // Include other necessary fields
         };
 
         // Set up artifacts after navigation using a slight delay to ensure navigation completes
         const setupArtifacts = () => {
           // Set the artifact in state
-          setArtifacts(prev => ({
+          setArtifacts((prev) => ({
             ...prev,
-            [artifactId]: workflowArtifact
+            [artifactId]: workflowArtifact,
           }));
 
           // Set as current artifact and show artifacts panel
@@ -201,7 +198,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
 
         // Navigate to conversation first, then set up artifacts
         navigateToConvo(targetConversation);
-        
+
         // Use setTimeout to ensure navigation completes before setting artifacts
         setTimeout(setupArtifacts, 100);
 
@@ -212,11 +209,11 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
       } else {
         // Fallback: Just show the artifact in the current conversation
         console.log('No conversation_id found, showing artifact in current conversation');
-        
+
         // Set the artifact in state
-        setArtifacts(prev => ({
+        setArtifacts((prev) => ({
           ...prev,
-          [artifactId]: workflowArtifact
+          [artifactId]: workflowArtifact,
         }));
 
         // Set as current artifact and show artifacts panel
@@ -240,17 +237,17 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
 
   const formatDate = (dateInput?: string | Date | { $date: string }) => {
     if (!dateInput) return 'Not scheduled';
-    
+
     try {
       let dateToFormat: string | Date;
-      
+
       // Handle MongoDB date objects { "$date": "ISO_STRING" }
       if (typeof dateInput === 'object' && dateInput !== null && '$date' in dateInput) {
         dateToFormat = dateInput.$date;
       } else {
         dateToFormat = dateInput as string | Date;
       }
-      
+
       return formatDateTime(dateToFormat);
     } catch (error) {
       console.warn('Failed to format date:', dateInput, error);
@@ -270,18 +267,19 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
 
   const getStatusText = (isActive: boolean, isDraft: boolean) => {
     if (isActive) return 'active'; // Active workflows are always "active"
-    if (isDraft) return 'draft';   // Inactive drafts are "draft"
-    return 'inactive';             // Inactive non-drafts are "inactive"
+    if (isDraft) return 'draft'; // Inactive drafts are "draft"
+    return 'inactive'; // Inactive non-drafts are "inactive"
   };
 
   // Function to count only main workflow steps (excluding error/success handlers)
   const getMainStepCount = (steps: TUserWorkflow['steps']) => {
-    return steps.filter(step => {
-      const isErrorStep = step.name.toLowerCase().includes('error') || 
-                         step.name.toLowerCase().includes('handler') ||
-                         step.id.toLowerCase().includes('error');
-      const isSuccessStep = step.name.toLowerCase().includes('success') ||
-                           step.id.toLowerCase().includes('success');
+    return steps.filter((step) => {
+      const isErrorStep =
+        step.name.toLowerCase().includes('error') ||
+        step.name.toLowerCase().includes('handler') ||
+        step.id.toLowerCase().includes('error');
+      const isSuccessStep =
+        step.name.toLowerCase().includes('success') || step.id.toLowerCase().includes('success');
       return !isErrorStep && !isSuccessStep;
     }).length;
   };
@@ -291,23 +289,26 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
   return (
     <TableRow className="border-b border-border-light hover:bg-surface-hover">
       <TableCell className="py-2">
-        <div className="flex flex-row gap-1 px-1 sm:px-2 items-center justify-start">
+        <div className="flex flex-row items-center justify-start gap-1 px-1 sm:px-2">
           <TooltipAnchor description="View workflow" side="top">
             <button
               onClick={handleView}
-              className="flex h-6 w-6 items-center justify-center rounded-lg bg-gray-100 border border-gray-300 text-gray-700 shadow-sm transition-all hover:bg-gray-200 hover:shadow-md hover:border-gray-400 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-600 dark:hover:border-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex h-6 w-6 items-center justify-center rounded-lg border border-gray-300 bg-gray-100 text-gray-700 shadow-sm transition-all hover:border-gray-400 hover:bg-gray-200 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:border-gray-500 dark:hover:bg-gray-600"
               disabled={false}
             >
               <Eye className="h-3 w-3" />
             </button>
           </TooltipAnchor>
-          <TooltipAnchor description={workflow.isActive ? 'Deactivate workflow' : 'Activate workflow'} side="top">
+          <TooltipAnchor
+            description={workflow.isActive ? 'Deactivate workflow' : 'Activate workflow'}
+            side="top"
+          >
             <button
               onClick={handleToggle}
-              className={`flex h-6 w-6 items-center justify-center rounded-lg shadow-sm transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
-                workflow.isActive 
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-600 border border-amber-500/60 text-white hover:from-amber-600 hover:to-orange-700 hover:border-amber-500' 
-                  : 'bg-gradient-to-r from-green-500 to-emerald-600 border border-green-500/60 text-white hover:from-green-600 hover:to-emerald-700 hover:border-green-500'
+              className={`flex h-6 w-6 items-center justify-center rounded-lg shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 ${
+                workflow.isActive
+                  ? 'border border-amber-500/60 bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:border-amber-500 hover:from-amber-600 hover:to-orange-700'
+                  : 'border border-green-500/60 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:border-green-500 hover:from-green-600 hover:to-emerald-700'
               }`}
               disabled={toggleMutation.isLoading || isWorkflowTesting}
             >
@@ -321,7 +322,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
           <TooltipAnchor description="Delete workflow" side="top">
             <button
               onClick={handleDelete}
-              className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-r from-red-500 to-red-600 border border-red-500/60 text-white shadow-sm transition-all hover:from-red-600 hover:to-red-700 hover:shadow-md hover:border-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex h-6 w-6 items-center justify-center rounded-lg border border-red-500/60 bg-gradient-to-r from-red-500 to-red-600 text-white shadow-sm transition-all hover:border-red-500 hover:from-red-600 hover:to-red-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
               disabled={deleteMutation.isLoading || isWorkflowTesting}
             >
               <Trash2 className="h-3 w-3 text-white" />
@@ -329,17 +330,17 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
           </TooltipAnchor>
         </div>
       </TableCell>
-      
+
       <TableCell className="py-2">
-        <div className="px-2 min-w-0 max-w-full overflow-hidden">
-          <div className="mb-1 flex items-center gap-2 min-w-0">
+        <div className="min-w-0 max-w-full overflow-hidden px-2">
+          <div className="mb-1 flex min-w-0 items-center gap-2">
             <TooltipAnchor description={workflow.name} side="top">
-              <span className="truncate text-xs font-medium text-text-primary cursor-help flex-1 min-w-0">
+              <span className="min-w-0 flex-1 cursor-help truncate text-xs font-medium text-text-primary">
                 {workflow.name}
               </span>
             </TooltipAnchor>
             <span
-              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium flex-shrink-0 ${getStatusColor(
+              className={`inline-flex flex-shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(
                 workflow.isActive,
                 workflow.isDraft,
               )}`}
@@ -348,49 +349,47 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
             </span>
             {/* Show testing indicator */}
             {isWorkflowTesting && (
-              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium flex-shrink-0 bg-blue-100 text-blue-700 animate-pulse">
+              <span className="inline-flex flex-shrink-0 animate-pulse items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
                 testing
               </span>
             )}
           </div>
-          
+
           {/* Description with tooltip */}
-          <div className="text-xs text-text-secondary mb-1 min-w-0">
+          <div className="mb-1 min-w-0 text-xs text-text-secondary">
             <TooltipAnchor description={description} side="top">
-              <span className="truncate block cursor-help">
-                {description}
-              </span>
+              <span className="block cursor-help truncate">{description}</span>
             </TooltipAnchor>
           </div>
-          
+
           {/* Additional details - only visible when sidebar is wider */}
-          <div className="hidden lg:block space-y-1 min-w-0">
-            <div className="text-xs text-text-secondary truncate">
+          <div className="hidden min-w-0 space-y-1 lg:block">
+            <div className="truncate text-xs text-text-secondary">
               <span className="font-medium">Trigger:</span> {workflow.trigger.type}
             </div>
-            <div className="text-xs text-text-secondary truncate">
+            <div className="truncate text-xs text-text-secondary">
               <span className="font-medium">Steps:</span> {getMainStepCount(workflow.steps)}
             </div>
             {workflow.next_run && (
-              <div className="text-xs text-text-secondary truncate">
+              <div className="truncate text-xs text-text-secondary">
                 <span className="font-medium">Next run:</span> {formatDate(workflow.next_run)}
               </div>
             )}
             {workflow.last_run && (
-              <div className="text-xs text-text-secondary truncate">
+              <div className="truncate text-xs text-text-secondary">
                 <span className="font-medium">Last run:</span> {formatDate(workflow.last_run)}
               </div>
             )}
           </div>
-          
+
           {/* Medium width details - visible when sidebar is moderately wide */}
-          <div className="hidden md:block lg:hidden min-w-0">
-            <div className="text-xs text-text-secondary truncate">
-              <span className="font-medium">Trigger:</span> {workflow.trigger.type} | 
+          <div className="hidden min-w-0 md:block lg:hidden">
+            <div className="truncate text-xs text-text-secondary">
+              <span className="font-medium">Trigger:</span> {workflow.trigger.type} |
               <span className="font-medium"> Steps:</span> {getMainStepCount(workflow.steps)}
             </div>
             {workflow.next_run && (
-              <div className="text-xs text-text-secondary truncate">
+              <div className="truncate text-xs text-text-secondary">
                 <span className="font-medium">Next:</span> {formatDate(workflow.next_run)}
               </div>
             )}
@@ -401,4 +400,4 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
   );
 };
 
-export default WorkflowsTableRow; 
+export default WorkflowsTableRow;

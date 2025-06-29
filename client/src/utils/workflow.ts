@@ -5,12 +5,14 @@ export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
   try {
     // Parse the workflow data to validate it
     const workflowData = JSON.parse(content);
-    
+
     // Use a more robust serialization approach that avoids template literal conflicts
     // Instead of embedding JSON directly in template literals, use a safer approach
-    const safeWorkflowData = JSON.stringify(workflowData).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const safeWorkflowData = JSON.stringify(workflowData)
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"');
     const safeToolsData = JSON.stringify(toolsData).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-    
+
     return {
       'App.tsx': dedent`
         import React from 'react';
@@ -720,4 +722,4 @@ export const getWorkflowFiles = (content: string, toolsData: any[] = []) => {
       `,
     };
   }
-}; 
+};

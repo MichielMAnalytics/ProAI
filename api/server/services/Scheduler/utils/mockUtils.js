@@ -8,8 +8,8 @@ const { EModelEndpoint, replaceSpecialVars } = require('librechat-data-provider'
  */
 function createMockRequest(task, additionalLocals = {}) {
   return {
-    user: { 
-      id: task.user.toString() // Ensure user ID is a string, not ObjectId
+    user: {
+      id: task.user.toString(), // Ensure user ID is a string, not ObjectId
     },
     body: {
       endpoint: task.endpoint || EModelEndpoint.openAI,
@@ -25,8 +25,8 @@ function createMockRequest(task, additionalLocals = {}) {
         availableTools: {}, // Will be populated during initialization
         fileStrategy: global.fileStrategy || null,
         ...additionalLocals,
-      }
-    }
+      },
+    },
   };
 }
 
@@ -91,8 +91,8 @@ function updateRequestForEphemeralAgent(
     endpointOption: {
       endpoint: underlyingEndpoint,
       model: underlyingModel,
-      model_parameters: { model: underlyingModel }
-    }
+      model_parameters: { model: underlyingModel },
+    },
   };
 }
 
@@ -101,4 +101,4 @@ module.exports = {
   createMockResponse,
   createMinimalMockResponse,
   updateRequestForEphemeralAgent,
-}; 
+};

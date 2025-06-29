@@ -12,8 +12,10 @@ function calculateNextRun(cronExpression) {
     // Parse cron expression in UTC timezone
     const cron = parseCronExpression(cronExpression, { timezone: 'UTC' });
     const nextDate = cron.getNextDate();
-    
-    logger.debug(`[cronUtils] Calculated next run for cron "${cronExpression}": ${nextDate?.toISOString() || 'null'}`);
+
+    logger.debug(
+      `[cronUtils] Calculated next run for cron "${cronExpression}": ${nextDate?.toISOString() || 'null'}`,
+    );
     return nextDate;
   } catch (error) {
     logger.error(`[cronUtils] Failed to calculate next run for cron: ${cronExpression}`, error);
@@ -35,23 +37,23 @@ function convertTimeToUTC(hour, minute, userTimezone) {
     const year = today.getFullYear();
     const month = today.getMonth();
     const day = today.getDate();
-    
+
     // Create date at the specified time in user's timezone
     const userDate = new Date();
     userDate.setFullYear(year, month, day);
     userDate.setHours(hour, minute, 0, 0);
-    
+
     // Convert to UTC
     const utcTime = new Date(userDate.toLocaleString('en-US', { timeZone: 'UTC' }));
     const localTime = new Date(userDate.toLocaleString('en-US', { timeZone: userTimezone }));
-    
+
     // Calculate offset
     const offsetMs = localTime.getTime() - utcTime.getTime();
     const utcDate = new Date(userDate.getTime() - offsetMs);
-    
+
     return {
       hour: utcDate.getHours(),
-      minute: utcDate.getMinutes()
+      minute: utcDate.getMinutes(),
     };
   } catch (error) {
     logger.warn(`[cronUtils] Failed to convert time to UTC for timezone ${userTimezone}:`, error);
@@ -70,109 +72,109 @@ function parseScheduleToUTCCron(input, userTimezone = 'UTC') {
 
   const cleanInput = input.toLowerCase().trim();
   logger.debug(`[cronUtils] Parsing schedule input: "${input}" for timezone: ${userTimezone}`);
-  
+
   // Pattern matchers with timezone conversion
   const patterns = [
     // "daily at 9 AM" or "daily at 9:30 AM"
-    { 
-      regex: /daily\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i, 
+    {
+      regex: /daily\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i,
       handler: (match) => {
         let hour = parseInt(match[1]);
         const minute = parseInt(match[2] || '0');
         const period = match[3]?.toLowerCase();
-        
+
         // Convert to 24-hour format
         if (period === 'pm' && hour !== 12) hour += 12;
         if (period === 'am' && hour === 12) hour = 0;
-        
+
         // Convert to UTC
         const { hour: utcHour, minute: utcMinute } = convertTimeToUTC(hour, minute, userTimezone);
         return `${utcMinute} ${utcHour} * * *`;
-      }
+      },
     },
-    
+
     // "at 2 PM" or "at 14:30"
-    { 
-      regex: /(?:^|\s)at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?(?:\s|$)/i, 
+    {
+      regex: /(?:^|\s)at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?(?:\s|$)/i,
       handler: (match) => {
         let hour = parseInt(match[1]);
         const minute = parseInt(match[2] || '0');
         const period = match[3]?.toLowerCase();
-        
+
         // Convert to 24-hour format
         if (period === 'pm' && hour !== 12) hour += 12;
         if (period === 'am' && hour === 12) hour = 0;
-        
+
         // Convert to UTC for daily schedule
         const { hour: utcHour, minute: utcMinute } = convertTimeToUTC(hour, minute, userTimezone);
         return `${utcMinute} ${utcHour} * * *`;
-      }
+      },
     },
-    
+
     // "every X minutes"
-    { 
-      regex: /every\s+(\d+)\s+minutes?/i, 
+    {
+      regex: /every\s+(\d+)\s+minutes?/i,
       handler: (match) => {
         const minutes = parseInt(match[1]);
         return `*/${minutes} * * * *`;
-      }
+      },
     },
-    
+
     // "every hour"
-    { 
-      regex: /every\s+hour/i, 
-      handler: () => '0 * * * *'
+    {
+      regex: /every\s+hour/i,
+      handler: () => '0 * * * *',
     },
-    
+
     // "hourly"
-    { 
-      regex: /^hourly$/i, 
-      handler: () => '0 * * * *'
+    {
+      regex: /^hourly$/i,
+      handler: () => '0 * * * *',
     },
-    
+
     // "every morning" (9 AM in user's timezone)
-    { 
-      regex: /every\s+morning/i, 
+    {
+      regex: /every\s+morning/i,
       handler: () => {
         const { hour: utcHour, minute: utcMinute } = convertTimeToUTC(9, 0, userTimezone);
         return `${utcMinute} ${utcHour} * * *`;
-      }
+      },
     },
-    
+
     // "every day" or "daily" (default to 9 AM in user's timezone)
-    { 
-      regex: /(?:every\s+day|^daily$)(?!\s+at)/i, 
+    {
+      regex: /(?:every\s+day|^daily$)(?!\s+at)/i,
       handler: () => {
         const { hour: utcHour, minute: utcMinute } = convertTimeToUTC(9, 0, userTimezone);
         return `${utcMinute} ${utcHour} * * *`;
-      }
+      },
     },
-    
+
     // "every X hours"
-    { 
-      regex: /every\s+(\d+)\s+hours?/i, 
+    {
+      regex: /every\s+(\d+)\s+hours?/i,
       handler: (match) => {
         const hours = parseInt(match[1]);
         return `0 */${hours} * * *`;
-      }
+      },
     },
-    
+
     // "weekdays at 9 AM" (Monday-Friday)
-    { 
-      regex: /weekdays?\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i, 
+    {
+      regex: /weekdays?\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i,
       handler: (match) => {
         let hour = parseInt(match[1]);
         const minute = parseInt(match[2] || '0');
         const period = match[3]?.toLowerCase();
-        
+
         // Convert to 24-hour format
         if (period === 'pm' && hour !== 12) hour += 12;
         if (period === 'am' && hour === 12) hour = 0;
-        
+
         // Convert to UTC
         const { hour: utcHour, minute: utcMinute } = convertTimeToUTC(hour, minute, userTimezone);
         return `${utcMinute} ${utcHour} * * 1-5`; // Monday-Friday
-      }
+      },
     },
   ];
 
@@ -206,7 +208,8 @@ function parseScheduleToUTCCron(input, userTimezone = 'UTC') {
  * @returns {boolean} true if it looks like a cron expression
  */
 function isCronExpression(input) {
-  const cronPattern = /^(\*|[0-9,-/]+)\s+(\*|[0-9,-/]+)\s+(\*|[0-9,-/]+)\s+(\*|[0-9,-/]+)\s+(\*|[0-7,-/]+)$/;
+  const cronPattern =
+    /^(\*|[0-9,-/]+)\s+(\*|[0-9,-/]+)\s+(\*|[0-9,-/]+)\s+(\*|[0-9,-/]+)\s+(\*|[0-7,-/]+)$/;
   return cronPattern.test(input.trim());
 }
 
@@ -221,11 +224,15 @@ function validateCronExpression(cronExpression) {
     // Validate cron expression in UTC timezone
     const cron = parseCronExpression(cronExpression, { timezone: 'UTC' });
     const nextRun = cron.getNextDate();
-    
-    logger.debug(`[cronUtils] Validated cron "${cronExpression}": valid=true, next run=${nextRun?.toISOString()}`);
+
+    logger.debug(
+      `[cronUtils] Validated cron "${cronExpression}": valid=true, next run=${nextRun?.toISOString()}`,
+    );
     return { valid: true, nextRun };
   } catch (error) {
-    logger.debug(`[cronUtils] Validated cron "${cronExpression}": valid=false, error=${error.message}`);
+    logger.debug(
+      `[cronUtils] Validated cron "${cronExpression}": valid=false, error=${error.message}`,
+    );
     return { valid: false, error: error.message };
   }
 }
@@ -239,11 +246,13 @@ function getOverdueTime(nextRun) {
   const now = new Date(); // Current UTC time
   const scheduledTime = new Date(nextRun);
   const overdueMs = Math.max(0, now - scheduledTime);
-  
+
   if (overdueMs > 0) {
-    logger.debug(`[cronUtils] Task overdue by ${overdueMs}ms (${Math.floor(overdueMs / 60000)} minutes)`);
+    logger.debug(
+      `[cronUtils] Task overdue by ${overdueMs}ms (${Math.floor(overdueMs / 60000)} minutes)`,
+    );
   }
-  
+
   return overdueMs;
 }
 
@@ -256,8 +265,10 @@ function getTimeUntilExecution(nextRun) {
   const now = new Date(); // Current UTC time
   const scheduledTime = new Date(nextRun);
   const timeUntilMs = scheduledTime - now;
-  
-  logger.debug(`[cronUtils] Time until execution: ${timeUntilMs}ms (${Math.floor(timeUntilMs / 60000)} minutes)`);
+
+  logger.debug(
+    `[cronUtils] Time until execution: ${timeUntilMs}ms (${Math.floor(timeUntilMs / 60000)} minutes)`,
+  );
   return timeUntilMs;
 }
 
@@ -268,4 +279,4 @@ module.exports = {
   getTimeUntilExecution,
   parseScheduleToUTCCron,
   isCronExpression,
-}; 
+};

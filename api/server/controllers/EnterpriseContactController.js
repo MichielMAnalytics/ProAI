@@ -212,4 +212,4 @@ module.exports = {
   getEnterpriseContactByIdController,
   updateEnterpriseContactController,
   deleteEnterpriseContactController,
-}; 
+};

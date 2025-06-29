@@ -37,10 +37,10 @@ beforeAll(() => {
   global.Date.UTC = OriginalDate.UTC;
   global.Date.parse = OriginalDate.parse;
   global.Date.now = jest.fn(() => MOCK_DATE.getTime());
-  
+
   // Mock Date prototype methods
   Object.setPrototypeOf(global.Date, OriginalDate);
-  Object.getOwnPropertyNames(OriginalDate.prototype).forEach(name => {
+  Object.getOwnPropertyNames(OriginalDate.prototype).forEach((name) => {
     if (name !== 'constructor') {
       global.Date.prototype[name] = OriginalDate.prototype[name];
     }
@@ -134,12 +134,17 @@ describe('replaceSpecialVars', () => {
   });
 
   test('should replace {{tools}} with the tools list if provided', () => {
-    const mockTools = ['notion-update-page_mcp_pipedream-notion', 'trello-create-card_mcp_pipedream-trello'];
+    const mockTools = [
+      'notion-update-page_mcp_pipedream-notion',
+      'trello-create-card_mcp_pipedream-trello',
+    ];
     const result = replaceSpecialVars({
       text: 'Available tools: {{tools}}',
       tools: mockTools,
     });
-    expect(result).toBe('Available tools: notion-update-page_mcp_pipedream-notion, trello-create-card_mcp_pipedream-trello');
+    expect(result).toBe(
+      'Available tools: notion-update-page_mcp_pipedream-notion, trello-create-card_mcp_pipedream-trello',
+    );
   });
 
   test('should not replace {{tools}} if tools is not provided', () => {
@@ -158,12 +163,17 @@ describe('replaceSpecialVars', () => {
   });
 
   test('should handle removed mcp_servers and tools together', () => {
-    const mockTools = ['notion-update-page_mcp_pipedream-notion', 'trello-create-card_mcp_pipedream-trello'];
+    const mockTools = [
+      'notion-update-page_mcp_pipedream-notion',
+      'trello-create-card_mcp_pipedream-trello',
+    ];
     const result = replaceSpecialVars({
       text: 'MCP servers: {{mcp_servers}}, Tools: {{tools}}',
       tools: mockTools,
     });
-    expect(result).toBe('MCP servers: , Tools: notion-update-page_mcp_pipedream-notion, trello-create-card_mcp_pipedream-trello');
+    expect(result).toBe(
+      'MCP servers: , Tools: notion-update-page_mcp_pipedream-notion, trello-create-card_mcp_pipedream-trello',
+    );
   });
 
   test('should confirm all specialVariables from config.ts get parsed', () => {
@@ -226,8 +236,8 @@ describe('replaceSpecialVars', () => {
               { type: 'day', value: '29' },
               { type: 'hour', value: '12' },
               { type: 'minute', value: '34' },
-              { type: 'second', value: '56' }
-            ]
+              { type: 'second', value: '56' },
+            ],
           };
         }
         return originalDateTimeFormat(locale, options);
@@ -237,12 +247,12 @@ describe('replaceSpecialVars', () => {
       const mockToLocaleDateString = jest.fn(() => '2024-04-29');
       Object.defineProperty(Date.prototype, 'toLocaleDateString', {
         value: mockToLocaleDateString,
-        writable: true
+        writable: true,
       });
 
       const result = replaceSpecialVars({
         text: 'Current date: {{current_date}}, Current datetime: {{current_datetime}}',
-        timezone: 'America/New_York'
+        timezone: 'America/New_York',
       });
 
       expect(result).toContain('2024-04-29');
@@ -250,7 +260,7 @@ describe('replaceSpecialVars', () => {
         timeZone: 'America/New_York',
         year: 'numeric',
         month: '2-digit',
-        day: '2-digit'
+        day: '2-digit',
       });
     });
 
@@ -260,12 +270,12 @@ describe('replaceSpecialVars', () => {
         format: () => '2024-04-29',
         formatToParts: () => {
           throw new Error('Invalid timezone');
-        }
+        },
       }));
 
       const result = replaceSpecialVars({
         text: 'Current datetime: {{current_datetime}}',
-        timezone: 'Invalid/Timezone'
+        timezone: 'Invalid/Timezone',
       });
 
       // Should fallback to dayjs formatting
@@ -275,7 +285,7 @@ describe('replaceSpecialVars', () => {
     test('should use user timezone from user object when timezone param not provided', () => {
       const userWithTimezone = {
         ...mockUser,
-        timezone: 'Europe/London'
+        timezone: 'Europe/London',
       } as TUser;
 
       mockDateTimeFormat.mockImplementation((locale, options) => {
@@ -288,8 +298,8 @@ describe('replaceSpecialVars', () => {
               { type: 'day', value: '29' },
               { type: 'hour', value: '17' },
               { type: 'minute', value: '34' },
-              { type: 'second', value: '56' }
-            ]
+              { type: 'second', value: '56' },
+            ],
           };
         }
         return originalDateTimeFormat(locale, options);
@@ -299,19 +309,19 @@ describe('replaceSpecialVars', () => {
       const mockToLocaleDateString = jest.fn(() => '2024-04-29');
       Object.defineProperty(Date.prototype, 'toLocaleDateString', {
         value: mockToLocaleDateString,
-        writable: true
+        writable: true,
       });
 
       const result = replaceSpecialVars({
         text: 'Current datetime: {{current_datetime}}',
-        user: userWithTimezone
+        user: userWithTimezone,
       });
 
       expect(mockDateTimeFormat).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          timeZone: 'Europe/London'
-        })
+          timeZone: 'Europe/London',
+        }),
       );
       expect(result).toContain('2024-04-29');
     });
@@ -319,7 +329,7 @@ describe('replaceSpecialVars', () => {
     test('should prioritize timezone parameter over user timezone', () => {
       const userWithTimezone = {
         ...mockUser,
-        timezone: 'Europe/London'
+        timezone: 'Europe/London',
       } as TUser;
 
       mockDateTimeFormat.mockImplementation((locale, options) => {
@@ -332,8 +342,8 @@ describe('replaceSpecialVars', () => {
               { type: 'day', value: '30' },
               { type: 'hour', value: '01' },
               { type: 'minute', value: '34' },
-              { type: 'second', value: '56' }
-            ]
+              { type: 'second', value: '56' },
+            ],
           };
         }
         return originalDateTimeFormat(locale, options);
@@ -343,30 +353,32 @@ describe('replaceSpecialVars', () => {
       const mockToLocaleDateString = jest.fn(() => '2024-04-30');
       Object.defineProperty(Date.prototype, 'toLocaleDateString', {
         value: mockToLocaleDateString,
-        writable: true
+        writable: true,
       });
 
       const result = replaceSpecialVars({
         text: 'Current date: {{current_date}}',
         user: userWithTimezone,
-        timezone: 'Asia/Tokyo'
+        timezone: 'Asia/Tokyo',
       });
 
       expect(mockDateTimeFormat).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          timeZone: 'Asia/Tokyo'
-        })
+          timeZone: 'Asia/Tokyo',
+        }),
       );
       expect(result).toContain('2024-04-30');
     });
 
     test('should fall back to dayjs when no timezone is provided', () => {
       const result = replaceSpecialVars({
-        text: 'Current date: {{current_date}}, Current datetime: {{current_datetime}}'
+        text: 'Current date: {{current_date}}, Current datetime: {{current_datetime}}',
       });
 
-      expect(result).toBe('Current date: 2024-04-29 (1), Current datetime: 2024-04-29 12:34:56 (1)');
+      expect(result).toBe(
+        'Current date: 2024-04-29 (1), Current datetime: 2024-04-29 12:34:56 (1)',
+      );
     });
   });
 });

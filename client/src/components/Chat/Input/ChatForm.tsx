@@ -1,7 +1,12 @@
 import { memo, useRef, useMemo, useEffect, useState, useCallback } from 'react';
 import { useWatch } from 'react-hook-form';
 import { useRecoilState, useRecoilValue } from 'recoil';
-import { Constants, isAssistantsEndpoint, isAgentsEndpoint, EModelEndpoint } from 'librechat-data-provider';
+import {
+  Constants,
+  isAssistantsEndpoint,
+  isAgentsEndpoint,
+  EModelEndpoint,
+} from 'librechat-data-provider';
 import {
   useChatContext,
   useChatFormContext,
@@ -17,7 +22,12 @@ import {
   useSubmitMessage,
   useFocusChatEffect,
 } from '~/hooks';
-import { useAvailableIntegrationsQuery, useAvailableToolsQuery, useUserIntegrationsQuery } from '~/data-provider';
+import {
+  useAvailableIntegrationsQuery,
+  useAvailableToolsQuery,
+  useUserIntegrationsQuery,
+  useGetStartupConfig,
+} from '~/data-provider';
 import { mainTextareaId, BadgeItem } from '~/common';
 import AttachFileChat from './Files/AttachFileChat';
 import FileFormChat from './Files/FileFormChat';
@@ -40,106 +50,133 @@ import store from '~/store';
 import type { TAvailableIntegration } from 'librechat-data-provider';
 import { useMCPConnection } from '~/hooks/useMCPConnection';
 
-const MCPServerIcons = ({ agentTools }: { agentTools: Array<string | { tool: string; server: string; type: 'global' | 'user' }> }) => {
+const MCPServerIcons = ({
+  agentTools,
+}: {
+  agentTools: Array<string | { tool: string; server: string; type: 'global' | 'user' }>;
+}) => {
   const { data: availableIntegrations } = useAvailableIntegrationsQuery();
   const { data: tools } = useAvailableToolsQuery(EModelEndpoint.agents);
   const { data: userIntegrations } = useUserIntegrationsQuery();
   const { isIntegrationConnected } = useMCPConnection();
-  const [selectedIntegration, setSelectedIntegration] = useState<TAvailableIntegration | null>(null);
-  const [selectedTool, setSelectedTool] = useState<{ id: string; name: string; icon?: string; description?: string } | null>(null);
+  const [selectedIntegration, setSelectedIntegration] = useState<TAvailableIntegration | null>(
+    null,
+  );
+  const [selectedTool, setSelectedTool] = useState<{
+    id: string;
+    name: string;
+    icon?: string;
+    description?: string;
+  } | null>(null);
   const [isAppModalOpen, setIsAppModalOpen] = useState(false);
   const [isToolModalOpen, setIsToolModalOpen] = useState(false);
 
   // Derive MCP servers and tool keys from agentTools
-  const mcpServers = Array.from(new Set(
-    agentTools
-      .filter((tool): tool is { tool: string; server: string; type: 'global' | 'user' } => 
-        typeof tool === 'object' && 'server' in tool
-      )
-      .map(tool => tool.server.startsWith('pipedream-') ? tool.server.replace('pipedream-', '') : tool.server)
-  ));
+  const mcpServers = Array.from(
+    new Set(
+      agentTools
+        .filter(
+          (tool): tool is { tool: string; server: string; type: 'global' | 'user' } =>
+            typeof tool === 'object' && 'server' in tool,
+        )
+        .map((tool) =>
+          tool.server.startsWith('pipedream-')
+            ? tool.server.replace('pipedream-', '')
+            : tool.server,
+        ),
+    ),
+  );
 
-  const toolKeys = agentTools
-    .filter((tool): tool is string => typeof tool === 'string');
+  const toolKeys = agentTools.filter((tool): tool is string => typeof tool === 'string');
 
   if ((!mcpServers || mcpServers.length === 0) && (!toolKeys || toolKeys.length === 0)) {
     return null;
   }
 
-  const getMCPServerData = (serverName: string): { icon?: string; integration?: TAvailableIntegration; isConnected: boolean; isGlobal?: boolean } => {
+  const getMCPServerData = (
+    serverName: string,
+  ): {
+    icon?: string;
+    integration?: TAvailableIntegration;
+    isConnected: boolean;
+    isGlobal?: boolean;
+  } => {
     // First, try direct match with the server name
-    let integration = availableIntegrations?.find(int => int.appSlug === serverName);
+    let integration = availableIntegrations?.find((int) => int.appSlug === serverName);
     if (integration?.appIcon) {
       const isConnected = isIntegrationConnected(integration.appSlug);
       return { icon: integration.appIcon, integration, isConnected };
     }
-    
+
     // If no direct match, try stripping "pipedream-" prefix if it exists
-    const strippedServerName = serverName.startsWith('pipedream-') 
-      ? serverName.replace('pipedream-', '') 
+    const strippedServerName = serverName.startsWith('pipedream-')
+      ? serverName.replace('pipedream-', '')
       : serverName;
-    
+
     if (strippedServerName !== serverName) {
-      integration = availableIntegrations?.find(int => int.appSlug === strippedServerName);
+      integration = availableIntegrations?.find((int) => int.appSlug === strippedServerName);
       if (integration?.appIcon) {
         const isConnected = isIntegrationConnected(integration.appSlug);
         return { icon: integration.appIcon, integration, isConnected };
       }
     }
-    
+
     // If still no match in integrations, look in tools
-    const serverTool = tools?.find(tool => 
-      tool.serverName === serverName || 
-      tool.appSlug === serverName ||
-      tool.serverName === strippedServerName ||
-      tool.appSlug === strippedServerName ||
-      tool.serverName === `pipedream-${serverName}` ||
-      tool.appSlug === `pipedream-${serverName}` ||
-      tool.serverName === `pipedream-${strippedServerName}` ||
-      tool.appSlug === `pipedream-${strippedServerName}`
+    const serverTool = tools?.find(
+      (tool) =>
+        tool.serverName === serverName ||
+        tool.appSlug === serverName ||
+        tool.serverName === strippedServerName ||
+        tool.appSlug === strippedServerName ||
+        tool.serverName === `pipedream-${serverName}` ||
+        tool.appSlug === `pipedream-${serverName}` ||
+        tool.serverName === `pipedream-${strippedServerName}` ||
+        tool.appSlug === `pipedream-${strippedServerName}`,
     );
-    
+
     // If we found a server tool, try to find the corresponding integration again
     if (serverTool) {
       // Try to find integration by the tool's appSlug or serverName
-      integration = availableIntegrations?.find(int => 
-        int.appSlug === serverTool.appSlug ||
-        int.appSlug === serverTool.serverName ||
-        int.appSlug === strippedServerName ||
-        int.appSlug === serverName
+      integration = availableIntegrations?.find(
+        (int) =>
+          int.appSlug === serverTool.appSlug ||
+          int.appSlug === serverTool.serverName ||
+          int.appSlug === strippedServerName ||
+          int.appSlug === serverName,
       );
-      
+
       // Check if this is a global tool (isGlobal property indicates global MCP tools)
       const isGlobalTool = serverTool.isGlobal === true;
-      
+
       // For global tools, always consider them "connected" since they're globally available
       // For user tools, check actual user integration status
-      const isConnected = isGlobalTool || (integration ? isIntegrationConnected(integration.appSlug) : false);
-      
-      return { 
-        icon: serverTool.icon, 
-        integration, 
+      const isConnected =
+        isGlobalTool || (integration ? isIntegrationConnected(integration.appSlug) : false);
+
+      return {
+        icon: serverTool.icon,
+        integration,
         isConnected,
-        isGlobal: isGlobalTool
+        isGlobal: isGlobalTool,
       };
     }
-    
+
     return { icon: undefined, integration: undefined, isConnected: false };
   };
 
   const getToolData = (toolKey: string): { icon?: string; name: string; description?: string } => {
     // Find the tool in the available tools data
-    const tool = tools?.find(t => t.pluginKey === toolKey);
+    const tool = tools?.find((t) => t.pluginKey === toolKey);
     if (tool) {
       return {
         icon: tool.icon,
         name: tool.name,
-        description: tool.description
+        description: tool.description,
       };
     }
-    
+
     return {
-      name: toolKey.charAt(0).toUpperCase() + toolKey.slice(1).replace(/_/g, ' ')
+      name: toolKey.charAt(0).toUpperCase() + toolKey.slice(1).replace(/_/g, ' '),
     };
   };
 
@@ -157,7 +194,7 @@ const MCPServerIcons = ({ agentTools }: { agentTools: Array<string | { tool: str
 
   // Add MCP servers (one icon per server)
   if (mcpServers && mcpServers.length > 0) {
-    mcpServers.forEach(serverName => {
+    mcpServers.forEach((serverName) => {
       const { icon, integration, isConnected, isGlobal } = getMCPServerData(serverName);
       if (icon) {
         allItems.push({
@@ -167,7 +204,7 @@ const MCPServerIcons = ({ agentTools }: { agentTools: Array<string | { tool: str
           icon,
           integration,
           isConnected,
-          isGlobal
+          isGlobal,
         });
       }
     });
@@ -175,13 +212,13 @@ const MCPServerIcons = ({ agentTools }: { agentTools: Array<string | { tool: str
 
   // Add standalone tools (tools that are NOT part of MCP servers)
   if (toolKeys && toolKeys.length > 0) {
-    toolKeys.forEach(toolKey => {
+    toolKeys.forEach((toolKey) => {
       const { icon, name, description } = getToolData(toolKey);
       if (icon) {
         // Check if this tool belongs to an MCP server
-        const tool = tools?.find(t => t.pluginKey === toolKey);
+        const tool = tools?.find((t) => t.pluginKey === toolKey);
         const isStandaloneTool = !tool?.serverName && !tool?.appSlug;
-        
+
         // Only add if it's a standalone tool (not part of an MCP server)
         if (isStandaloneTool) {
           allItems.push({
@@ -190,7 +227,7 @@ const MCPServerIcons = ({ agentTools }: { agentTools: Array<string | { tool: str
             name,
             icon,
             description,
-            isConnected: true // Standalone tools are always "connected"
+            isConnected: true, // Standalone tools are always "connected"
           });
         }
       }
@@ -201,39 +238,41 @@ const MCPServerIcons = ({ agentTools }: { agentTools: Array<string | { tool: str
     return null;
   }
 
-
-  const handleIconClick = (item: typeof allItems[0]) => {
+  const handleIconClick = (item: (typeof allItems)[0]) => {
     // Don't open modal for global MCP servers
     if (item.isGlobal) {
       return;
     }
-    
+
     if (item.type === 'mcp' && item.integration) {
       setSelectedIntegration(item.integration);
       setIsAppModalOpen(true);
     } else if (item.type === 'mcp') {
       // If no integration found, create a fallback from server tool data
       const { icon } = getMCPServerData(item.id);
-      const strippedServerName = item.id.startsWith('pipedream-') 
-        ? item.id.replace('pipedream-', '') 
+      const strippedServerName = item.id.startsWith('pipedream-')
+        ? item.id.replace('pipedream-', '')
         : item.id;
-      
-      const serverTool = tools?.find(tool => 
-        tool.serverName === item.id || 
-        tool.appSlug === item.id ||
-        tool.serverName === strippedServerName ||
-        tool.appSlug === strippedServerName ||
-        tool.serverName === `pipedream-${item.id}` ||
-        tool.appSlug === `pipedream-${item.id}` ||
-        tool.serverName === `pipedream-${strippedServerName}` ||
-        tool.appSlug === `pipedream-${strippedServerName}`
+
+      const serverTool = tools?.find(
+        (tool) =>
+          tool.serverName === item.id ||
+          tool.appSlug === item.id ||
+          tool.serverName === strippedServerName ||
+          tool.appSlug === strippedServerName ||
+          tool.serverName === `pipedream-${item.id}` ||
+          tool.appSlug === `pipedream-${item.id}` ||
+          tool.serverName === `pipedream-${strippedServerName}` ||
+          tool.appSlug === `pipedream-${strippedServerName}`,
       );
-      
+
       if (serverTool) {
         // Create a fallback integration object
         const fallbackIntegration: TAvailableIntegration = {
           appSlug: serverTool.appSlug || strippedServerName,
-          appName: serverTool.name || strippedServerName.charAt(0).toUpperCase() + strippedServerName.slice(1),
+          appName:
+            serverTool.name ||
+            strippedServerName.charAt(0).toUpperCase() + strippedServerName.slice(1),
           appDescription: serverTool.description || `${strippedServerName} integration`,
           appIcon: serverTool.icon || icon,
           authType: 'oauth',
@@ -241,7 +280,7 @@ const MCPServerIcons = ({ agentTools }: { agentTools: Array<string | { tool: str
           appUrl: '',
           isActive: true,
         };
-        
+
         setSelectedIntegration(fallbackIntegration);
         setIsAppModalOpen(true);
       }
@@ -251,7 +290,7 @@ const MCPServerIcons = ({ agentTools }: { agentTools: Array<string | { tool: str
         id: item.id,
         name: item.name,
         icon: item.icon,
-        description: item.description
+        description: item.description,
       });
       setIsToolModalOpen(true);
     }
@@ -277,52 +316,54 @@ const MCPServerIcons = ({ agentTools }: { agentTools: Array<string | { tool: str
 
   return (
     <>
-      <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2">
-        <div className="bg-black/20 backdrop-blur-sm rounded-lg px-2 py-1">
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 transform">
+        <div className="rounded-lg bg-black/20 px-2 py-1 backdrop-blur-sm">
           <div className="flex items-center gap-2">
             {allItems.map((item) => (
               <TooltipAnchor
                 key={item.id}
                 description={
-                  item.isConnected 
-                    ? `${item.name} - ${item.isGlobal ? 'Connected (Global)' : 'Connected'}` 
-                    : item.isGlobal 
+                  item.isConnected
+                    ? `${item.name} - ${item.isGlobal ? 'Connected (Global)' : 'Connected'}`
+                    : item.isGlobal
                       ? `${item.name} - Global tool (always available)`
                       : 'App not connected. Click on it to connect.'
                 }
                 side="top"
                 role="button"
                 className={cn(
-                  "group relative p-1 rounded-md transition-all duration-200",
-                  item.isGlobal 
-                    ? "cursor-default" // Global servers are not clickable
-                    : item.isConnected 
-                      ? "cursor-pointer hover:bg-surface-hover" 
-                      : "cursor-pointer hover:bg-orange-100/20 dark:hover:bg-orange-900/20"
+                  'group relative rounded-md p-1 transition-all duration-200',
+                  item.isGlobal
+                    ? 'cursor-default' // Global servers are not clickable
+                    : item.isConnected
+                      ? 'cursor-pointer hover:bg-surface-hover'
+                      : 'cursor-pointer hover:bg-orange-100/20 dark:hover:bg-orange-900/20',
                 )}
                 onClick={() => handleIconClick(item)}
               >
                 {/* Connection status indicator */}
                 {!item.isConnected && !item.isGlobal && (
-                  <div className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-orange-500 border border-white dark:border-gray-800 animate-pulse" />
+                  <div className="absolute -right-0.5 -top-0.5 h-3 w-3 animate-pulse rounded-full border border-white bg-orange-500 dark:border-gray-800" />
                 )}
                 {/* Global tool indicator */}
                 {item.isGlobal && (
-                  <div className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-blue-500 border border-white dark:border-gray-800" />
+                  <div className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border border-white bg-blue-500 dark:border-gray-800" />
                 )}
                 <img
                   src={item.icon}
                   alt={`${item.name} ${item.type === 'tool' ? 'tool' : 'integration'}`}
                   className={cn(
-                    "h-5 w-5 rounded-sm object-cover transition-all duration-200 group-hover:scale-110 p-0.5",
+                    'h-5 w-5 rounded-sm object-cover p-0.5 transition-all duration-200 group-hover:scale-110',
                     {
                       // Connected global tool (blue with ring)
-                      "bg-blue-100/90 dark:bg-blue-900/90 ring-1 ring-blue-400/50": item.isConnected && item.isGlobal,
+                      'bg-blue-100/90 ring-1 ring-blue-400/50 dark:bg-blue-900/90':
+                        item.isConnected && item.isGlobal,
                       // Connected non-global tool (white/gray)
-                      "bg-white/90 dark:bg-gray-100/90": item.isConnected && !item.isGlobal,
+                      'bg-white/90 dark:bg-gray-100/90': item.isConnected && !item.isGlobal,
                       // Not connected tool (orange with ring)
-                      "bg-orange-100/90 dark:bg-orange-900/90 ring-1 ring-orange-400/50": !item.isConnected
-                    }
+                      'bg-orange-100/90 ring-1 ring-orange-400/50 dark:bg-orange-900/90':
+                        !item.isConnected,
+                    },
                   )}
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
@@ -338,8 +379,10 @@ const MCPServerIcons = ({ agentTools }: { agentTools: Array<string | { tool: str
           isOpen={isAppModalOpen}
           onClose={handleCloseAppModal}
           integration={selectedIntegration}
-          isConnected={!!userIntegrations?.find(ui => ui.appSlug === selectedIntegration.appSlug)}
-          userIntegration={userIntegrations?.find(ui => ui.appSlug === selectedIntegration.appSlug)}
+          isConnected={!!userIntegrations?.find((ui) => ui.appSlug === selectedIntegration.appSlug)}
+          userIntegration={userIntegrations?.find(
+            (ui) => ui.appSlug === selectedIntegration.appSlug,
+          )}
           onConnect={handleConnect}
           onDisconnect={handleDisconnect}
         />
@@ -388,12 +431,15 @@ const ChatForm = memo(
     const [badges, setBadges] = useRecoilState(store.chatBadges);
     const [isEditingBadges, setIsEditingBadges] = useRecoilState(store.isEditingBadges);
     const [showStopButton, setShowStopButton] = useRecoilState(store.showStopButtonByIndex(index));
-    const [showPlusPopover, setShowPlusPopover] = useRecoilState(store.showPlusPopoverFamily(index));
+    const [showPlusPopover, setShowPlusPopover] = useRecoilState(
+      store.showPlusPopoverFamily(index),
+    );
     const [showMentionPopover, setShowMentionPopover] = useRecoilState(
       store.showMentionPopoverFamily(index),
     );
 
     const { requiresKey } = useRequiresKey();
+    const { data: startupConfig } = useGetStartupConfig();
     const methods = useChatFormContext();
     const {
       files,
@@ -593,7 +639,8 @@ const ChatForm = memo(
                     {...registerProps}
                     ref={(e) => {
                       ref(e);
-                      (textAreaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = e;
+                      (textAreaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current =
+                        e;
                     }}
                     disabled={disableInputs || isNotAppendable}
                     onPaste={handlePaste}
@@ -637,7 +684,11 @@ const ChatForm = memo(
                   <AttachFileChat disableInputs={disableInputs} />
                 </div>
                 <BadgeRow
-                  showEphemeralBadges={!isAgentsEndpoint(endpoint) && !isAssistantsEndpoint(endpoint)}
+                  showEphemeralBadges={
+                    !isAgentsEndpoint(endpoint) &&
+                    !isAssistantsEndpoint(endpoint) &&
+                    startupConfig?.endpoints?.[endpoint]?.tools !== false
+                  }
                   conversationId={conversationId}
                   onChange={setBadges}
                   isInChat={
@@ -655,7 +706,7 @@ const ChatForm = memo(
                   />
                 )}
                 <div className={`${isRTL ? 'ml-2' : 'mr-2'}`}>
-                  <EnhancePrompt 
+                  <EnhancePrompt
                     textAreaRef={textAreaRef}
                     methods={methods}
                     disabled={disableInputs || isNotAppendable || !textValue?.trim()}
@@ -683,7 +734,7 @@ const ChatForm = memo(
         </div>
       </form>
     );
-  }
+  },
 );
 
 export default ChatForm;

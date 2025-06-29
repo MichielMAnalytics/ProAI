@@ -48,7 +48,7 @@ async function getBalanceConfig() {
       refillAmount: 100000,
       refillIntervalValue: 1,
       refillIntervalUnit: 'months',
-      autoRefillEnabled: true
+      autoRefillEnabled: true,
     };
   }
 }
@@ -61,7 +61,7 @@ async function getBalanceConfig() {
  */
 function getTierConfig(tier, balanceConfig) {
   const currentTime = new Date();
-  
+
   switch (tier) {
     case 'free':
       return {
@@ -72,9 +72,9 @@ function getTierConfig(tier, balanceConfig) {
         refillIntervalValue: balanceConfig?.refillIntervalValue || 1,
         refillIntervalUnit: balanceConfig?.refillIntervalUnit || 'months',
         autoRefillEnabled: balanceConfig?.autoRefillEnabled || true,
-        lastRefill: currentTime
+        lastRefill: currentTime,
       };
-    
+
     case 'pro':
       return {
         tier: 'pro',
@@ -84,9 +84,9 @@ function getTierConfig(tier, balanceConfig) {
         refillIntervalValue: 1,
         refillIntervalUnit: 'months',
         autoRefillEnabled: true,
-        lastRefill: currentTime
+        lastRefill: currentTime,
       };
-    
+
     case 'max':
       return {
         tier: 'max',
@@ -96,9 +96,9 @@ function getTierConfig(tier, balanceConfig) {
         refillIntervalValue: 1,
         refillIntervalUnit: 'months',
         autoRefillEnabled: true,
-        lastRefill: currentTime
+        lastRefill: currentTime,
       };
-    
+
     default:
       throw new Error(`Invalid tier: ${tier}. Must be 'free', 'pro', or 'max'`);
   }
@@ -113,36 +113,38 @@ async function updateUserTier(email, tier) {
   try {
     // Connect to database
     await connectDb();
-    
+
     // Validate tier
     const validTiers = ['free', 'pro', 'max'];
     if (!validTiers.includes(tier)) {
       throw new Error(`Invalid tier: ${tier}. Must be one of: ${validTiers.join(', ')}`);
     }
-    
+
     // Find user by email
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
       throw new Error(`User not found with email: ${email}`);
     }
-    
+
     console.log(`📧 Found user: ${user.name || user.username || 'N/A'} (${user.email})`);
     console.log(`🆔 User ID: ${user._id}`);
-    
+
     // Get balance configuration
     const balanceConfig = await getBalanceConfig();
     if (!balanceConfig?.enabled) {
       throw new Error('Balance system is disabled in configuration');
     }
-    
+
     // Get tier configuration
     const tierConfig = getTierConfig(tier, balanceConfig);
-    
+
     console.log(`🎯 Updating to tier: ${tierConfig.tier} (${tierConfig.tierName})`);
     console.log(`💰 Token credits: ${tierConfig.tokenCredits.toLocaleString()}`);
     console.log(`🔄 Refill amount: ${tierConfig.refillAmount.toLocaleString()}`);
-    console.log(`📅 Refill interval: ${tierConfig.refillIntervalValue} ${tierConfig.refillIntervalUnit}`);
-    
+    console.log(
+      `📅 Refill interval: ${tierConfig.refillIntervalValue} ${tierConfig.refillIntervalUnit}`,
+    );
+
     // Update or create balance record
     const balanceUpdate = {
       user: user._id,
@@ -154,25 +156,20 @@ async function updateUserTier(email, tier) {
       refillIntervalUnit: tierConfig.refillIntervalUnit,
       autoRefillEnabled: tierConfig.autoRefillEnabled,
       lastRefill: tierConfig.lastRefill,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
-    
-    const result = await Balance.findOneAndUpdate(
-      { user: user._id },
-      balanceUpdate,
-      { 
-        upsert: true, 
-        new: true,
-        setDefaultsOnInsert: true
-      }
-    );
-    
+
+    const result = await Balance.findOneAndUpdate({ user: user._id }, balanceUpdate, {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
+    });
+
     console.log(`✅ Successfully updated user tier!`);
     console.log(`📊 Balance record ID: ${result._id}`);
     console.log(`🕒 Last updated: ${result.updatedAt}`);
-    
+
     return result;
-    
   } catch (error) {
     console.error('❌ Error updating user tier:', error.message);
     throw error;
@@ -182,7 +179,7 @@ async function updateUserTier(email, tier) {
 // CLI interface
 if (require.main === module) {
   const args = process.argv.slice(2);
-  
+
   if (args.length !== 2) {
     console.log('Usage: node update-user-tier.js <email> <tier>');
     console.log('');
@@ -201,17 +198,17 @@ if (require.main === module) {
     console.log('  max  - Eve Max ($99/month, 9M tokens/month)');
     process.exit(1);
   }
-  
+
   const email = args[0];
   const tier = args[1].toLowerCase();
-  
+
   // Validate email format
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     console.error('❌ Invalid email format:', email);
     process.exit(1);
   }
-  
+
   updateUserTier(email, tier)
     .then(() => {
       console.log('🎉 Done!');

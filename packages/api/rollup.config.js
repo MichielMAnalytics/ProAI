@@ -44,8 +44,7 @@ const cjsBuild = {
   plugins,
   onwarn(warning, warn) {
     // Suppress circular dependency warnings from external packages
-    if (warning.code === 'CIRCULAR_DEPENDENCY' && 
-        warning.message.includes('node_modules')) {
+    if (warning.code === 'CIRCULAR_DEPENDENCY' && warning.message.includes('node_modules')) {
       return;
     }
     warn(warning);

@@ -1,6 +1,11 @@
 import { useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { getConfigDefaults, PermissionTypes, Permissions, EModelEndpoint } from 'librechat-data-provider';
+import {
+  getConfigDefaults,
+  PermissionTypes,
+  Permissions,
+  EModelEndpoint,
+} from 'librechat-data-provider';
 import type { ContextType } from '~/common';
 import ModelSelector from './Menus/Endpoints/ModelSelector';
 import { PresetsMenu, HeaderNewChat, OpenSidebar, IntegrationsButton } from './Menus';
@@ -23,7 +28,7 @@ export default function Header() {
   const assistantsMap = useAssistantsMapContext();
   const { data: endpointsConfig } = useGetEndpointsQuery();
   const { data: endpoints = [] } = useGetEndpointsQuery({ select: mapEndpoints });
-  
+
   const interfaceConfig = useMemo(
     () => startupConfig?.interface ?? defaultInterface,
     [startupConfig],
@@ -61,18 +66,20 @@ export default function Header() {
     if (!hasAgentAccess) {
       return false;
     }
-    
+
     // If modelSelect is disabled but agents are enabled, show agent selector
     if (!interfaceConfig.modelSelect && interfaceConfig.agents) {
       return true;
     }
-    
+
     // If modelSelect is enabled, check if only agents endpoint is available
     if (interfaceConfig.modelSelect) {
-      const availableEndpoints = mappedEndpoints.filter(endpoint => endpoint.hasModels);
-      return availableEndpoints.length === 1 && availableEndpoints[0]?.value === EModelEndpoint.agents;
+      const availableEndpoints = mappedEndpoints.filter((endpoint) => endpoint.hasModels);
+      return (
+        availableEndpoints.length === 1 && availableEndpoints[0]?.value === EModelEndpoint.agents
+      );
     }
-    
+
     return false;
   }, [interfaceConfig.modelSelect, interfaceConfig.agents, hasAgentAccess, mappedEndpoints]);
 

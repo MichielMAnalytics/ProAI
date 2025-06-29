@@ -10,8 +10,8 @@ const router = express.Router();
 
 // Price ID mapping for simplified Pro/Max tiers
 const PRICE_IDS = {
-  'pro': process.env.STRIPE_EVE_PRO,   // $29/month - Pro tier
-  'max': process.env.STRIPE_EVE_MAX,   // $99/month - Max tier
+  pro: process.env.STRIPE_EVE_PRO, // $29/month - Pro tier
+  max: process.env.STRIPE_EVE_MAX, // $99/month - Max tier
 };
 
 /**
@@ -27,7 +27,7 @@ router.post('/create-checkout-session', requireJwtAuth, async (req, res) => {
       userId: user._id,
       userEmail: user.email,
       credits,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     if (!credits || !PRICE_IDS[credits]) {
@@ -56,19 +56,20 @@ router.post('/create-checkout-session', requireJwtAuth, async (req, res) => {
       });
 
       // Find recent session for this user with same credit amount
-      const recentSession = existingSessions.data.find(session => 
-        session.metadata?.userId === user._id.toString() &&
-        session.metadata?.tier === credits.toString() &&
-        session.status === 'open' // Only consider open sessions
+      const recentSession = existingSessions.data.find(
+        (session) =>
+          session.metadata?.userId === user._id.toString() &&
+          session.metadata?.tier === credits.toString() &&
+          session.status === 'open', // Only consider open sessions
       );
 
       if (recentSession) {
         logger.info(`Returning existing checkout session for user ${user._id}`, {
           sessionId: recentSession.id,
           credits,
-          createdAt: new Date(recentSession.created * 1000)
+          createdAt: new Date(recentSession.created * 1000),
         });
-        
+
         return res.json({
           sessionId: recentSession.id,
           url: recentSession.url,
@@ -81,19 +82,19 @@ router.post('/create-checkout-session', requireJwtAuth, async (req, res) => {
 
     // Create new session with idempotency key
     const idempotencyKey = `checkout_${user._id}_${credits}_${Date.now()}`;
-    
+
     const session = await stripeService.createCheckoutSession({
       priceId,
       userEmail: user.email,
       userId: user._id.toString(),
       credits: credits.toString(),
-      idempotencyKey
+      idempotencyKey,
     });
 
     logger.info(`New checkout session created for user ${user._id}`, {
       sessionId: session.id,
       credits,
-      idempotencyKey
+      idempotencyKey,
     });
 
     res.json({
@@ -114,7 +115,7 @@ router.post('/create-checkout-session', requireJwtAuth, async (req, res) => {
 router.get('/subscription-status', requireJwtAuth, async (req, res) => {
   try {
     const { user } = req;
-    
+
     const customer = await stripeService.getCustomerByEmail(user.email);
     if (!customer) {
       return res.json({
@@ -124,10 +125,10 @@ router.get('/subscription-status', requireJwtAuth, async (req, res) => {
     }
 
     const subscriptions = await stripeService.getActiveSubscriptions(customer.id);
-    
+
     res.json({
       hasSubscription: subscriptions.length > 0,
-      subscriptions: subscriptions.map(sub => ({
+      subscriptions: subscriptions.map((sub) => ({
         id: sub.id,
         status: sub.status,
         tier: sub.metadata.tier,
@@ -149,7 +150,7 @@ router.get('/subscription-status', requireJwtAuth, async (req, res) => {
 router.post('/create-portal-session', requireJwtAuth, async (req, res) => {
   try {
     const { user } = req;
-    
+
     const customer = await stripeService.getCustomerByEmail(user.email);
     if (!customer) {
       return res.status(404).json({
@@ -160,7 +161,7 @@ router.post('/create-portal-session', requireJwtAuth, async (req, res) => {
     const baseUrl = process.env.DOMAIN_SERVER || 'http://localhost:3080';
     const session = await stripeService.createBillingPortalSession(
       customer.id,
-      `${baseUrl}/pricing`
+      `${baseUrl}/pricing`,
     );
 
     res.json({
@@ -181,25 +182,26 @@ router.post('/create-portal-session', requireJwtAuth, async (req, res) => {
  */
 router.post('/webhook', async (req, res) => {
   const signature = req.headers['stripe-signature'];
-  
+
   try {
     const event = stripeService.verifyWebhookSignature(req.body, signature);
-    
+
     // Check event age - ignore very old events (more than 2 hours)
-    const eventAge = Date.now() - (event.created * 1000);
-    
-    logger.info(`Webhook event received: ${event.type}`, { 
+    const eventAge = Date.now() - event.created * 1000;
+
+    logger.info(`Webhook event received: ${event.type}`, {
       eventId: event.id,
       created: new Date(event.created * 1000),
       ageMinutes: Math.round(eventAge / 60000),
-      livemode: event.livemode
+      livemode: event.livemode,
     });
 
-    if (eventAge > 7200000) { // 2 hours
+    if (eventAge > 7200000) {
+      // 2 hours
       logger.warn(`Ignoring old webhook event`, {
         eventId: event.id,
         eventType: event.type,
-        ageHours: Math.round(eventAge / 3600000)
+        ageHours: Math.round(eventAge / 3600000),
       });
       return res.json({ received: true, status: 'old_event_ignored' });
     }
@@ -207,11 +209,11 @@ router.post('/webhook', async (req, res) => {
     // CRITICAL: Check if we've already processed this exact event
     const eventTransactionId = `stripe_event_${event.id}`;
     const isDuplicateEvent = await BalanceService.isDuplicateTransaction(eventTransactionId);
-    
+
     if (isDuplicateEvent) {
       logger.warn(`Duplicate Stripe event blocked: ${event.id}`, {
         eventType: event.type,
-        eventId: event.id
+        eventId: event.id,
       });
       return res.json({ received: true, status: 'duplicate_event_ignored' });
     }
@@ -226,24 +228,24 @@ router.post('/webhook', async (req, res) => {
       } else if (event.type.startsWith('invoice.')) {
         // For invoice events, get user from subscription metadata
         const invoice = event.data.object;
-        
+
         if (invoice.subscription) {
           try {
             const stripe = stripeService.stripe;
             const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
             eventUserId = subscription.metadata?.userId;
-            
+
             logger.debug(`Extracted user ID from subscription for invoice event`, {
               eventId: event.id,
               invoiceId: invoice.id,
               subscriptionId: invoice.subscription,
-              userId: eventUserId
+              userId: eventUserId,
             });
           } catch (error) {
             logger.warn('Could not retrieve subscription for invoice event:', error, {
               eventId: event.id,
               subscriptionId: invoice.subscription,
-              invoiceId: invoice.id
+              invoiceId: invoice.id,
             });
           }
         } else {
@@ -252,9 +254,9 @@ router.post('/webhook', async (req, res) => {
             eventId: event.id,
             invoiceId: invoice.id,
             customerId: invoice.customer,
-            billingReason: invoice.billing_reason
+            billingReason: invoice.billing_reason,
           });
-          
+
           // Try to extract from recent checkout sessions for this customer
           try {
             const stripe = stripeService.stripe;
@@ -262,27 +264,28 @@ router.post('/webhook', async (req, res) => {
               customer: invoice.customer,
               limit: 10,
             });
-            
+
             // Find recent session with userId in metadata
-            const recentSession = sessions.data.find(session => 
-              session.metadata?.userId && 
-              Date.now() - new Date(session.created * 1000).getTime() < 3600000 // Within last hour
+            const recentSession = sessions.data.find(
+              (session) =>
+                session.metadata?.userId &&
+                Date.now() - new Date(session.created * 1000).getTime() < 3600000, // Within last hour
             );
-            
+
             if (recentSession) {
               eventUserId = recentSession.metadata.userId;
               logger.debug(`Extracted user ID from recent checkout session`, {
                 eventId: event.id,
                 invoiceId: invoice.id,
                 sessionId: recentSession.id,
-                extractedUserId: eventUserId
+                extractedUserId: eventUserId,
               });
             }
           } catch (error) {
             logger.warn('Error retrieving checkout sessions for user ID extraction:', error, {
               eventId: event.id,
               invoiceId: invoice.id,
-              customerId: invoice.customer
+              customerId: invoice.customer,
             });
           }
         }
@@ -290,7 +293,7 @@ router.post('/webhook', async (req, res) => {
     } catch (error) {
       logger.warn('Error extracting user ID from event:', error, {
         eventId: event.id,
-        eventType: event.type
+        eventType: event.type,
       });
     }
 
@@ -298,7 +301,9 @@ router.post('/webhook', async (req, res) => {
     // NOTE: Use direct save to avoid triggering balance updates for event tracking
     try {
       const eventTracker = new Transaction({
-        user: eventUserId ? new mongoose.Types.ObjectId(eventUserId) : new mongoose.Types.ObjectId('000000000000000000000000'),
+        user: eventUserId
+          ? new mongoose.Types.ObjectId(eventUserId)
+          : new mongoose.Types.ObjectId('000000000000000000000000'),
         tokenType: 'credits',
         rawAmount: 0,
         tokenValue: 0, // Explicitly set to 0
@@ -308,21 +313,21 @@ router.post('/webhook', async (req, res) => {
         valueKey: eventTransactionId,
         endpointTokenConfig: {},
       });
-      
+
       // Save directly without triggering Transaction.create() balance logic
       await eventTracker.save();
-      
+
       logger.debug(`Event tracking transaction created`, {
         eventId: event.id,
         eventType: event.type,
         userId: eventUserId || 'none',
-        transactionId: eventTracker._id
+        transactionId: eventTracker._id,
       });
     } catch (error) {
       // If marker creation fails, log but continue processing
       logger.warn('Failed to create event tracking marker:', error, {
         eventId: event.id,
-        eventType: event.type
+        eventType: event.type,
       });
     }
 
@@ -336,38 +341,37 @@ router.post('/webhook', async (req, res) => {
           case 'checkout.session.completed':
             await handleCheckoutCompleted(event.data.object, event.id);
             break;
-          
+
           case 'customer.subscription.created':
             await handleSubscriptionCreated(event.data.object, event.id);
             break;
-          
+
           case 'customer.subscription.updated':
             await handleSubscriptionUpdated(event.data.object, event.id);
             break;
-          
+
           case 'customer.subscription.deleted':
             await handleSubscriptionDeleted(event.data.object, event.id);
             break;
-          
+
           case 'invoice.payment_succeeded':
             await handlePaymentSucceeded(event.data.object, event.id);
             break;
-          
+
           case 'invoice.payment_failed':
             await handlePaymentFailed(event.data.object, event.id);
             break;
-          
+
           default:
             logger.info(`Unhandled event type: ${event.type}`, { eventId: event.id });
         }
       } catch (processingError) {
         logger.error('Error processing webhook asynchronously:', processingError, {
           eventId: event.id,
-          eventType: event.type
+          eventType: event.type,
         });
       }
     });
-
   } catch (error) {
     logger.error('Webhook error:', error);
     res.status(400).json({
@@ -382,7 +386,7 @@ router.post('/webhook', async (req, res) => {
 async function handleCheckoutCompleted(session, eventId) {
   try {
     const { customer, client_reference_id, metadata, payment_status } = session;
-    
+
     // Log session details for debugging
     logger.info(`Processing checkout session`, {
       sessionId: session.id,
@@ -391,40 +395,44 @@ async function handleCheckoutCompleted(session, eventId) {
       customerId: customer,
       clientRefId: client_reference_id,
       metadata: metadata,
-      created: new Date(session.created * 1000)
+      created: new Date(session.created * 1000),
     });
-    
+
     // CRITICAL: Only process if payment was actually successful
     if (payment_status !== 'paid') {
       logger.info(`Checkout session not yet paid, skipping credit addition`, {
         sessionId: session.id,
         eventId,
-        paymentStatus: payment_status
+        paymentStatus: payment_status,
       });
       return;
     }
-    
+
     const userId = metadata?.userId || client_reference_id;
-    
+
     if (!userId) {
-      logger.error('No userId found in checkout session metadata - this might be an old session from before metadata fix', { 
-        sessionId: session.id,
-        eventId,
-        metadata: metadata,
-        clientRefId: client_reference_id,
-        created: new Date(session.created * 1000)
-      });
-      
+      logger.error(
+        'No userId found in checkout session metadata - this might be an old session from before metadata fix',
+        {
+          sessionId: session.id,
+          eventId,
+          metadata: metadata,
+          clientRefId: client_reference_id,
+          created: new Date(session.created * 1000),
+        },
+      );
+
       // For very old sessions (more than 1 hour), just ignore them
-      const sessionAge = Date.now() - (session.created * 1000);
-      if (sessionAge > 3600000) { // 1 hour
+      const sessionAge = Date.now() - session.created * 1000;
+      if (sessionAge > 3600000) {
+        // 1 hour
         logger.info(`Ignoring old checkout session without proper metadata`, {
           sessionId: session.id,
-          ageMinutes: Math.round(sessionAge / 60000)
+          ageMinutes: Math.round(sessionAge / 60000),
         });
         return;
       }
-      
+
       return;
     }
 
@@ -437,7 +445,7 @@ async function handleCheckoutCompleted(session, eventId) {
       logger.error('Error retrieving line items from checkout session:', error);
       return;
     }
-    
+
     if (!lineItems.data || lineItems.data.length === 0) {
       logger.error('No line items found in checkout session');
       return;
@@ -445,7 +453,7 @@ async function handleCheckoutCompleted(session, eventId) {
 
     const priceId = lineItems.data[0].price.id;
     const credits = await BalanceService.getCreditAmountFromPriceId(priceId);
-    
+
     if (!credits) {
       logger.error(`Unable to determine credit amount for price ID: ${priceId}`);
       return;
@@ -456,12 +464,12 @@ async function handleCheckoutCompleted(session, eventId) {
       eventId,
       customerId: customer,
       priceId,
-      paymentStatus: payment_status
+      paymentStatus: payment_status,
     });
-    
+
     // Use BOTH session ID AND event ID for transaction ID to prevent duplicates
     const transactionId = `checkout_${session.id}_event_${eventId}`;
-    
+
     // Add credits to user balance
     const result = await BalanceService.addCredits({
       userId,
@@ -472,8 +480,8 @@ async function handleCheckoutCompleted(session, eventId) {
         priceId,
         sessionId: session.id,
         eventId,
-        type: 'initial_subscription'
-      }
+        type: 'initial_subscription',
+      },
     });
 
     if (result.success) {
@@ -485,7 +493,7 @@ async function handleCheckoutCompleted(session, eventId) {
         transactionId: result.transaction,
         newBalance: result.newBalance,
         tier: result.tier,
-        tierName: result.tierName
+        tierName: result.tierName,
       });
     } else {
       logger.warn(`Failed to add credits: ${result.reason}`, {
@@ -493,14 +501,13 @@ async function handleCheckoutCompleted(session, eventId) {
         credits,
         sessionId: session.id,
         eventId,
-        transactionId
+        transactionId,
       });
     }
-    
   } catch (error) {
-    logger.error('Error handling checkout completion:', error, { 
+    logger.error('Error handling checkout completion:', error, {
       sessionId: session.id,
-      eventId 
+      eventId,
     });
   }
 }
@@ -512,7 +519,7 @@ async function handleSubscriptionCreated(subscription, eventId) {
   try {
     const { customer, metadata, items } = subscription;
     let userId = metadata?.userId;
-    
+
     // If userId not in subscription metadata, try to get it from recent checkout sessions
     if (!userId) {
       try {
@@ -521,29 +528,30 @@ async function handleSubscriptionCreated(subscription, eventId) {
           customer: customer,
           limit: 10,
         });
-        
+
         // Find recent session with userId in metadata
-        const recentSession = sessions.data.find(session => 
-          session.metadata?.userId && 
-          Date.now() - new Date(session.created * 1000).getTime() < 600000 // Within last 10 minutes
+        const recentSession = sessions.data.find(
+          (session) =>
+            session.metadata?.userId &&
+            Date.now() - new Date(session.created * 1000).getTime() < 600000, // Within last 10 minutes
         );
-        
+
         if (recentSession) {
           userId = recentSession.metadata.userId;
           logger.info(`Retrieved userId from recent checkout session: ${userId}`, {
             subscriptionId: subscription.id,
-            sessionId: recentSession.id
+            sessionId: recentSession.id,
           });
         }
       } catch (error) {
         logger.error('Error retrieving userId from checkout sessions:', error);
       }
     }
-    
+
     if (!userId) {
       logger.error('No userId found in subscription metadata or recent checkout sessions', {
         subscriptionId: subscription.id,
-        customerId: customer
+        customerId: customer,
       });
       return;
     }
@@ -551,27 +559,26 @@ async function handleSubscriptionCreated(subscription, eventId) {
     // Get credits from price ID
     const priceId = items.data[0]?.price?.id;
     const credits = await BalanceService.getCreditAmountFromPriceId(priceId);
-    
+
     if (!credits) {
       logger.error(`Unable to determine credit amount for subscription price ID: ${priceId}`);
       return;
     }
-    
+
     logger.info(`Subscription created for user ${userId}, credits: ${credits}`, {
       subscriptionId: subscription.id,
       customerId: customer,
       priceId,
-      eventId
+      eventId,
     });
-    
+
     // NOTE: Credits are added via checkout.session.completed for initial subscription
     // This handler only logs subscription creation for audit purposes
     // Future recurring billing will be handled by invoice.payment_succeeded
-    
   } catch (error) {
     logger.error('Error handling subscription creation:', error, {
       subscriptionId: subscription.id,
-      eventId
+      eventId,
     });
   }
 }
@@ -582,11 +589,10 @@ async function handleSubscriptionCreated(subscription, eventId) {
 async function handleSubscriptionUpdated(subscription, eventId) {
   try {
     const { userId } = subscription.metadata;
-    
+
     logger.info(`Subscription updated for user ${userId}, status: ${subscription.status}`);
-    
+
     // TODO: Update user's subscription status in database
-    
   } catch (error) {
     logger.error('Error handling subscription update:', error);
   }
@@ -598,27 +604,27 @@ async function handleSubscriptionUpdated(subscription, eventId) {
 async function handleSubscriptionDeleted(subscription, eventId) {
   try {
     const userId = subscription.metadata?.userId;
-    
+
     if (!userId) {
       logger.error('No userId found in subscription metadata for deletion', {
         subscriptionId: subscription.id,
         eventId,
-        customerId: subscription.customer
+        customerId: subscription.customer,
       });
       return;
     }
-    
+
     logger.info(`Subscription deleted for user ${userId}`, {
       subscriptionId: subscription.id,
       eventId,
       status: subscription.status,
-      canceledAt: subscription.canceled_at
+      canceledAt: subscription.canceled_at,
     });
-    
+
     // Downgrade user to free tier
     const result = await BalanceService.downgradeToFreeTier({
       userId,
-      reason: 'subscription_cancelled'
+      reason: 'subscription_cancelled',
     });
 
     if (result.success) {
@@ -628,20 +634,19 @@ async function handleSubscriptionDeleted(subscription, eventId) {
         eventId,
         newTier: result.tier,
         newTierName: result.tierName,
-        newRefillAmount: result.refillAmount
+        newRefillAmount: result.refillAmount,
       });
     } else {
       logger.error(`Failed to downgrade user to free tier: ${result.reason}`, {
         userId,
         subscriptionId: subscription.id,
-        eventId
+        eventId,
       });
     }
-    
   } catch (error) {
     logger.error('Error handling subscription deletion:', error, {
       subscriptionId: subscription.id,
-      eventId
+      eventId,
     });
   }
 }
@@ -654,14 +659,14 @@ async function handlePaymentSucceeded(invoice, eventId) {
     // Enhanced subscription ID extraction following Stripe best practices
     let subscriptionId = invoice.subscription;
     const { customer, id: invoiceId } = invoice;
-    
+
     // If subscription ID is not directly available, try alternative extraction methods
     if (!subscriptionId) {
       // For subscription invoices, try to extract from invoice lines
       if (invoice.lines?.data?.length > 0) {
         // Look for subscription line items (type: 'subscription')
-        const subscriptionLine = invoice.lines.data.find(line => 
-          line.type === 'subscription' && line.subscription
+        const subscriptionLine = invoice.lines.data.find(
+          (line) => line.type === 'subscription' && line.subscription,
         );
         if (subscriptionLine) {
           subscriptionId = subscriptionLine.subscription;
@@ -670,11 +675,11 @@ async function handlePaymentSucceeded(invoice, eventId) {
             invoiceId,
             subscriptionId,
             lineType: subscriptionLine.type,
-            lineId: subscriptionLine.id
+            lineId: subscriptionLine.id,
           });
         } else {
           // Also check if any line items have subscription references (for recurring billing)
-          const lineWithSubscription = invoice.lines.data.find(line => line.subscription);
+          const lineWithSubscription = invoice.lines.data.find((line) => line.subscription);
           if (lineWithSubscription) {
             subscriptionId = lineWithSubscription.subscription;
             logger.debug(`Extracted subscription ID from line item with subscription reference`, {
@@ -682,12 +687,12 @@ async function handlePaymentSucceeded(invoice, eventId) {
               invoiceId,
               subscriptionId,
               lineType: lineWithSubscription.type,
-              lineId: lineWithSubscription.id
+              lineId: lineWithSubscription.id,
             });
           }
         }
       }
-      
+
       // If still no subscription ID, try to correlate with recent subscriptions for this customer
       if (!subscriptionId && invoice.billing_reason === 'subscription_create') {
         try {
@@ -699,13 +704,13 @@ async function handlePaymentSucceeded(invoice, eventId) {
               gte: Math.floor((Date.now() - 300000) / 1000), // Last 5 minutes
             },
           });
-          
+
           if (recentSubscriptions.data.length > 0) {
             // Find subscription created around the same time as this invoice
-            const matchingSubscription = recentSubscriptions.data.find(sub => 
-              Math.abs(sub.created - invoice.created) < 60 // Within 60 seconds
+            const matchingSubscription = recentSubscriptions.data.find(
+              (sub) => Math.abs(sub.created - invoice.created) < 60, // Within 60 seconds
             );
-            
+
             if (matchingSubscription) {
               subscriptionId = matchingSubscription.id;
               logger.debug(`Correlated subscription ID from recent customer subscriptions`, {
@@ -714,7 +719,7 @@ async function handlePaymentSucceeded(invoice, eventId) {
                 subscriptionId,
                 subscriptionCreated: new Date(matchingSubscription.created * 1000),
                 invoiceCreated: new Date(invoice.created * 1000),
-                timeDiff: Math.abs(matchingSubscription.created - invoice.created)
+                timeDiff: Math.abs(matchingSubscription.created - invoice.created),
               });
             }
           }
@@ -722,12 +727,12 @@ async function handlePaymentSucceeded(invoice, eventId) {
           logger.warn('Error correlating subscription from recent subscriptions:', error, {
             eventId,
             invoiceId,
-            customerId: customer
+            customerId: customer,
           });
         }
       }
     }
-    
+
     logger.debug(`Processing invoice payment`, {
       eventId,
       invoiceId,
@@ -737,9 +742,9 @@ async function handlePaymentSucceeded(invoice, eventId) {
       billingReason: invoice.billing_reason,
       invoiceStatus: invoice.status,
       paymentIntent: invoice.payment_intent,
-      invoiceCreated: new Date(invoice.created * 1000)
+      invoiceCreated: new Date(invoice.created * 1000),
     });
-    
+
     if (!subscriptionId) {
       logger.warn('Invoice event has no subscription ID', {
         eventId,
@@ -750,13 +755,13 @@ async function handlePaymentSucceeded(invoice, eventId) {
         paymentIntent: invoice.payment_intent,
         amountPaid: invoice.amount_paid,
         currency: invoice.currency,
-        lines: invoice.lines?.data?.map(line => ({
+        lines: invoice.lines?.data?.map((line) => ({
           priceId: line.price?.id,
           amount: line.amount,
-          description: line.description
-        }))
+          description: line.description,
+        })),
       });
-      
+
       // Try to find subscription through payment intent or recent subscriptions for this customer
       if (invoice.payment_intent && invoice.billing_reason === 'subscription_create') {
         try {
@@ -768,7 +773,7 @@ async function handlePaymentSucceeded(invoice, eventId) {
               gte: Math.floor((Date.now() - 600000) / 1000), // Last 10 minutes
             },
           });
-          
+
           if (subscriptions.data.length > 0) {
             const recentSub = subscriptions.data[0];
             logger.info(`Found recent subscription for invoice without subscription ID`, {
@@ -776,25 +781,25 @@ async function handlePaymentSucceeded(invoice, eventId) {
               invoiceId,
               foundSubscriptionId: recentSub.id,
               subscriptionStatus: recentSub.status,
-              subscriptionCreated: new Date(recentSub.created * 1000)
+              subscriptionCreated: new Date(recentSub.created * 1000),
             });
-            
+
             // Note: We still skip processing this invoice since checkout.session.completed handles initial credits
             // This log helps us understand the relationship
           }
         } catch (error) {
           logger.warn('Error trying to find subscription for invoice:', error, {
             eventId,
-            invoiceId
+            invoiceId,
           });
         }
       }
-      
+
       logger.info('Payment succeeded for non-subscription invoice, skipping credit top-up', {
         eventId,
         invoiceId,
         customerId: customer,
-        billingReason: invoice.billing_reason
+        billingReason: invoice.billing_reason,
       });
       return;
     }
@@ -803,12 +808,15 @@ async function handlePaymentSucceeded(invoice, eventId) {
     // Initial subscription credits are handled by checkout.session.completed
     // Only process recurring billing cycles here
     if (invoice.billing_reason === 'subscription_create') {
-      logger.info('Skipping initial subscription invoice - credits already added via checkout completion', {
-        eventId,
-        invoiceId,
-        subscriptionId,
-        billingReason: invoice.billing_reason
-      });
+      logger.info(
+        'Skipping initial subscription invoice - credits already added via checkout completion',
+        {
+          eventId,
+          invoiceId,
+          subscriptionId,
+          billingReason: invoice.billing_reason,
+        },
+      );
       return;
     }
 
@@ -819,7 +827,7 @@ async function handlePaymentSucceeded(invoice, eventId) {
         invoiceId,
         subscriptionId,
         billingReason: invoice.billing_reason,
-        supportedReasons: ['subscription_cycle']
+        supportedReasons: ['subscription_cycle'],
       });
       return;
     }
@@ -829,32 +837,32 @@ async function handlePaymentSucceeded(invoice, eventId) {
     try {
       const stripe = stripeService.stripe;
       subscription = await stripe.subscriptions.retrieve(subscriptionId);
-      
+
       logger.debug(`Retrieved subscription for invoice`, {
         eventId,
         subscriptionId,
         subscriptionStatus: subscription.status,
         hasMetadata: !!subscription.metadata,
-        userId: subscription.metadata?.userId
+        userId: subscription.metadata?.userId,
       });
     } catch (error) {
       logger.error('Error retrieving subscription for payment:', error, {
         eventId,
         subscriptionId,
-        invoiceId
+        invoiceId,
       });
       return;
     }
-    
+
     const userId = subscription.metadata?.userId;
-    
+
     if (!userId) {
       logger.error('No userId found in subscription metadata for payment', {
         subscriptionId,
         invoiceId,
         customerId: customer,
         eventId,
-        metadata: subscription.metadata
+        metadata: subscription.metadata,
       });
       return;
     }
@@ -862,27 +870,27 @@ async function handlePaymentSucceeded(invoice, eventId) {
     // Get credits from subscription price ID
     const priceId = subscription.items.data[0]?.price?.id;
     const credits = await BalanceService.getCreditAmountFromPriceId(priceId);
-    
+
     if (!credits) {
       logger.error(`Unable to determine credit amount for payment price ID: ${priceId}`, {
         subscriptionId,
         invoiceId,
         userId,
         eventId,
-        priceId
+        priceId,
       });
       return;
     }
-    
+
     logger.info(`Payment succeeded for user ${userId}, adding ${credits} credits`, {
       subscriptionId,
       invoiceId,
       customerId: customer,
       priceId,
       eventId,
-      billingReason: invoice.billing_reason
+      billingReason: invoice.billing_reason,
     });
-    
+
     // Add credits to user balance for successful billing cycle
     const result = await BalanceService.handleSubscriptionRenewal({
       userId,
@@ -894,8 +902,8 @@ async function handlePaymentSucceeded(invoice, eventId) {
         priceId,
         subscriptionStatus: subscription.status,
         type: 'recurring_payment',
-        billingReason: invoice.billing_reason
-      }
+        billingReason: invoice.billing_reason,
+      },
     });
 
     if (result.success) {
@@ -906,7 +914,7 @@ async function handlePaymentSucceeded(invoice, eventId) {
         invoiceId,
         eventId,
         tier: result.tier,
-        tierName: result.tierName
+        tierName: result.tierName,
       });
     } else {
       logger.error(`Failed to process recurring payment: ${result.reason}`, {
@@ -914,14 +922,13 @@ async function handlePaymentSucceeded(invoice, eventId) {
         credits,
         subscriptionId,
         invoiceId,
-        eventId
+        eventId,
       });
     }
-    
   } catch (error) {
     logger.error('Error handling payment success:', error, {
       eventId,
-      invoiceId: invoice.id
+      invoiceId: invoice.id,
     });
   }
 }
@@ -932,12 +939,12 @@ async function handlePaymentSucceeded(invoice, eventId) {
 async function handlePaymentFailed(invoice, eventId) {
   try {
     const { customer, subscription: subscriptionId, id: invoiceId } = invoice;
-    
+
     if (!subscriptionId) {
       logger.info('Payment failed for non-subscription invoice', {
         eventId,
         invoiceId,
-        customerId: customer
+        customerId: customer,
       });
       return;
     }
@@ -951,49 +958,50 @@ async function handlePaymentFailed(invoice, eventId) {
       logger.error('Error retrieving subscription for failed payment:', error, {
         eventId,
         subscriptionId,
-        invoiceId
+        invoiceId,
       });
       return;
     }
-    
+
     const userId = subscription.metadata?.userId;
-    
+
     if (!userId) {
       logger.error('No userId found in subscription metadata for failed payment', {
         subscriptionId,
         invoiceId,
         customerId: customer,
-        eventId
+        eventId,
       });
       return;
     }
-    
+
     logger.warn(`Payment failed for user ${userId}`, {
       subscriptionId,
       invoiceId,
       customerId: customer,
       attemptCount: invoice.attempt_count,
       nextPaymentAttempt: invoice.next_payment_attempt,
-      eventId
+      eventId,
     });
-    
+
     // If this is the final failed attempt (Stripe typically tries 4 times)
     // and subscription is incomplete/past_due, consider downgrading
-    if (invoice.attempt_count >= 4 && 
-        (subscription.status === 'incomplete' || subscription.status === 'past_due')) {
-      
+    if (
+      invoice.attempt_count >= 4 &&
+      (subscription.status === 'incomplete' || subscription.status === 'past_due')
+    ) {
       logger.warn(`Final payment attempt failed, considering downgrade for user ${userId}`, {
         subscriptionId,
         invoiceId,
         subscriptionStatus: subscription.status,
         attemptCount: invoice.attempt_count,
-        eventId
+        eventId,
       });
-      
+
       // Downgrade user to free tier after multiple failures
       const result = await BalanceService.downgradeToFreeTier({
         userId,
-        reason: 'payment_failed_final'
+        reason: 'payment_failed_final',
       });
 
       if (result.success) {
@@ -1004,26 +1012,25 @@ async function handlePaymentFailed(invoice, eventId) {
           eventId,
           newTier: result.tier,
           newTierName: result.tierName,
-          newRefillAmount: result.refillAmount
+          newRefillAmount: result.refillAmount,
         });
       } else {
         logger.error(`Failed to downgrade user after payment failures: ${result.reason}`, {
           userId,
           subscriptionId,
           invoiceId,
-          eventId
+          eventId,
         });
       }
     }
-    
+
     // Note: You might want to implement additional logic here:
     // - Send notification to user about failed payment
     // - Update subscription status in your database
-    
   } catch (error) {
     logger.error('Error handling payment failure:', error, {
       eventId,
-      invoiceId: invoice.id
+      invoiceId: invoice.id,
     });
   }
 }
@@ -1038,7 +1045,7 @@ router.get('/debug-config', (req, res) => {
     domainServer: process.env.DOMAIN_SERVER,
     nodeEnv: process.env.NODE_ENV,
     successUrl: `${baseUrl}/pricing?success=true`,
-    cancelUrl: `${baseUrl}/pricing?canceled=true`
+    cancelUrl: `${baseUrl}/pricing?canceled=true`,
   });
 });
 
@@ -1048,13 +1055,13 @@ router.get('/debug-config', (req, res) => {
 router.post('/cancel-subscription', requireJwtAuth, async (req, res) => {
   try {
     const { user } = req;
-    
+
     logger.info(`Subscription cancellation requested by user ${user._id}`, {
       userId: user._id,
       userEmail: user.email,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
+
     // Get customer from Stripe
     const customer = await stripeService.getCustomerByEmail(user.email);
     if (!customer) {
@@ -1068,10 +1075,10 @@ router.post('/cancel-subscription', requireJwtAuth, async (req, res) => {
     if (subscriptions.length === 0) {
       // User has no active subscription, just downgrade in database
       logger.info(`No active subscription found, downgrading database only for user ${user._id}`);
-      
+
       const result = await BalanceService.downgradeToFreeTier({
         userId: user._id.toString(),
-        reason: 'user_requested_downgrade'
+        reason: 'user_requested_downgrade',
       });
 
       if (result.success) {
@@ -1079,12 +1086,12 @@ router.post('/cancel-subscription', requireJwtAuth, async (req, res) => {
           success: true,
           message: 'Successfully downgraded to free tier',
           tier: result.tier,
-          tierName: result.tierName
+          tierName: result.tierName,
         });
       } else {
         return res.status(500).json({
           error: 'Failed to downgrade user tier',
-          reason: result.reason
+          reason: result.reason,
         });
       }
     }
@@ -1097,12 +1104,12 @@ router.post('/cancel-subscription', requireJwtAuth, async (req, res) => {
         canceledSubscriptions.push({
           id: canceled.id,
           status: canceled.status,
-          canceledAt: canceled.canceled_at
+          canceledAt: canceled.canceled_at,
         });
-        
+
         logger.info(`Subscription canceled: ${subscription.id} for user ${user._id}`, {
           subscriptionId: subscription.id,
-          canceledAt: canceled.canceled_at
+          canceledAt: canceled.canceled_at,
         });
       } catch (error) {
         logger.error(`Error canceling subscription ${subscription.id}:`, error);
@@ -1115,7 +1122,7 @@ router.post('/cancel-subscription', requireJwtAuth, async (req, res) => {
     // Downgrade user to free tier in database
     const result = await BalanceService.downgradeToFreeTier({
       userId: user._id.toString(),
-      reason: 'user_requested_downgrade'
+      reason: 'user_requested_downgrade',
     });
 
     if (result.success) {
@@ -1123,7 +1130,7 @@ router.post('/cancel-subscription', requireJwtAuth, async (req, res) => {
         userId: user._id,
         canceledSubscriptions: canceledSubscriptions.length,
         newTier: result.tier,
-        newTierName: result.tierName
+        newTierName: result.tierName,
       });
 
       res.json({
@@ -1131,21 +1138,20 @@ router.post('/cancel-subscription', requireJwtAuth, async (req, res) => {
         message: 'Successfully canceled subscription and downgraded to free tier',
         canceledSubscriptions,
         tier: result.tier,
-        tierName: result.tierName
+        tierName: result.tierName,
       });
     } else {
       logger.error(`Failed to downgrade user after subscription cancellation: ${result.reason}`, {
         userId: user._id,
-        canceledSubscriptions
+        canceledSubscriptions,
       });
-      
+
       res.status(500).json({
         error: 'Subscription canceled but failed to update user tier',
         reason: result.reason,
-        canceledSubscriptions
+        canceledSubscriptions,
       });
     }
-    
   } catch (error) {
     logger.error('Error canceling subscription:', error);
     res.status(500).json({
@@ -1166,7 +1172,7 @@ router.post('/modify-subscription', requireJwtAuth, async (req, res) => {
       userId: user._id,
       userEmail: user.email,
       newCredits: credits,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     if (!credits || !PRICE_IDS[credits]) {
@@ -1191,14 +1197,14 @@ router.post('/modify-subscription', requireJwtAuth, async (req, res) => {
     if (subscriptions.length === 0) {
       return res.status(404).json({
         error: 'No active subscription found to modify',
-        suggestion: 'Please create a new subscription instead'
+        suggestion: 'Please create a new subscription instead',
       });
     }
 
     if (subscriptions.length > 1) {
       logger.warn(`User has multiple active subscriptions: ${subscriptions.length}`, {
         userId: user._id,
-        subscriptions: subscriptions.map(s => ({ id: s.id, status: s.status }))
+        subscriptions: subscriptions.map((s) => ({ id: s.id, status: s.status })),
       });
     }
 
@@ -1208,20 +1214,22 @@ router.post('/modify-subscription', requireJwtAuth, async (req, res) => {
 
     try {
       const stripe = stripeService.stripe;
-      
+
       // Update the subscription item to the new price
       const updatedSubscription = await stripe.subscriptions.update(subscription.id, {
-        items: [{
-          id: currentItemId,
-          price: newPriceId,
-        }],
+        items: [
+          {
+            id: currentItemId,
+            price: newPriceId,
+          },
+        ],
         proration_behavior: 'create_prorations', // Handle prorating automatically
         metadata: {
           userId: user._id.toString(),
           tier: credits.toString(),
           userEmail: user.email,
-          modifiedAt: new Date().toISOString()
-        }
+          modifiedAt: new Date().toISOString(),
+        },
       });
 
       logger.info(`Subscription modified successfully`, {
@@ -1230,7 +1238,7 @@ router.post('/modify-subscription', requireJwtAuth, async (req, res) => {
         oldPriceId: subscription.items.data[0].price.id,
         newPriceId,
         newCredits: credits,
-        status: updatedSubscription.status
+        status: updatedSubscription.status,
       });
 
       // Update user's tier in database immediately
@@ -1238,25 +1246,25 @@ router.post('/modify-subscription', requireJwtAuth, async (req, res) => {
       if (tierInfo) {
         try {
           const { updateBalance } = require('~/models/Transaction');
-          
+
           // Calculate credit difference for immediate adjustment
           let creditDifference = 0;
           const oldPriceId = subscription.items.data[0].price.id;
           const oldTierCredits = await BalanceService.getCreditAmountFromPriceId(oldPriceId);
           const newTierCredits = await BalanceService.getCreditAmountFromPriceId(newPriceId);
-          
+
           if (oldTierCredits && newTierCredits) {
             creditDifference = newTierCredits - oldTierCredits;
-            
+
             logger.info(`Calculating credit adjustment for subscription modification`, {
               userId: user._id,
               oldTierCredits,
               newTierCredits,
               creditDifference,
-              subscriptionId: subscription.id
+              subscriptionId: subscription.id,
             });
           }
-          
+
           await updateBalance({
             user: user._id,
             incrementValue: creditDifference, // Add the credit difference immediately
@@ -1265,8 +1273,8 @@ router.post('/modify-subscription', requireJwtAuth, async (req, res) => {
               tierName: tierInfo.name,
               refillAmount: tierInfo.refillAmount,
               refillIntervalValue: tierInfo.refillIntervalValue,
-              refillIntervalUnit: tierInfo.refillIntervalUnit
-            }
+              refillIntervalUnit: tierInfo.refillIntervalUnit,
+            },
           });
 
           // Create transaction record for credit adjustment if credits were added
@@ -1285,19 +1293,23 @@ router.post('/modify-subscription', requireJwtAuth, async (req, res) => {
                 endpointTokenConfig: {},
               });
               await transaction.save();
-              
+
               logger.info(`Transaction record created for subscription upgrade credit adjustment`, {
                 userId: user._id,
                 transactionId: transaction._id,
                 creditsAdded: creditDifference,
-                subscriptionId: subscription.id
+                subscriptionId: subscription.id,
               });
             } catch (transactionError) {
-              logger.warn('Failed to create transaction record for credit adjustment:', transactionError, {
-                userId: user._id,
-                creditDifference,
-                subscriptionId: subscription.id
-              });
+              logger.warn(
+                'Failed to create transaction record for credit adjustment:',
+                transactionError,
+                {
+                  userId: user._id,
+                  creditDifference,
+                  subscriptionId: subscription.id,
+                },
+              );
               // Don't fail the request if transaction recording fails
             }
           }
@@ -1307,12 +1319,12 @@ router.post('/modify-subscription', requireJwtAuth, async (req, res) => {
             newTier: tierInfo.tier,
             newTierName: tierInfo.name,
             newRefillAmount: tierInfo.refillAmount,
-            creditsAdded: creditDifference
+            creditsAdded: creditDifference,
           });
         } catch (dbError) {
           logger.error('Failed to update user tier in database:', dbError, {
             userId: user._id,
-            subscriptionId: subscription.id
+            subscriptionId: subscription.id,
           });
           // Don't fail the request if DB update fails, as Stripe subscription was successful
         }
@@ -1326,24 +1338,22 @@ router.post('/modify-subscription', requireJwtAuth, async (req, res) => {
           status: updatedSubscription.status,
           currentPeriodEnd: updatedSubscription.current_period_end,
           credits: credits,
-          priceId: newPriceId
+          priceId: newPriceId,
         },
-        tier: tierInfo
+        tier: tierInfo,
       });
-
     } catch (stripeError) {
       logger.error('Error modifying Stripe subscription:', stripeError, {
         userId: user._id,
         subscriptionId: subscription.id,
-        newPriceId
+        newPriceId,
       });
-      
+
       res.status(500).json({
         error: 'Failed to modify subscription in Stripe',
-        details: stripeError.message
+        details: stripeError.message,
       });
     }
-
   } catch (error) {
     logger.error('Error in subscription modification:', error);
     res.status(500).json({
@@ -1352,4 +1362,4 @@ router.post('/modify-subscription', requireJwtAuth, async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;

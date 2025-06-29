@@ -68,25 +68,25 @@ const WorkflowStepNode = ({ data, selected }: { data: any; selected: boolean }) 
         background: 'linear-gradient(135deg, #0E1593 0%, #04062D 100%)',
         border: '2px solid #0E1593',
         color: 'white',
-        icon: '⚙️'
+        icon: '⚙️',
       },
       condition: {
         background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
         border: '2px solid #ed64a6',
         color: 'white',
-        icon: '❓'
+        icon: '❓',
       },
       delay: {
         background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
         border: '2px solid #38b2ac',
         color: '#2d3748',
-        icon: '⏱️'
+        icon: '⏱️',
       },
       mcp_tool: {
         background: 'linear-gradient(135deg, #0E1593 0%, #04062D 100%)',
         border: '2px solid #0E1593',
         color: 'white',
-        icon: '🔧'
+        icon: '🔧',
       },
     };
 
@@ -123,18 +123,18 @@ const WorkflowStepNode = ({ data, selected }: { data: any; selected: boolean }) 
       <Handle
         type="target"
         position={Position.Top}
-        style={{ 
+        style={{
           background: '#ffffff',
           border: '2px solid #e2e8f0',
           width: '12px',
           height: '12px',
         }}
       />
-      
+
       <div
-        className={`relative rounded-xl shadow-lg transition-all duration-300 ease-in-out hover:shadow-xl min-w-64 ${
+        className={`relative min-w-64 rounded-xl shadow-lg transition-all duration-300 ease-in-out hover:shadow-xl ${
           selected ? 'ring-4 ring-blue-400 ring-opacity-60' : ''
-      }`}
+        }`}
         style={{
           background: style.background,
           border: style.border,
@@ -146,46 +146,50 @@ const WorkflowStepNode = ({ data, selected }: { data: any; selected: boolean }) 
       >
         <div className="px-6 py-4">
           <div className="flex items-start gap-3">
-            <div className="text-2xl mt-0.5" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>
+            <div
+              className="mt-0.5 text-2xl"
+              style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}
+            >
               {style.icon}
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="font-semibold text-base mb-1 leading-tight" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+            <div className="min-w-0 flex-1">
+              <div
+                className="mb-1 text-base font-semibold leading-tight"
+                style={{ textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}
+              >
                 {data.label}
               </div>
-          {data.config?.toolName && (
-                <div className="text-sm opacity-90 mb-1 font-medium">
-                  {data.config.toolName}
-                </div>
-          )}
-          {data.config?.condition && (
-                <div className="text-sm opacity-80 leading-snug">
+              {data.config?.toolName && (
+                <div className="mb-1 text-sm font-medium opacity-90">{data.config.toolName}</div>
+              )}
+              {data.config?.condition && (
+                <div className="text-sm leading-snug opacity-80">
                   <span className="font-medium">If:</span> {data.config.condition}
                 </div>
-          )}
-          {data.config?.delayMs && (
-                <div className="text-sm opacity-80 leading-snug">
+              )}
+              {data.config?.delayMs && (
+                <div className="text-sm leading-snug opacity-80">
                   <span className="font-medium">Wait:</span> {data.config.delayMs}ms
                 </div>
-          )}
+              )}
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-        
+
         {/* Status indicator */}
         {data.status && data.status !== 'pending' && (
-          <div className="absolute -top-2 -right-2 w-4 h-4 rounded-full border-2 border-white shadow-md">
+          <div className="absolute -right-2 -top-2 h-4 w-4 rounded-full border-2 border-white shadow-md">
             {data.status === 'running' && (
-              <div className="w-full h-full bg-blue-500 rounded-full animate-pulse"></div>
+              <div className="h-full w-full animate-pulse rounded-full bg-blue-500"></div>
             )}
             {data.status === 'completed' && (
-              <div className="w-full h-full bg-green-500 rounded-full"></div>
+              <div className="h-full w-full rounded-full bg-green-500"></div>
             )}
             {data.status === 'failed' && (
-              <div className="w-full h-full bg-red-500 rounded-full"></div>
+              <div className="h-full w-full rounded-full bg-red-500"></div>
             )}
             {data.status === 'skipped' && (
-              <div className="w-full h-full bg-gray-400 rounded-full"></div>
+              <div className="h-full w-full rounded-full bg-gray-400"></div>
             )}
           </div>
         )}
@@ -194,7 +198,7 @@ const WorkflowStepNode = ({ data, selected }: { data: any; selected: boolean }) 
       <Handle
         type="source"
         position={Position.Bottom}
-        style={{ 
+        style={{
           background: '#ffffff',
           border: '2px solid #e2e8f0',
           width: '12px',
@@ -208,33 +212,33 @@ const WorkflowStepNode = ({ data, selected }: { data: any; selected: boolean }) 
 // Custom node component for trigger
 const TriggerNode = ({ data }: { data: any }) => {
   const { timezone } = useTimezone();
-  
+
   const getTriggerStyle = (type: string) => {
     const styles = {
       manual: {
         background: 'linear-gradient(135deg, #0E1593 0%, #04062D 100%)',
         border: '2px solid #0E1593',
-        icon: '👤'
+        icon: '👤',
       },
       schedule: {
         background: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
         border: '2px solid #ed8936',
-        icon: '📅'
+        icon: '📅',
       },
       webhook: {
         background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
         border: '2px solid #38b2ac',
-        icon: '🔗'
+        icon: '🔗',
       },
       email: {
         background: 'linear-gradient(135deg, #0E1593 0%, #04062D 100%)',
         border: '2px solid #0E1593',
-        icon: '📧'
+        icon: '📧',
       },
       event: {
         background: 'linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%)',
         border: '2px solid #4299e1',
-        icon: '⚡'
+        icon: '⚡',
       },
     };
 
@@ -243,7 +247,7 @@ const TriggerNode = ({ data }: { data: any }) => {
 
   const formatScheduleDisplay = (config: any) => {
     if (!config?.schedule) return null;
-    
+
     // Use timezone-aware formatting
     const humanReadable = cronToHumanReadable(config.schedule, timezone);
     return humanReadable !== config.schedule ? humanReadable : `Cron: ${config.schedule}`;
@@ -254,7 +258,7 @@ const TriggerNode = ({ data }: { data: any }) => {
   return (
     <>
       <div
-        className="relative rounded-xl shadow-lg transition-all duration-300 ease-in-out hover:shadow-xl min-w-56"
+        className="relative min-w-56 rounded-xl shadow-lg transition-all duration-300 ease-in-out hover:shadow-xl"
         style={{
           background: style.background,
           border: style.border,
@@ -264,33 +268,39 @@ const TriggerNode = ({ data }: { data: any }) => {
       >
         <div className="px-6 py-4">
           <div className="flex items-start gap-3">
-            <div className="text-2xl mt-0.5" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>
+            <div
+              className="mt-0.5 text-2xl"
+              style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}
+            >
               {style.icon}
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="font-semibold text-base mb-1 leading-tight" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+            <div className="min-w-0 flex-1">
+              <div
+                className="mb-1 text-base font-semibold leading-tight"
+                style={{ textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}
+              >
                 Trigger
               </div>
-              <div className="text-sm opacity-90 font-medium capitalize mb-1">
+              <div className="mb-1 text-sm font-medium capitalize opacity-90">
                 {data.type || 'manual'}
               </div>
               {data.config?.schedule && (
-                <div className="text-sm opacity-80 leading-snug">
+                <div className="text-sm leading-snug opacity-80">
                   {formatScheduleDisplay(data.config)}
                 </div>
               )}
             </div>
           </div>
         </div>
-        
+
         {/* Pulse effect for active triggers */}
-        <div className="absolute inset-0 rounded-xl bg-white opacity-0 hover:opacity-10 transition-opacity duration-300"></div>
+        <div className="absolute inset-0 rounded-xl bg-white opacity-0 transition-opacity duration-300 hover:opacity-10"></div>
       </div>
 
       <Handle
         type="source"
         position={Position.Bottom}
-        style={{ 
+        style={{
           background: style.border.replace('2px solid ', ''),
           border: '2px solid #ffffff',
           width: '12px',
@@ -314,10 +324,15 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data }) =
     } catch (error) {
       console.error('Failed to parse workflow data:', error);
       return {
-        workflow: { id: '', name: 'Invalid Workflow', trigger: { type: 'manual', config: {} }, steps: [] },
+        workflow: {
+          id: '',
+          name: 'Invalid Workflow',
+          trigger: { type: 'manual', config: {} },
+          steps: [],
+        },
         nodes: [],
         edges: [],
-        trigger: { type: 'manual', config: {} }
+        trigger: { type: 'manual', config: {} },
       };
     }
   }, [data]);
@@ -342,7 +357,7 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data }) =
     workflowData.nodes.forEach((node, index) => {
       // Create a flowing, organic pattern
       let x, y;
-      
+
       if (index === 0) {
         // First node - slightly offset from trigger
         x = 300;
@@ -360,20 +375,20 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data }) =
         const pattern = index % 4;
         switch (pattern) {
           case 0:
-            x = 150 + (index * 50);
-            y = 200 + (index * 120);
+            x = 150 + index * 50;
+            y = 200 + index * 120;
             break;
           case 1:
-            x = 450 + (index * 30);
-            y = 250 + (index * 100);
+            x = 450 + index * 30;
+            y = 250 + index * 100;
             break;
           case 2:
-            x = 300 - (index * 20);
-            y = 300 + (index * 110);
+            x = 300 - index * 20;
+            y = 300 + index * 110;
             break;
           default:
-            x = 350 + (index * 40);
-            y = 180 + (index * 130);
+            x = 350 + index * 40;
+            y = 180 + index * 130;
         }
       }
 
@@ -450,7 +465,7 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data }) =
 
   if (!workflowData.workflow?.name) {
     return (
-      <div className="flex items-center justify-center h-96 text-gray-500">
+      <div className="flex h-96 items-center justify-center text-gray-500">
         <div className="text-center">
           <div className="text-lg font-medium">Invalid Workflow Data</div>
           <div className="text-sm">Unable to parse workflow visualization data</div>
@@ -460,35 +475,41 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data }) =
   }
 
   return (
-    <div className="w-full h-full bg-gradient-to-br from-slate-50 to-gray-100 relative overflow-hidden flex flex-col">
+    <div className="relative flex h-full w-full flex-col overflow-hidden bg-gradient-to-br from-slate-50 to-gray-100">
       {/* Header - Fixed height, responsive padding */}
-      <div className="flex-shrink-0 p-3 sm:p-6 border-b bg-white/90 backdrop-blur-sm">
-        <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-2 leading-tight">{workflowData.workflow.name}</h2>
+      <div className="flex-shrink-0 border-b bg-white/90 p-3 backdrop-blur-sm sm:p-6">
+        <h2 className="mb-2 text-lg font-bold leading-tight text-gray-800 sm:text-xl">
+          {workflowData.workflow.name}
+        </h2>
         {workflowData.workflow.description && (
-          <p className="text-xs sm:text-sm text-gray-600 mb-3 leading-relaxed max-h-12 sm:max-h-none overflow-hidden">{workflowData.workflow.description}</p>
+          <p className="mb-3 max-h-12 overflow-hidden text-xs leading-relaxed text-gray-600 sm:max-h-none sm:text-sm">
+            {workflowData.workflow.description}
+          </p>
         )}
-        <div className="flex flex-wrap gap-3 sm:gap-6 text-xs sm:text-sm text-gray-500">
+        <div className="flex flex-wrap gap-3 text-xs text-gray-500 sm:gap-6 sm:text-sm">
           <span className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+            <div className="h-2 w-2 rounded-full bg-blue-500"></div>
             <strong>{workflowData.workflow.steps.length}</strong> Steps
           </span>
           <span className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <div className="h-2 w-2 rounded-full bg-green-500"></div>
             <strong className="capitalize">{workflowData.trigger.type}</strong> Trigger
           </span>
           {/* Show schedule info on mobile if available */}
           {workflowData.trigger.type === 'schedule' && workflowData.trigger.config && (
             <span className="flex items-center gap-1 text-xs text-gray-500">
-              <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+              <div className="h-2 w-2 rounded-full bg-orange-500"></div>
               <span className="hidden sm:inline">Schedule:</span>
-              <span className="font-mono text-xs">{workflowData.trigger.config.cron || 'Custom'}</span>
+              <span className="font-mono text-xs">
+                {workflowData.trigger.config.cron || 'Custom'}
+              </span>
             </span>
           )}
         </div>
       </div>
-      
+
       {/* ReactFlow Container - Takes remaining space */}
-      <div className="flex-1 min-h-0">
+      <div className="min-h-0 flex-1">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -502,13 +523,8 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data }) =
           minZoom={0.2}
           maxZoom={1.5}
         >
-          <Background 
-            color="#e2e8f0" 
-            gap={24} 
-            size={1}
-            variant="dots"
-          />
-          <Controls 
+          <Background color="#e2e8f0" gap={24} size={1} variant="dots" />
+          <Controls
             style={{
               backgroundColor: 'rgba(255, 255, 255, 0.9)',
               border: '1px solid #e2e8f0',
@@ -523,4 +539,4 @@ const WorkflowVisualization: React.FC<WorkflowVisualizationProps> = ({ data }) =
   );
 };
 
-export default WorkflowVisualization; 
+export default WorkflowVisualization;

@@ -16,12 +16,12 @@ class NotificationManager {
       this.connections.set(userId, new Set());
     }
     this.connections.get(userId).add(res);
-    
+
     // Clean up when connection closes
     res.on('close', () => {
       this.removeConnection(userId, res);
     });
-    
+
     logger.debug(`[NotificationManager] Added SSE connection for user ${userId}`);
   }
 
@@ -38,60 +38,83 @@ class NotificationManager {
   sendNotification(userId, data) {
     logger.debug(`[NotificationManager] Attempting to send notification to user ${userId}`);
     logger.debug(`[NotificationManager] Active connections:`, Object.keys(this.connections));
-    
+
     // Validate notification data
     if (!data) {
-      logger.error(`[NotificationManager] Cannot send notification to user ${userId}: data is null or undefined`);
+      logger.error(
+        `[NotificationManager] Cannot send notification to user ${userId}: data is null or undefined`,
+      );
       return false;
     }
-    
+
     // Log notification data with safe serialization
     try {
-      logger.info(`[NotificationManager] Sending notification to user ${userId}:`, JSON.stringify(data, null, 2));
+      logger.info(
+        `[NotificationManager] Sending notification to user ${userId}:`,
+        JSON.stringify(data, null, 2),
+      );
     } catch (serializationError) {
-      logger.warn(`[NotificationManager] Failed to serialize notification data for logging:`, serializationError);
-      logger.info(`[NotificationManager] Sending notification to user ${userId} (data type: ${typeof data})`);
+      logger.warn(
+        `[NotificationManager] Failed to serialize notification data for logging:`,
+        serializationError,
+      );
+      logger.info(
+        `[NotificationManager] Sending notification to user ${userId} (data type: ${typeof data})`,
+      );
     }
-    
+
     if (this.connections.has(userId)) {
       const connections = this.connections.get(userId);
-      
+
       // Safely serialize the notification data
       let message;
       try {
         message = `data: ${JSON.stringify(data)}\n\n`;
       } catch (jsonError) {
-        logger.error(`[NotificationManager] Failed to serialize notification data for user ${userId}:`, jsonError);
+        logger.error(
+          `[NotificationManager] Failed to serialize notification data for user ${userId}:`,
+          jsonError,
+        );
         // Send a fallback error notification
-        message = `data: ${JSON.stringify({ 
-          type: 'error', 
+        message = `data: ${JSON.stringify({
+          type: 'error',
           message: 'Failed to serialize notification data',
-          originalType: data?.type || 'unknown'
+          originalType: data?.type || 'unknown',
         })}\n\n`;
       }
-      
-      connections.forEach(res => {
+
+      connections.forEach((res) => {
         try {
           // Check if response is still writable before attempting to write
           if (res.destroyed || res.writableEnded || !res.writable) {
-            logger.warn(`[NotificationManager] Connection for user ${userId} is not writable, removing...`);
+            logger.warn(
+              `[NotificationManager] Connection for user ${userId} is not writable, removing...`,
+            );
             this.removeConnection(userId, res);
             return;
           }
-          
+
           res.write(message);
         } catch (error) {
-          logger.warn(`[NotificationManager] Failed to send notification to user ${userId}:`, error);
+          logger.warn(
+            `[NotificationManager] Failed to send notification to user ${userId}:`,
+            error,
+          );
           this.removeConnection(userId, res);
         }
       });
-      
+
       const remainingConnections = this.connections.get(userId)?.size || 0;
-      logger.debug(`[NotificationManager] Sent notification to ${remainingConnections} connections for user ${userId}`);
+      logger.debug(
+        `[NotificationManager] Sent notification to ${remainingConnections} connections for user ${userId}`,
+      );
       return remainingConnections > 0;
     } else {
       logger.warn(`[NotificationManager] No active connections for user ${userId}`);
-      logger.debug(`[NotificationManager] Available connection keys:`, Array.from(this.connections.keys()));
+      logger.debug(
+        `[NotificationManager] Available connection keys:`,
+        Array.from(this.connections.keys()),
+      );
     }
     return false;
   }
@@ -115,38 +138,56 @@ class SchedulerService {
    * @param {string} [params.parentMessageId] - The parent message ID to maintain conversation thread
    * @returns {Promise<Object>} Success response with message details
    */
-  static async sendSchedulerMessage({ userId, conversationId, message, taskId, taskName, parentMessageId: providedParentMessageId }) {
+  static async sendSchedulerMessage({
+    userId,
+    conversationId,
+    message,
+    taskId,
+    taskName,
+    parentMessageId: providedParentMessageId,
+  }) {
     try {
       // Validate required fields
       if (!userId || !conversationId || !message) {
         throw new Error('Missing required fields: userId, conversationId, message');
       }
-      
+
       // Always try to find the last message in the conversation for proper threading
       let parentMessageId = providedParentMessageId;
-      
+
       // Even if a parentMessageId is provided, if it's the NO_PARENT constant, try to find the real parent
       if (!parentMessageId || parentMessageId === '00000000-0000-0000-0000-000000000000') {
         try {
           const messages = await getMessages({ conversationId, user: userId });
           if (messages && messages.length > 0) {
             // Sort messages by createdAt to get the most recent one
-            const sortedMessages = messages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            const sortedMessages = messages.sort(
+              (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+            );
             parentMessageId = sortedMessages[0].messageId;
-            logger.debug(`[SchedulerService] Found last message in conversation ${conversationId}: ${parentMessageId}`);
+            logger.debug(
+              `[SchedulerService] Found last message in conversation ${conversationId}: ${parentMessageId}`,
+            );
           } else {
-            logger.debug(`[SchedulerService] No existing messages found in conversation ${conversationId}, using null parentMessageId`);
+            logger.debug(
+              `[SchedulerService] No existing messages found in conversation ${conversationId}, using null parentMessageId`,
+            );
             parentMessageId = null;
           }
         } catch (error) {
-          logger.warn(`[SchedulerService] Error getting messages for conversation ${conversationId}:`, error);
+          logger.warn(
+            `[SchedulerService] Error getting messages for conversation ${conversationId}:`,
+            error,
+          );
           // Continue with null parentMessageId
           parentMessageId = null;
         }
       } else {
-        logger.debug(`[SchedulerService] Using provided parentMessageId ${parentMessageId} for conversation ${conversationId}`);
+        logger.debug(
+          `[SchedulerService] Using provided parentMessageId ${parentMessageId} for conversation ${conversationId}`,
+        );
       }
-      
+
       // Create a system message from the scheduler
       const messageId = uuidv4();
       const systemMessage = {
@@ -164,23 +205,21 @@ class SchedulerService {
           taskId,
           taskName,
           source: 'scheduler',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       };
-      
+
       // Create a minimal req object for saveMessage
       const mockReq = {
         user: { id: userId },
-        app: { locals: {} }
+        app: { locals: {} },
       };
-      
+
       // Save the message to the database
-      const savedMessage = await saveMessage(
-        mockReq,
-        systemMessage,
-        { context: 'SchedulerService.sendSchedulerMessage' }
-      );
-      
+      const savedMessage = await saveMessage(mockReq, systemMessage, {
+        context: 'SchedulerService.sendSchedulerMessage',
+      });
+
       // Get or create the conversation
       let conversation;
       try {
@@ -188,7 +227,9 @@ class SchedulerService {
         if (!conversation) {
           // Don't create a new conversation - just log that we couldn't find it
           // The message will still be saved with the correct conversationId
-          logger.warn(`Conversation ${conversationId} not found for user ${userId}, but message will be saved anyway`);
+          logger.warn(
+            `Conversation ${conversationId} not found for user ${userId}, but message will be saved anyway`,
+          );
           conversation = { conversationId, title: `Scheduler: ${taskName || 'Task Result'}` };
         }
       } catch (error) {
@@ -196,9 +237,9 @@ class SchedulerService {
         // Continue even if conversation handling fails
         conversation = { conversationId, title: `Scheduler: ${taskName || 'Task Result'}` };
       }
-      
+
       logger.info(`Scheduler message sent to user ${userId} in conversation ${conversationId}`);
-      
+
       // Send real-time notification via SSE if user is connected
       const wasNotified = notificationManager.sendNotification(userId, {
         type: 'scheduler_message',
@@ -207,19 +248,18 @@ class SchedulerService {
         taskId,
         taskName,
         message: message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
-      
+
       logger.debug(`[SchedulerService] SSE notification sent: ${wasNotified} for user ${userId}`);
-      
+
       return {
         success: true,
         messageId: savedMessage.messageId,
         conversationId: savedMessage.conversationId,
         message: 'Message delivered successfully',
-        notified: wasNotified
+        notified: wasNotified,
       };
-      
     } catch (error) {
       logger.error('Error sending scheduler message:', error);
       throw new Error(`Failed to send scheduler message: ${error.message}`);
@@ -237,13 +277,13 @@ class SchedulerService {
    */
   static formatTaskMessage({ taskName, result, taskType, success }) {
     if (success) {
-      if (taskType === "ai") {
+      if (taskType === 'ai') {
         return `**AI Task Completed: ${taskName}**\n\n${result}`;
-      } else if (taskType === "reminder") {
+      } else if (taskType === 'reminder') {
         return `🔔 **Reminder: ${taskName}**\n\n${result}`;
-      } else if (taskType === "api_call") {
+      } else if (taskType === 'api_call') {
         return `**API Task Completed: ${taskName}**\n\n\`\`\`json\n${result}\n\`\`\``;
-      } else if (taskType === "shell_command") {
+      } else if (taskType === 'shell_command') {
         return `**Command Completed: ${taskName}**\n\n\`\`\`bash\n${result}\n\`\`\``;
       } else {
         return `**Task Completed: ${taskName}**\n\n${result}`;
@@ -262,11 +302,11 @@ class SchedulerService {
    * @returns {string} Formatted notification message
    */
   static formatNotificationMessage({ taskName, notificationType, details }) {
-    if (notificationType === "started") {
+    if (notificationType === 'started') {
       return `⏳ **Task Started: ${taskName}**\n\nYour scheduled task is now running...`;
-    } else if (notificationType === "failed") {
+    } else if (notificationType === 'failed') {
       return `❌ **Task Failed: ${taskName}**\n\n${details || 'The task encountered an error.'}`;
-    } else if (notificationType === "cancelled") {
+    } else if (notificationType === 'cancelled') {
       return `🚫 **Task Cancelled: ${taskName}**\n\n${details || 'The task was cancelled.'}`;
     } else {
       return `📋 **Task Update: ${taskName}**\n\n${details || 'Task status updated.'}`;
@@ -287,15 +327,16 @@ class SchedulerService {
    * @returns {Promise<Object>} Success response
    */
   static async sendTaskResult(params) {
-    const { userId, conversationId, taskName, taskId, result, taskType, success, parentMessageId } = params;
-    
+    const { userId, conversationId, taskName, taskId, result, taskType, success, parentMessageId } =
+      params;
+
     if (!userId || !conversationId) {
       logger.warn(`Cannot send message for task ${taskId}: missing userId or conversationId`);
       return { success: false, error: 'Missing userId or conversationId' };
     }
-    
+
     const message = this.formatTaskMessage({ taskName, result, taskType, success });
-    
+
     try {
       return await this.sendSchedulerMessage({
         userId,
@@ -303,7 +344,7 @@ class SchedulerService {
         message,
         taskId,
         taskName,
-        parentMessageId
+        parentMessageId,
       });
     } catch (error) {
       logger.error(`Error sending task result for task ${taskId}:`, error);
@@ -324,14 +365,15 @@ class SchedulerService {
    * @returns {Promise<Object>} Success response
    */
   static async sendTaskNotification(params) {
-    const { userId, conversationId, taskName, taskId, notificationType, details, parentMessageId } = params;
-    
+    const { userId, conversationId, taskName, taskId, notificationType, details, parentMessageId } =
+      params;
+
     if (!userId || !conversationId) {
       return { success: false, error: 'Missing userId or conversationId' };
     }
-    
+
     const message = this.formatNotificationMessage({ taskName, notificationType, details });
-    
+
     try {
       return await this.sendSchedulerMessage({
         userId,
@@ -339,7 +381,7 @@ class SchedulerService {
         message,
         taskId,
         taskName,
-        parentMessageId
+        parentMessageId,
       });
     } catch (error) {
       logger.error(`Error sending notification for task ${taskId}:`, error);
@@ -360,11 +402,11 @@ class SchedulerService {
    */
   static async sendTaskStatusUpdate(params) {
     const { userId, taskName, taskId, notificationType, details } = params;
-    
+
     if (!userId) {
       return { success: false, error: 'Missing userId' };
     }
-    
+
     try {
       // Send real-time notification via SSE if user is connected
       const wasNotified = notificationManager.sendNotification(userId, {
@@ -373,17 +415,18 @@ class SchedulerService {
         taskName,
         notificationType,
         details,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
-      
-      logger.debug(`[SchedulerService] Task status update sent: ${wasNotified} for user ${userId}, task ${taskId}, status: ${notificationType}`);
-      
+
+      logger.debug(
+        `[SchedulerService] Task status update sent: ${wasNotified} for user ${userId}, task ${taskId}, status: ${notificationType}`,
+      );
+
       return {
         success: true,
         message: 'Status update sent successfully',
-        notified: wasNotified
+        notified: wasNotified,
       };
-      
     } catch (error) {
       logger.error(`Error sending task status update for task ${taskId}:`, error);
       return { success: false, error: error.message };
@@ -405,12 +448,21 @@ class SchedulerService {
    * @returns {Promise<Object>} Success response
    */
   static async sendWorkflowStatusUpdate(params) {
-    const { userId, workflowName, workflowId, notificationType, details, workflowData, stepData, executionResult } = params;
-    
+    const {
+      userId,
+      workflowName,
+      workflowId,
+      notificationType,
+      details,
+      workflowData,
+      stepData,
+      executionResult,
+    } = params;
+
     if (!userId) {
       return { success: false, error: 'Missing userId' };
     }
-    
+
     try {
       // Send real-time notification via SSE if user is connected
       const wasNotified = notificationManager.sendNotification(userId, {
@@ -422,17 +474,18 @@ class SchedulerService {
         workflowData,
         stepData,
         executionResult,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
-      
-      logger.debug(`[SchedulerService] Workflow status update sent: ${wasNotified} for user ${userId}, workflow ${workflowId}, status: ${notificationType}${stepData ? `, step: ${stepData.stepName}` : ''}`);
-      
+
+      logger.debug(
+        `[SchedulerService] Workflow status update sent: ${wasNotified} for user ${userId}, workflow ${workflowId}, status: ${notificationType}${stepData ? `, step: ${stepData.stepName}` : ''}`,
+      );
+
       return {
         success: true,
         message: 'Workflow status update sent successfully',
-        notified: wasNotified
+        notified: wasNotified,
       };
-      
     } catch (error) {
       logger.error(`Error sending workflow status update for workflow ${workflowId}:`, error);
       return { success: false, error: error.message };
@@ -442,4 +495,4 @@ class SchedulerService {
 
 module.exports = SchedulerService;
 module.exports.NotificationManager = NotificationManager;
-module.exports.notificationManager = notificationManager; 
+module.exports.notificationManager = notificationManager;

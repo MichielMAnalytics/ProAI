@@ -33,61 +33,65 @@ const logger = require('../utils/logger');
  */
 async function deleteUserData(user) {
   console.log(`🗑️  Deleting data for user: ${user.email} (ID: ${user._id})`);
-  
+
   try {
     // Delete from all collections that reference the user
     // Using direct mongoose operations to avoid import issues
-    
+
     console.log('   🔄 Deleting messages...');
     await mongoose.connection.db.collection('messages').deleteMany({ user: user._id });
-    
+
     console.log('   🔄 Deleting conversations...');
     await mongoose.connection.db.collection('conversations').deleteMany({ user: user._id });
-    
+
     console.log('   🔄 Deleting transactions...');
     await Transaction.deleteMany({ user: user._id });
-    
+
     console.log('   🔄 Deleting balances...');
     await Balance.deleteMany({ user: user._id });
-    
+
     console.log('   🔄 Deleting presets...');
     await mongoose.connection.db.collection('presets').deleteMany({ user: user._id });
-    
+
     console.log('   🔄 Deleting sessions...');
-    await mongoose.connection.db.collection('sessions').deleteMany({ session: new RegExp(`"user":"${user._id}"`, 'i') });
-    
+    await mongoose.connection.db
+      .collection('sessions')
+      .deleteMany({ session: new RegExp(`"user":"${user._id}"`, 'i') });
+
     console.log('   🔄 Deleting files...');
     await mongoose.connection.db.collection('files').deleteMany({ user: user._id });
-    
+
     console.log('   🔄 Deleting keys...');
     await mongoose.connection.db.collection('keys').deleteMany({ userId: user._id });
-    
+
     console.log('   🔄 Deleting shared links...');
     await mongoose.connection.db.collection('shares').deleteMany({ userId: user._id });
-    
+
     console.log('   🔄 Deleting tool calls...');
     await mongoose.connection.db.collection('toolcalls').deleteMany({ user: user._id });
-    
+
     console.log('   🔄 Deleting plugin auth...');
     await mongoose.connection.db.collection('pluginauths').deleteMany({ userId: user._id });
-    
+
     // Delete additional collections
     console.log('   🔄 Deleting user integrations...');
-    await mongoose.connection.db.collection('userintegrations').deleteMany({ userId: user._id.toString() });
-    
+    await mongoose.connection.db
+      .collection('userintegrations')
+      .deleteMany({ userId: user._id.toString() });
+
     console.log('   🔄 Deleting scheduler tasks...');
     await mongoose.connection.db.collection('schedulertasks').deleteMany({ user: user._id });
-    
+
     console.log('   🔄 Deleting scheduler executions...');
     await mongoose.connection.db.collection('schedulerexecutions').deleteMany({ user: user._id });
-    
+
     console.log('   🔄 Deleting memory entries...');
     await mongoose.connection.db.collection('memoryentries').deleteMany({ userId: user._id });
-    
+
     console.log('   🔄 Deleting user record...');
     // Finally delete the user record itself
     await User.findByIdAndDelete(user._id);
-    
+
     console.log(`✅ Successfully deleted user: ${user.email}`);
     return true;
   } catch (error) {
@@ -104,19 +108,19 @@ async function deleteAllUsers() {
     // Connect to database
     await connectDb();
     console.log('📡 Connected to database');
-    
+
     // Get all users
     const users = await User.find({});
     console.log(`👥 Found ${users.length} users to delete`);
-    
+
     if (users.length === 0) {
       console.log('✨ No users found in database');
       return;
     }
-    
+
     let successCount = 0;
     let failureCount = 0;
-    
+
     // Delete each user and their data
     for (const user of users) {
       const success = await deleteUserData(user);
@@ -127,16 +131,15 @@ async function deleteAllUsers() {
       }
       console.log(''); // Add spacing between users
     }
-    
+
     console.log('📊 Deletion Summary:');
     console.log(`✅ Successfully deleted: ${successCount} users`);
     console.log(`❌ Failed to delete: ${failureCount} users`);
     console.log(`📈 Total processed: ${users.length} users`);
-    
+
     if (successCount > 0) {
       logger.info(`[delete-all-users] Deleted ${successCount} users from database`);
     }
-    
   } catch (error) {
     console.error('💥 Error in deleteAllUsers:', error.message);
     throw error;
@@ -146,7 +149,7 @@ async function deleteAllUsers() {
 // CLI interface
 if (require.main === module) {
   const args = process.argv.slice(2);
-  
+
   if (!args.includes('--confirm')) {
     console.log('⚠️  WARNING: This script will delete ALL users from the database!');
     console.log('');
@@ -167,11 +170,11 @@ if (require.main === module) {
     console.log('Please add the --confirm flag to proceed with the deletion.');
     process.exit(1);
   }
-  
+
   console.log('🚨 DANGER ZONE: Deleting all users from database...');
   console.log('⏳ This may take a while for large databases...');
   console.log('');
-  
+
   deleteAllUsers()
     .then(() => {
       console.log('🎉 All users deleted successfully!');

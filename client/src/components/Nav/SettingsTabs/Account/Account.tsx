@@ -10,7 +10,7 @@ import { useGetStartupConfig } from '~/data-provider';
 function Account() {
   const user = useAuthContext();
   const { data: startupConfig } = useGetStartupConfig();
-  
+
   const accountItemsConfig = startupConfig?.interface?.settingsTabs?.accountItems || {
     displayUsername: true,
     avatar: true,

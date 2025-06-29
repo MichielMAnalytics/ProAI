@@ -78,18 +78,23 @@ const AppService = async (app) => {
 
   if (config.mcpServers != null) {
     logger.info('[AppService] Global MCP servers found in config:', Object.keys(config.mcpServers));
-    logger.info('[AppService] MCP server configurations:', JSON.stringify(config.mcpServers, null, 2));
-    
+    logger.info(
+      '[AppService] MCP server configurations:',
+      JSON.stringify(config.mcpServers, null, 2),
+    );
+
     const mcpManager = getMCPManager();
     logger.info('[AppService] Initializing global MCP servers...');
     await mcpManager.initializeMCP(config.mcpServers, processMCPEnv);
-    
+
     logger.info('[AppService] Mapping global MCP tools to availableTools...');
     const toolsCountBefore = Object.keys(availableTools).length;
     await mcpManager.mapAvailableTools(availableTools);
     const toolsCountAfter = Object.keys(availableTools).length;
-    logger.info(`[AppService] Available tools count: ${toolsCountBefore} → ${toolsCountAfter} (added ${toolsCountAfter - toolsCountBefore} MCP tools)`);
-    
+    logger.info(
+      `[AppService] Available tools count: ${toolsCountBefore} → ${toolsCountAfter} (added ${toolsCountAfter - toolsCountBefore} MCP tools)`,
+    );
+
     // Log the actual tools that were added
     const mcpToolNames = Object.keys(availableTools).slice(toolsCountBefore);
     if (mcpToolNames.length > 0) {
@@ -105,7 +110,8 @@ const AppService = async (app) => {
   const turnstileConfig = loadTurnstileConfig(config, configDefaults);
   const schedulerConfig = config?.scheduler ?? {};
   const workflowsConfig = config?.workflows ?? {};
-  const addUserSpecificMcpFromDb = config?.addUserSpecificMcpFromDb ?? configDefaults?.addUserSpecificMcpFromDb;
+  const addUserSpecificMcpFromDb =
+    config?.addUserSpecificMcpFromDb ?? configDefaults?.addUserSpecificMcpFromDb;
 
   const defaultLocals = {
     ocr,

@@ -93,4 +93,4 @@ AvailableIntegrationSchema.index({ isActive: 1, popularity: -1 });
 AvailableIntegrationSchema.index({ appCategories: 1 });
 AvailableIntegrationSchema.index({ appName: 'text', appDescription: 'text' });
 
-export default AvailableIntegrationSchema; 
+export default AvailableIntegrationSchema;
