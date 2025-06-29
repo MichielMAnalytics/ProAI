@@ -4,6 +4,7 @@ import { isAgentsEndpoint, isAssistantsEndpoint } from 'librechat-data-provider'
 import type { Endpoint } from '~/common';
 import { useModelSelectorContext } from '../ModelSelectorContext';
 import { CustomMenuItem as MenuItem } from '../CustomMenu';
+import { formatModelDisplayName } from '~/utils/modelNames';
 
 interface EndpointModelItemProps {
   modelId: string | null;
@@ -30,6 +31,9 @@ export function EndpointModelItem({ modelId, endpoint, isSelected }: EndpointMod
     endpoint.assistantNames?.[modelId]
   ) {
     modelName = endpoint.assistantNames[modelId];
+  } else if (modelName) {
+    // For regular models, format the display name
+    modelName = formatModelDisplayName(modelName);
   }
 
   return (

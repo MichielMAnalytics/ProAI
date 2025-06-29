@@ -8,6 +8,7 @@ import { useAssistantsMapContext } from '~/Providers';
 import useMentions from '~/hooks/Input/useMentions';
 import { useLocalize, useCombobox, TranslationKeys } from '~/hooks';
 import { removeCharIfLast } from '~/utils';
+import { formatModelDisplayName } from '~/utils/modelNames';
 import MentionItem from './MentionItem';
 
 const ROW_HEIGHT = 40;
@@ -90,7 +91,7 @@ export default function Mention({
     } else if (mention.type === 'endpoint') {
       const models = (modelsConfig?.[mention.value || ''] ?? []).map((model) => ({
         value: mention.value,
-        label: model,
+        label: formatModelDisplayName(model),
         type: 'model',
       }));
 

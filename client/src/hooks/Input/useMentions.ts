@@ -21,6 +21,7 @@ import useAssistantListMap from '~/hooks/Assistants/useAssistantListMap';
 import { mapEndpoints, getPresetTitle } from '~/utils';
 import { EndpointIcon } from '~/components/Endpoints';
 import useHasAccess from '~/hooks/Roles/useHasAccess';
+import { formatModelDisplayName } from '~/utils/modelNames';
 
 const defaultInterface = getConfigDefaults().interface;
 
@@ -144,7 +145,7 @@ export default function useMentions({
 
       const models = (modelsConfig?.[endpoint] ?? []).map((model) => ({
         value: endpoint,
-        label: model,
+        label: formatModelDisplayName(model),
         type: 'model' as const,
         icon: EndpointIcon({
           conversation: { endpoint, model },

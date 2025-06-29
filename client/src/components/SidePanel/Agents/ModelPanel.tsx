@@ -13,6 +13,7 @@ import { componentMapping } from '~/components/SidePanel/Parameters/components';
 import ControlCombobox from '~/components/ui/ControlCombobox';
 import { useGetEndpointsQuery } from '~/data-provider';
 import { getEndpointField, cn } from '~/utils';
+import { formatModelDisplayName } from '~/utils/modelNames';
 import { useLocalize } from '~/hooks';
 import { Panel } from '~/common';
 import keyBy from 'lodash/keyBy';
@@ -180,6 +181,7 @@ export default function ModelPanel({
                 <>
                   <ControlCombobox
                     selectedValue={field.value || ''}
+                    displayValue={field.value ? formatModelDisplayName(field.value) : ''}
                     selectPlaceholder={
                       provider
                         ? localize('com_ui_select_model')
@@ -188,7 +190,7 @@ export default function ModelPanel({
                     searchPlaceholder={localize('com_ui_select_model')}
                     setValue={field.onChange}
                     items={models.map((model) => ({
-                      label: model,
+                      label: formatModelDisplayName(model),
                       value: model,
                     }))}
                     disabled={!provider}
@@ -196,6 +198,7 @@ export default function ModelPanel({
                     ariaLabel={localize('com_ui_model')}
                     isCollapsed={false}
                     showCarat={true}
+                    hideSearchWhenFewItems={true}
                   />
                   {provider && error && (
                     <span className="text-sm text-red-500 transition duration-300 ease-in-out">

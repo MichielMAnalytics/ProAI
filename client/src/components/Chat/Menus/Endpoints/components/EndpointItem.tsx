@@ -113,27 +113,36 @@ export function EndpointItem({ endpoint }: EndpointItemProps) {
       isAgentsEndpoint(endpoint.value) || isAssistantsEndpoint(endpoint.value)
         ? localize('com_endpoint_search_var', { 0: endpoint.label })
         : localize('com_endpoint_search_endpoint_models', { 0: endpoint.label });
+    
+    // Only show search bar if there are 5 or more models
+    const modelCount = endpoint.models?.length || 0;
+    const showSearchBar = modelCount >= 5;
+    
+    const menuProps = {
+      id: `endpoint-${endpoint.value}-menu`,
+      key: `endpoint-${endpoint.value}-item`,
+      className: "transition-opacity duration-200 ease-in-out",
+      defaultOpen: endpoint.value === selectedEndpoint,
+      label: (
+        <div
+          onClick={() => handleSelectEndpoint(endpoint)}
+          className="group flex w-full flex-shrink cursor-pointer items-center justify-between rounded-xl px-1 py-1 text-sm"
+        >
+          {renderIconLabel()}
+          {isUserProvided && (
+            <SettingsButton endpoint={endpoint} handleOpenKeyDialog={handleOpenKeyDialog} />
+          )}
+        </div>
+      ),
+      ...(showSearchBar && {
+        searchValue,
+        onSearch: (value) => setEndpointSearchValue(endpoint.value, value),
+        combobox: <input placeholder={placeholder} />
+      })
+    };
+
     return (
-      <Menu
-        id={`endpoint-${endpoint.value}-menu`}
-        key={`endpoint-${endpoint.value}-item`}
-        className="transition-opacity duration-200 ease-in-out"
-        defaultOpen={endpoint.value === selectedEndpoint}
-        searchValue={searchValue}
-        onSearch={(value) => setEndpointSearchValue(endpoint.value, value)}
-        combobox={<input placeholder={placeholder} />}
-        label={
-          <div
-            onClick={() => handleSelectEndpoint(endpoint)}
-            className="group flex w-full flex-shrink cursor-pointer items-center justify-between rounded-xl px-1 py-1 text-sm"
-          >
-            {renderIconLabel()}
-            {isUserProvided && (
-              <SettingsButton endpoint={endpoint} handleOpenKeyDialog={handleOpenKeyDialog} />
-            )}
-          </div>
-        }
-      >
+      <Menu {...menuProps}>
         {isAssistantsEndpoint(endpoint.value) && endpoint.models === undefined ? (
           <div className="flex items-center justify-center p-2">
             <Spinner />
