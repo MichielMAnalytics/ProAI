@@ -236,7 +236,10 @@ export class MCPConnection extends EventEmitter {
 
           transport.onclose = () => {
             this.logger?.info(`${this.getLogPrefix()} SSE transport closed`);
-            this.emit('connectionChange', 'disconnected');
+            // Only emit disconnected if we're not intentionally stopping
+            if (!this.shouldStopReconnecting && this.connectionState === 'connected') {
+              this.emit('connectionChange', 'disconnected');
+            }
           };
 
           transport.onerror = (error) => {
@@ -273,7 +276,10 @@ export class MCPConnection extends EventEmitter {
 
           transport.onclose = () => {
             this.logger?.info(`${this.getLogPrefix()} Streamable-http transport closed`);
-            this.emit('connectionChange', 'disconnected');
+            // Only emit disconnected if we're not intentionally stopping
+            if (!this.shouldStopReconnecting && this.connectionState === 'connected') {
+              this.emit('connectionChange', 'disconnected');
+            }
           };
 
           transport.onerror = (error: Error | unknown) => {
@@ -332,9 +338,14 @@ export class MCPConnection extends EventEmitter {
          * //  });
          */
       } else if (state === 'error' && !this.isReconnecting && !this.isInitializing) {
-        this.handleReconnection().catch((error) => {
-          this.logger?.error(`${this.getLogPrefix()} Reconnection handler failed:`, error);
-        });
+        // Add small delay to prevent immediate reconnection storms
+        setTimeout(() => {
+          if (!this.isReconnecting && !this.shouldStopReconnecting) {
+            this.handleReconnection().catch((error) => {
+              this.logger?.error(`${this.getLogPrefix()} Reconnection handler failed:`, error);
+            });
+          }
+        }, 1000);
       }
     });
 
@@ -367,11 +378,15 @@ export class MCPConnection extends EventEmitter {
 
   private async handleReconnection(): Promise<void> {
     if (this.isReconnecting || this.shouldStopReconnecting || this.isInitializing) {
+      this.logger?.debug(`${this.getLogPrefix()} Skipping reconnection - already in progress or stopped`);
       return;
     }
 
     this.isReconnecting = true;
+    this.shouldStopReconnecting = false; // Reset stop flag for legitimate reconnection
     const backoffDelay = (attempt: number) => Math.min(1000 * Math.pow(2, attempt), 30000);
+    
+    this.logger?.info(`${this.getLogPrefix()} Starting reconnection process (attempts: ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS})`);
 
     try {
       while (
@@ -388,8 +403,21 @@ export class MCPConnection extends EventEmitter {
         await new Promise((resolve) => setTimeout(resolve, delay));
 
         try {
-          // Ensure full disconnect before reconnection attempt
-          await this.disconnect();
+          // Clean transport cleanup without setting shouldStopReconnecting flag
+          if (this.transport) {
+            this.logger?.debug(`${this.getLogPrefix()} Cleaning up transport before reconnection`);
+            try {
+              await this.client.close();
+            } catch (closeError) {
+              this.logger?.debug(`${this.getLogPrefix()} Error closing transport (expected):`, closeError);
+            }
+            this.transport = null;
+          }
+          
+          // Reset state for fresh connection attempt
+          this.connectionState = 'disconnected';
+          this.connectPromise = null;
+          
           await this.connect();
           this.reconnectAttempts = 0;
           return;
@@ -528,7 +556,11 @@ export class MCPConnection extends EventEmitter {
       
       if (this.transport) {
         this.logger?.debug(`${this.getLogPrefix()} Disconnecting transport`);
-        await this.client.close();
+        try {
+          await this.client.close();
+        } catch (closeError) {
+          this.logger?.debug(`${this.getLogPrefix()} Error closing client (expected):`, closeError);
+        }
         this.transport = null;
       }
       
@@ -537,17 +569,19 @@ export class MCPConnection extends EventEmitter {
       }
       
       this.connectionState = 'disconnected';
-      this.emit('connectionChange', 'disconnected');
+      // Don't emit connectionChange here as it triggers reconnection
+      // this.emit('connectionChange', 'disconnected');
       
       // Reset connection state flags
       this.isReconnecting = false;
       this.isInitializing = false;
       this.reconnectAttempts = 0;
       this.needsTransportRecreation = false;
+      
+      this.logger?.debug(`${this.getLogPrefix()} Disconnection completed`);
     } catch (error) {
       this.logger?.error(`${this.getLogPrefix()} Error during disconnect:`, error);
-      this.emit('error', error);
-      throw error;
+      // Don't throw error on disconnect, just log it
     } finally {
       this.invalidateCache();
       this.connectPromise = null;
