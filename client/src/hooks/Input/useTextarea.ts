@@ -165,6 +165,9 @@ export default function useTextarea({
       // NOTE: isComposing and e.key behave differently in Safari compared to other browsers, forcing us to use e.keyCode instead
       const isComposingInput = isComposing.current || e.key === 'Process' || e.keyCode === 229;
 
+      // Check if the device is a mobile/touch device
+      const isMobileDevice = window.matchMedia?.('(pointer: coarse)').matches;
+
       if (isNonShiftEnter && filesLoading) {
         e.preventDefault();
       }
@@ -173,9 +176,10 @@ export default function useTextarea({
         e.preventDefault();
       }
 
+      // On mobile devices, always make Enter create a new line (unless Ctrl+Enter is used)
       if (
         e.key === 'Enter' &&
-        !enterToSend &&
+        (isMobileDevice || !enterToSend) &&
         !isCtrlEnter &&
         textAreaRef.current &&
         !isComposingInput
@@ -186,7 +190,7 @@ export default function useTextarea({
         return;
       }
 
-      if ((isNonShiftEnter || isCtrlEnter) && !isComposingInput) {
+      if ((isNonShiftEnter || isCtrlEnter) && !isComposingInput && (!isMobileDevice || isCtrlEnter)) {
         const globalAudio = document.getElementById(globalAudioId) as HTMLAudioElement | undefined;
         if (globalAudio) {
           console.log('Unmuting global audio');
