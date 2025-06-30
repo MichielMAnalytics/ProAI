@@ -316,7 +316,7 @@ const MCPServerIcons = ({
 
   return (
     <>
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 transform">
+      <div className="absolute bottom-3 sm:bottom-2 left-1/2 -translate-x-1/2 transform">
         <div className="rounded-lg bg-black/20 px-2 py-1 backdrop-blur-sm">
           <div className="flex items-center gap-2">
             {allItems.map((item) => (
@@ -676,7 +676,7 @@ const ChatForm = memo(
               )}
               <div
                 className={cn(
-                  'items-between flex gap-2 pb-2',
+                  'items-between flex gap-1 sm:gap-2 -mb-1 pb-0 sm:pb-2 sm:mb-0',
                   isRTL ? 'flex-row-reverse' : 'flex-row',
                 )}
               >
@@ -705,7 +705,7 @@ const ChatForm = memo(
                     isSubmitting={isSubmitting}
                   />
                 )}
-                <div className={`${isRTL ? 'ml-2' : 'mr-2'}`}>
+                <div className={`${isRTL ? 'ml-1 sm:ml-2' : 'mr-1 sm:mr-2'}`}>
                   <EnhancePrompt
                     textAreaRef={textAreaRef}
                     methods={methods}
@@ -713,7 +713,7 @@ const ChatForm = memo(
                     hasText={!!textValue?.trim()}
                   />
                 </div>
-                <div className={`${isRTL ? 'ml-2' : 'mr-2'}`}>
+                <div className={`${isRTL ? 'ml-1 sm:ml-2' : 'mr-2 sm:mr-2'}`}>
                   {(isSubmitting || isSubmittingAdded) && (showStopButton || showStopAdded) ? (
                     <StopButton stop={handleStopGenerating} setShowStopButton={setShowStopButton} />
                   ) : (
