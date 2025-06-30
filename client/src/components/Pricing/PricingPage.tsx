@@ -15,6 +15,7 @@ const PricingPage = () => {
   });
   const [searchParams] = useSearchParams();
   const [selectedTier, setSelectedTier] = useState('pro');
+  const [billingFrequency, setBillingFrequency] = useState<'monthly' | 'yearly'>('monthly');
   const [openFaqItems, setOpenFaqItems] = useState<Set<number>>(new Set());
   const [checkoutStatus, setCheckoutStatus] = useState<'success' | 'canceled' | null>(null);
   const [isDowngrading, setIsDowngrading] = useState(false);
@@ -41,8 +42,20 @@ const PricingPage = () => {
   }, [checkoutStatus, navigate]);
 
   const tierOptions = [
-    { tier: 'pro', name: 'Eve Pro', price: 29 },
-    { tier: 'max', name: 'Eve Max', price: 99 },
+    { 
+      tier: 'pro', 
+      name: 'Eve Pro', 
+      monthlyPrice: 29,
+      yearlyPrice: 290, // ~17% discount
+      yearlyOriginalPrice: 348 // 29 * 12
+    },
+    { 
+      tier: 'max', 
+      name: 'Eve Max', 
+      monthlyPrice: 99,
+      yearlyPrice: 990, // ~17% discount
+      yearlyOriginalPrice: 1188 // 99 * 12
+    },
   ];
 
   // Function to get tier info from tier string
@@ -53,14 +66,14 @@ const PricingPage = () => {
         tierName: 'Eve Pro',
         credits: startupConfig?.balance?.proTierTokens
           ? formatBalance(startupConfig.balance.proTierTokens)
-          : '200K',
+          : '15M',
       },
       max: {
         tier: 'max',
         tierName: 'Eve Max',
         credits: startupConfig?.balance?.maxTierTokens
           ? formatBalance(startupConfig.balance.maxTierTokens)
-          : '900K',
+          : '60M',
       },
     };
     return tierMap[tier] || { tier: 'pro', tierName: 'Eve Pro', credits: '200K' };
@@ -158,12 +171,12 @@ const PricingPage = () => {
     {
       question: 'What does the free plan include?',
       answer:
-        "The free plan includes 10,000 credits per month, access to 2700+ apps and 10,000+ tools, access to all state of the art large language models, and unlimited tasks. It's designed to help you get started and explore Eve's capabilities.",
+        "The free plan includes 1,000,000 credits per month, access to 2700+ apps and 10,000+ tools, access to all state of the art large language models, and unlimited tasks. It's designed to help you get started and explore Eve's capabilities.",
     },
     {
       question: 'How much does it cost to use?',
       answer:
-        'Free users get 10,000 AI credits per month. Pro users get 200,000 credits per month for €29, and Max users get 900,000 credits per month for €99. You can start with our generous free tier and upgrade when you need additional credits and features like custom apps/tools and priority support.',
+        'Free users get 1,000,000 AI credits per month. Pro users get 15,000,000 credits per month for €29/month or €290/year (save 17%), and Max users get 60,000,000 credits per month for €99/month or €990/year (save 17%). You can start with our generous free tier and upgrade when you need additional credits and features like custom apps/tools and priority support.',
     },
     {
       question: 'What are credits?',
@@ -215,7 +228,7 @@ const PricingPage = () => {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          credits: selectedTier,
+          credits: billingFrequency === 'yearly' ? `${selectedTier}-yearly` : selectedTier,
         }),
       });
 
@@ -462,6 +475,43 @@ const PricingPage = () => {
           <p className="mx-auto max-w-2xl text-lg" style={{ color: 'var(--text-secondary)' }}>
             Start for free. Upgrade to get the capacity that exactly matches your team's needs.
           </p>
+          
+          {/* Billing Frequency Toggle */}
+          <div className="mt-6 flex items-center justify-center">
+            <div className="flex items-center rounded-lg p-1" style={{ backgroundColor: 'var(--surface-secondary)', border: '1px solid var(--border-light)' }}>
+              <button
+                onClick={() => setBillingFrequency('monthly')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  billingFrequency === 'monthly'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+                style={{
+                  backgroundColor: billingFrequency === 'monthly' ? 'var(--brand-blue)' : 'transparent',
+                  color: billingFrequency === 'monthly' ? 'white' : 'var(--text-secondary)',
+                }}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setBillingFrequency('yearly')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  billingFrequency === 'yearly'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+                style={{
+                  backgroundColor: billingFrequency === 'yearly' ? 'var(--brand-blue)' : 'transparent',
+                  color: billingFrequency === 'yearly' ? 'white' : 'var(--text-secondary)',
+                }}
+              >
+                <span>Yearly</span>
+                <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                  Save 17%
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Pricing Cards */}
@@ -497,7 +547,7 @@ const PricingPage = () => {
             {/* Credits Section - Fixed Height */}
             <div className="mb-4 h-8">
               <div className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-                🍼 {formatBalance(startupConfig?.balance?.refillAmount || 100000)} credits / month
+                🍼 {formatBalance(startupConfig?.balance?.refillAmount || 1000000)} credits / month
               </div>
             </div>
 
@@ -591,15 +641,25 @@ const PricingPage = () => {
             </div>
 
             {/* Price Section - Fixed Height */}
-            <div className="mb-4 h-20">
+            <div className={`mb-4 ${billingFrequency === 'yearly' ? 'h-28' : 'h-20'}`}>
               <div className="mb-2 text-4xl font-bold" style={{ color: 'var(--text-primary)' }}>
-                €29
+                €{billingFrequency === 'yearly' ? tierOptions[0].yearlyPrice : tierOptions[0].monthlyPrice}
                 <span className="text-lg font-normal" style={{ color: 'var(--text-secondary)' }}>
-                  /month
+                  /{billingFrequency === 'yearly' ? 'year' : 'month'}
                 </span>
               </div>
+              {billingFrequency === 'yearly' && (
+                <div className="mb-1">
+                  <span className="text-sm line-through" style={{ color: 'var(--text-secondary)' }}>
+                    €{tierOptions[0].yearlyOriginalPrice}/year
+                  </span>
+                  <span className="ml-2 text-sm font-medium text-green-600">
+                    Save €{tierOptions[0].yearlyOriginalPrice - tierOptions[0].yearlyPrice}
+                  </span>
+                </div>
+              )}
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                For more projects and usage
+                {billingFrequency === 'yearly' ? 'Best value for growing teams' : 'For more projects and usage'}
               </p>
             </div>
 
@@ -692,15 +752,25 @@ const PricingPage = () => {
             </div>
 
             {/* Price Section - Fixed Height */}
-            <div className="mb-4 h-20">
+            <div className={`mb-4 ${billingFrequency === 'yearly' ? 'h-28' : 'h-20'}`}>
               <div className="mb-2 text-4xl font-bold" style={{ color: 'var(--text-primary)' }}>
-                €99
+                €{billingFrequency === 'yearly' ? tierOptions[1].yearlyPrice : tierOptions[1].monthlyPrice}
                 <span className="text-lg font-normal" style={{ color: 'var(--text-secondary)' }}>
-                  /month
+                  /{billingFrequency === 'yearly' ? 'year' : 'month'}
                 </span>
               </div>
+              {billingFrequency === 'yearly' && (
+                <div className="mb-1">
+                  <span className="text-sm line-through" style={{ color: 'var(--text-secondary)' }}>
+                    €{tierOptions[1].yearlyOriginalPrice}/year
+                  </span>
+                  <span className="ml-2 text-sm font-medium text-green-600">
+                    Save €{tierOptions[1].yearlyOriginalPrice - tierOptions[1].yearlyPrice}
+                  </span>
+                </div>
+              )}
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                Get the most out of Eve
+                {billingFrequency === 'yearly' ? 'Maximum value for power users' : 'Get the most out of Eve'}
               </p>
             </div>
 

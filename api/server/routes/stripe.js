@@ -12,6 +12,8 @@ const router = express.Router();
 const PRICE_IDS = {
   pro: process.env.STRIPE_EVE_PRO, // $29/month - Pro tier
   max: process.env.STRIPE_EVE_MAX, // $99/month - Max tier
+  'pro-yearly': process.env.STRIPE_EVE_PRO_YEARLY, // Pro tier yearly
+  'max-yearly': process.env.STRIPE_EVE_MAX_YEARLY, // Max tier yearly
 };
 
 /**

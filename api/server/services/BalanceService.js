@@ -24,6 +24,8 @@ class BalanceService {
     const priceMapping = {
       [process.env.STRIPE_EVE_PRO]: balanceConfig.proTierTokens,
       [process.env.STRIPE_EVE_MAX]: balanceConfig.maxTierTokens,
+      [process.env.STRIPE_EVE_PRO_YEARLY]: balanceConfig.proTierTokens,
+      [process.env.STRIPE_EVE_MAX_YEARLY]: balanceConfig.maxTierTokens,
     };
 
     const amount = priceMapping[priceId];
@@ -436,6 +438,22 @@ class BalanceService {
         credits: balanceConfig.maxTierTokens,
         refillAmount: balanceConfig.maxTierTokens,
         refillIntervalValue: 1,
+        refillIntervalUnit: 'months',
+      },
+      [process.env.STRIPE_EVE_PRO_YEARLY]: {
+        tier: 'pro',
+        name: 'Eve Pro',
+        credits: balanceConfig.proTierTokens,
+        refillAmount: balanceConfig.proTierTokens,
+        refillIntervalValue: 12,
+        refillIntervalUnit: 'months',
+      },
+      [process.env.STRIPE_EVE_MAX_YEARLY]: {
+        tier: 'max',
+        name: 'Eve Max',
+        credits: balanceConfig.maxTierTokens,
+        refillAmount: balanceConfig.maxTierTokens,
+        refillIntervalValue: 12,
         refillIntervalUnit: 'months',
       },
     };

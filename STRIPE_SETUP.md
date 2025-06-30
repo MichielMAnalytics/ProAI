@@ -20,8 +20,10 @@ DOMAIN_SERVER=http://164.92.145.114:3080  # Your production URL
 # DOMAIN_SERVER=http://localhost:3080      # For local development
 
 # Simplified Stripe Price IDs
-STRIPE_EVE_PRO=price_your_pro_price_id    # $29/month Pro tier
-STRIPE_EVE_MAX=price_your_max_price_id    # $99/month Max tier
+STRIPE_EVE_PRO=price_your_pro_price_id          # $29/month Pro tier
+STRIPE_EVE_MAX=price_your_max_price_id          # $99/month Max tier
+STRIPE_EVE_PRO_YEARLY=price_your_pro_yearly_id  # Pro tier yearly (17% discount)
+STRIPE_EVE_MAX_YEARLY=price_your_max_yearly_id  # Max tier yearly (17% discount)
 ```
 
 ## How URLs are Generated
@@ -36,12 +38,12 @@ This ensures your Stripe integration works across different environments (develo
 
 ## Simplified Pricing Tiers
 
-Simplified to 2 pricing tiers:
+Simplified to 2 pricing tiers with monthly and yearly options:
 
-| Tier | Monthly Price | Environment Variable | Credits |
-|------|---------------|---------------------|----------|
-| Pro  | $29           | STRIPE_EVE_PRO      | Configurable in librechat.yaml (default: 200K) |
-| Max  | $99           | STRIPE_EVE_MAX      | Configurable in librechat.yaml (default: 800K) |
+| Tier | Monthly Price | Yearly Price | Monthly Variable | Yearly Variable | Credits |
+|------|---------------|--------------|------------------|-----------------|---------|
+| Pro  | $29           | $290 (17% off) | STRIPE_EVE_PRO  | STRIPE_EVE_PRO_YEARLY | Configurable in librechat.yaml (default: 15M) |
+| Max  | $99           | $990 (17% off) | STRIPE_EVE_MAX  | STRIPE_EVE_MAX_YEARLY | Configurable in librechat.yaml (default: 60M) |
 
 ## Step 3: Create Stripe Products
 
@@ -49,22 +51,28 @@ You need to create products in Stripe Dashboard for the simplified tiers:
 
 ### Products to Create:
 
-1. **Eve Pro** - $29/month - Configurable credits (default: 200,000)
-2. **Eve Max** - $99/month - Configurable credits (default: 800,000)
+1. **Eve Pro Monthly** - $29/month - Configurable credits (default: 15,000,000)
+2. **Eve Pro Yearly** - $290/year - Configurable credits (default: 15,000,000) - 17% discount
+3. **Eve Max Monthly** - $99/month - Configurable credits (default: 60,000,000)
+4. **Eve Max Yearly** - $990/year - Configurable credits (default: 60,000,000) - 17% discount
 
 ### How to Create Products:
 
 1. Go to [Stripe Products](https://dashboard.stripe.com/products)
 2. Click **+ Add product**
 3. For each product:
-   - **Eve Pro**: Name: "Eve Pro", Description: "Monthly subscription with configurable credits, request custom apps and tools, priority support", Price: $29/month
-   - **Eve Max**: Name: "Eve Max", Description: "Monthly subscription with configurable credits, request custom apps and tools, priority support", Price: $99/month
+   - **Eve Pro Monthly**: Name: "Eve Pro", Description: "Monthly subscription with configurable credits, request custom apps and tools, priority support", Price: $29/month
+   - **Eve Pro Yearly**: Name: "Eve Pro", Description: "Yearly subscription with configurable credits, request custom apps and tools, priority support", Price: $290/year
+   - **Eve Max Monthly**: Name: "Eve Max", Description: "Monthly subscription with configurable credits, request custom apps and tools, priority support", Price: $99/month
+   - **Eve Max Yearly**: Name: "Eve Max", Description: "Yearly subscription with configurable credits, request custom apps and tools, priority support", Price: $990/year
    - **Save the Price ID** (starts with `price_`) - you'll need these
 
 ### Copy Price IDs:
 After creating each product, copy the **Price ID** and add it to your `.env` file:
-- Eve Pro → `STRIPE_EVE_PRO=price_xxxxx`
-- Eve Max → `STRIPE_EVE_MAX=price_xxxxx`
+- Eve Pro Monthly → `STRIPE_EVE_PRO=price_xxxxx`
+- Eve Pro Yearly → `STRIPE_EVE_PRO_YEARLY=price_xxxxx`
+- Eve Max Monthly → `STRIPE_EVE_MAX=price_xxxxx`
+- Eve Max Yearly → `STRIPE_EVE_MAX_YEARLY=price_xxxxx`
 
 ## Step 4: Set Up Webhooks
 
