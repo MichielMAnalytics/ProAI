@@ -66,6 +66,7 @@ export class MCPConnection extends EventEmitter {
   iconPath?: string;
   timeout?: number;
   private readonly userId?: string;
+  private needsTransportRecreation = false;
 
   constructor(
     serverName: string,
@@ -111,7 +112,16 @@ export class MCPConnection extends EventEmitter {
       'Invalid token',
       'Token expired',
       'access_token',
+      'jsonrpc.*error.*-32603', // Pipedream JSON-RPC internal error
     ];
+
+    // Check for Pipedream-specific error pattern
+    if (errorMessage.includes('"code":-32603') && errorMessage.includes('Internal server error')) {
+      this.logger?.debug(
+        `${this.getLogPrefix()} Detected Pipedream JSON-RPC auth error pattern`,
+      );
+      return true;
+    }
 
     return authErrorPatterns.some((pattern) =>
       errorMessage.toLowerCase().includes(pattern.toLowerCase()),
@@ -144,7 +154,10 @@ export class MCPConnection extends EventEmitter {
         const newToken = await PipedreamConnect.getOAuthAccessToken();
         if (newToken) {
           this.options.headers['Authorization'] = `Bearer ${newToken}`;
-          this.logger?.info(`${this.getLogPrefix()} Successfully refreshed Pipedream auth token`);
+          this.needsTransportRecreation = true;
+          this.logger?.info(
+            `${this.getLogPrefix()} Successfully refreshed Pipedream auth token at ${new Date().toISOString()}`,
+          );
           return true;
         }
       }
@@ -375,6 +388,8 @@ export class MCPConnection extends EventEmitter {
         await new Promise((resolve) => setTimeout(resolve, delay));
 
         try {
+          // Ensure full disconnect before reconnection attempt
+          await this.disconnect();
           await this.connect();
           this.reconnectAttempts = 0;
           return;
@@ -423,8 +438,12 @@ export class MCPConnection extends EventEmitter {
 
     this.connectPromise = (async () => {
       try {
-        if (this.transport) {
+        // Force recreation if token was refreshed or transport exists
+        if (this.transport || this.needsTransportRecreation) {
           try {
+            this.logger?.info(
+              `${this.getLogPrefix()} Closing existing transport (needsRecreation: ${this.needsTransportRecreation})`,
+            );
             await this.client.close();
             this.transport = null;
           } catch (error) {
@@ -432,6 +451,7 @@ export class MCPConnection extends EventEmitter {
           }
         }
 
+        this.needsTransportRecreation = false;
         this.transport = this.constructTransport(this.options);
         this.setupTransportDebugHandlers();
 
@@ -477,7 +497,9 @@ export class MCPConnection extends EventEmitter {
 
   async connect(): Promise<void> {
     try {
-      await this.disconnect();
+      // Reset reconnection flags to allow connection
+      this.shouldStopReconnecting = false;
+      
       await this.connectClient();
 
       // Wait a bit for connection to stabilize before checking
@@ -501,16 +523,29 @@ export class MCPConnection extends EventEmitter {
 
   public async disconnect(): Promise<void> {
     try {
+      // Clear any pending reconnection state
+      this.shouldStopReconnecting = true;
+      
       if (this.transport) {
+        this.logger?.debug(`${this.getLogPrefix()} Disconnecting transport`);
         await this.client.close();
         this.transport = null;
       }
+      
       if (this.connectionState === 'disconnected') {
         return;
       }
+      
       this.connectionState = 'disconnected';
       this.emit('connectionChange', 'disconnected');
+      
+      // Reset connection state flags
+      this.isReconnecting = false;
+      this.isInitializing = false;
+      this.reconnectAttempts = 0;
+      this.needsTransportRecreation = false;
     } catch (error) {
+      this.logger?.error(`${this.getLogPrefix()} Error during disconnect:`, error);
       this.emit('error', error);
       throw error;
     } finally {

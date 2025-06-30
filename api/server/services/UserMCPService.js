@@ -134,21 +134,47 @@ class UserMCPService {
         try {
           const PipedreamConnect = require('./Pipedream/PipedreamConnect');
           if (PipedreamConnect.isEnabled()) {
-            // Get fresh OAuth access token using Pipedream SDK (handles refresh automatically)
-            const accessToken = await PipedreamConnect.getOAuthAccessToken();
-            if (accessToken) {
-              mcpServers[serverName].headers['Authorization'] = `Bearer ${accessToken}`;
-              logger.info(
-                `UserMCPService: Added Pipedream auth token for server ${serverName} using SDK`,
-              );
+            // Clear token cache proactively to ensure fresh token
+            // This prevents using expired tokens on initial connection
+            PipedreamConnect.clearTokenCache();
+            
+            logger.info(
+              `UserMCPService: Getting fresh Pipedream auth token for server ${serverName}`,
+            );
+            
+            // Get fresh OAuth access token with retry logic
+            let accessToken = null;
+            let retries = 0;
+            const maxRetries = 2;
+            
+            while (!accessToken && retries <= maxRetries) {
+              try {
+                accessToken = await PipedreamConnect.getOAuthAccessToken();
+                if (accessToken) {
+                  mcpServers[serverName].headers['Authorization'] = `Bearer ${accessToken}`;
+                  logger.info(
+                    `UserMCPService: Successfully added fresh Pipedream auth token for server ${serverName} (attempt ${retries + 1})`,
+                  );
+                  break;
+                }
+              } catch (tokenError) {
+                retries++;
+                if (retries > maxRetries) {
+                  throw tokenError;
+                }
+                logger.warn(
+                  `UserMCPService: Token fetch attempt ${retries} failed for ${serverName}, retrying...`,
+                );
+                await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+              }
             }
           }
         } catch (authError) {
-          logger.warn(
-            `UserMCPService: Failed to get Pipedream auth token for server ${serverName}:`,
+          logger.error(
+            `UserMCPService: Failed to get Pipedream auth token for server ${serverName} after retries:`,
             authError.message,
           );
-          // Continue without auth token - the MCP server will handle the auth flow
+          // Continue without auth token - the connection will fail and trigger token refresh
         }
 
         // logger.info(`UserMCPService: Added MCP server ${serverName}:`, {
