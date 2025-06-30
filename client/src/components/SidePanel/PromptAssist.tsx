@@ -6,6 +6,7 @@ import { cn } from '~/utils';
 import { useToastContext } from '~/Providers';
 import { useLocalize } from '~/hooks';
 import { Spinner } from '~/components/svg';
+import { TooltipAnchor } from '~/components/ui';
 
 interface PromptAssistProps {
   className?: string;
@@ -70,18 +71,23 @@ export default function PromptAssist({ className, fieldName = 'instructions' }: 
   };
 
   return (
-    <button
-      type="button"
-      onClick={handleEnhancePrompt}
-      disabled={isLoading}
-      className={cn(
-        'flex items-center gap-1 rounded-md border border-border-medium bg-surface-secondary px-2 py-1 text-xs text-text-primary transition-colors duration-200 hover:bg-surface-tertiary disabled:cursor-not-allowed disabled:opacity-50',
-        className,
-      )}
-      title={localize('com_ui_prompt_assist_tooltip')}
+    <TooltipAnchor
+      description={localize('com_ui_prompt_assist_tooltip')}
+      side="top"
     >
-      {isLoading ? <Spinner className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
-      {localize('com_ui_prompt_assist')}
-    </button>
+      <button
+        type="button"
+        onClick={handleEnhancePrompt}
+        disabled={isLoading}
+        className={cn(
+          'flex items-center gap-1 rounded-md border border-border-medium bg-surface-secondary px-2 py-1 text-xs text-text-primary transition-colors duration-200 hover:bg-surface-tertiary disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap',
+          className,
+        )}
+        aria-label={localize('com_ui_prompt_assist')}
+      >
+        {isLoading ? <Spinner className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
+        Assist
+      </button>
+    </TooltipAnchor>
   );
 }

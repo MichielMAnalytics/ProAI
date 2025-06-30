@@ -740,7 +740,7 @@
   "com_ui_input": "Input",
   "com_ui_instructions": "Instructions",
   "com_ui_prompt_assist": "Prompt Assist",
-  "com_ui_prompt_assist_tooltip": "Enhance your instructions with AI assistance",
+  "com_ui_prompt_assist_tooltip": "AI enhancement based on the name, description, and current instructions",
   "com_ui_prompt_enhanced": "Instructions enhanced successfully",
   "com_ui_prompt_enhance_error": "Failed to enhance instructions",
   "com_ui_enhance_mode_on": "Enhance mode is ON - messages will be improved before sending",
