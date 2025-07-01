@@ -106,9 +106,17 @@ const initializeUserMCP = async (req, res) => {
           });
         }
 
-        // Map the available tools
+        // Get flowManager for global server reconnection support
+        const { getFlowStateManager } = require('~/config');
+        const { getLogStores } = require('~/cache');
+        const { CacheKeys } = require('librechat-data-provider');
+        
+        const flowsCache = getLogStores(CacheKeys.FLOWS);
+        const flowManager = flowsCache ? getFlowStateManager(flowsCache) : null;
+        
+        // Map the available tools with flowManager to enable global server reconnection
         const availableTools = req.app.locals.availableTools || {};
-        await mcpManager.mapAvailableTools(availableTools);
+        await mcpManager.mapAvailableTools(availableTools, flowManager);
 
         logger.info(
           `UserMCPController: Initialized ${Object.keys(userMCPServers).length} MCP servers for user ${userId}`,
@@ -197,8 +205,9 @@ const refreshUserMCP = async (req, res) => {
         });
       }
 
+      // Use the same flowManager setup for global server reconnection
       const availableTools = req.app.locals.availableTools || {};
-      await mcpManager.mapAvailableTools(availableTools);
+      await mcpManager.mapAvailableTools(availableTools, flowManager);
     }
 
     res.json({

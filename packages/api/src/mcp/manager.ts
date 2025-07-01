@@ -733,21 +733,43 @@ export class MCPManager {
   /**
    * Maps available tools from all app-level connections into the provided object.
    * The object is modified in place.
+   * @param availableTools - The tools object to populate (modified in place)
+   * @param flowManager - Optional flow manager for global server reconnection support
    */
   public async mapAvailableTools(
     availableTools: t.LCAvailableTools,
-    flowManager: FlowStateManager<MCPOAuthTokens | null>,
+    flowManager?: FlowStateManager<MCPOAuthTokens | null>,
   ): Promise<void> {
+    const hasFlowManager = !!flowManager;
+    logger.debug(`[MCP] mapAvailableTools called with flowManager: ${hasFlowManager} for ${this.connections.size} global servers`);
+    
     for (const [serverName, connection] of this.connections.entries()) {
       try {
         /** Attempt to ensure connection is active, with reconnection if needed */
-        const isActive = await this.isConnectionActive({ serverName, connection, flowManager });
+        let isActive: boolean;
+        if (flowManager) {
+          logger.debug(`[MCP][${serverName}] Checking connection with reconnection support`);
+          isActive = await this.isConnectionActive({ serverName, connection, flowManager });
+          if (isActive) {
+            logger.info(`[MCP][${serverName}] Global server connection is active (reconnection enabled)`);
+          }
+        } else {
+          // Fallback: Just check connection status without reconnection capability
+          isActive = await connection.isConnected();
+          if (!isActive) {
+            logger.warn(`[MCP][${serverName}] Global server disconnected and no flowManager provided for reconnection. Skipping tool mapping.`);
+          } else {
+            logger.debug(`[MCP][${serverName}] Global server connection is active (no reconnection capability)`);
+          }
+        }
+        
         if (!isActive) {
-          logger.warn(`[MCP][${serverName}] Connection not available. Skipping tool mapping.`);
+          logger.warn(`[MCP][${serverName}] Global server connection not available. Skipping tool mapping.`);
           continue;
         }
 
         const tools = await connection.fetchTools();
+        logger.info(`[MCP][${serverName}] Successfully mapped ${tools.length} global server tools`);
         for (const tool of tools) {
           const name = `${tool.name}${CONSTANTS.mcp_delimiter}${serverName}`;
           availableTools[name] = {
