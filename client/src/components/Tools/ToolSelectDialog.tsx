@@ -84,8 +84,13 @@ function ToolSelectDialog({
 
       if (toolMetadata?.serverName) {
         // For MCP tools, create enhanced tool object with server metadata
+        // Extract the actual tool name from the pluginKey (remove MCP delimiter if present)
+        const toolName = pluginAction.pluginKey.includes('_mcp_') 
+          ? pluginAction.pluginKey.split('_mcp_')[0]
+          : pluginAction.pluginKey;
+        
         const mcpTool = {
-          tool: pluginAction.pluginKey,
+          tool: toolName,
           server: toolMetadata.serverName,
           type: toolMetadata.isGlobal ? ('global' as const) : ('user' as const),
         };
@@ -199,8 +204,13 @@ function ToolSelectDialog({
       const enhancedTools = toolsWithoutAuth.map((tool) => {
         if (tool.serverName) {
           // For MCP tools, create enhanced tool object with server metadata
+          // Extract the actual tool name from the pluginKey (remove MCP delimiter if present)
+          const toolName = tool.pluginKey.includes('_mcp_') 
+            ? tool.pluginKey.split('_mcp_')[0]
+            : tool.pluginKey;
+          
           return {
-            tool: tool.pluginKey,
+            tool: toolName,
             server: tool.serverName,
             type: tool.isGlobal ? ('global' as const) : ('user' as const),
           };

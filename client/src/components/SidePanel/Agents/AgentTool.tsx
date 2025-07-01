@@ -28,7 +28,16 @@ export default function AgentTool({
 
   // Extract tool key from both string tools and MCP tool objects
   const toolKey = typeof tool === 'string' ? tool : tool.tool;
-  const currentTool = allTools.find((t) => t.pluginKey === toolKey);
+  const currentTool = allTools.find((t) => {
+    if (typeof tool === 'string') {
+      // For string tools, match directly
+      return t.pluginKey === toolKey;
+    } else {
+      // For MCP tool objects, match by constructing the expected pluginKey with MCP delimiter
+      const expectedPluginKey = `${tool.tool}_mcp_${tool.server}`;
+      return t.pluginKey === expectedPluginKey;
+    }
+  });
 
   // Check if this is a global MCP tool
   const isGlobalTool = typeof tool === 'object' && tool.type === 'global';

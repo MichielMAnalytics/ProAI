@@ -303,8 +303,18 @@ export class MCPConnection extends EventEmitter {
           };
 
           transport.onerror = (error: Error | unknown) => {
-            logger.error(`${this.getLogPrefix()} Streamable-http transport error:`, error);
-            this.emitError(error, 'Streamable-http transport error:');
+            // Check if it's a temporary network error that shouldn't trigger immediate reconnection
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            const isTemporaryError = errorMessage.includes('terminated') || 
+                                   errorMessage.includes('network') ||
+                                   errorMessage.includes('timeout');
+            
+            if (isTemporaryError) {
+              logger.warn(`${this.getLogPrefix()} Temporary streamable-http transport error (will retry):`, error);
+            } else {
+              logger.error(`${this.getLogPrefix()} Streamable-http transport error:`, error);
+              this.emitError(error, 'Streamable-http transport error:');
+            }
           };
 
           transport.onmessage = (message: JSONRPCMessage) => {
@@ -578,9 +588,10 @@ export class MCPConnection extends EventEmitter {
 
     const originalSend = this.transport.send.bind(this.transport);
     this.transport.send = async (msg) => {
+      // Soften the ping error handling - log but don't throw for empty results
       if ('result' in msg && !('method' in msg) && Object.keys(msg.result ?? {}).length === 0) {
         if (Date.now() - this.lastPingTime < FIVE_MINUTES) {
-          throw new Error('Empty result');
+          logger.debug(`${this.getLogPrefix()} Received empty result within ping interval - this is normal`);
         }
         this.lastPingTime = Date.now();
       }

@@ -115,6 +115,16 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
         toolName,
       });
 
+      // Get proper flow manager and token methods for OAuth support
+      const { getFlowStateManager } = require('~/config');
+      const { getLogStores } = require('~/cache');
+      const { CacheKeys } = require('librechat-data-provider');
+      const { findToken, updateToken, createToken } = require('~/models');
+      
+      const flowsCache = getLogStores(CacheKeys.FLOWS);
+      const flowManager = getFlowStateManager(flowsCache);
+      const tokenMethods = { findToken, updateToken, createToken };
+
       // SECURITY FIX: Handle global vs user-specific MCP tools differently
       const mcpManager = getMCPManager(currentUserId);
 
@@ -141,7 +151,12 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
 
         // Check if the current user has their own integration for this server
         try {
-          const userConnection = await mcpManager.getUserConnection(currentUserId, serverName);
+          const userConnection = await mcpManager.getUserConnection({
+            user: { id: currentUserId },
+            serverName,
+            flowManager,
+            tokenMethods,
+          });
           if (!userConnection || !(await userConnection.isConnected())) {
             logger.warn(
               `[MCP][${serverName}][${toolName}] User ${currentUserId} does not have access to MCP server ${serverName}. This may be a shared agent tool that requires user's own integration.`,
@@ -174,9 +189,11 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
         provider,
         toolArguments,
         options: {
-          userId: isGlobalTool ? null : currentUserId, // For global tools, don't pass userId to use global connection
+          user: isGlobalTool ? null : { id: currentUserId }, // For global tools, don't pass user to use global connection
           signal: derivedSignal,
         },
+        flowManager,
+        tokenMethods,
       });
 
       logger.info(

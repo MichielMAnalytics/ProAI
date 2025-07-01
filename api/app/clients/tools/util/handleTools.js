@@ -461,7 +461,20 @@ const loadTools = async ({
   // logger.info(`[loadTools] MCP tool registry size: ${mcpToolRegistry?.size || 0}`);
   // logger.info(`[loadTools] Tools to load: ${tools.join(', ')}`);
 
-  for (const tool of tools) {
+  for (const toolItem of tools) {
+    // Handle mixed tool format: strings for structured tools, objects for MCP tools
+    let tool, serverName, toolType;
+    if (typeof toolItem === 'string') {
+      tool = toolItem;
+    } else if (typeof toolItem === 'object' && toolItem.tool) {
+      tool = toolItem.tool;
+      serverName = toolItem.server;
+      toolType = toolItem.type;
+    } else {
+      logger.warn(`[loadTools] Invalid tool format: ${JSON.stringify(toolItem)}`);
+      continue;
+    }
+
     if (tool === Tools.execute_code) {
       requestedTools[tool] = async () => {
         const authValues = await loadAuthValues({
@@ -562,7 +575,11 @@ Current Date & Time: ${replaceSpecialVars({ text: '{{iso_datetime}}' })}
   }
 
   const toolPromises = [];
-  for (const tool of tools) {
+  for (const toolItem of tools) {
+    // Handle mixed tool format: strings for structured tools, objects for MCP tools
+    const tool = typeof toolItem === 'string' ? toolItem : toolItem?.tool;
+    if (!tool) continue;
+    
     const validTool = requestedTools[tool];
     if (validTool) {
       toolPromises.push(

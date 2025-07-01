@@ -162,7 +162,7 @@ const getAvailableTools = async (req, res) => {
         { mcpToolRegistry: req.app.locals.mcpToolRegistry },
       );
 
-      // logger.info(`After MCP initialization: availableTools count = ${Object.keys(req.app.locals.availableTools).length}`);
+      logger.info(`After MCP initialization: availableTools count = ${Object.keys(req.app.locals.availableTools || {}).length}`);
 
       if (mcpResult.success) {
         logger.info(`=== User MCP initialization successful ===`);
@@ -212,24 +212,55 @@ const getAvailableTools = async (req, res) => {
     });
     // logger.info(`After authentication check: ${authenticatedPlugins.length}`);
 
-    const toolDefinitions = req.app.locals.availableTools;
-    // logger.info(`Available tools count: ${Object.keys(toolDefinitions).length}`);
-    // logger.info(`Sample available tools:`, Object.keys(toolDefinitions).slice(0, 10));
-    // logger.info(`Sample plugin keys:`, authenticatedPlugins.slice(0, 5).map(p => p.pluginKey));
+    const toolDefinitions = req.app.locals.availableTools || {};
+    logger.info(`Available tools count: ${Object.keys(toolDefinitions).length}`);
+    logger.info(`All available tools:`, Object.keys(toolDefinitions));
+    logger.info(`Sample plugin keys:`, authenticatedPlugins.slice(0, 5).map(p => p.pluginKey));
 
     const tools = authenticatedPlugins.filter(
-      (plugin) =>
-        toolDefinitions[plugin.pluginKey] !== undefined ||
-        (plugin.toolkit === true &&
-          Object.keys(toolDefinitions).some((key) => getToolkitKey(key) === plugin.pluginKey)),
+      (plugin) => {
+        // First check if it's a direct match (for structured tools)
+        if (toolDefinitions[plugin.pluginKey] !== undefined) {
+          return true;
+        }
+        
+        // Check if it's a toolkit
+        if (plugin.toolkit === true &&
+            Object.keys(toolDefinitions).some((key) => getToolkitKey(key) === plugin.pluginKey)) {
+          return true;
+        }
+        
+        // Check if it's an MCP tool (pluginKey contains MCP delimiter)
+        if (plugin.pluginKey && plugin.pluginKey.includes('_mcp_')) {
+          // Extract the simple tool name from the pluginKey
+          const toolName = plugin.pluginKey.split('_mcp_')[0];
+          
+          // Check if the simple tool name exists in toolDefinitions
+          if (toolDefinitions[toolName] !== undefined) {
+            return true;
+          }
+          
+          // Also check if it's registered in the MCP registry
+          if (req.app.locals.mcpToolRegistry && req.app.locals.mcpToolRegistry.has(toolName)) {
+            return true;
+          }
+        }
+        
+        return false;
+      }
     );
-    // logger.info(`After filtering by tool definitions: ${tools.length}`);
+    logger.info(`After filtering by tool definitions: ${tools.length}`);
 
     // Note: User-specific MCP tools are now loaded directly by the MCP manager
     // via mcpManager.mapUserAvailableTools() and mcpManager.loadUserManifestTools()
     // No need for additional manual tool registration here
 
     // Count MCP tools in final result (check the MCP tool registry instead of pluginKey)
+    logger.info(`MCP Registry size: ${req.app.locals.mcpToolRegistry?.size || 0}`);
+    if (req.app.locals.mcpToolRegistry?.size > 0) {
+      logger.info(`MCP Registry keys:`, Array.from(req.app.locals.mcpToolRegistry.keys()));
+    }
+    
     const mcpTools = tools.filter(
       (tool) =>
         tool.pluginKey &&

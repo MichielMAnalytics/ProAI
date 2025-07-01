@@ -479,37 +479,64 @@ class MCPInitializer {
           `[MCPInitializer][${context}] Initializing user MCP servers for user ${userId}`,
         );
         logger.debug(
-          `[MCPInitializer][${context}] Passing the following server config to mcpManager.initializeUserMCP:`,
+          `[MCPInitializer][${context}] Processing user server configurations:`,
           JSON.stringify(userMCPServers, null, 2),
         );
-        await mcpManager.initializeUserMCP(userMCPServers, userId);
-        logger.info(
-          `[MCPInitializer][${context}] Successfully initialized ${serverCount} MCP servers for user ${userId}`,
-        );
-
-        // Verify connections are ready
-        // let readyConnections = 0;
-        // for (const serverName of Object.keys(userMCPServers)) {
-        //   try {
-        //     const connection = await mcpManager.getUserConnection(userId, serverName);
-        //     if (await connection.isConnected()) {
-        //       readyConnections++;
-        //       logger.debug(`[MCPInitializer][${context}] Server ${serverName} is ready for user ${userId}`);
-        //     } else {
-        //       logger.warn(`[MCPInitializer][${context}] Server ${serverName} is not connected for user ${userId}`);
-        //     }
-        //   } catch (error) {
-        //     logger.warn(`[MCPInitializer][${context}] Failed to verify connection for server ${serverName}:`, error.message);
-        //   }
-        // }
-
-        // logger.info(`[MCPInitializer][${context}] Verified ${readyConnections}/${serverCount} MCP connections are ready for user ${userId}`);
-
-        // Map tools to availableTools registry and count them
+        
+        // Count tools before adding user MCP tools
         const toolCountBefore = Object.keys(availableTools).length;
+        
+        // Register user server configs, initialize connections, and map tools in one efficient loop
+        for (const [serverName, serverConfig] of Object.entries(userMCPServers)) {
+          try {
+            // First, register the server config for this user
+            mcpManager.addUserServerConfig(userId, serverName, serverConfig);
+            
+            // Then get/create the connection (which will now find the config)
+            const connection = await mcpManager.getUserConnection({
+              user: { id: userId },
+              serverName,
+              flowManager: null, // We don't have flowManager in this context yet
+              tokenMethods: null, // Token methods handled by our existing Pipedream integration
+            });
+            
+            if (connection && await connection.isConnected()) {
+              logger.debug(`[MCPInitializer][${context}] Successfully initialized user connection for server ${serverName}`);
+              
+              // Fetch and map tools directly while we have the connection
+              try {
+                const tools = await connection.fetchTools();
+                for (const tool of tools) {
+                  const toolName = tool.name;
+                  const toolDef = {
+                    type: 'function',
+                    ['function']: {
+                      name: toolName,
+                      description: tool.description,
+                      parameters: tool.inputSchema,
+                    },
+                  };
+                  availableTools[toolName] = toolDef;
+                  
+                  // Register in MCP tool registry if provided
+                  if (mcpToolRegistry) {
+                    mcpToolRegistry.set(toolName, {
+                      serverName,
+                      appSlug: serverName.startsWith('pipedream-') ? serverName.replace('pipedream-', '') : serverName,
+                      toolName,
+                    });
+                  }
+                }
+                logger.debug(`[MCPInitializer][${context}] Mapped ${tools.length} tools from server ${serverName}`);
+              } catch (toolError) {
+                logger.warn(`[MCPInitializer][${context}] Failed to fetch tools from server ${serverName}:`, toolError.message);
+              }
+            }
+          } catch (initError) {
+            logger.warn(`[MCPInitializer][${context}] Failed to initialize user connection for server ${serverName}:`, initError.message);
+          }
+        }
 
-        // Pass the MCP tool registry so tools can be registered properly
-        await mcpManager.mapUserAvailableTools(availableTools, userId, mcpToolRegistry);
         const toolCountAfter = Object.keys(availableTools).length;
         toolCount = toolCountAfter - toolCountBefore;
 
@@ -534,17 +561,16 @@ class MCPInitializer {
           mcpTools[toolKey] = availableTools[toolKey];
         }
 
-        // Cache manifest tools by fetching them once during initialization
-        logger.info(`[MCPInitializer][${context}] Caching manifest tools for user ${userId}`);
+        // Create manifest tools using the new loadUserManifestTools method
+        logger.info(`[MCPInitializer][${context}] Creating manifest tools for user ${userId}`);
         try {
-          // Use an empty base manifest since we only want the user's MCP tools
-          manifestTools = await mcpManager.loadUserManifestTools([], userId);
+          manifestTools = await mcpManager.loadUserManifestTools(userId);
           logger.info(
-            `[MCPInitializer][${context}] Cached ${manifestTools.length} manifest tools for user ${userId}`,
+            `[MCPInitializer][${context}] Created ${manifestTools.length} manifest tools for user ${userId}`,
           );
         } catch (manifestError) {
           logger.warn(
-            `[MCPInitializer][${context}] Failed to cache manifest tools for user ${userId}:`,
+            `[MCPInitializer][${context}] Failed to create manifest tools for user ${userId}:`,
             manifestError.message,
           );
           manifestTools = [];
@@ -771,10 +797,15 @@ class MCPInitializer {
       logger.debug(
         `[MCPInitializer][${context}] Adding server config and establishing connection for '${serverName}' for user ${userId}`,
       );
-      mcpManager.addServerConfig(serverName, singleServerConfig[serverName]);
+      mcpManager.addUserServerConfig(userId, serverName, singleServerConfig[serverName]);
 
       // Get or create the connection (this will initialize it if needed)
-      const connection = await mcpManager.getUserConnection(userId, serverName);
+      const connection = await mcpManager.getUserConnection({
+        user: { id: userId },
+        serverName,
+        flowManager: null,
+        tokenMethods: null,
+      });
       if (!(await connection.isConnected())) {
         return {
           success: false,
@@ -825,7 +856,7 @@ class MCPInitializer {
           const cached = this.getUserInitializationCache(userId);
           if (cached) {
             // Refresh the cached manifest tools to include the new server
-            const updatedManifestTools = await mcpManager.loadUserManifestTools([], userId);
+            const updatedManifestTools = await mcpManager.loadUserManifestTools(userId, []);
             cached.manifestTools = updatedManifestTools;
             cached.timestamp = Date.now();
             this.setUserInitializationCache(userId, cached);
@@ -942,7 +973,7 @@ class MCPInitializer {
         const cached = this.getUserInitializationCache(userId);
         if (cached) {
           // Refresh the cached manifest tools to exclude the removed server
-          const updatedManifestTools = await mcpManager.loadUserManifestTools([], userId);
+          const updatedManifestTools = await mcpManager.loadUserManifestTools(userId, []);
           cached.manifestTools = updatedManifestTools;
           cached.timestamp = Date.now();
           this.setUserInitializationCache(userId, cached);
@@ -1029,7 +1060,9 @@ class MCPInitializer {
     if (toolKeysToRemove.length > 0) {
       let removedCount = 0;
       for (const toolName of toolKeysToRemove) {
-        if (availableTools[toolName]) {
+        // Only remove from availableTools if it's actually an MCP tool (in the registry)
+        // This prevents removing structured tools that happen to have the same name
+        if (availableTools[toolName] && mcpToolRegistry.has(toolName)) {
           delete availableTools[toolName];
           removedCount++;
         }

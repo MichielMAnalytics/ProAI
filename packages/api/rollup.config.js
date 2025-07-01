@@ -1,5 +1,6 @@
 // rollup.config.js
 import { readFileSync } from 'fs';
+import json from '@rollup/plugin-json';
 import terser from '@rollup/plugin-terser';
 import replace from '@rollup/plugin-replace';
 import commonjs from '@rollup/plugin-commonjs';
@@ -14,6 +15,7 @@ const plugins = [
   resolve({
     preferBuiltins: true,
   }),
+  json(),
   replace({
     __IS_DEV__: process.env.NODE_ENV === 'development',
     preventAssignment: true,

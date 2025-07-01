@@ -28,6 +28,8 @@ export class MCPManager {
   private userLastActivity: Map<string, number> = new Map();
   private readonly USER_CONNECTION_IDLE_TIMEOUT = 15 * 60 * 1000; // 15 minutes (TODO: make configurable)
   private mcpConfigs: t.MCPServers = {};
+  /** User-specific server configurations */
+  private userConfigs: Map<string, t.MCPServers> = new Map();
   private processMCPEnv?: (obj: MCPOptions, user?: TUser) => MCPOptions; // Store the processing function
   /** Store MCP server instructions */
   private serverInstructions: Map<string, string> = new Map();
@@ -435,11 +437,11 @@ export class MCPManager {
       logger.info(`[MCP][User: ${userId}][${serverName}] Establishing new connection`);
     }
 
-    let config = this.mcpConfigs[serverName];
+    let config = this.mcpConfigs[serverName] || this.userConfigs.get(userId)?.[serverName];
     if (!config) {
       throw new McpError(
         ErrorCode.InvalidRequest,
-        `[MCP][User: ${userId}] Configuration for server "${serverName}" not found.`,
+        `[MCP][User: ${userId}] Configuration for server "${serverName}" not found in global or user configs.`,
       );
     }
 
@@ -651,6 +653,30 @@ export class MCPManager {
     return this.connections;
   }
 
+  /** Add user-specific server configuration */
+  public addUserServerConfig(userId: string, serverName: string, config: t.MCPOptions): void {
+    if (!this.userConfigs.has(userId)) {
+      this.userConfigs.set(userId, {});
+    }
+    const userConfigs = this.userConfigs.get(userId)!;
+    userConfigs[serverName] = config;
+    logger.debug(`[MCP][User: ${userId}] Added server config for: ${serverName}`);
+  }
+
+  /** Remove user-specific server configuration */
+  public removeUserServerConfig(userId: string, serverName: string): void {
+    const userConfigs = this.userConfigs.get(userId);
+    if (userConfigs && userConfigs[serverName]) {
+      delete userConfigs[serverName];
+      logger.debug(`[MCP][User: ${userId}] Removed server config for: ${serverName}`);
+      
+      // Clean up empty user config objects
+      if (Object.keys(userConfigs).length === 0) {
+        this.userConfigs.delete(userId);
+      }
+    }
+  }
+
   /** Attempts to reconnect an app-level connection if it's disconnected */
   private async isConnectionActive({
     serverName,
@@ -742,26 +768,26 @@ export class MCPManager {
   /**
    * Loads tools from all app-level connections into the manifest.
    */
-  public async loadManifestTools({
-    flowManager,
-    serverToolsCallback,
-    getServerTools,
-  }: {
-    flowManager: FlowStateManager<MCPOAuthTokens | null>;
-    serverToolsCallback?: (serverName: string, tools: t.LCManifestTool[]) => Promise<void>;
-    getServerTools?: (serverName: string) => Promise<t.LCManifestTool[] | undefined>;
-  }): Promise<t.LCToolManifest> {
-    const mcpTools: t.LCManifestTool[] = [];
+  public async loadManifestTools(
+    baseManifest: t.LCManifestTool[] = [],
+    options: {
+      flowManager?: FlowStateManager<MCPOAuthTokens | null>;
+      serverToolsCallback?: (serverName: string, tools: t.LCManifestTool[]) => Promise<void>;
+      getServerTools?: (serverName: string) => Promise<t.LCManifestTool[] | undefined>;
+    } = {}
+  ): Promise<t.LCToolManifest> {
+    const { flowManager, serverToolsCallback, getServerTools } = options;
+    const mcpTools: t.LCManifestTool[] = [...baseManifest];
 
     for (const [serverName, connection] of this.connections.entries()) {
       try {
         /** Attempt to ensure connection is active, with reconnection if needed */
-        const isActive = await this.isConnectionActive({
+        const isActive = flowManager ? await this.isConnectionActive({
           serverName,
           connection,
           flowManager,
           skipReconnect: true,
-        });
+        }) : await connection.isConnected();
         if (!isActive) {
           logger.warn(
             `[MCP][${serverName}] Connection not available for ${serverName} manifest tools.`,
@@ -789,6 +815,8 @@ export class MCPManager {
             pluginKey,
             description: tool.description ?? '',
             icon: connection.iconPath,
+            serverName: serverName, // Add serverName for frontend grouping
+            isGlobal: true, // Global MCP tools
           };
           const config = this.mcpConfigs[serverName];
           if (config?.chatMenu === false) {
@@ -805,6 +833,58 @@ export class MCPManager {
       }
     }
 
+    return mcpTools;
+  }
+
+  /**
+   * Load manifest tools for a specific user from their user-specific connections
+   */
+  public async loadUserManifestTools(userId: string, baseManifest: t.LCManifestTool[] = []): Promise<t.LCManifestTool[]> {
+    const mcpTools: t.LCManifestTool[] = [...baseManifest];
+    const userConnections = this.userConnections.get(userId);
+    
+    if (!userConnections) {
+      logger.debug(`[MCP][User: ${userId}] No user connections found for manifest`);
+      return mcpTools;
+    }
+    
+    for (const [serverName, connection] of userConnections.entries()) {
+      try {
+        if (!(await connection.isConnected())) {
+          logger.debug(`[MCP][User: ${userId}][${serverName}] Connection not active for manifest`);
+          continue;
+        }
+        
+        const tools = await connection.fetchTools();
+        const serverTools: t.LCManifestTool[] = [];
+        
+        for (const tool of tools) {
+          const pluginKey = `${tool.name}${CONSTANTS.mcp_delimiter}${serverName}`;
+          const manifestTool: t.LCManifestTool = {
+            name: tool.name,
+            pluginKey,
+            description: tool.description ?? '',
+            icon: connection.iconPath,
+            serverName: serverName, // Add serverName for frontend grouping
+            isGlobal: false, // User-specific tools are not global
+          };
+          
+          // Check if user server config has chatMenu setting
+          const userConfig = this.userConfigs.get(userId)?.[serverName];
+          if (userConfig?.chatMenu === false) {
+            manifestTool.chatMenu = false;
+          }
+          
+          mcpTools.push(manifestTool);
+          serverTools.push(manifestTool);
+        }
+        
+        logger.debug(`[MCP][User: ${userId}][${serverName}] Added ${serverTools.length} tools to manifest`);
+      } catch (error) {
+        logger.error(`[MCP][User: ${userId}][${serverName}] Error fetching tools for manifest:`, error);
+      }
+    }
+    
     return mcpTools;
   }
 
@@ -890,7 +970,7 @@ export class MCPManager {
         this.updateUserLastActivity(userId);
       }
       this.checkIdleConnections();
-      return formatToolContent(result, provider);
+      return formatToolContent(result as t.MCPToolCallResponse, provider);
     } catch (error) {
       // Log with context and re-throw or handle as needed
       logger.error(`${logPrefix}[${toolName}] Tool call failed`, error);

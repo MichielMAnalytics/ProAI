@@ -82,8 +82,25 @@ export default function AppCard({
   // For multi-tool apps, calculate selected tools
   const selectedTools = useMemo(() => {
     if (app.isSingleTool) return [];
-    return app.tools.filter((tool) => getCurrentToolKeys.includes(tool.pluginKey));
-  }, [app.tools, getCurrentToolKeys, app.isSingleTool]);
+    return app.tools.filter((tool) => {
+      // For MCP tools, we need to check if any current tool has this tool name and server
+      if (tool.serverName) {
+        return currentTools.some((currentTool: any) => {
+          if (typeof currentTool === 'object' && currentTool.tool && currentTool.server) {
+            // Extract tool name from pluginKey (remove MCP delimiter)
+            const toolName = tool.pluginKey.includes('_mcp_') 
+              ? tool.pluginKey.split('_mcp_')[0] 
+              : tool.pluginKey;
+            return currentTool.tool === toolName && currentTool.server === tool.serverName;
+          }
+          return false;
+        });
+      } else {
+        // For regular tools, check by pluginKey
+        return getCurrentToolKeys.includes(tool.pluginKey);
+      }
+    });
+  }, [app.tools, getCurrentToolKeys, app.isSingleTool, currentTools]);
 
   const allToolsSelected = !app.isSingleTool && selectedTools.length === app.tools.length;
   const someToolsSelected = !app.isSingleTool && selectedTools.length > 0;
@@ -101,15 +118,48 @@ export default function AppCard({
       // Handle multi-tool server toggle
       if (app.isDisconnected) return; // Can't toggle disconnected servers
 
-      const toolKeys = app.tools.map((tool) => tool.pluginKey);
-
       if (allToolsSelected) {
-        // Deselect all tools from this app
-        onRemoveApp(app.id, toolKeys);
+        // For MCP tools, we need to remove using the actual tool names, not the pluginKeys with delimiters
+        const toolsToRemove = app.tools.map((tool) => {
+          if (tool.serverName) {
+            // Extract tool name from pluginKey (remove MCP delimiter)
+            return tool.pluginKey.includes('_mcp_') 
+              ? tool.pluginKey.split('_mcp_')[0] 
+              : tool.pluginKey;
+          }
+          return tool.pluginKey;
+        });
+        
+        // Remove tools directly from the form state
+        const currentToolsList = getValues(toolsFormKey) || [];
+        const updatedTools = currentToolsList.filter((currentTool: string | any) => {
+          if (typeof currentTool === 'string') {
+            return !toolsToRemove.includes(currentTool);
+          } else if (typeof currentTool === 'object' && currentTool.tool && currentTool.server) {
+            // For MCP tool objects, check if this tool belongs to this server
+            return !(toolsToRemove.includes(currentTool.tool) && currentTool.server === app.tools[0]?.serverName);
+          }
+          return true;
+        });
+        setValue(toolsFormKey, updatedTools);
       } else {
         // Select all tools from this app that don't require auth
         app.tools.forEach((tool) => {
-          if (!getCurrentToolKeys.includes(tool.pluginKey)) {
+          // Check if this tool is already selected using the same logic as selectedTools
+          const isAlreadySelected = tool.serverName
+            ? currentTools.some((currentTool: any) => {
+                if (typeof currentTool === 'object' && currentTool.tool && currentTool.server) {
+                  // Extract tool name from pluginKey (remove MCP delimiter)
+                  const toolName = tool.pluginKey.includes('_mcp_') 
+                    ? tool.pluginKey.split('_mcp_')[0] 
+                    : tool.pluginKey;
+                  return currentTool.tool === toolName && currentTool.server === tool.serverName;
+                }
+                return false;
+              })
+            : getCurrentToolKeys.includes(tool.pluginKey);
+
+          if (!isAlreadySelected) {
             const { authConfig, authenticated = false } = tool;
             if (!authConfig || authConfig.length === 0 || authenticated) {
               onAddTool(tool.pluginKey);
@@ -127,10 +177,37 @@ export default function AppCard({
       return;
     }
 
-    const isSelected = getCurrentToolKeys.includes(tool.pluginKey);
+    // Check if this MCP tool is selected using the proper logic
+    const isSelected = tool.serverName
+      ? currentTools.some((currentTool: any) => {
+          if (typeof currentTool === 'object' && currentTool.tool && currentTool.server) {
+            const toolName = tool.pluginKey.includes('_mcp_') 
+              ? tool.pluginKey.split('_mcp_')[0] 
+              : tool.pluginKey;
+            return currentTool.tool === toolName && currentTool.server === tool.serverName;
+          }
+          return false;
+        })
+      : getCurrentToolKeys.includes(tool.pluginKey);
 
     if (isSelected) {
-      onRemoveTool(tool.pluginKey);
+      // Remove the tool directly from form state
+      if (tool.serverName) {
+        const currentToolsList = getValues(toolsFormKey) || [];
+        const toolName = tool.pluginKey.includes('_mcp_') 
+          ? tool.pluginKey.split('_mcp_')[0] 
+          : tool.pluginKey;
+        
+        const updatedTools = currentToolsList.filter((currentTool: string | any) => {
+          if (typeof currentTool === 'object' && currentTool.tool && currentTool.server) {
+            return !(currentTool.tool === toolName && currentTool.server === tool.serverName);
+          }
+          return true;
+        });
+        setValue(toolsFormKey, updatedTools);
+      } else {
+        onRemoveTool(tool.pluginKey);
+      }
     } else {
       onAddTool(tool.pluginKey);
     }
@@ -364,7 +441,18 @@ export default function AppCard({
         >
           <div className="mt-3 space-y-2">
             {app.tools.map((tool, index) => {
-              const isSelected = currentTools.includes(tool.pluginKey);
+              // Check if this tool is selected using the same logic as selectedTools
+              const isSelected = tool.serverName
+                ? currentTools.some((currentTool: any) => {
+                    if (typeof currentTool === 'object' && currentTool.tool && currentTool.server) {
+                      const toolName = tool.pluginKey.includes('_mcp_') 
+                        ? tool.pluginKey.split('_mcp_')[0] 
+                        : tool.pluginKey;
+                      return currentTool.tool === toolName && currentTool.server === tool.serverName;
+                    }
+                    return false;
+                  })
+                : getCurrentToolKeys.includes(tool.pluginKey);
               const isDisconnected = tool.isDisconnected;
 
               return (

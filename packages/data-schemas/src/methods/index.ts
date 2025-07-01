@@ -18,5 +18,5 @@ export function createMethods(mongoose: typeof import('mongoose')) {
   };
 }
 
-export type { MemoryMethods };
+export type { MemoryMethods, TokenMethods };
 export type AllMethods = UserMethods & SessionMethods & TokenMethods & RoleMethods & MemoryMethods;

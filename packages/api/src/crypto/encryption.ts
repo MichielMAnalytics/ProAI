@@ -89,7 +89,7 @@ export function encryptV3(value: string) {
     throw new Error(`Invalid key length: expected 32 bytes, got ${key.length} bytes`);
   }
   const iv_v3 = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv(algorithm_v3, key, iv_v3);
+  const cipher = crypto.createCipheriv(algorithm_v3, key as any, iv_v3 as any);
   const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
   return `v3:${iv_v3.toString('hex')}:${encrypted.toString('hex')}`;
 }
@@ -101,8 +101,8 @@ export function decryptV3(encryptedValue: string) {
   }
   const iv_v3 = Buffer.from(parts[1], 'hex');
   const encryptedText = Buffer.from(parts.slice(2).join(':'), 'hex');
-  const decipher = crypto.createDecipheriv(algorithm_v3, key, iv_v3);
-  const decrypted = Buffer.concat([decipher.update(encryptedText), decipher.final()]);
+  const decipher = crypto.createDecipheriv(algorithm_v3, key as any, iv_v3 as any);
+  const decrypted = Buffer.concat([decipher.update(encryptedText as any), decipher.final()]);
   return decrypted.toString('utf8');
 }
 

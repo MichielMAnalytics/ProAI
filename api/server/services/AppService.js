@@ -6,6 +6,7 @@ const {
   loadMemoryConfig,
   getConfigDefaults,
   loadWebSearchConfig,
+  CacheKeys,
 } = require('librechat-data-provider');
 const {
   checkHealth,
@@ -28,7 +29,8 @@ const { loadAndFormatTools } = require('./ToolService');
 const { agentsConfigSetup } = require('./start/agents');
 const { isEnabled } = require('~/server/utils');
 const { initializeRoles } = require('~/models');
-const { getMCPManager, logger } = require('~/config');
+const { setCachedTools } = require('./Config');
+const logger = require('~/utils/logger');
 const paths = require('~/config/paths');
 
 /**
@@ -76,33 +78,12 @@ const AppService = async (app) => {
     directory: paths.structuredTools,
   });
 
-  if (config.mcpServers != null) {
-    logger.info('[AppService] Global MCP servers found in config:', Object.keys(config.mcpServers));
-    logger.info(
-      '[AppService] MCP server configurations:',
-      JSON.stringify(config.mcpServers, null, 2),
-    );
+  // Convert back to array for setCachedTools
+  const toolsArray = Object.values(availableTools);
+  await setCachedTools(toolsArray, { isGlobal: true });
 
-    const mcpManager = getMCPManager();
-    logger.info('[AppService] Initializing global MCP servers...');
-    await mcpManager.initializeMCP(config.mcpServers, processMCPEnv);
-
-    logger.info('[AppService] Mapping global MCP tools to availableTools...');
-    const toolsCountBefore = Object.keys(availableTools).length;
-    await mcpManager.mapAvailableTools(availableTools);
-    const toolsCountAfter = Object.keys(availableTools).length;
-    logger.info(
-      `[AppService] Available tools count: ${toolsCountBefore} → ${toolsCountAfter} (added ${toolsCountAfter - toolsCountBefore} MCP tools)`,
-    );
-
-    // Log the actual tools that were added
-    const mcpToolNames = Object.keys(availableTools).slice(toolsCountBefore);
-    if (mcpToolNames.length > 0) {
-      logger.info('[AppService] Global MCP tools added:', mcpToolNames);
-    }
-  } else {
-    logger.info('[AppService] No global MCP servers configured in librechat.yaml');
-  }
+  // Store MCP config for later initialization
+  const mcpConfig = config.mcpServers || null;
 
   const socialLogins =
     config?.registration?.socialLogins ?? configDefaults?.registration?.socialLogins;
@@ -122,7 +103,6 @@ const AppService = async (app) => {
     socialLogins,
     filteredTools,
     includedTools,
-    availableTools,
     imageOutputType,
     interfaceConfig,
     turnstileConfig,
@@ -130,7 +110,7 @@ const AppService = async (app) => {
     scheduler: schedulerConfig,
     workflows: workflowsConfig,
     addUserSpecificMcpFromDb,
-    mcpToolRegistry: new Map(), // Initialize MCP tool registry as Map
+    mcpConfig,
   };
 
   if (!Object.keys(config).length) {
@@ -192,8 +172,77 @@ const AppService = async (app) => {
     fileConfig: config?.fileConfig,
     secureImageLinks: config?.secureImageLinks,
     modelSpecs: processModelSpecs(endpoints, config.modelSpecs, interfaceConfig),
+    availableTools,
+    mcpToolRegistry: new Map(),
     ...endpointLocals,
   };
+
+  // Initialize global MCP servers after app.locals is set
+  if (mcpConfig && Object.keys(mcpConfig).length > 0) {
+    try {
+      const { getMCPManager, getFlowStateManager } = require('~/config');
+      const { getLogStores } = require('~/cache');
+      const { CacheKeys } = require('librechat-data-provider');
+      const { findToken, updateToken, createToken } = require('~/models');
+      
+      const mcpManager = getMCPManager();
+      const flowsCache = getLogStores(CacheKeys.FLOWS);
+      const flowManager = getFlowStateManager(flowsCache);
+      
+      logger.info(`[AppService] Initializing ${Object.keys(mcpConfig).length} global MCP servers: ${Object.keys(mcpConfig).join(', ')}`);
+      
+      await mcpManager.initializeMCP({
+        mcpServers: mcpConfig,
+        flowManager,
+        tokenMethods: { findToken, updateToken, createToken },
+        processMCPEnv,
+      });
+      
+      // Register global MCP tools in the tool registry and availableTools
+      const globalConnections = mcpManager.getAllConnections();
+      let globalToolCount = 0;
+      
+      for (const [serverName, connection] of globalConnections.entries()) {
+        try {
+          if (await connection.isConnected()) {
+            const tools = await connection.fetchTools();
+            logger.info(`[AppService] Global MCP server '${serverName}' has ${tools.length} tools`);
+            
+            for (const tool of tools) {
+              const toolName = tool.name;
+              const toolDef = {
+                type: 'function',
+                function: {
+                  name: toolName,
+                  description: tool.description,
+                  parameters: tool.inputSchema,
+                },
+              };
+              
+              // Add to availableTools
+              app.locals.availableTools[toolName] = toolDef;
+              
+              // Register in MCP tool registry with global flag
+              app.locals.mcpToolRegistry.set(toolName, {
+                serverName,
+                appSlug: serverName,
+                toolName,
+                isGlobal: true,
+              });
+              
+              globalToolCount++;
+            }
+          }
+        } catch (error) {
+          logger.error(`[AppService] Failed to register tools from global MCP server '${serverName}':`, error);
+        }
+      }
+      
+      logger.info(`[AppService] Global MCP servers initialized successfully with ${globalToolCount} tools registered`);
+    } catch (error) {
+      logger.error(`[AppService] Failed to initialize global MCP servers:`, error);
+    }
+  }
 };
 
 module.exports = AppService;
