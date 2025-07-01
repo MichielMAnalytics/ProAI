@@ -580,10 +580,9 @@ export class MCPConnection extends EventEmitter {
 
     const originalSend = this.transport.send.bind(this.transport);
     this.transport.send = async (msg) => {
-      // Soften the ping error handling - log but don't throw for empty results
       if ('result' in msg && !('method' in msg) && Object.keys(msg.result ?? {}).length === 0) {
         if (Date.now() - this.lastPingTime < FIVE_MINUTES) {
-          logger.debug(`${this.getLogPrefix()} Received empty result within ping interval - this is normal`);
+          throw new Error('Empty result');
         }
         this.lastPingTime = Date.now();
       }
