@@ -17,9 +17,7 @@ const { logger } = require('~/config');
 class PipedreamConnect {
   constructor() {
     this.client = null;
-    this.cachedToken = null;
-    this.tokenExpiresAt = null;
-    this.tokenRefreshPromise = null; // Prevent concurrent token refreshes
+    // Remove manual token caching - SDK handles this automatically
     this.initializeClient();
   }
 
@@ -446,121 +444,192 @@ class PipedreamConnect {
   }
 
   /**
-   * Get a fresh OAuth access token for API authentication
-   * Production-ready implementation with concurrency control and retry logic
+   * Get a fresh OAuth access token using hybrid approach
+   * - For user-specific operations: uses SDK's getAccounts() with credentials
+   * - For global/system operations: uses client credentials flow
    *
+   * @param {string} externalUserId - The external user ID (defaults to 'system' for global tokens)
    * @returns {Promise<string>} OAuth access token
    */
-  async getOAuthAccessToken() {
+  async getOAuthAccessToken(externalUserId = 'system') {
     if (!this.isEnabled()) {
       throw new Error('Pipedream Connect is not enabled or configured');
     }
 
-    // Check if we have a valid cached token (with 5 minute buffer)
-    const now = Date.now();
-    if (this.cachedToken && this.tokenExpiresAt && this.tokenExpiresAt - now > 300000) {
-      logger.debug('PipedreamConnect: Using cached OAuth access token');
-      return this.cachedToken;
-    }
-
-    // Prevent concurrent token refresh requests
-    if (this.tokenRefreshPromise) {
-      logger.debug('PipedreamConnect: Token refresh already in progress, waiting...');
-      return await this.tokenRefreshPromise;
-    }
-
-    // Create and cache the refresh promise
-    this.tokenRefreshPromise = this._refreshToken();
-
-    try {
-      const token = await this.tokenRefreshPromise;
-      return token;
-    } finally {
-      // Clear the promise regardless of success/failure
-      this.tokenRefreshPromise = null;
+    // Determine strategy based on user ID
+    if (externalUserId && externalUserId !== 'system') {
+      // User-specific: use SDK accounts
+      return this.getUserOAuthToken(externalUserId);
+    } else {
+      // Global/system: use client credentials
+      return this.getSystemOAuthToken();
     }
   }
 
   /**
-   * Internal method to refresh the OAuth token with retry logic
-   * @private
+   * Get OAuth token for specific user using SDK's account management
+   *
+   * @param {string} externalUserId - The external user ID
+   * @returns {Promise<string>} OAuth access token
    */
-  async _refreshToken() {
-    const axios = require('axios');
-    const baseURL = process.env.PIPEDREAM_API_BASE_URL || 'https://api.pipedream.com/v1';
-    const maxRetries = 3;
-    const retryDelay = 1000; // 1 second
+  async getUserOAuthToken(externalUserId) {
+    try {
+      logger.debug(`PipedreamConnect: Getting user OAuth credentials via SDK for user ${externalUserId}`);
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        logger.debug(
-          `PipedreamConnect: Fetching new OAuth access token (attempt ${attempt}/${maxRetries})`,
-        );
+      // Use SDK's automatic credential management
+      const response = await this.client.getAccounts({
+        external_user_id: externalUserId,
+        include_credentials: true
+      });
 
-        const tokenResponse = await axios.post(
-          `${baseURL}/oauth/token`,
-          {
-            grant_type: 'client_credentials',
-            client_id: process.env.PIPEDREAM_CLIENT_ID,
-            client_secret: process.env.PIPEDREAM_CLIENT_SECRET,
-          },
-          {
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 10000, // 10 second timeout
-          },
-        );
-
-        const accessToken = tokenResponse.data.access_token;
-        const expiresIn = tokenResponse.data.expires_in || 3600; // Default to 1 hour
-
-        if (accessToken) {
-          // Cache the token with expiration
-          const now = Date.now();
-          this.cachedToken = accessToken;
-          this.tokenExpiresAt = now + expiresIn * 1000;
-
-          logger.info('PipedreamConnect: Retrieved and cached fresh OAuth access token', {
-            expires_in_minutes: Math.floor(expiresIn / 60),
-            attempt: attempt,
-          });
-          return accessToken;
-        }
-
-        throw new Error('No access token in response');
-      } catch (error) {
-        const isLastAttempt = attempt === maxRetries;
-
-        logger.warn(`PipedreamConnect: Token refresh attempt ${attempt}/${maxRetries} failed:`, {
-          message: error.message,
-          status: error.response?.status,
-          willRetry: !isLastAttempt,
-        });
-
-        if (isLastAttempt) {
-          logger.error('PipedreamConnect: All token refresh attempts failed:', {
-            message: error.message,
-            hasClient: !!this.client,
-            isEnabled: this.isEnabled(),
-          });
-          throw new Error(
-            `Failed to get OAuth access token after ${maxRetries} attempts: ${error.message}`,
-          );
-        }
-
-        // Wait before retrying (exponential backoff)
-        await new Promise((resolve) => setTimeout(resolve, retryDelay * attempt));
+      // Correctly access the accounts array from SDK response
+      if (!response || !response.data || !response.data.accounts) {
+        throw new Error(`Invalid response structure from getAccounts`);
       }
+
+      const accounts = response.data.accounts;
+      if (!accounts || accounts.length === 0) {
+        throw new Error(`No connected accounts found for user ${externalUserId}`);
+      }
+
+      // Find the first account with valid OAuth credentials
+      const accountWithCredentials = accounts.find(account => 
+        account.credentials && account.credentials.oauth_access_token
+      );
+
+      if (!accountWithCredentials) {
+        throw new Error(`No account with valid OAuth credentials found for user ${externalUserId}`);
+      }
+
+      const credentials = accountWithCredentials.credentials;
+      logger.info('PipedreamConnect: Retrieved user OAuth access token via SDK', {
+        expires_at: credentials.expires_at,
+        last_refreshed_at: credentials.last_refreshed_at,
+        next_refresh_at: credentials.next_refresh_at,
+        account_id: accountWithCredentials.id,
+        externalUserId
+      });
+
+      return credentials.oauth_access_token;
+    } catch (error) {
+      logger.error(`PipedreamConnect: Failed to get user OAuth access token via SDK:`, {
+        message: error.message,
+        status: error.status,
+        response: error.response?.data,
+        externalUserId
+      });
+      throw new Error(`Failed to get user OAuth access token: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get OAuth token for system/global operations using client credentials flow
+   *
+   * @returns {Promise<string>} OAuth access token
+   */
+  async getSystemOAuthToken() {
+    try {
+      logger.debug('PipedreamConnect: Getting system OAuth credentials via client credentials flow');
+
+      const axios = require('axios');
+      const baseURL = process.env.PIPEDREAM_API_BASE_URL || 'https://api.pipedream.com/v1';
+
+      const tokenResponse = await axios.post(
+        `${baseURL}/oauth/token`,
+        {
+          grant_type: 'client_credentials',
+          client_id: process.env.PIPEDREAM_CLIENT_ID,
+          client_secret: process.env.PIPEDREAM_CLIENT_SECRET,
+        },
+        {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 10000, // 10 second timeout
+        },
+      );
+
+      const accessToken = tokenResponse.data.access_token;
+      const expiresIn = tokenResponse.data.expires_in || 3600; // Default to 1 hour
+
+      if (accessToken) {
+        logger.info('PipedreamConnect: Retrieved system OAuth access token via client credentials', {
+          expires_in_minutes: Math.floor(expiresIn / 60),
+        });
+        return accessToken;
+      }
+
+      throw new Error('No access token in client credentials response');
+    } catch (error) {
+      logger.error('PipedreamConnect: Failed to get system OAuth access token:', {
+        message: error.message,
+        status: error.response?.status,
+        response: error.response?.data,
+      });
+      throw new Error(`Failed to get system OAuth access token: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get OAuth credentials for a specific app and user
+   * This is useful for MCP connections that need app-specific tokens
+   *
+   * @param {string} appName - The app name (e.g., 'gmail', 'slack')
+   * @param {string} externalUserId - The external user ID
+   * @returns {Promise<Object>} Full credential object with oauth_access_token, expires_at, etc.
+   */
+  async getOAuthCredentials(appName, externalUserId) {
+    if (!this.isEnabled()) {
+      throw new Error('Pipedream Connect is not enabled or configured');
+    }
+
+    try {
+      logger.debug(`PipedreamConnect: Getting OAuth credentials for app ${appName}, user ${externalUserId}`);
+
+      const response = await this.client.getAccounts({
+        app: appName,
+        external_user_id: externalUserId,
+        include_credentials: true
+      });
+
+      // Correctly access the accounts array from SDK response
+      if (!response || !response.data || !response.data.accounts) {
+        throw new Error(`Invalid response structure from getAccounts for app ${appName}`);
+      }
+
+      const accounts = response.data.accounts;
+      if (!accounts || accounts.length === 0) {
+        throw new Error(`No ${appName} account found for user ${externalUserId}`);
+      }
+
+      const account = accounts[0];
+      if (!account.credentials || !account.credentials.oauth_access_token) {
+        throw new Error(`No valid OAuth credentials found for ${appName} account`);
+      }
+
+      logger.info(`PipedreamConnect: Retrieved OAuth credentials for ${appName}`, {
+        expires_at: account.credentials.expires_at,
+        last_refreshed_at: account.credentials.last_refreshed_at,
+        account_id: account.id
+      });
+
+      return account.credentials;
+    } catch (error) {
+      logger.error(`PipedreamConnect: Failed to get OAuth credentials for ${appName}:`, {
+        message: error.message,
+        status: error.status,
+        appName,
+        externalUserId
+      });
+      throw new Error(`Failed to get ${appName} OAuth credentials: ${error.message}`);
     }
   }
 
   /**
    * Clear cached OAuth token (useful when token becomes invalid)
+   * Note: With SDK-based management, this is less critical as SDK handles caching
    */
   clearTokenCache() {
-    this.cachedToken = null;
-    this.tokenExpiresAt = null;
-    this.tokenRefreshPromise = null; // Also clear any pending refresh
-    logger.debug('PipedreamConnect: Cleared OAuth token cache');
+    // SDK handles token caching automatically, but we can still log this for backwards compatibility
+    logger.debug('PipedreamConnect: Token cache clear requested (SDK handles caching automatically)');
   }
 
   /**

@@ -72,8 +72,6 @@ export class MCPConnection extends EventEmitter {
   private lastPingTime: number;
   private oauthTokens?: MCPOAuthTokens | null;
   private oauthRequired = false;
-  private lastTokenRefresh = 0;
-  private readonly TOKEN_REFRESH_BUFFER = 5 * 60 * 1000; // 5 minutes buffer before expiry
   iconPath?: string;
   timeout?: number;
   url?: string;
@@ -134,103 +132,41 @@ export class MCPConnection extends EventEmitter {
     }
   }
 
-  /** Helper to check if Pipedream token needs refresh */
-  private needsPipedreamTokenRefresh(): boolean {
+  /** Helper to check if this is a Pipedream server that needs fresh tokens */
+  private isPipedreamServer(): boolean {
     if (this.options.type !== 'streamable-http') {
       return false;
     }
 
     const url = 'url' in this.options ? this.options.url : '';
-    if (!url.includes('pipedream.net')) {
-      return false;
-    }
-
-    // Check if we have OAuth tokens and if they're close to expiring
-    if (this.oauthTokens?.obtained_at && this.oauthTokens?.expires_in) {
-      const tokenAge = Date.now() - this.oauthTokens.obtained_at;
-      const tokenExpiry = this.oauthTokens.expires_in * 1000; // Convert to milliseconds
-      const timeUntilExpiry = tokenExpiry - tokenAge;
-      
-      // Refresh if token expires within the buffer time
-      if (timeUntilExpiry <= this.TOKEN_REFRESH_BUFFER) {
-        logger.info(`${this.getLogPrefix()} Token expires in ${Math.round(timeUntilExpiry / 1000)}s, triggering refresh`);
-        return true;
-      }
-    }
-
-    // Also refresh if it's been more than 50 minutes since last refresh (safety margin)
-    // Only check this if we've actually done a refresh before (lastTokenRefresh > 0)
-    if (this.lastTokenRefresh > 0) {
-      const timeSinceLastRefresh = Date.now() - this.lastTokenRefresh;
-      if (timeSinceLastRefresh > 50 * 60 * 1000) {
-        logger.info(`${this.getLogPrefix()} Token refresh overdue (${Math.round(timeSinceLastRefresh / 1000 / 60)}min), triggering refresh`);
-        return true;
-      }
-    } else {
-      // If we've never refreshed, check if we need to based on OAuth tokens
-      logger.info(`${this.getLogPrefix()} No previous refresh recorded, checking token age`);
-      return true; // Always refresh on first connection if no refresh history
-    }
-
-    return false;
+    return url.includes('pipedream.net');
   }
 
-  /** Helper to refresh Pipedream authentication token */
-  private async refreshPipedreamToken(): Promise<boolean> {
+  /** Helper to get fresh Pipedream authentication token using SDK */
+  private async getFreshPipedreamToken(): Promise<string | null> {
     try {
-      // Only refresh if this is a Pipedream streamable-http connection
-      if (this.options.type !== 'streamable-http') {
-        return false;
+      if (!this.isPipedreamServer()) {
+        return null;
       }
 
-      // Check if this looks like a Pipedream MCP server
-      const url = 'url' in this.options ? this.options.url : '';
-      if (!url.includes('pipedream.net')) {
-        return false;
-      }
-
-      logger.info(`${this.getLogPrefix()} Attempting to refresh Pipedream auth token`);
+      logger.info(`${this.getLogPrefix()} Getting fresh Pipedream token via SDK`);
 
       // Dynamically import PipedreamConnect to avoid circular dependencies
       const PipedreamConnect = require('../../../api/server/services/Pipedream/PipedreamConnect');
 
       if (PipedreamConnect.isEnabled()) {
-        // Clear cached token since it's likely expired/invalid
-        PipedreamConnect.clearTokenCache();
-
+        // Use SDK's automatic token management - no need to clear cache manually
         const newToken = await PipedreamConnect.getOAuthAccessToken();
         if (newToken) {
-          // Update both the options headers and OAuth tokens
-          if (this.options.headers) {
-            this.options.headers['Authorization'] = `Bearer ${newToken}`;
-          }
-          this.oauthTokens = {
-            access_token: newToken,
-            token_type: 'Bearer',
-            obtained_at: Date.now(),
-            expires_in: 3600, // 1 hour
-          };
-          this.lastTokenRefresh = Date.now();
-          
-          // If we have an existing transport, we need to reconnect with fresh token
-          // The next connection attempt will use the updated headers and tokens
-          if (this.transport && this.connectionState === 'connected') {
-            logger.info(`${this.getLogPrefix()} Token refreshed, will reconnect on next operation`);
-            this.connectionState = 'disconnected';
-            this.emit('connectionChange', 'disconnected');
-          }
-          
-          logger.info(
-            `${this.getLogPrefix()} Successfully refreshed Pipedream auth token at ${new Date().toISOString()}`,
-          );
-          return true;
+          logger.info(`${this.getLogPrefix()} Successfully retrieved fresh Pipedream token via SDK`);
+          return newToken;
         }
       }
 
-      return false;
+      return null;
     } catch (error) {
-      logger.error(`${this.getLogPrefix()} Failed to refresh auth token:`, error);
-      return false;
+      logger.error(`${this.getLogPrefix()} Failed to get fresh Pipedream token:`, error);
+      return null;
     }
   }
 
@@ -286,41 +222,11 @@ export class MCPConnection extends EventEmitter {
           logger.info(`${this.getLogPrefix()} Creating SSE transport: ${url.toString()}`);
           const abortController = new AbortController();
 
-          // Check if we need to refresh Pipedream token before creating transport
-          if (this.needsPipedreamTokenRefresh()) {
-            logger.info(`${this.getLogPrefix()} Refreshing Pipedream token before SSE transport creation`);
-            await this.refreshPipedreamToken();
-          }
-
           /** Add OAuth token to headers if available */
           const headers = { ...options.headers };
           if (this.oauthTokens?.access_token) {
             headers['Authorization'] = `Bearer ${this.oauthTokens.access_token}`;
             logger.debug(`${this.getLogPrefix()} Using OAuth token from this.oauthTokens for SSE`);
-          } else if (url.toString().includes('pipedream.net')) {
-            // For Pipedream servers, always try to get a fresh token if we don't have OAuth tokens
-            logger.info(`${this.getLogPrefix()} Fetching fresh Pipedream token for SSE transport creation`);
-            try {
-              const PipedreamConnect = require('../../../api/server/services/Pipedream/PipedreamConnect');
-              if (PipedreamConnect.isEnabled()) {
-                PipedreamConnect.clearTokenCache();
-                const freshToken = await PipedreamConnect.getOAuthAccessToken();
-                if (freshToken) {
-                  headers['Authorization'] = `Bearer ${freshToken}`;
-                  // Also update our OAuth tokens for future use
-                  this.oauthTokens = {
-                    access_token: freshToken,
-                    token_type: 'Bearer',
-                    obtained_at: Date.now(),
-                    expires_in: 3600,
-                  };
-                  this.lastTokenRefresh = Date.now();
-                  logger.info(`${this.getLogPrefix()} Using fresh Pipedream token for SSE transport`);
-                }
-              }
-            } catch (tokenError) {
-              logger.warn(`${this.getLogPrefix()} Failed to get fresh Pipedream token for SSE:`, tokenError);
-            }
           }
 
           const transport = new SSEClientTransport(url, {
@@ -368,41 +274,11 @@ export class MCPConnection extends EventEmitter {
           );
           const abortController = new AbortController();
 
-          // Check if we need to refresh Pipedream token before creating transport
-          if (this.needsPipedreamTokenRefresh()) {
-            logger.info(`${this.getLogPrefix()} Refreshing Pipedream token before transport creation`);
-            await this.refreshPipedreamToken();
-          }
-
           // Add OAuth token to headers if available
           const headers = { ...options.headers };
           if (this.oauthTokens?.access_token) {
             headers['Authorization'] = `Bearer ${this.oauthTokens.access_token}`;
             logger.debug(`${this.getLogPrefix()} Using OAuth token from this.oauthTokens`);
-          } else if (url.toString().includes('pipedream.net')) {
-            // For Pipedream servers, always try to get a fresh token if we don't have OAuth tokens
-            logger.info(`${this.getLogPrefix()} Fetching fresh Pipedream token for transport creation`);
-            try {
-              const PipedreamConnect = require('../../../api/server/services/Pipedream/PipedreamConnect');
-              if (PipedreamConnect.isEnabled()) {
-                PipedreamConnect.clearTokenCache();
-                const freshToken = await PipedreamConnect.getOAuthAccessToken();
-                if (freshToken) {
-                  headers['Authorization'] = `Bearer ${freshToken}`;
-                  // Also update our OAuth tokens for future use
-                  this.oauthTokens = {
-                    access_token: freshToken,
-                    token_type: 'Bearer',
-                    obtained_at: Date.now(),
-                    expires_in: 3600,
-                  };
-                  this.lastTokenRefresh = Date.now();
-                  logger.info(`${this.getLogPrefix()} Using fresh Pipedream token for transport`);
-                }
-              }
-            } catch (tokenError) {
-              logger.warn(`${this.getLogPrefix()} Failed to get fresh Pipedream token:`, tokenError);
-            }
           }
 
           const transport = new StreamableHTTPClientTransport(url, {
@@ -559,10 +435,14 @@ export class MCPConnection extends EventEmitter {
           }
         }
 
-        // Proactively refresh Pipedream token before creating transport if needed
-        if (this.needsPipedreamTokenRefresh()) {
-          logger.info(`${this.getLogPrefix()} Proactively refreshing Pipedream token before connection`);
-          await this.refreshPipedreamToken();
+        // Get fresh Pipedream token before creating transport if this is a Pipedream server
+        if (this.isPipedreamServer()) {
+          logger.info(`${this.getLogPrefix()} Getting fresh Pipedream token before connection`);
+          const freshToken = await this.getFreshPipedreamToken();
+          if (freshToken && 'headers' in this.options && this.options.headers) {
+            this.options.headers['Authorization'] = `Bearer ${freshToken}`;
+            logger.info(`${this.getLogPrefix()} Updated connection headers with fresh token`);
+          }
         }
 
         this.transport = await this.constructTransport(this.options);
@@ -592,13 +472,14 @@ export class MCPConnection extends EventEmitter {
 
           // For Pipedream servers, try to refresh token instead of full OAuth flow
           if (serverUrl?.includes('pipedream.net')) {
-            logger.info(`${this.getLogPrefix()} Attempting Pipedream token refresh`);
+            logger.info(`${this.getLogPrefix()} Attempting to get fresh Pipedream token`);
             try {
-              const refreshed = await this.refreshPipedreamToken();
-              if (refreshed) {
+              const freshToken = await this.getFreshPipedreamToken();
+              if (freshToken && 'headers' in this.options && this.options.headers) {
+                this.options.headers['Authorization'] = `Bearer ${freshToken}`;
                 this.oauthRequired = false;
                 logger.info(
-                  `${this.getLogPrefix()} Pipedream token refreshed successfully, connection will be retried`,
+                  `${this.getLogPrefix()} Fresh Pipedream token obtained, connection will be retried`,
                 );
                 return;
               }
