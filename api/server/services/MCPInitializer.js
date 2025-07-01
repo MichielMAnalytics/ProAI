@@ -486,8 +486,9 @@ class MCPInitializer {
         // Count tools before adding user MCP tools
         const toolCountBefore = Object.keys(availableTools).length;
         
-        // Register user server configs, initialize connections, and map tools in one efficient loop
-        for (const [serverName, serverConfig] of Object.entries(userMCPServers)) {
+        // Initialize all servers in parallel using Promise.allSettled for better performance
+        const serverEntries = Object.entries(userMCPServers);
+        const serverInitPromises = serverEntries.map(async ([serverName, serverConfig]) => {
           try {
             // First, register the server config for this user
             mcpManager.addUserServerConfig(userId, serverName, serverConfig);
@@ -506,6 +507,7 @@ class MCPInitializer {
               // Fetch and map tools directly while we have the connection
               try {
                 const tools = await connection.fetchTools();
+                const serverTools = [];
                 for (const tool of tools) {
                   const toolName = tool.name;
                   const toolDef = {
@@ -516,24 +518,43 @@ class MCPInitializer {
                       parameters: tool.inputSchema,
                     },
                   };
-                  availableTools[toolName] = toolDef;
-                  
-                  // Register in MCP tool registry if provided
-                  if (mcpToolRegistry) {
-                    mcpToolRegistry.set(toolName, {
-                      serverName,
-                      appSlug: serverName.startsWith('pipedream-') ? serverName.replace('pipedream-', '') : serverName,
-                      toolName,
-                    });
-                  }
+                  serverTools.push({ toolName, toolDef, serverName, tool });
                 }
                 logger.debug(`[MCPInitializer][${context}] Mapped ${tools.length} tools from server ${serverName}`);
+                return { serverName, tools: serverTools, success: true };
               } catch (toolError) {
                 logger.warn(`[MCPInitializer][${context}] Failed to fetch tools from server ${serverName}:`, toolError.message);
+                return { serverName, tools: [], success: false, error: toolError.message };
               }
             }
+            return { serverName, tools: [], success: false, error: 'Connection failed' };
           } catch (initError) {
             logger.warn(`[MCPInitializer][${context}] Failed to initialize user connection for server ${serverName}:`, initError.message);
+            return { serverName, tools: [], success: false, error: initError.message };
+          }
+        });
+
+        // Wait for all server initializations to complete
+        const serverResults = await Promise.allSettled(serverInitPromises);
+        
+        // Process results and add tools to availableTools and registry
+        for (const result of serverResults) {
+          if (result.status === 'fulfilled' && result.value.success) {
+            const { serverName, tools } = result.value;
+            for (const { toolName, toolDef, serverName: serverNameFromTool } of tools) {
+              availableTools[toolName] = toolDef;
+              
+              // Register in MCP tool registry if provided
+              if (mcpToolRegistry) {
+                mcpToolRegistry.set(toolName, {
+                  serverName: serverNameFromTool,
+                  appSlug: serverNameFromTool.startsWith('pipedream-') ? serverNameFromTool.replace('pipedream-', '') : serverNameFromTool,
+                  toolName,
+                });
+              }
+            }
+          } else if (result.status === 'rejected') {
+            logger.warn(`[MCPInitializer][${context}] Server initialization promise rejected:`, result.reason);
           }
         }
 
