@@ -267,8 +267,8 @@ class ChatGPTClient extends BaseClient {
     }
 
     if (this.useOpenRouter) {
-      opts.headers['HTTP-Referer'] = 'https://librechat.ai';
-      opts.headers['X-Title'] = 'LibreChat';
+      opts.headers['HTTP-Referer'] = 'https://witheve.ai';
+      opts.headers['X-Title'] = 'Eve AI';
     }
 
     /* hacky fixes for Mistral AI API:
