@@ -424,8 +424,8 @@ export class MCPManager {
         return connection;
       } else {
         // Connection exists but is not connected, attempt to remove potentially stale entry
-        logger.warn(
-          `[MCP][User: ${userId}][${serverName}] Found existing but disconnected connection object. Cleaning up.`,
+        logger.info(
+          `[MCP][User: ${userId}][${serverName}] Found disconnected connection, establishing fresh connection.`,
         );
         this.removeUserConnection(userId, serverName); // Clean up maps
         connection = undefined;
@@ -945,11 +945,23 @@ export class MCPManager {
       }
 
       if (!(await connection.isConnected())) {
-        /** May happen if getUserConnection failed silently or app connection dropped */
-        throw new McpError(
-          ErrorCode.InternalError, // Use InternalError for connection issues
-          `${logPrefix} Connection is not active. Cannot execute tool ${toolName}.`,
-        );
+        /** Connection dropped (likely idle timeout) - attempt to reconnect */
+        logger.info(`${logPrefix} Connection not active, attempting to reconnect for tool call`);
+        try {
+          await connection.connect();
+          if (!(await connection.isConnected())) {
+            throw new McpError(
+              ErrorCode.InternalError,
+              `${logPrefix} Failed to reconnect. Cannot execute tool ${toolName}.`,
+            );
+          }
+        } catch (reconnectError) {
+          logger.error(`${logPrefix} Reconnection failed:`, reconnectError);
+          throw new McpError(
+            ErrorCode.InternalError,
+            `${logPrefix} Connection failed to reconnect. Cannot execute tool ${toolName}.`,
+          );
+        }
       }
 
       const result = await connection.client.request(

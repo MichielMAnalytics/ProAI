@@ -52,7 +52,7 @@ function isStreamableHTTPOptions(options: t.MCPOptions): options is t.Streamable
   return false;
 }
 
-const FIVE_MINUTES = 5 * 60 * 1000;
+const FIVE_MINUTES = 1 * 60 * 1000;
 export class MCPConnection extends EventEmitter {
   private static instance: MCPConnection | null = null;
   public client: Client;
@@ -303,18 +303,8 @@ export class MCPConnection extends EventEmitter {
           };
 
           transport.onerror = (error: Error | unknown) => {
-            // Check if it's a temporary network error that shouldn't trigger immediate reconnection
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            const isTemporaryError = errorMessage.includes('terminated') || 
-                                   errorMessage.includes('network') ||
-                                   errorMessage.includes('timeout');
-            
-            if (isTemporaryError) {
-              logger.warn(`${this.getLogPrefix()} Temporary streamable-http transport error (will retry):`, error);
-            } else {
-              logger.error(`${this.getLogPrefix()} Streamable-http transport error:`, error);
-              this.emitError(error, 'Streamable-http transport error:');
-            }
+            logger.error(`${this.getLogPrefix()} Streamable-http transport error:`, error);
+            this.emitError(error, 'Streamable-http transport error:');
           };
 
           transport.onmessage = (message: JSONRPCMessage) => {
@@ -615,6 +605,18 @@ export class MCPConnection extends EventEmitter {
 
   private setupTransportErrorHandlers(transport: Transport): void {
     transport.onerror = (error) => {
+      // Check if it's a normal idle timeout (terminated connection)
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isIdleTimeout = errorMessage.includes('terminated') || 
+                           errorMessage.includes('SSE stream disconnected: TypeError: terminated');
+
+      if (isIdleTimeout) {
+        logger.info(`${this.getLogPrefix()} Connection idle timeout - will reconnect on demand`);
+        this.connectionState = 'disconnected';
+        this.emit('connectionChange', 'disconnected');
+        return;
+      }
+
       logger.error(`${this.getLogPrefix()} Transport error:`, error);
 
       // Check if it's an OAuth authentication error
