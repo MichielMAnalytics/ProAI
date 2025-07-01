@@ -52,7 +52,7 @@ function isStreamableHTTPOptions(options: t.MCPOptions): options is t.Streamable
   return false;
 }
 
-const FIVE_MINUTES = 1 * 60 * 1000;
+const FIVE_MINUTES = 5 * 60 * 1000;
 export class MCPConnection extends EventEmitter {
   private static instance: MCPConnection | null = null;
   public client: Client;
