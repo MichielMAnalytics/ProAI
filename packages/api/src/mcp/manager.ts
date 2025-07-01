@@ -800,6 +800,8 @@ export class MCPManager {
   ): Promise<t.LCToolManifest> {
     const { flowManager, serverToolsCallback, getServerTools } = options;
     const mcpTools: t.LCManifestTool[] = [...baseManifest];
+    
+    logger.info(`[MCP] loadManifestTools called with flowManager: ${!!flowManager} for ${this.connections.size} global servers`);
 
     for (const [serverName, connection] of this.connections.entries()) {
       try {
@@ -808,7 +810,7 @@ export class MCPManager {
           serverName,
           connection,
           flowManager,
-          skipReconnect: true,
+          skipReconnect: false, // Enable reconnection for global servers during manifest loading
         }) : await connection.isConnected();
         if (!isActive) {
           logger.warn(
