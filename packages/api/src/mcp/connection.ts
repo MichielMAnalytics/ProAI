@@ -13,6 +13,7 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 import type { MCPOAuthTokens } from './oauth/types';
 import type * as t from './types';
+import { CONSTANTS } from './enum';
 
 function isStdioOptions(options: t.MCPOptions): options is t.StdioOptions {
   return 'command' in options;
@@ -605,35 +606,56 @@ export class MCPConnection extends EventEmitter {
   }
 
   private setupTransportErrorHandlers(transport: Transport): void {
-    transport.onerror = (error) => {
-      // Check if it's a normal idle timeout (terminated connection)
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const isIdleTimeout = errorMessage.includes('terminated') || 
-                           errorMessage.includes('SSE stream disconnected: TypeError: terminated');
+    const isGlobalServer = !this.userId; // Global servers have undefined userId
+    
+    if (isGlobalServer) {
+      // Use upstream behavior for global servers - always emit 'error' to trigger reconnection
+      transport.onerror = (error) => {
+        logger.error(`${this.getLogPrefix()} Transport error:`, error);
 
-      if (isIdleTimeout) {
-        logger.info(`${this.getLogPrefix()} Connection idle timeout - will reconnect on demand`);
-        this.connectionState = 'disconnected';
-        this.emit('connectionChange', 'disconnected');
-        return;
-      }
-
-      logger.error(`${this.getLogPrefix()} Transport error:`, error);
-
-      // Check if it's an OAuth authentication error or potential token issue
-      if (error && typeof error === 'object' && 'code' in error) {
-        const errorCode = (error as unknown as { code?: number }).code;
-        if (errorCode === 401 || errorCode === 403) {
-          logger.warn(`${this.getLogPrefix()} OAuth authentication error detected`);
-          this.emit('oauthError', error);
-        } else if (errorCode === 500 && this.isPotentialTokenError(error)) {
-          logger.warn(`${this.getLogPrefix()} Potential token error detected (HTTP 500)`);
-          this.emit('oauthError', error);
+        // Check if it's an OAuth authentication error
+        if (error && typeof error === 'object' && 'code' in error) {
+          const errorCode = (error as unknown as { code?: number }).code;
+          if (errorCode === 401 || errorCode === 403) {
+            logger.warn(`${this.getLogPrefix()} OAuth authentication error detected`);
+            this.emit('oauthError', error);
+          }
         }
-      }
 
-      this.emit('connectionChange', 'error');
-    };
+        this.emit('connectionChange', 'error');
+      };
+    } else {
+      // Keep complex idle timeout logic for user-specific servers
+      transport.onerror = (error) => {
+        // Check if it's a normal idle timeout (terminated connection)
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const isIdleTimeout = errorMessage.includes('terminated') || 
+                             errorMessage.includes('SSE stream disconnected: TypeError: terminated');
+        
+        if (isIdleTimeout) {
+          logger.info(`${this.getLogPrefix()} Connection idle timeout - will reconnect on demand`);
+          this.connectionState = 'disconnected';
+          this.emit('connectionChange', 'disconnected');
+          return;
+        }
+
+        logger.error(`${this.getLogPrefix()} Transport error:`, error);
+
+        // Check if it's an OAuth authentication error or potential token issue
+        if (error && typeof error === 'object' && 'code' in error) {
+          const errorCode = (error as unknown as { code?: number }).code;
+          if (errorCode === 401 || errorCode === 403) {
+            logger.warn(`${this.getLogPrefix()} OAuth authentication error detected`);
+            this.emit('oauthError', error);
+          } else if (errorCode === 500 && this.isPotentialTokenError(error)) {
+            logger.warn(`${this.getLogPrefix()} Potential token error detected (HTTP 500)`);
+            this.emit('oauthError', error);
+          }
+        }
+
+        this.emit('connectionChange', 'error');
+      };
+    }
   }
 
   public async disconnect(): Promise<void> {

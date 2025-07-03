@@ -134,16 +134,8 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
           `[MCP][${serverName}][${toolName}] Using global MCP tool for user ${currentUserId}`,
         );
 
-        // For global tools, check if the global connection exists and is available
-        const globalConnection = mcpManager.getConnection(serverName);
-        if (!globalConnection || !(await globalConnection.isConnected())) {
-          logger.error(
-            `[MCP][${serverName}][${toolName}] Global MCP server ${serverName} is not connected`,
-          );
-          throw new Error(
-            `Global MCP service ${serverName} is currently unavailable. Please contact support.`,
-          );
-        }
+        // For global tools, don't check connection status - let the tool call handle reconnection automatically
+        // Global servers will reconnect on demand when mcpManager.callTool() is called
       } else {
         logger.info(
           `[MCP][${serverName}][${toolName}] Using user-specific MCP tool for user ${currentUserId}`,
