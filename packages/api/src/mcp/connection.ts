@@ -139,7 +139,7 @@ export class MCPConnection extends EventEmitter {
     }
 
     const url = 'url' in this.options ? this.options.url : '';
-    return url.includes('pipedream.net');
+    return url.includes('remote.mcp.pipedream.net');
   }
 
   /** Helper to get fresh Pipedream authentication token using SDK */
@@ -471,7 +471,7 @@ export class MCPConnection extends EventEmitter {
           logger.debug(`${this.getLogPrefix()} Server URL for OAuth: ${serverUrl}`);
 
           // For Pipedream servers, try to refresh token instead of full OAuth flow
-          if (serverUrl?.includes('pipedream.net')) {
+          if (serverUrl?.includes('remote.mcp.pipedream.net')) {
             logger.info(`${this.getLogPrefix()} Attempting to get fresh Pipedream token`);
             try {
               const freshToken = await this.getFreshPipedreamToken();
@@ -800,7 +800,7 @@ export class MCPConnection extends EventEmitter {
 
     // Only apply this logic for Pipedream servers
     const url = 'url' in this.options ? this.options.url : '';
-    if (!url.includes('pipedream.net')) {
+    if (!url.includes('remote.mcp.pipedream.net')) {
       return false;
     }
 
