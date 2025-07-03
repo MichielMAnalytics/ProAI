@@ -1,24 +1,10 @@
 import React, { createContext, PropsWithChildren, ReactElement, useContext, useMemo } from 'react';
 import type {
-  Control,
-  // FieldErrors,
   FieldValues,
-  UseFormReset,
-  UseFormRegister,
-  UseFormGetValues,
-  UseFormHandleSubmit,
-  UseFormSetValue,
+  UseFormReturn,
 } from 'react-hook-form';
 
-interface FormContextValue<TFieldValues extends FieldValues> {
-  register: UseFormRegister<TFieldValues>;
-  control: Control<TFieldValues>;
-  // errors: FieldErrors<TFieldValues>;
-  getValues: UseFormGetValues<TFieldValues>;
-  setValue: UseFormSetValue<TFieldValues>;
-  handleSubmit: UseFormHandleSubmit<TFieldValues>;
-  reset: UseFormReset<TFieldValues>;
-}
+interface FormContextValue<TFieldValues extends FieldValues> extends UseFormReturn<TFieldValues> {}
 
 function createFormContext<TFieldValues extends FieldValues>() {
   const context = createContext<FormContextValue<TFieldValues> | undefined>(undefined);
@@ -32,19 +18,10 @@ function createFormContext<TFieldValues extends FieldValues>() {
   };
 
   const CustomFormProvider = ({
-    register,
-    control,
-    setValue,
-    // errors,
-    getValues,
-    handleSubmit,
-    reset,
     children,
+    ...methods
   }: PropsWithChildren<FormContextValue<TFieldValues>>): ReactElement => {
-    const value = useMemo(
-      () => ({ register, control, getValues, setValue, handleSubmit, reset }),
-      [register, control, setValue, getValues, handleSubmit, reset],
-    );
+    const value = useMemo(() => methods, [methods]);
 
     return <context.Provider value={value}>{children}</context.Provider>;
   };

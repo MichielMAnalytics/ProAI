@@ -327,6 +327,7 @@ export type TConfig = {
   disableBuilder?: boolean;
   retrievalModels?: string[];
   capabilities?: string[];
+  tools?: boolean;
   customParams?: {
     defaultParamsEndpoint?: string;
     paramDefinitions?: SettingDefinition[];

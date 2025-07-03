@@ -687,7 +687,7 @@ const ChatForm = memo(
                   showEphemeralBadges={
                     !isAgentsEndpoint(endpoint) &&
                     !isAssistantsEndpoint(endpoint) &&
-                    startupConfig?.endpoints?.[endpoint]?.tools !== false
+                    Boolean(endpoint && startupConfig?.endpoints?.[endpoint]?.tools !== false)
                   }
                   conversationId={conversationId}
                   onChange={setBadges}

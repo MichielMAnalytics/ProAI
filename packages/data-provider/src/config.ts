@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ZodError } from 'zod';
-import type { TModelsConfig } from './types';
+import type { TModelsConfig, TEndpointsConfig } from './types';
 import { EModelEndpoint, eModelEndpointSchema } from './schemas';
 import { specsConfigSchema, TSpecsConfig } from './models';
 import { fileConfigSchema } from './file-config';
@@ -671,6 +671,7 @@ export type TStartupConfig = {
   instanceProjectId: string;
   bundlerURL?: string;
   staticBundlerURL?: string;
+  endpoints?: TEndpointsConfig;
   webSearch?: {
     searchProvider?: SearchProviders;
     scraperType?: ScraperTypes;
