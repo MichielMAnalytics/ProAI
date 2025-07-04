@@ -2815,3 +2815,36 @@ button, .btn {
 .dark .prose ol:not([class~='not-prose']) li::marker {
   color: var(--tw-prose-invert-bullets);
 }
+
+/* Agent/Assistant placeholder styling */
+#instructions::placeholder,
+#name::placeholder,
+#description::placeholder {
+  color: var(--text-secondary-alt);
+  opacity: 0.7;
+  font-weight: 400;
+}
+
+#instructions::-webkit-input-placeholder,
+#name::-webkit-input-placeholder,
+#description::-webkit-input-placeholder {
+  color: var(--text-secondary-alt);
+  opacity: 0.7;
+  font-weight: 400;
+}
+
+#instructions::-moz-placeholder,
+#name::-moz-placeholder,
+#description::-moz-placeholder {
+  color: var(--text-secondary-alt);
+  opacity: 0.7;
+  font-weight: 400;
+}
+
+#instructions:-ms-input-placeholder,
+#name:-ms-input-placeholder,
+#description:-ms-input-placeholder {
+  color: var(--text-secondary-alt);
+  opacity: 0.7;
+  font-weight: 400;
+}

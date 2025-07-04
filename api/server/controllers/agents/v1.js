@@ -9,6 +9,7 @@ const {
   EToolResources,
   actionDelimiter,
   AgentCapabilities,
+  specialVariables,
 } = require('librechat-data-provider');
 const {
   getAgent,
@@ -35,6 +36,69 @@ const systemTools = {
   [Tools.scheduler]: true,
   [Tools.workflows]: true,
 };
+
+/**
+ * Automatically injects special variables into agent instructions
+ * @param {string} instructions - The original instructions
+ * @returns {string} Instructions with injected special variables
+ */
+const injectSpecialVariables = (instructions = '') => {
+  const variableKeys = Object.keys(specialVariables);
+  
+  // Variable descriptions mapping
+  const variableDescriptions = {
+    current_date: 'Current Date',
+    current_user: 'Current User',
+    current_datetime: 'Current Date & Time',
+    utc_iso_datetime: 'UTC ISO Datetime',
+    tools: 'Tools'
+  };
+  
+  // Check if sections already exist to avoid duplication
+  const hasVariablesSection = instructions.includes('--- Available Variables ---') && instructions.includes('--- End Variables ---');
+  const hasWorkflowSection = instructions.includes('--- Workflow Capabilities ---') && instructions.includes('--- End Workflow Capabilities ---');
+  
+  let result = instructions;
+  
+  // Check which special variables are missing
+  const missingVariables = variableKeys.filter(key => !instructions.includes(`{{${key}}}`));
+  
+  // Only add variables section if it doesn't exist AND there are missing variables
+  if (!hasVariablesSection && missingVariables.length > 0) {
+    const variableList = missingVariables.map(key => `${variableDescriptions[key]}: {{${key}}}`).join('\n');
+    
+    // Check if any variables are already referenced in instructions above
+    const referencedVariables = variableKeys.filter(key => instructions.includes(`{{${key}}}`));
+    
+    let variableSection;
+    if (referencedVariables.length > 0) {
+      // Some variables already referenced, clarify the additional ones
+      variableSection = `\n\n--- Available Variables ---\nIn addition to the variables referenced above, you also have access to these special variables:\n${variableList}\n--- End Variables ---`;
+    } else {
+      // No variables referenced above, standard message
+      variableSection = `\n\n--- Available Variables ---\nYou have access to these special variables:\n${variableList}\n--- End Variables ---`;
+    }
+    
+    result += variableSection;
+    logger.info(`[injectSpecialVariables] Added variables section with ${missingVariables.length} missing special variables: ${missingVariables.join(', ')}`);
+  } else if (missingVariables.length === 0) {
+    logger.info(`[injectSpecialVariables] All special variables already referenced in instructions, skipping variables section injection`);
+  } else {
+    logger.info(`[injectSpecialVariables] Variables section already exists, skipping injection`);
+  }
+  
+  // Only add workflow capabilities section if it doesn't exist
+  if (!hasWorkflowSection) {
+    const workflowCapabilities = `\n\n--- Workflow Capabilities ---\nYou can create, manage, and run multi-step workflows using the workflows tool.\n\nWorkflow Creation Process:\n- RESEARCH available tool\n- PLAN steps & data flow\n- VALIDATE via validate_workflow_design\n- CREATE only after validation\n\nStructure Rules:\n- Trigger: "manual" or "schedule" (UTC cron e.g. "0 9 * * *")\n- Steps: Only "mcp_agent_action" allowed\n- Connections: Use "onSuccess" to link step\n- Descriptions: Must state purpose & timing\n- Default: isDraft: true, isActive: false\n\nStep Format:\n{\n  "id": "step_1",\n  "type": "mcp_agent_action",\n  "config": {\n    "toolName": "TOOL",\n    "parameters": {...},\n    "instruction": "Do X"\n  },\n  "onSuccess": "step_2",\n  "position": {"x": 0, "y": 0}\n}\n\nExample:\n{\n  "action": "create_workflow",\n  "name": "Daily Report",\n  "description": "9 AM UTC: fetch Strava activity, email coach@example.com",\n  "trigger": {"type": "schedule", "config": {"schedule": "0 9 * * *"}},\n  "steps": [...]\n}\n\nNote: These workflow instructions are applicable only if 'workflows' is present in the {{tools}} special variable.\n--- End Workflow Capabilities ---`;
+    result += workflowCapabilities;
+    logger.info(`[injectSpecialVariables] Added workflow capabilities section`);
+  } else {
+    logger.info(`[injectSpecialVariables] Workflow capabilities section already exists, skipping injection`);
+  }
+  
+  return result;
+};
+
 
 // Add this function to map tools to their corresponding capabilities
 const getToolCapability = (tool) => {
@@ -158,7 +222,7 @@ const createAgentHandler = async (req, res) => {
       author: userId,
       name,
       description,
-      instructions,
+      instructions: injectSpecialVariables(instructions),
       provider,
       model,
     });
@@ -253,6 +317,11 @@ const updateAgentHandler = async (req, res) => {
   try {
     const id = req.params.id;
     const { projectIds, removeProjectIds, ...updateData } = req.body;
+
+    // Inject special variables into instructions if being updated
+    if (updateData.instructions !== undefined) {
+      updateData.instructions = injectSpecialVariables(updateData.instructions);
+    }
 
     // Handle tools update - preserve MCP tool objects and validate strings
     if (updateData.tools) {

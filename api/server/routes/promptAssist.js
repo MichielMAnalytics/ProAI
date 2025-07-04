@@ -7,6 +7,7 @@ const { requireJwtAuth } = require('~/server/middleware');
 const { checkBalance } = require('~/models/balanceMethods');
 const { spendTokens } = require('~/models/spendTokens');
 const { getValueKey } = require('~/models/tx');
+const { stripAutoInjectedSections } = require('~/server/utils/agentUtils');
 const { logger } = require('~/config');
 
 const router = express.Router();
@@ -14,6 +15,9 @@ const router = express.Router();
 router.post('/', requireJwtAuth, async (req, res) => {
   try {
     const { title, description, instructions, availableVariables } = req.body;
+    
+    // Strip auto-injected sections from instructions before processing
+    const cleanInstructions = stripAutoInjectedSections(instructions);
 
     // Get prompt assist configuration
     const customConfig = await getCustomConfig();
@@ -52,19 +56,25 @@ CRITICAL FORMATTING RULES - FOLLOW EXACTLY:
 - Use ONLY plain text with numbers (1. 2. 3.) or simple dashes (-) for structure
 - For emphasis use CAPITAL LETTERS, not asterisks
 - Start directly with the enhanced instructions content
+- IMPORTANT: Only mention each special variable (like {{current_date}}, {{current_user}}, {{tools}}, etc.) once in your response to avoid redundancy
 
 The enhanced prompt should:
 - Be clear and unambiguous
 - Include relevant context and constraints
 - Specify the desired output format when applicable
-- Include examples if helpful
 - Be well-structured and easy to follow
+- Be written as flowing text, not bullet points or numbered lists (better for system prompts)
+- Be concise to optimize token usage
 - Incorporate dynamic variables when they would enhance the functionality${
       availableVariables && availableVariables.length > 0
         ? `\n\nAvailable Variables (use these when appropriate):
 ${availableVariables.map((v) => `- ${v.syntax}: ${v.description}`).join('\n')}
 
-When enhancing the prompt, consider incorporating these variables where they would be useful. For example, if the assistant needs current information, suggest using {{current_date}} or {{current_datetime}}. If it should personalize responses, mention {{current_user}}.`
+When enhancing the prompt, write instructions that inform the AI about what data it has access to. For example:
+- Instead of "use {{current_date}}" write "you have access to the current date" or "the current date is {{current_date}}"
+- Instead of "use {{current_user}}" write "you know the current user is {{current_user}}" or "the user you're helping is {{current_user}}"
+- Instead of "use {{tools}}" write "you have access to these tools: {{tools}}" or "your available tools are {{tools}}"
+The AI will see the actual values (like "July 4, 2025" or "John Smith") not the variable syntax, so write instructions accordingly.`
         : ''
     }
 
@@ -72,11 +82,11 @@ Return ONLY the enhanced instructions content without any title, description, he
 
     const userPrompt = `Based on the following information, enhance the instructions for an AI assistant:
 
-Title: ${title || 'Untitled Assistant'}
+Name: ${title || 'Untitled Assistant'}
 Description: ${description || 'No description provided'}
-Current Instructions: ${instructions || 'No instructions provided yet'}
+Current Instructions: ${cleanInstructions || 'No instructions provided yet'}
 
-Create enhanced instructions that will help the AI assistant perform its intended function effectively. Consider incorporating the available variables where they would be beneficial. Remember to return only the instructions content without repeating the title or description.`;
+Create enhanced instructions that will help the AI assistant perform its intended function effectively. ${title ? `IMPORTANT: The assistant's name is "${title}" - incorporate this identity into the instructions by starting with "You are ${title}, " followed by the description/role.` : ''} Consider incorporating the available variables where they would be beneficial. Remember to return only the instructions content without repeating the name or description separately.`;
 
     // Estimate token usage for balance check
     const messages = [

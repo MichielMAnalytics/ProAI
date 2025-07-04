@@ -85,7 +85,7 @@ export default function PromptAssist({ className, fieldName = 'instructions' }: 
         )}
         aria-label={localize('com_ui_prompt_assist')}
       >
-        {isLoading ? <Spinner className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
+        {isLoading ? <Spinner className="h-3 w-3" /> : <Sparkles className="h-3 w-3 text-yellow-500 [&>*]:fill-current" />}
         Assist
       </button>
     </TooltipAnchor>
