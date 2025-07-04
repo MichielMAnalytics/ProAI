@@ -88,6 +88,8 @@ const injectSpecialVariables = (instructions = '') => {
   }
   
   // Only add workflow capabilities section if it doesn't exist
+  // TODO: Uncomment when workflow capabilities are ready
+  /*
   if (!hasWorkflowSection) {
     const workflowCapabilities = `\n\n--- Workflow Capabilities ---\nYou can create, manage, and run multi-step workflows using the workflows tool.\n\nWorkflow Creation Process:\n- RESEARCH available tool\n- PLAN steps & data flow\n- VALIDATE via validate_workflow_design\n- CREATE only after validation\n\nStructure Rules:\n- Trigger: "manual" or "schedule" (UTC cron e.g. "0 9 * * *")\n- Steps: Only "mcp_agent_action" allowed\n- Connections: Use "onSuccess" to link step\n- Descriptions: Must state purpose & timing\n- Default: isDraft: true, isActive: false\n\nStep Format:\n{\n  "id": "step_1",\n  "type": "mcp_agent_action",\n  "config": {\n    "toolName": "TOOL",\n    "parameters": {...},\n    "instruction": "Do X"\n  },\n  "onSuccess": "step_2",\n  "position": {"x": 0, "y": 0}\n}\n\nExample:\n{\n  "action": "create_workflow",\n  "name": "Daily Report",\n  "description": "9 AM UTC: fetch Strava activity, email coach@example.com",\n  "trigger": {"type": "schedule", "config": {"schedule": "0 9 * * *"}},\n  "steps": [...]\n}\n\nNote: These workflow instructions are applicable only if 'workflows' is present in the {{tools}} special variable.\n--- End Workflow Capabilities ---`;
     result += workflowCapabilities;
@@ -95,6 +97,7 @@ const injectSpecialVariables = (instructions = '') => {
   } else {
     logger.info(`[injectSpecialVariables] Workflow capabilities section already exists, skipping injection`);
   }
+  */
   
   return result;
 };
