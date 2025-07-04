@@ -33,9 +33,8 @@ export default function AgentTool({
       // For string tools, match directly
       return t.pluginKey === toolKey;
     } else {
-      // For MCP tool objects, match by constructing the expected pluginKey with MCP delimiter
-      const expectedPluginKey = `${tool.tool}_mcp_${tool.server}`;
-      return t.pluginKey === expectedPluginKey;
+      // For MCP tool objects, match by tool name and verify server
+      return t.pluginKey === tool.tool && t.serverName === tool.server;
     }
   });
 
