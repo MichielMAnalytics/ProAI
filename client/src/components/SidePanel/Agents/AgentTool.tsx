@@ -28,14 +28,48 @@ export default function AgentTool({
 
   // Extract tool key from both string tools and MCP tool objects
   const toolKey = typeof tool === 'string' ? tool : tool.tool;
+  
+  // Debug logging
+  console.log('AgentTool Debug:', {
+    tool,
+    toolKey,
+    allToolsCount: allTools.length,
+    allToolKeys: allTools.map(t => t.pluginKey),
+    hubspotTools: allTools.filter(t => t.pluginKey && t.pluginKey.includes('hubspot')),
+    toolsWithServerName: allTools.filter(t => t.serverName).map(t => ({ pluginKey: t.pluginKey, serverName: t.serverName }))
+  });
+  
   const currentTool = allTools.find((t) => {
     if (typeof tool === 'string') {
       // For string tools, match directly
       return t.pluginKey === toolKey;
     } else {
-      // For MCP tool objects, match by tool name and verify server
-      return t.pluginKey === tool.tool && t.serverName === tool.server;
+      // For MCP tool objects, try multiple matching strategies:
+      // 1. Direct match
+      if (t.pluginKey === tool.tool) {
+        return true;
+      }
+      // 2. Match with _mcp_ delimiter format
+      const expectedMcpKey = `${tool.tool}_mcp_${tool.server}`;
+      if (t.pluginKey === expectedMcpKey) {
+        return true;
+      }
+      // 3. Match by extracting tool name from _mcp_ format
+      if (t.pluginKey && t.pluginKey.includes('_mcp_')) {
+        const toolNameFromKey = t.pluginKey.split('_mcp_')[0];
+        const serverFromKey = t.pluginKey.split('_mcp_')[1];
+        if (toolNameFromKey === tool.tool && serverFromKey === tool.server) {
+          return true;
+        }
+      }
+      return false;
     }
+  });
+  
+  console.log('AgentTool Match Result:', {
+    toolKey,
+    foundTool: !!currentTool,
+    currentTool: currentTool ? { pluginKey: currentTool.pluginKey, serverName: currentTool.serverName } : null
   });
 
   // Check if this is a global MCP tool

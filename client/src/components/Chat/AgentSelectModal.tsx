@@ -163,9 +163,9 @@ export default function AgentSelectModal({ isOpen, onClose }: AgentSelectModalPr
 
   const { data: agents = [] } = useListAgentsQuery(undefined, {
     select: (res) => {
-      console.log('Raw agent data from API:', res.data);
+      //console.log('Raw agent data from API:', res.data);
       return res.data.map((agent) => {
-        console.log('Processing agent:', agent.name, 'tools:', agent.tools);
+        //console.log('Processing agent:', agent.name, 'tools:', agent.tools);
         return processAgentOption({
           agent,
           instanceProjectId: startupConfig?.instanceProjectId,
