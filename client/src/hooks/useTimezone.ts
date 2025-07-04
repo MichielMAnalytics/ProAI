@@ -31,12 +31,14 @@ export const useTimezone = () => {
 
   // Initialize timezone from user data when available
   useEffect(() => {
-    if (user?.timezone && timezone !== user.timezone) {
-      // User has a timezone stored in database, use that
-      setTimezone(user.timezone);
-      localStorage.setItem('timezone', JSON.stringify(user.timezone));
-      logger.debug(`Initialized timezone from user profile: ${user.timezone}`);
-    } else if (!user?.timezone && !timezone) {
+    if (user?.timezone) {
+      // Always prefer the timezone stored in database
+      if (timezone !== user.timezone) {
+        setTimezone(user.timezone);
+        localStorage.setItem('timezone', JSON.stringify(user.timezone));
+        logger.debug(`Initialized timezone from user profile: ${user.timezone}`);
+      }
+    } else if (!timezone) {
       // No user timezone and no local timezone, use browser detection
       const detectedTimezone = getDetectedTimezone();
       setTimezone(detectedTimezone);
