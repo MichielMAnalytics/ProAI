@@ -87,11 +87,7 @@ export default function AppCard({
       if (tool.serverName) {
         return currentTools.some((currentTool: any) => {
           if (typeof currentTool === 'object' && currentTool.tool && currentTool.server) {
-            // Extract tool name from pluginKey (remove MCP delimiter)
-            const toolName = tool.pluginKey.includes('_mcp_') 
-              ? tool.pluginKey.split('_mcp_')[0] 
-              : tool.pluginKey;
-            return currentTool.tool === toolName && currentTool.server === tool.serverName;
+            return currentTool.tool === tool.pluginKey && currentTool.server === tool.serverName;
           }
           return false;
         });
@@ -119,16 +115,8 @@ export default function AppCard({
       if (app.isDisconnected) return; // Can't toggle disconnected servers
 
       if (allToolsSelected) {
-        // For MCP tools, we need to remove using the actual tool names, not the pluginKeys with delimiters
-        const toolsToRemove = app.tools.map((tool) => {
-          if (tool.serverName) {
-            // Extract tool name from pluginKey (remove MCP delimiter)
-            return tool.pluginKey.includes('_mcp_') 
-              ? tool.pluginKey.split('_mcp_')[0] 
-              : tool.pluginKey;
-          }
-          return tool.pluginKey;
-        });
+        // For MCP tools, we can now use the clean pluginKey directly
+        const toolsToRemove = app.tools.map((tool) => tool.pluginKey);
         
         // Remove tools directly from the form state
         const currentToolsList = getValues(toolsFormKey) || [];
@@ -149,11 +137,7 @@ export default function AppCard({
           const isAlreadySelected = tool.serverName
             ? currentTools.some((currentTool: any) => {
                 if (typeof currentTool === 'object' && currentTool.tool && currentTool.server) {
-                  // Extract tool name from pluginKey (remove MCP delimiter)
-                  const toolName = tool.pluginKey.includes('_mcp_') 
-                    ? tool.pluginKey.split('_mcp_')[0] 
-                    : tool.pluginKey;
-                  return currentTool.tool === toolName && currentTool.server === tool.serverName;
+                  return currentTool.tool === tool.pluginKey && currentTool.server === tool.serverName;
                 }
                 return false;
               })
@@ -162,7 +146,19 @@ export default function AppCard({
           if (!isAlreadySelected) {
             const { authConfig, authenticated = false } = tool;
             if (!authConfig || authConfig.length === 0 || authenticated) {
-              onAddTool(tool.pluginKey);
+              // For MCP tools, add directly to form state with enhanced format
+              if (tool.serverName) {
+                const currentToolsList = getValues(toolsFormKey) || [];
+                const newTool = {
+                  tool: tool.pluginKey,
+                  server: tool.serverName,
+                  type: tool.isGlobal ? ('global' as const) : ('user' as const),
+                };
+                setValue(toolsFormKey, [...currentToolsList, newTool]);
+              } else {
+                // For regular tools, use the standard onAddTool function
+                onAddTool(tool.pluginKey);
+              }
             }
           }
         });
@@ -181,10 +177,7 @@ export default function AppCard({
     const isSelected = tool.serverName
       ? currentTools.some((currentTool: any) => {
           if (typeof currentTool === 'object' && currentTool.tool && currentTool.server) {
-            const toolName = tool.pluginKey.includes('_mcp_') 
-              ? tool.pluginKey.split('_mcp_')[0] 
-              : tool.pluginKey;
-            return currentTool.tool === toolName && currentTool.server === tool.serverName;
+            return currentTool.tool === tool.pluginKey && currentTool.server === tool.serverName;
           }
           return false;
         })
@@ -194,13 +187,9 @@ export default function AppCard({
       // Remove the tool directly from form state
       if (tool.serverName) {
         const currentToolsList = getValues(toolsFormKey) || [];
-        const toolName = tool.pluginKey.includes('_mcp_') 
-          ? tool.pluginKey.split('_mcp_')[0] 
-          : tool.pluginKey;
-        
         const updatedTools = currentToolsList.filter((currentTool: string | any) => {
           if (typeof currentTool === 'object' && currentTool.tool && currentTool.server) {
-            return !(currentTool.tool === toolName && currentTool.server === tool.serverName);
+            return !(currentTool.tool === tool.pluginKey && currentTool.server === tool.serverName);
           }
           return true;
         });
@@ -209,7 +198,20 @@ export default function AppCard({
         onRemoveTool(tool.pluginKey);
       }
     } else {
-      onAddTool(tool.pluginKey);
+      // Add the tool to form state
+      if (tool.serverName) {
+        // For MCP tools, add directly to form state with enhanced format
+        const currentToolsList = getValues(toolsFormKey) || [];
+        const newTool = {
+          tool: tool.pluginKey,
+          server: tool.serverName,
+          type: tool.isGlobal ? ('global' as const) : ('user' as const),
+        };
+        setValue(toolsFormKey, [...currentToolsList, newTool]);
+      } else {
+        // For regular tools, use the standard onAddTool function
+        onAddTool(tool.pluginKey);
+      }
     }
   };
 
@@ -445,10 +447,7 @@ export default function AppCard({
               const isSelected = tool.serverName
                 ? currentTools.some((currentTool: any) => {
                     if (typeof currentTool === 'object' && currentTool.tool && currentTool.server) {
-                      const toolName = tool.pluginKey.includes('_mcp_') 
-                        ? tool.pluginKey.split('_mcp_')[0] 
-                        : tool.pluginKey;
-                      return currentTool.tool === toolName && currentTool.server === tool.serverName;
+                      return currentTool.tool === tool.pluginKey && currentTool.server === tool.serverName;
                     }
                     return false;
                   })

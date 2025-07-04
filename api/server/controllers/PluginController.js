@@ -299,6 +299,18 @@ const getAvailableTools = async (req, res) => {
     );
     logger.info(`After filtering by tool definitions: ${tools.length}`);
 
+    // Clean pluginKeys for MCP tools after filtering
+    const cleanedTools = tools.map((tool) => {
+      if (tool.pluginKey && tool.pluginKey.includes('_mcp_')) {
+        // Create a copy with cleaned pluginKey
+        return {
+          ...tool,
+          pluginKey: tool.pluginKey.split('_mcp_')[0]
+        };
+      }
+      return tool;
+    });
+
     // Note: User-specific MCP tools are now loaded directly by the MCP manager
     // via mcpManager.mapUserAvailableTools() and mcpManager.loadUserManifestTools()
     // No need for additional manual tool registration here
@@ -309,14 +321,14 @@ const getAvailableTools = async (req, res) => {
       logger.info(`MCP Registry keys:`, Array.from(req.app.locals.mcpToolRegistry.keys()));
     }
     
-    const mcpTools = tools.filter(
+    const mcpTools = cleanedTools.filter(
       (tool) =>
         tool.pluginKey &&
         req.app.locals.mcpToolRegistry &&
         req.app.locals.mcpToolRegistry.has(tool.pluginKey),
     );
     // logger.info(`=== MCP Tool Analysis ===`);
-    // logger.info(`Total tools after filtering: ${tools.length}`);
+    // logger.info(`Total tools after filtering: ${cleanedTools.length}`);
     // logger.info(`MCP tools found: ${mcpTools.length}`);
     // logger.info(`mcpToolRegistry size: ${req.app.locals.mcpToolRegistry?.size || 0}`);
 
@@ -330,14 +342,14 @@ const getAvailableTools = async (req, res) => {
     // }
 
     // Filter out the CONFIGURE_COMPONENT tool from the final list sent to the client
-    const finalTools = tools.filter((tool) => tool.name !== 'CONFIGURE_COMPONENT');
+    const finalTools = cleanedTools.filter((tool) => tool.name !== 'CONFIGURE_COMPONENT');
     logger.info(`Final tools sent to client: ${finalTools.length}`);
 
     // Only cache if not user-specific
     if (shouldUseCache) {
       const cache = getLogStores(CacheKeys.CONFIG_STORE);
-      await cache.set(CacheKeys.TOOLS, tools);
-      logger.info(`Cached ${tools.length} tools`);
+      await cache.set(CacheKeys.TOOLS, cleanedTools);
+      logger.info(`Cached ${cleanedTools.length} tools`);
     }
 
     // logger.info('=== getAvailableTools: Sending response ===');

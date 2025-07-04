@@ -44,25 +44,8 @@ export default function AgentTool({
       // For string tools, match directly
       return t.pluginKey === toolKey;
     } else {
-      // For MCP tool objects, try multiple matching strategies:
-      // 1. Direct match
-      if (t.pluginKey === tool.tool) {
-        return true;
-      }
-      // 2. Match with _mcp_ delimiter format
-      const expectedMcpKey = `${tool.tool}_mcp_${tool.server}`;
-      if (t.pluginKey === expectedMcpKey) {
-        return true;
-      }
-      // 3. Match by extracting tool name from _mcp_ format
-      if (t.pluginKey && t.pluginKey.includes('_mcp_')) {
-        const toolNameFromKey = t.pluginKey.split('_mcp_')[0];
-        const serverFromKey = t.pluginKey.split('_mcp_')[1];
-        if (toolNameFromKey === tool.tool && serverFromKey === tool.server) {
-          return true;
-        }
-      }
-      return false;
+      // For MCP tool objects, match by tool name and server
+      return t.pluginKey === tool.tool && t.serverName === tool.server;
     }
   });
   
