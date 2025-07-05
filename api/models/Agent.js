@@ -175,7 +175,6 @@ const isDuplicateVersion = (updateData, currentData, versions) => {
     'created_at',
     'updated_at',
     '__v',
-    'agent_ids',
     'versions',
   ];
 
