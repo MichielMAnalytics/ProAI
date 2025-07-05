@@ -579,7 +579,7 @@ export class MCPManager {
         if (typeof configInstructions === 'string') {
           // Store in global instructions map so it applies to all users of this server
           this.serverInstructions.set(serverName, configInstructions);
-          logger.info(
+          logger.debug(
             `[MCP][User: ${userId}][${serverName}] Pipedream instructions stored globally for all users: ${configInstructions}`,
           );
         } else if (configInstructions === true) {
@@ -587,16 +587,16 @@ export class MCPManager {
           const serverInstructions = connection.client.getInstructions();
           if (serverInstructions) {
             this.serverInstructions.set(serverName, serverInstructions);
-            logger.info(
+            logger.debug(
               `[MCP][User: ${userId}][${serverName}] Server-provided instructions stored globally: ${serverInstructions}`,
             );
           } else {
-            logger.info(
+            logger.debug(
               `[MCP][User: ${userId}][${serverName}] serverInstructions=true but no server instructions available`,
             );
           }
         } else {
-          logger.info(
+          logger.debug(
             `[MCP][User: ${userId}][${serverName}] Instructions explicitly disabled (serverInstructions=false)`,
           );
         }

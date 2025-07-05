@@ -21,12 +21,12 @@ const { logger, getMCPManager } = require('~/config');
  * @returns { Promise<typeof tool | { _call: (toolInput: Object | string) => unknown}> } An object with `_call` method to execute the tool input.
  */
 async function createMCPTool({ req, toolKey, provider: _provider }) {
-  logger.info(`[MCP] createMCPTool called for toolKey: ${toolKey}`);
-  logger.info(`[MCP] Provider: ${_provider}`);
-  logger.info(
+  logger.debug(`[MCP] createMCPTool called for toolKey: ${toolKey}`);
+  logger.debug(`[MCP] Provider: ${_provider}`);
+  logger.debug(
     `[MCP] Available tools count: ${Object.keys(req.app.locals.availableTools || {}).length}`,
   );
-  logger.info(`[MCP] Looking for tool definition for key: ${toolKey}`);
+  logger.debug(`[MCP] Looking for tool definition for key: ${toolKey}`);
 
   const toolDefinition = req.app.locals.availableTools[toolKey]?.function;
   if (!toolDefinition) {
@@ -50,14 +50,16 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
 
   // Get server information from the MCP tool registry
   const mcpToolRegistry = req.app.locals.mcpToolRegistry;
-  logger.info(`[MCP] mcpToolRegistry exists: ${!!mcpToolRegistry}`);
-  logger.info(`[MCP] mcpToolRegistry size: ${mcpToolRegistry?.size || 0}`);
-  logger.info(
+  logger.debug(`[MCP] mcpToolRegistry exists: ${!!mcpToolRegistry}`);
+  logger.debug(`[MCP] mcpToolRegistry size: ${mcpToolRegistry?.size || 0}`);
+  logger.debug(
     `[MCP] mcpToolRegistry has toolKey ${toolKey}: ${mcpToolRegistry?.has(toolKey) || false}`,
   );
 
+  // Registry contents logging removed to reduce verbosity (was logging 78 tools per tool creation)
+  // Use debug level if registry contents logging is needed for troubleshooting
   if (mcpToolRegistry && mcpToolRegistry.size > 0) {
-    logger.info(`[MCP] mcpToolRegistry contents: ${Array.from(mcpToolRegistry.keys()).join(', ')}`);
+    logger.debug(`[MCP] mcpToolRegistry contents: ${Array.from(mcpToolRegistry.keys()).join(', ')}`);
   }
 
   if (!mcpToolRegistry || !mcpToolRegistry.has(toolKey)) {
@@ -71,10 +73,10 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
   const toolName = mcpInfo?.toolName || toolKey; // Fallback to toolKey if toolName not available
   const isGlobalTool = mcpInfo?.isGlobal || false;
 
-  logger.info(
+  logger.debug(
     `[MCP] Tool info for ${toolKey}: serverName=${serverName}, toolName=${toolName}, isGlobal=${isGlobalTool}`,
   );
-  logger.info(`[MCP] Full mcpInfo: ${JSON.stringify(mcpInfo)}`);
+  logger.debug(`[MCP] Full mcpInfo: ${JSON.stringify(mcpInfo)}`);
 
   if (!serverName) {
     logger.error(`[MCP] Could not determine server name for MCP tool: ${toolKey}`);
