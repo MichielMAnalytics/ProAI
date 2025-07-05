@@ -135,52 +135,8 @@ class UserMCPService {
           _appName: integration.appName,
         };
 
-        // Add Authorization header using Pipedream SDK with automatic token refresh
-        try {
-          const PipedreamConnect = require('./Pipedream/PipedreamConnect');
-          if (PipedreamConnect.isEnabled()) {
-            // Clear token cache proactively to ensure fresh token
-            // This prevents using expired tokens on initial connection
-            PipedreamConnect.clearTokenCache();
-            
-            logger.info(
-              `UserMCPService: Getting fresh Pipedream auth token for server ${serverName}`,
-            );
-            
-            // Get fresh OAuth access token with retry logic
-            let accessToken = null;
-            let retries = 0;
-            const maxRetries = 2;
-            
-            while (!accessToken && retries <= maxRetries) {
-              try {
-                accessToken = await PipedreamConnect.getOAuthAccessToken();
-                if (accessToken) {
-                  mcpServers[serverName].headers['Authorization'] = `Bearer ${accessToken}`;
-                  logger.info(
-                    `UserMCPService: Successfully added fresh Pipedream auth token for server ${serverName} (attempt ${retries + 1})`,
-                  );
-                  break;
-                }
-              } catch (tokenError) {
-                retries++;
-                if (retries > maxRetries) {
-                  throw tokenError;
-                }
-                logger.warn(
-                  `UserMCPService: Token fetch attempt ${retries} failed for ${serverName}, retrying...`,
-                );
-                await new Promise(resolve => setTimeout(resolve, 1000 * retries));
-              }
-            }
-          }
-        } catch (authError) {
-          logger.error(
-            `UserMCPService: Failed to get Pipedream auth token for server ${serverName} after retries:`,
-            authError.message,
-          );
-          // Continue without auth token - the connection will fail and trigger token refresh
-        }
+        // Note: Authorization header will be added by MCPConnection during connection establishment
+        // This avoids redundant token fetching and improves initialization performance
 
         // Apply Pipedream server instructions if available
         if (pipedreamServerInstructions && appSlug) {

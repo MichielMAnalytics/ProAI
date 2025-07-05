@@ -33,9 +33,9 @@ describe('MCP OAuth Token Refresh', () => {
     // Mock PipedreamConnect
     PipedreamConnect = require('../server/services/Pipedream/PipedreamConnect');
     
-    // Mock the MCP connection (we'll create a simplified version)
-    const { MCPConnection: MockMCPConnection } = require('../../packages/api/src/mcp/connection');
-    MCPConnection = MockMCPConnection;
+    // MCPConnection import commented out due to TypeScript parsing issues in Jest
+    // const { MCPConnection: MockMCPConnection } = require('../../packages/api/src/mcp/connection');
+    // MCPConnection = MockMCPConnection;
 
     UserMCPService = require('../server/services/UserMCPService');
   });
@@ -162,69 +162,28 @@ describe('MCP OAuth Token Refresh', () => {
       }));
     });
 
-    test('should proactively refresh token during server setup', async () => {
-      // Mock successful token response
-      const mockTokenResponse = {
-        data: {
-          access_token: 'proactive-token-789',
-          expires_in: 3600,
-        }
-      };
-      axios.post.mockResolvedValue(mockTokenResponse);
-
+    test('should NOT fetch tokens during server setup (tokens handled by MCPConnection)', async () => {
       // Mock PipedreamConnect methods
       PipedreamConnect.isEnabled.mockReturnValue(true);
       PipedreamConnect.clearTokenCache = jest.fn();
-      PipedreamConnect.getOAuthAccessToken.mockResolvedValue('proactive-token-789');
+      PipedreamConnect.getOAuthAccessToken = jest.fn();
 
       const servers = await UserMCPService.getUserMCPServers('user-123');
 
-      // Should have cleared cache proactively
-      expect(PipedreamConnect.clearTokenCache).toHaveBeenCalled();
+      // Should NOT have cleared cache
+      expect(PipedreamConnect.clearTokenCache).not.toHaveBeenCalled();
       
-      // Should have requested fresh token
-      expect(PipedreamConnect.getOAuthAccessToken).toHaveBeenCalled();
+      // Should NOT have requested token (MCPConnection will handle this)
+      expect(PipedreamConnect.getOAuthAccessToken).not.toHaveBeenCalled();
 
-      // Should have added authorization header
-      const server = servers['pipedream-gmail'];
-      expect(server).toBeDefined();
-      expect(server.headers['Authorization']).toBe('Bearer proactive-token-789');
-    });
-
-    test('should retry token acquisition on failure', async () => {
-      // First attempt fails, second succeeds
-      PipedreamConnect.isEnabled.mockReturnValue(true);
-      PipedreamConnect.clearTokenCache = jest.fn();
-      PipedreamConnect.getOAuthAccessToken
-        .mockRejectedValueOnce(new Error('Token fetch failed'))
-        .mockResolvedValueOnce('retry-token-success');
-
-      const servers = await UserMCPService.getUserMCPServers('user-123');
-
-      // Should have retried token acquisition
-      expect(PipedreamConnect.getOAuthAccessToken).toHaveBeenCalledTimes(2);
-
-      // Should have added authorization header with successful token
-      const server = servers['pipedream-gmail'];
-      expect(server.headers['Authorization']).toBe('Bearer retry-token-success');
-    });
-
-    test('should continue without token if all retries fail', async () => {
-      // All attempts fail
-      PipedreamConnect.isEnabled.mockReturnValue(true);
-      PipedreamConnect.clearTokenCache = jest.fn();
-      PipedreamConnect.getOAuthAccessToken.mockRejectedValue(new Error('Persistent failure'));
-
-      const servers = await UserMCPService.getUserMCPServers('user-123');
-
-      // Should have tried multiple times
-      expect(PipedreamConnect.getOAuthAccessToken).toHaveBeenCalledTimes(3); // Initial + 2 retries
-
-      // Should still return server config but without auth header
+      // Should NOT have authorization header (will be added by MCPConnection)
       const server = servers['pipedream-gmail'];
       expect(server).toBeDefined();
       expect(server.headers['Authorization']).toBeUndefined();
     });
+
+    // These tests are no longer applicable since UserMCPService doesn't handle tokens
+    // Token handling is now done by MCPConnection during connection establishment
   });
 
   describe('MCP Connection Token Refresh', () => {
