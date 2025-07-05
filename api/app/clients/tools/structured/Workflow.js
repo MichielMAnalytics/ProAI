@@ -533,20 +533,20 @@ class WorkflowTool extends Tool {
         for (const toolKey of toolKeys) {
           const tool = availableTools[toolKey];
           if (tool && typeof tool === 'object' && tool.function) {
-            // Check if this is an MCP tool by looking at the tool registry
-            const isMCPTool =
-              this.req?.app?.locals?.mcpToolRegistry &&
-              this.req.app.locals.mcpToolRegistry.has(toolKey);
+            // Check if this is an MCP tool by looking at embedded metadata
+            const { ToolMetadataUtils } = require('librechat-data-provider');
+            const isMCPTool = ToolMetadataUtils.isMCPTool(tool);
 
             if (isMCPTool) {
-              const mcpInfo = this.req.app.locals.mcpToolRegistry.get(toolKey);
+              const serverName = ToolMetadataUtils.getServerName(tool);
+              const isGlobal = ToolMetadataUtils.isGlobalMCPTool(tool);
 
               mcpTools.push({
                 name: tool.function.name,
                 description: tool.function.description || 'No description available',
                 parameters: tool.function.parameters || {},
                 type: 'mcp_tool',
-                serverName: mcpInfo?.serverName || 'unknown',
+                serverName: serverName || 'unknown',
                 toolKey: toolKey, // Store the full toolKey for filtering
               });
             }

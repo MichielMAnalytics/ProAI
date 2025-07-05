@@ -1,4 +1,4 @@
-const { CacheKeys, AuthType } = require('librechat-data-provider');
+const { CacheKeys, AuthType, ToolMetadataUtils } = require('librechat-data-provider');
 const { getToolkitKey } = require('~/server/services/ToolService');
 const { getCustomConfig } = require('~/server/services/Config');
 const { availableTools } = require('~/app/clients/tools');
@@ -208,7 +208,6 @@ const getAvailableTools = async (req, res) => {
         'PluginController',
         req.app.locals.availableTools,
         { 
-          mcpToolRegistry: req.app.locals.mcpToolRegistry,
           pipedreamServerInstructions: req.app.locals.pipedreamServerInstructions,
         },
       );
@@ -286,13 +285,9 @@ const getAvailableTools = async (req, res) => {
           // Extract the simple tool name from the pluginKey
           const toolName = plugin.pluginKey.split('_mcp_')[0];
           
-          // Check if the simple tool name exists in toolDefinitions
-          if (toolDefinitions[toolName] !== undefined) {
-            return true;
-          }
-          
-          // Also check if it's registered in the MCP registry
-          if (req.app.locals.mcpToolRegistry && req.app.locals.mcpToolRegistry.has(toolName)) {
+          // Check if the simple tool name exists in toolDefinitions and is an MCP tool
+          const toolDef = toolDefinitions[toolName];
+          if (toolDef && ToolMetadataUtils.isMCPTool(toolDef)) {
             return true;
           }
         }
@@ -318,22 +313,22 @@ const getAvailableTools = async (req, res) => {
     // via mcpManager.mapUserAvailableTools() and mcpManager.loadUserManifestTools()
     // No need for additional manual tool registration here
 
-    // Count MCP tools in final result (check the MCP tool registry instead of pluginKey)
-    logger.info(`MCP Registry size: ${req.app.locals.mcpToolRegistry?.size || 0}`);
-    if (req.app.locals.mcpToolRegistry?.size > 0) {
-      logger.info(`MCP Registry keys:`, Array.from(req.app.locals.mcpToolRegistry.keys()));
-    }
+    // Count MCP tools in final result (check the enhanced availableTools structure)
+    const mcpToolsFromAvailableTools = Object.entries(toolDefinitions).filter(([toolName, toolDef]) => 
+      ToolMetadataUtils.isMCPTool(toolDef)
+    );
+    logger.info(`MCP tools in availableTools: ${mcpToolsFromAvailableTools.length}`);
     
     const mcpTools = cleanedTools.filter(
-      (tool) =>
-        tool.pluginKey &&
-        req.app.locals.mcpToolRegistry &&
-        req.app.locals.mcpToolRegistry.has(tool.pluginKey),
+      (tool) => {
+        const toolDef = toolDefinitions[tool.pluginKey];
+        return toolDef && ToolMetadataUtils.isMCPTool(toolDef);
+      }
     );
     // logger.info(`=== MCP Tool Analysis ===`);
     // logger.info(`Total tools after filtering: ${cleanedTools.length}`);
     // logger.info(`MCP tools found: ${mcpTools.length}`);
-    // logger.info(`mcpToolRegistry size: ${req.app.locals.mcpToolRegistry?.size || 0}`);
+    // MCP tools are now embedded in availableTools with metadata
 
     // if (mcpTools.length > 0) {
     //   logger.info(`MCP tools details:`, mcpTools.map(t => ({

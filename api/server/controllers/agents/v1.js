@@ -118,33 +118,32 @@ const getToolCapability = (tool) => {
 /**
  * Transform tools array to include MCP tool objects with server metadata
  * @param {Array<string>} tools - Array of tool names from input
- * @param {Object} availableTools - Available tools registry
- * @param {Map} mcpToolRegistry - MCP tool registry for server information
+ * @param {Object} availableTools - Available tools registry with embedded metadata
  * @returns {Array<string | Object>} Array of tool names and MCP tool objects
  */
-const enhanceToolsWithMCPMetadata = (tools, availableTools = {}, mcpToolRegistry = null) => {
+const enhanceToolsWithMCPMetadata = (tools, availableTools = {}) => {
   if (!Array.isArray(tools)) {
     return [];
   }
 
+  // Import ToolMetadataUtils for enhanced tool operations
+  const { ToolMetadataUtils } = require('librechat-data-provider');
   const enhancedTools = [];
 
   for (const tool of tools) {
     if (typeof tool === 'string') {
-      // Check if this tool is an MCP tool by looking it up in the registry
-      if (mcpToolRegistry && mcpToolRegistry.has(tool)) {
-        const mcpInfo = mcpToolRegistry.get(tool);
-        if (mcpInfo) {
-          // Create enhanced MCP tool object
-          enhancedTools.push({
-            tool: tool,
-            server: mcpInfo.serverName || 'unknown',
-            type: mcpInfo.isGlobal ? 'global' : 'user',
-          });
-        } else {
-          // Fallback to regular tool if no MCP info found
-          enhancedTools.push(tool);
-        }
+      // Check if this tool is an MCP tool by looking at embedded metadata
+      const toolDef = availableTools[tool];
+      if (toolDef && ToolMetadataUtils.isMCPTool(toolDef)) {
+        const serverName = ToolMetadataUtils.getServerName(toolDef);
+        const isGlobal = ToolMetadataUtils.isGlobalMCPTool(toolDef);
+        
+        // Create enhanced MCP tool object
+        enhancedTools.push({
+          tool: tool,
+          server: serverName || 'unknown',
+          type: isGlobal ? 'global' : 'user',
+        });
       } else {
         // Regular tool (system tool or manifest tool)
         enhancedTools.push(tool);
@@ -390,15 +389,22 @@ const updateAgentHandler = async (req, res) => {
       // Remove MCP tools from duplicated agents so users need to connect their own integrations
       if (cloneData.tools && Array.isArray(cloneData.tools)) {
         const originalToolCount = cloneData.tools.length;
-        const mcpToolRegistry = req.app.locals.mcpToolRegistry;
-        const mcpTools = cloneData.tools.filter(
-          (tool) => typeof tool === 'string' && mcpToolRegistry && mcpToolRegistry.has(tool),
-        );
+        const { ToolMetadataUtils } = require('librechat-data-provider');
+        const availableTools = req.app.locals.availableTools || {};
+        
+        const mcpTools = cloneData.tools.filter((tool) => {
+          if (typeof tool === 'string') {
+            const toolDef = availableTools[tool];
+            return toolDef && ToolMetadataUtils.isMCPTool(toolDef);
+          }
+          return false;
+        });
 
         cloneData.tools = cloneData.tools.filter((tool) => {
           if (typeof tool === 'string') {
-            // Check if this is an MCP tool using the registry
-            return !(mcpToolRegistry && mcpToolRegistry.has(tool));
+            // Check if this is an MCP tool using embedded metadata
+            const toolDef = availableTools[tool];
+            return !(toolDef && ToolMetadataUtils.isMCPTool(toolDef));
           }
           return true;
         });
@@ -585,15 +591,22 @@ const duplicateAgentHandler = async (req, res) => {
     // MCP tools are personal and should not be inherited during duplication
     if (cloneData.tools && Array.isArray(cloneData.tools)) {
       const originalToolCount = cloneData.tools.length;
-      const mcpToolRegistry = req.app.locals.mcpToolRegistry;
-      const mcpTools = cloneData.tools.filter(
-        (tool) => typeof tool === 'string' && mcpToolRegistry && mcpToolRegistry.has(tool),
-      );
+      const { ToolMetadataUtils } = require('librechat-data-provider');
+      const availableTools = req.app.locals.availableTools || {};
+      
+      const mcpTools = cloneData.tools.filter((tool) => {
+        if (typeof tool === 'string') {
+          const toolDef = availableTools[tool];
+          return toolDef && ToolMetadataUtils.isMCPTool(toolDef);
+        }
+        return false;
+      });
 
       cloneData.tools = cloneData.tools.filter((tool) => {
         if (typeof tool === 'string') {
-          // Check if this is an MCP tool using the registry
-          return !(mcpToolRegistry && mcpToolRegistry.has(tool));
+          // Check if this is an MCP tool using embedded metadata
+          const toolDef = availableTools[tool];
+          return !(toolDef && ToolMetadataUtils.isMCPTool(toolDef));
         }
         return true;
       });

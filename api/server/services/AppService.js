@@ -7,6 +7,7 @@ const {
   getConfigDefaults,
   loadWebSearchConfig,
   CacheKeys,
+  ToolMetadataUtils,
 } = require('librechat-data-provider');
 const {
   checkHealth,
@@ -174,8 +175,7 @@ const AppService = async (app) => {
     fileConfig: config?.fileConfig,
     secureImageLinks: config?.secureImageLinks,
     modelSpecs: processModelSpecs(endpoints, config.modelSpecs, interfaceConfig),
-    availableTools,
-    mcpToolRegistry: new Map(),
+    availableTools, // Now using enhanced structure with embedded MCP metadata
     ...endpointLocals,
   };
 
@@ -200,7 +200,7 @@ const AppService = async (app) => {
         processMCPEnv,
       });
       
-      // Register global MCP tools in the tool registry and availableTools
+      // Register global MCP tools using enhanced structure (single source of truth)
       const globalConnections = mcpManager.getAllConnections();
       let globalToolCount = 0;
       
@@ -212,27 +212,29 @@ const AppService = async (app) => {
             
             for (const tool of tools) {
               const toolName = tool.name;
-              const toolDef = {
-                type: 'function',
-                function: {
-                  name: toolName,
+              
+              // Create MCP metadata for this global tool
+              const mcpMetadata = ToolMetadataUtils.createMCPMetadata({
+                serverName,
+                isGlobal: true,
+                originalToolName: tool.name,
+              });
+              
+              // Create enhanced tool with embedded metadata
+              const enhancedTool = ToolMetadataUtils.createEnhancedTool(
+                toolName,
+                {
                   description: tool.description,
                   parameters: tool.inputSchema,
                 },
-              };
+                mcpMetadata
+              );
               
-              // Add to availableTools
-              app.locals.availableTools[toolName] = toolDef;
-              
-              // Register in MCP tool registry with global flag
-              app.locals.mcpToolRegistry.set(toolName, {
-                serverName,
-                appSlug: serverName,
-                toolName,
-                isGlobal: true,
-              });
+              // Add to availableTools with embedded metadata (single source of truth)
+              app.locals.availableTools[toolName] = enhancedTool;
               
               globalToolCount++;
+              logger.debug(`[AppService] Registered global MCP tool '${toolName}' from server '${serverName}'`);
             }
           }
         } catch (error) {

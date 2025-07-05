@@ -332,42 +332,42 @@ class UserMCPService {
   }
 
   /**
-   * Clean up tools from registries for a specific disconnected server
+   * Clean up tools for a specific disconnected server
    *
    * @param {string} userId - The user ID
    * @param {string} disconnectedServerName - The server that was disconnected
-   * @param {string[]} toolsToRemove - Array of tool names to remove from registries (if empty, will be discovered from registry)
-   * @param {Map} mcpToolRegistry - Optional MCP tool registry for discovering tools
+   * @param {string[]} toolsToRemove - Array of tool names to remove (if empty, will be discovered from availableTools)
+   * @param {Object} availableTools - Enhanced availableTools with embedded metadata for discovering tools
    * @returns {Promise<Object>} Cleanup result with statistics
    */
   async cleanupToolsForDisconnectedServer(
     userId,
     disconnectedServerName,
     toolsToRemove = [],
-    mcpToolRegistry = null,
+    availableTools = {},
   ) {
     return UserMCPService.cleanupToolsForDisconnectedServer(
       userId,
       disconnectedServerName,
       toolsToRemove,
-      mcpToolRegistry,
+      availableTools,
     );
   }
 
   /**
-   * Static method: Clean up tools from registries for a specific disconnected server
+   * Static method: Clean up tools for a specific disconnected server
    *
    * @param {string} userId - The user ID
    * @param {string} disconnectedServerName - The server that was disconnected
-   * @param {string[]} toolsToRemove - Array of tool names to remove from registries (if empty, will be discovered from registry)
-   * @param {Map} mcpToolRegistry - Optional MCP tool registry for discovering tools
+   * @param {string[]} toolsToRemove - Array of tool names to remove (if empty, will be discovered from availableTools)
+   * @param {Object} availableTools - Enhanced availableTools with embedded metadata for discovering tools
    * @returns {Promise<Object>} Cleanup result with statistics
    */
   static async cleanupToolsForDisconnectedServer(
     userId,
     disconnectedServerName,
     toolsToRemove = [],
-    mcpToolRegistry = null,
+    availableTools = {},
   ) {
     if (!userId || !disconnectedServerName) {
       return {
@@ -378,19 +378,29 @@ class UserMCPService {
     }
 
     try {
-      // If no tools are specified, discover them from the MCP tool registry
+      // If no tools are specified, discover them from the enhanced availableTools
       if (!Array.isArray(toolsToRemove) || toolsToRemove.length === 0) {
         logger.info(
-          `UserMCPService: Discovering tools to remove for server '${disconnectedServerName}' from MCP tool registry`,
+          `UserMCPService: Discovering tools to remove for server '${disconnectedServerName}' from availableTools`,
         );
 
         try {
-          // Use the provided MCP tool registry to discover tools
-          if (mcpToolRegistry && mcpToolRegistry.size > 0) {
+          // Import ToolMetadataUtils for enhanced tool operations
+          const { ToolMetadataUtils } = require('librechat-data-provider');
+          
+          // Use the enhanced availableTools to discover tools from the disconnected server
+          if (availableTools && Object.keys(availableTools).length > 0) {
             const discoveredTools = [];
-            for (const [toolName, toolInfo] of mcpToolRegistry.entries()) {
-              if (toolInfo && toolInfo.serverName === disconnectedServerName) {
-                discoveredTools.push(toolName);
+            for (const [toolName, toolDef] of Object.entries(availableTools)) {
+              if (ToolMetadataUtils.isMCPTool(toolDef)) {
+                const serverName = ToolMetadataUtils.getServerName(toolDef);
+                const toolUserId = toolDef._mcp?.userId;
+                
+                // Match tools from the disconnected server for this user
+                if (serverName === disconnectedServerName && 
+                    (toolUserId === userId || toolDef._mcp?.isGlobal)) {
+                  discoveredTools.push(toolName);
+                }
               }
             }
             toolsToRemove = discoveredTools;
@@ -399,7 +409,7 @@ class UserMCPService {
             );
           } else {
             logger.warn(
-              `UserMCPService: No MCP tool registry provided to discover tools for server '${disconnectedServerName}'`,
+              `UserMCPService: No availableTools provided to discover tools for server '${disconnectedServerName}'`,
             );
           }
         } catch (discoveryError) {

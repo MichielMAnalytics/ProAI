@@ -1,6 +1,6 @@
 const { getMCPManager } = require('~/config');
 const { logger } = require('~/config');
-const { Constants } = require('librechat-data-provider');
+const { Constants, ToolMetadataUtils } = require('librechat-data-provider');
 
 /**
  * MCPInitializer - Centralized MCP initialization and cache management
@@ -238,13 +238,12 @@ class MCPInitializer {
    * @param {Object} availableTools - Tools registry to enhance with MCP tools
    * @param {Object} options - Additional options
    * @param {boolean} options.forceRefresh - Force refresh even if cached (default: false)
-   * @param {Map} options.mcpToolRegistry - The MCP tool registry for storing tool metadata
    * @param {Object} options.pipedreamServerInstructions - Pipedream server instructions from config
    * @returns {Promise<Object>} Initialization result with mcpManager, serverCount, toolCount, and cache info
    */
   async ensureUserMCPReady(userId, context, availableTools = {}, options = {}) {
     const startTime = Date.now();
-    const { forceRefresh = false, mcpToolRegistry = null, pipedreamServerInstructions = null } = options;
+    const { forceRefresh = false, pipedreamServerInstructions = null } = options;
 
     if (!userId) {
       return {
@@ -295,9 +294,10 @@ class MCPInitializer {
           `[MCPInitializer][${context}] Using cached MCP initialization for user ${userId} (age: ${Math.floor((Date.now() - cached.timestamp) / 1000)}s)`,
         );
 
-        // Debug: Log if cached result has mcpToolRegistry
+        // Debug: Log cached MCP tools count
+        const cachedMCPToolsCount = cached.mcpTools ? Object.keys(cached.mcpTools).length : 0;
         logger.info(
-          `[MCPInitializer][${context}] Cached result has mcpToolRegistry: ${!!cached.mcpToolRegistry}, size: ${cached.mcpToolRegistry?.size || 0}`,
+          `[MCPInitializer][${context}] Cached result has ${cachedMCPToolsCount} MCP tools`,
         );
 
         // Apply cached tools to current availableTools registry
@@ -316,77 +316,10 @@ class MCPInitializer {
           );
         }
 
-        // CRITICAL FIX: Restore the cached mcpToolRegistry to the passed-in registry
-        if (mcpToolRegistry && cached.mcpTools) {
-          // Get the current registry size for comparison
-          const initialRegistrySize = mcpToolRegistry.size;
-
-          if (cached.mcpToolRegistry && cached.mcpToolRegistry.size > 0) {
-            // Add cached registry entries to the existing registry (don't clear existing ones)
-            let restoredCount = 0;
-            for (const [key, value] of cached.mcpToolRegistry.entries()) {
-              if (!mcpToolRegistry.has(key)) {
-                // Only add if not already present
-                mcpToolRegistry.set(key, value);
-                restoredCount++;
-              }
-            }
-            logger.info(
-              `[MCPInitializer][${context}] Restored ${restoredCount} new tools to mcpToolRegistry from cache (registry had ${initialRegistrySize}, now has ${mcpToolRegistry.size})`,
-            );
-          } else {
-            // Fallback: If cached result doesn't have mcpToolRegistry, regenerate it from cached tools
-            logger.warn(
-              `[MCPInitializer][${context}] Cached result missing mcpToolRegistry, regenerating from cached tools`,
-            );
-
-            // Rebuild registry from cached tools (this handles old cache entries)
-            let regeneratedCount = 0;
-            for (const toolKey of Object.keys(cached.mcpTools)) {
-              if (!mcpToolRegistry.has(toolKey)) {
-                // Only add if not already present
-                // Extract server name from tool key (assuming format: toolname-servername or servername-toolname)
-                let serverName = 'unknown';
-                if (toolKey.includes('-')) {
-                  // Try to determine server name from tool key patterns
-                  const parts = toolKey.split('-');
-                  if (parts.length >= 2) {
-                    // Check if first part matches known server patterns
-                    const possibleServer = parts[0];
-                    if (
-                      [
-                        'gmail',
-                        'slack',
-                        'google_calendar',
-                        'trello',
-                        'zendesk',
-                        'notion',
-                        'hubspot',
-                        'google_drive',
-                        'google_sheets',
-                      ].includes(possibleServer)
-                    ) {
-                      serverName = `pipedream-${possibleServer}`;
-                    } else {
-                      // Fallback: use last part as server
-                      serverName = parts[parts.length - 1];
-                    }
-                  }
-                }
-
-                mcpToolRegistry.set(toolKey, {
-                  serverName,
-                  toolName: toolKey,
-                  appSlug: serverName.replace('pipedream-', ''),
-                });
-                regeneratedCount++;
-              }
-            }
-            logger.info(
-              `[MCPInitializer][${context}] Regenerated ${regeneratedCount} tools in mcpToolRegistry from cached tools (registry had ${initialRegistrySize}, now has ${mcpToolRegistry.size})`,
-            );
-          }
-        }
+        // Cached tools already have embedded metadata, no additional processing needed
+        logger.debug(
+          `[MCPInitializer][${context}] Using cached MCP tools with embedded metadata`,
+        );
 
         return {
           ...cached,
@@ -403,7 +336,6 @@ class MCPInitializer {
       context,
       availableTools,
       startTime,
-      mcpToolRegistry,
       pipedreamServerInstructions,
     );
     this.pendingInitializations.set(userId, initializationPromise);
@@ -425,7 +357,6 @@ class MCPInitializer {
    * @param {string} context - Context identifier for logging
    * @param {Object} availableTools - Tools registry to enhance with MCP tools
    * @param {number} startTime - Start time for duration calculation
-   * @param {Map} mcpToolRegistry - The MCP tool registry for storing tool metadata
    * @param {Object} pipedreamServerInstructions - Pipedream server instructions from config
    * @returns {Promise<Object>} Initialization result
    */
@@ -434,7 +365,6 @@ class MCPInitializer {
     context,
     availableTools,
     startTime,
-    mcpToolRegistry = null,
     pipedreamServerInstructions = null,
   ) {
     try {
@@ -516,15 +446,26 @@ class MCPInitializer {
                 const serverTools = [];
                 for (const tool of tools) {
                   const toolName = tool.name;
-                  const toolDef = {
-                    type: 'function',
-                    ['function']: {
-                      name: toolName,
+                  
+                  // Create MCP metadata for this user-specific tool
+                  const mcpMetadata = ToolMetadataUtils.createMCPMetadata({
+                    serverName,
+                    isGlobal: false,
+                    userId,
+                    originalToolName: tool.name,
+                  });
+                  
+                  // Create enhanced tool with embedded metadata
+                  const enhancedTool = ToolMetadataUtils.createEnhancedTool(
+                    toolName,
+                    {
                       description: tool.description,
                       parameters: tool.inputSchema,
                     },
-                  };
-                  serverTools.push({ toolName, toolDef, serverName, tool });
+                    mcpMetadata
+                  );
+                  
+                  serverTools.push({ toolName, toolDef: enhancedTool, serverName, tool });
                 }
                 logger.debug(`[MCPInitializer][${context}] Mapped ${tools.length} tools from server ${serverName}`);
                 return { serverName, tools: serverTools, success: true };
@@ -543,21 +484,14 @@ class MCPInitializer {
         // Wait for all server initializations to complete
         const serverResults = await Promise.allSettled(serverInitPromises);
         
-        // Process results and add tools to availableTools and registry
+        // Process results and add tools to availableTools (enhanced structure)
         for (const result of serverResults) {
           if (result.status === 'fulfilled' && result.value.success) {
             const { serverName, tools } = result.value;
-            for (const { toolName, toolDef, serverName: serverNameFromTool } of tools) {
+            for (const { toolName, toolDef } of tools) {
+              // toolDef is already an enhanced tool with embedded metadata
               availableTools[toolName] = toolDef;
-              
-              // Register in MCP tool registry if provided
-              if (mcpToolRegistry) {
-                mcpToolRegistry.set(toolName, {
-                  serverName: serverNameFromTool,
-                  appSlug: serverNameFromTool.startsWith('pipedream-') ? serverNameFromTool.replace('pipedream-', '') : serverNameFromTool,
-                  toolName,
-                });
-              }
+              logger.debug(`[MCPInitializer][${context}] Added enhanced tool '${toolName}' from server '${serverName}' to availableTools`);
             }
           } else if (result.status === 'rejected') {
             logger.warn(`[MCPInitializer][${context}] Server initialization promise rejected:`, result.reason);
@@ -567,16 +501,13 @@ class MCPInitializer {
         const toolCountAfter = Object.keys(availableTools).length;
         toolCount = toolCountAfter - toolCountBefore;
 
-        // Debug: Log registry size after tool mapping
-        logger.info(
-          `[MCPInitializer][${context}] MCP tool registry size after mapping: ${mcpToolRegistry?.size || 0}`,
+        // Debug: Log MCP tools in availableTools after mapping
+        const mcpToolsInAvailable = Object.entries(availableTools).filter(([toolName, toolDef]) => 
+          ToolMetadataUtils.isMCPTool(toolDef)
         );
-        if (mcpToolRegistry && mcpToolRegistry.size > 0) {
-          const registryKeys = Array.from(mcpToolRegistry.keys()).slice(0, 5); // Show first 5 keys
-          logger.info(
-            `[MCPInitializer][${context}] Sample registry keys: ${registryKeys.join(', ')}`,
-          );
-        }
+        logger.info(
+          `[MCPInitializer][${context}] MCP tools in availableTools after mapping: ${mcpToolsInAvailable.length}`,
+        );
 
         // Store the MCP tools for caching
         // Since we know exactly which tools were added (the difference in count),
@@ -626,24 +557,19 @@ class MCPInitializer {
                 if (availableTools[tool.name]) {
                   globalToolsInRegistry++;
 
-                  // CRITICAL FIX: Always register global tools in the MCP tool registry
-                  if (mcpToolRegistry) {
-                    mcpToolRegistry.set(tool.name, {
-                      serverName,
-                      appSlug: serverName,
-                      toolName: tool.name,
-                      isGlobal: true,
-                    });
+                  // Verify that global tools are MCP tools with metadata
+                  const toolDef = availableTools[tool.name];
+                  if (ToolMetadataUtils.isMCPTool(toolDef) && ToolMetadataUtils.isGlobalMCPTool(toolDef)) {
                     globalToolsRegistered++;
                     logger.info(
-                      `[MCPInitializer][${context}] Registered global MCP tool '${tool.name}' from server '${serverName}' in registry`,
+                      `[MCPInitializer][${context}] Verified global MCP tool '${tool.name}' from server '${serverName}' in availableTools`,
                     );
 
-                    // Also add to cached tools for future use
-                    mcpTools[tool.name] = availableTools[tool.name];
+                    // Add to cached tools for future use
+                    mcpTools[tool.name] = toolDef;
                   } else {
                     logger.warn(
-                      `[MCPInitializer][${context}] No mcpToolRegistry provided to register global tool '${tool.name}'`,
+                      `[MCPInitializer][${context}] Global tool '${tool.name}' from server '${serverName}' is missing MCP metadata`,
                     );
                   }
                 } else {
@@ -679,7 +605,6 @@ class MCPInitializer {
         serverCount,
         toolCount,
         mcpTools, // Store for caching
-        mcpToolRegistry, // Store the MCP tool registry for caching
         manifestTools, // Store cached manifest tools
         duration: Date.now() - startTime,
         cached: false,
@@ -705,7 +630,6 @@ class MCPInitializer {
         mcpManager: null,
         serverCount: 0,
         toolCount: 0,
-        mcpToolRegistry: new Map(), // Include empty registry for failed case
         manifestTools: [],
         duration: Date.now() - startTime,
         cached: false,
@@ -854,17 +778,27 @@ class MCPInitializer {
 
         for (const tool of tools) {
           const toolName = tool.name; // Use actual tool name without delimiter
-          const toolDef = {
-            type: 'function',
-            ['function']: {
-              name: toolName,
+          
+          // Create MCP metadata for this user-specific tool
+          const mcpMetadata = ToolMetadataUtils.createMCPMetadata({
+            serverName,
+            isGlobal: false,
+            userId,
+            originalToolName: tool.name,
+          });
+          
+          // Create enhanced tool with embedded metadata
+          const enhancedTool = ToolMetadataUtils.createEnhancedTool(
+            toolName,
+            {
               description: tool.description,
               parameters: tool.inputSchema,
             },
-          };
+            mcpMetadata
+          );
 
-          availableTools[toolName] = toolDef;
-          connectedTools[toolName] = toolDef; // Store for result
+          availableTools[toolName] = enhancedTool;
+          connectedTools[toolName] = enhancedTool; // Store for result
           mappedToolsCount++;
         }
 
@@ -1039,13 +973,13 @@ class MCPInitializer {
   }
 
   /**
-   * Update Express app-level caches (availableTools and mcpToolRegistry) for individual server operations
+   * Update Express app-level availableTools cache for individual server operations
    *
    * @private
    * @param {Express.Application} app - Express app instance
    * @param {string} userId - The user ID
    * @param {string} serverName - The server name
-   * @param {Object} toolsToAdd - Tools to add (for connect operations)
+   * @param {Object} toolsToAdd - Enhanced tools to add (for connect operations)
    * @param {Array} toolKeysToRemove - Tool keys to remove (for disconnect operations)
    */
   static updateAppLevelCaches(app, userId, serverName, toolsToAdd = {}, toolKeysToRemove = []) {
@@ -1054,58 +988,42 @@ class MCPInitializer {
       return;
     }
 
-    const { availableTools, mcpToolRegistry } = app.locals;
+    const { availableTools } = app.locals;
 
-    if (!availableTools || !mcpToolRegistry) {
-      logger.warn(`[MCPInitializer] app.locals.availableTools or mcpToolRegistry not found`);
+    if (!availableTools) {
+      logger.warn(`[MCPInitializer] app.locals.availableTools not found`);
       return;
     }
 
-    // Add new tools to availableTools and mcpToolRegistry
+    // Add new enhanced tools to availableTools
     if (Object.keys(toolsToAdd).length > 0) {
       let addedCount = 0;
-      for (const [toolName, toolDef] of Object.entries(toolsToAdd)) {
-        availableTools[toolName] = toolDef;
-
-        // Tool name is already the actual name (no delimiter parsing needed)
-        const toolInfo = {
-          serverName,
-          appSlug: serverName.startsWith('pipedream-')
-            ? serverName.replace('pipedream-', '')
-            : serverName,
-          toolName,
-        };
-        mcpToolRegistry.set(toolName, toolInfo);
+      for (const [toolName, enhancedTool] of Object.entries(toolsToAdd)) {
+        availableTools[toolName] = enhancedTool;
         addedCount++;
       }
       logger.info(
-        `[MCPInitializer] Added ${addedCount} tools to app.locals for server '${serverName}'`,
+        `[MCPInitializer] Added ${addedCount} enhanced tools to app.locals for server '${serverName}'`,
       );
     }
 
-    // Remove tools from availableTools and mcpToolRegistry
+    // Remove tools from availableTools
     if (toolKeysToRemove.length > 0) {
       let removedCount = 0;
       for (const toolName of toolKeysToRemove) {
-        // Only remove from availableTools if it's actually an MCP tool (in the registry)
-        // This prevents removing structured tools that happen to have the same name
-        if (availableTools[toolName] && mcpToolRegistry.has(toolName)) {
+        // Only remove from availableTools if it's actually an MCP tool with metadata
+        if (availableTools[toolName] && ToolMetadataUtils.isMCPTool(availableTools[toolName])) {
           delete availableTools[toolName];
           removedCount++;
         }
-
-        // Tool name is already the actual name (no delimiter parsing needed)
-        if (mcpToolRegistry.has(toolName)) {
-          mcpToolRegistry.delete(toolName);
-        }
       }
       logger.info(
-        `[MCPInitializer] Removed ${removedCount} tools from app.locals for server '${serverName}'`,
+        `[MCPInitializer] Removed ${removedCount} MCP tools from app.locals for server '${serverName}'`,
       );
     }
 
     logger.info(
-      `[MCPInitializer] Updated app.locals caches for user ${userId}, server '${serverName}' (total tools: ${Object.keys(availableTools).length}, registry size: ${mcpToolRegistry.size})`,
+      `[MCPInitializer] Updated app.locals for user ${userId}, server '${serverName}' (total tools: ${Object.keys(availableTools).length})`,
     );
   }
 

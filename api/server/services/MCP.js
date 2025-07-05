@@ -7,6 +7,7 @@ const {
   ContentTypes,
   isAssistantsEndpoint,
   convertJsonSchemaToZod,
+  ToolMetadataUtils,
 } = require('librechat-data-provider');
 const { logger, getMCPManager } = require('~/config');
 
@@ -48,35 +49,26 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
     schema = z.object({ input: z.string().optional() });
   }
 
-  // Get server information from the MCP tool registry
-  const mcpToolRegistry = req.app.locals.mcpToolRegistry;
-  logger.debug(`[MCP] mcpToolRegistry exists: ${!!mcpToolRegistry}`);
-  logger.debug(`[MCP] mcpToolRegistry size: ${mcpToolRegistry?.size || 0}`);
-  logger.debug(
-    `[MCP] mcpToolRegistry has toolKey ${toolKey}: ${mcpToolRegistry?.has(toolKey) || false}`,
-  );
-
-  // Registry contents logging removed to reduce verbosity (was logging 78 tools per tool creation)
-  // Use debug level if registry contents logging is needed for troubleshooting
-  if (mcpToolRegistry && mcpToolRegistry.size > 0) {
-    logger.debug(`[MCP] mcpToolRegistry contents: ${Array.from(mcpToolRegistry.keys()).join(', ')}`);
-  }
-
-  if (!mcpToolRegistry || !mcpToolRegistry.has(toolKey)) {
-    logger.error(`[MCP] Tool ${toolKey} not found in MCP tool registry`);
-    // logger.error(`[MCP] Registry keys: ${mcpToolRegistry ? Array.from(mcpToolRegistry.keys()).join(', ') : 'No registry'}`);
+  // Get MCP metadata from the enhanced tool structure (single source of truth)
+  const enhancedTool = req.app.locals.availableTools[toolKey];
+  const mcpMetadata = enhancedTool?._mcp;
+  
+  logger.debug(`[MCP] Tool has MCP metadata: ${!!mcpMetadata}`);
+  
+  if (!mcpMetadata) {
+    logger.error(`[MCP] Tool ${toolKey} is not an MCP tool (no _mcp metadata)`);
     return null;
   }
 
-  const mcpInfo = mcpToolRegistry.get(toolKey);
-  const serverName = mcpInfo?.serverName;
-  const toolName = mcpInfo?.toolName || toolKey; // Fallback to toolKey if toolName not available
-  const isGlobalTool = mcpInfo?.isGlobal || false;
+  // Extract metadata from the enhanced tool structure
+  const serverName = mcpMetadata.serverName;
+  const toolName = mcpMetadata.originalToolName || toolKey; // Use original name or fallback to toolKey
+  const isGlobalTool = mcpMetadata.isGlobal || false;
 
   logger.debug(
     `[MCP] Tool info for ${toolKey}: serverName=${serverName}, toolName=${toolName}, isGlobal=${isGlobalTool}`,
   );
-  logger.debug(`[MCP] Full mcpInfo: ${JSON.stringify(mcpInfo)}`);
+  logger.debug(`[MCP] Full mcpMetadata: ${JSON.stringify(mcpMetadata)}`);
 
   if (!serverName) {
     logger.error(`[MCP] Could not determine server name for MCP tool: ${toolKey}`);

@@ -314,7 +314,7 @@ const connectMCPServer = async (req, res) => {
 
     if (result.success) {
       // Update Express app-level caches to reflect the new server tools
-      // This ensures req.app.locals.availableTools and mcpToolRegistry are updated
+      // This ensures req.app.locals.availableTools is updated with enhanced tools
       // The tools were added to the request-specific availableTools by connectSingleMCPServer
       if (result.connectedTools) {
         MCPInitializer.updateAppLevelCaches(req.app, userId, serverName, result.connectedTools, []);
@@ -400,11 +400,11 @@ const disconnectMCPServer = async (req, res) => {
         const cleanupResult = await UserMCPService.cleanupToolsForDisconnectedServer(
           userId,
           serverName,
-          [], // Let it discover tools from registry
-          req.app.locals.mcpToolRegistry,
+          [], // Let it discover tools from availableTools
+          req.app.locals.availableTools,
         );
 
-        // Remove tools from availableTools and mcpToolRegistry
+        // Remove tools from availableTools
         if (cleanupResult.removedToolKeys && cleanupResult.removedToolKeys.length > 0) {
           const MCPInitializer = require('~/server/services/MCPInitializer');
           MCPInitializer.updateAppLevelCaches(

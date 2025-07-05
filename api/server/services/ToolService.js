@@ -540,7 +540,7 @@ async function loadAgentTools({ req, res, agent, tool_resources, openAIApiKey })
     req.user.id,
     'loadAgentTools',
     req.app.locals.availableTools,
-    { forceRefresh, mcpToolRegistry: req.app.locals.mcpToolRegistry },
+    { forceRefresh },
   );
 
   if (mcpResult.success) {
@@ -548,7 +548,7 @@ async function loadAgentTools({ req, res, agent, tool_resources, openAIApiKey })
       `[loadAgentTools] MCP initialization successful for agent ${agent.id}: ${mcpResult.serverCount} servers, ${mcpResult.toolCount} tools in ${mcpResult.duration}ms (forced: ${forceRefresh})`,
     );
     // logger.info(`[loadAgentTools] Available tools count after MCP: ${Object.keys(req.app.locals.availableTools).length}`);
-    // logger.info(`[loadAgentTools] MCP tool registry size: ${req.app.locals.mcpToolRegistry?.size || 0}`);
+    // MCP tools are now embedded in availableTools with metadata
   } else {
     logger.warn(
       `[loadAgentTools] MCP initialization failed for agent ${agent.id}: ${mcpResult.error}`,

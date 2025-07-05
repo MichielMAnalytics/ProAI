@@ -454,11 +454,16 @@ const loadTools = async ({
   /** @type {Record<string, string>} */
   const toolContextMap = {};
   const appTools = options.req?.app?.locals?.availableTools ?? {};
-  const mcpToolRegistry = options.req?.app?.locals?.mcpToolRegistry;
+
+  // Get MCP tools count from enhanced structure
+  const { ToolMetadataUtils } = require('librechat-data-provider');
+  const mcpToolsCount = Object.entries(appTools).filter(([toolName, toolDef]) => 
+    ToolMetadataUtils.isMCPTool(toolDef)
+  ).length;
 
   // logger.info(`[loadTools] Loading ${tools.length} tools for user ${user}`);
   // logger.info(`[loadTools] Available tools count: ${Object.keys(appTools).length}`);
-  // logger.info(`[loadTools] MCP tool registry size: ${mcpToolRegistry?.size || 0}`);
+  // logger.info(`[loadTools] MCP tools count: ${mcpToolsCount}`);
   // logger.info(`[loadTools] Tools to load: ${tools.join(', ')}`);
 
   for (const toolItem of tools) {
@@ -534,20 +539,18 @@ Current Date & Time: ${replaceSpecialVars({ text: '{{iso_datetime}}' })}
     } else if (
       tool &&
       appTools[tool] &&
-      (mcpToolPattern.test(tool) ||
-        (options.req?.app?.locals?.mcpToolRegistry &&
-          options.req.app.locals.mcpToolRegistry.has(tool)))
+      (mcpToolPattern.test(tool) || ToolMetadataUtils.isMCPTool(appTools[tool]))
     ) {
       // const isMCPByPattern = mcpToolPattern.test(tool);
-      // const isMCPByRegistry = options.req?.app?.locals?.mcpToolRegistry?.has(tool);
-      // logger.info(`[loadTools] MCP tool detected: ${tool} (pattern: ${isMCPByPattern}, registry: ${isMCPByRegistry})`);
+      // const isMCPByMetadata = ToolMetadataUtils.isMCPTool(appTools[tool]);
+      // logger.info(`[loadTools] MCP tool detected: ${tool} (pattern: ${isMCPByPattern}, metadata: ${isMCPByMetadata})`);
 
       // Add MCP server instructions to toolContextMap
       try {
-        const mcpToolRegistry = options.req?.app?.locals?.mcpToolRegistry;
-        if (mcpToolRegistry && mcpToolRegistry.has(tool)) {
-          const mcpInfo = mcpToolRegistry.get(tool);
-          const serverName = mcpInfo?.serverName;
+        const toolDef = appTools[tool];
+        if (ToolMetadataUtils.isMCPTool(toolDef)) {
+          const serverName = ToolMetadataUtils.getServerName(toolDef);
+          const appSlug = ToolMetadataUtils.getAppSlug(toolDef);
           
           if (serverName) {
             const { getMCPManager } = require('~/config');

@@ -307,14 +307,15 @@ function createMockRequestForWorkflow(context, user, prompt, model, endpoint) {
   const { logger } = require('~/config');
 
   // Debug: Log MCP context being passed
-  const mcpToolRegistry = context.mcp.mcpToolRegistry || new Map();
+  const availableTools = context.mcp.availableTools || {};
+  const { ToolMetadataUtils } = require('librechat-data-provider');
+  const mcpToolsCount = Object.entries(availableTools).filter(([toolName, toolDef]) => 
+    ToolMetadataUtils.isMCPTool(toolDef)
+  ).length;
+  
   logger.info(
-    `[createMockRequestForWorkflow] MCP context: availableTools=${Object.keys(context.mcp.availableTools || {}).length}, mcpToolRegistry=${mcpToolRegistry.size}`,
+    `[createMockRequestForWorkflow] MCP context: availableTools=${Object.keys(availableTools).length}, mcpTools=${mcpToolsCount}`,
   );
-  if (mcpToolRegistry.size > 0) {
-    const registryKeys = Array.from(mcpToolRegistry.keys()).slice(0, 5);
-    logger.info(`[createMockRequestForWorkflow] Sample registry keys: ${registryKeys.join(', ')}`);
-  }
 
   return {
     user: user,
@@ -329,8 +330,7 @@ function createMockRequestForWorkflow(context, user, prompt, model, endpoint) {
     },
     app: {
       locals: {
-        availableTools: context.mcp.availableTools || {},
-        mcpToolRegistry: mcpToolRegistry, // Include MCP tool registry
+        availableTools: availableTools, // Enhanced tools with embedded metadata
         fileStrategy: 'local', // Add default file strategy
       },
     },
