@@ -542,6 +542,43 @@ Current Date & Time: ${replaceSpecialVars({ text: '{{iso_datetime}}' })}
       // const isMCPByRegistry = options.req?.app?.locals?.mcpToolRegistry?.has(tool);
       // logger.info(`[loadTools] MCP tool detected: ${tool} (pattern: ${isMCPByPattern}, registry: ${isMCPByRegistry})`);
 
+      // Add MCP server instructions to toolContextMap
+      try {
+        const mcpToolRegistry = options.req?.app?.locals?.mcpToolRegistry;
+        if (mcpToolRegistry && mcpToolRegistry.has(tool)) {
+          const mcpInfo = mcpToolRegistry.get(tool);
+          const serverName = mcpInfo?.serverName;
+          
+          if (serverName) {
+            const { getMCPManager } = require('~/config');
+            const mcpManager = getMCPManager();
+            
+            if (mcpManager) {
+              // Get server instructions for this specific server
+              const serverInstructions = mcpManager.getInstructions([serverName]);
+              
+              if (serverInstructions[serverName]) {
+                // Create a unique key for this server's instructions in toolContextMap
+                const instructionKey = `mcp_server_${serverName}_instructions`;
+                
+                // Only add if not already present (avoid duplicates for multiple tools from same server)
+                if (!toolContextMap[instructionKey]) {
+                  toolContextMap[instructionKey] = `# MCP Server Instructions for ${serverName}
+
+${serverInstructions[serverName]}
+
+Please follow these instructions when using tools from the ${serverName} MCP server.`;
+                  
+                  logger.info(`[loadTools] Added server instructions for MCP server: ${serverName}`);
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        logger.warn(`[loadTools] Failed to add MCP server instructions for tool ${tool}:`, error);
+      }
+
       requestedTools[tool] = async () =>
         createMCPTool({
           req: options.req,
