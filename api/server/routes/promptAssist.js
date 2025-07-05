@@ -64,7 +64,7 @@ The enhanced prompt should:
 - Specify the desired output format when applicable
 - Be well-structured and easy to follow
 - Be written as flowing text, not bullet points or numbered lists (better for system prompts)
-- Be concise to optimize token usage
+- Be concise to optimize token usage without reducing quality
 - Incorporate dynamic variables when they would enhance the functionality${
       availableVariables && availableVariables.length > 0
         ? `\n\nAvailable Variables (use these when appropriate):
@@ -82,11 +82,11 @@ Return ONLY the enhanced instructions content without any title, description, he
 
     const userPrompt = `Based on the following information, enhance the instructions for an AI assistant:
 
-Name: ${title || 'Untitled Assistant'}
+Title: ${title || 'Untitled Assistant'}
 Description: ${description || 'No description provided'}
 Current Instructions: ${cleanInstructions || 'No instructions provided yet'}
 
-Create enhanced instructions that will help the AI assistant perform its intended function effectively. ${title ? `IMPORTANT: The assistant's name is "${title}" - incorporate this identity into the instructions by starting with "You are ${title}, " followed by the description/role.` : ''} Consider incorporating the available variables where they would be beneficial. Remember to return only the instructions content without repeating the name or description separately.`;
+Create enhanced instructions that will help the AI assistant perform its intended function effectively. Consider incorporating the available variables where they would be beneficial. Remember to return only the instructions content without repeating the title or description.`;
 
     // Estimate token usage for balance check
     const messages = [

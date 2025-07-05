@@ -573,6 +573,35 @@ export class MCPManager {
       }
       this.userConnections.get(userId)?.set(serverName, connection);
 
+      /** Store Pipedream server instructions if available (applies to all users) */
+      const configInstructions = config.serverInstructions;
+      if (configInstructions !== undefined) {
+        if (typeof configInstructions === 'string') {
+          // Store in global instructions map so it applies to all users of this server
+          this.serverInstructions.set(serverName, configInstructions);
+          logger.info(
+            `[MCP][User: ${userId}][${serverName}] Pipedream instructions stored globally for all users: ${configInstructions}`,
+          );
+        } else if (configInstructions === true) {
+          /** Server-provided instructions */
+          const serverInstructions = connection.client.getInstructions();
+          if (serverInstructions) {
+            this.serverInstructions.set(serverName, serverInstructions);
+            logger.info(
+              `[MCP][User: ${userId}][${serverName}] Server-provided instructions stored globally: ${serverInstructions}`,
+            );
+          } else {
+            logger.info(
+              `[MCP][User: ${userId}][${serverName}] serverInstructions=true but no server instructions available`,
+            );
+          }
+        } else {
+          logger.info(
+            `[MCP][User: ${userId}][${serverName}] Instructions explicitly disabled (serverInstructions=false)`,
+          );
+        }
+      }
+
       logger.info(`[MCP][User: ${userId}][${serverName}] Connection successfully established`);
       // Update timestamp on creation
       this.updateUserLastActivity(userId);
@@ -1081,6 +1110,7 @@ export class MCPManager {
 
     return instructions;
   }
+
 
   /**
    * Format MCP server instructions for injection into context

@@ -104,6 +104,9 @@ class PluginsClient extends OpenAIClient {
         user,
         'PluginsClient',
         this.options.req.app.locals.availableTools,
+        {
+          pipedreamServerInstructions: this.options.req.app.locals.pipedreamServerInstructions,
+        },
       );
 
       if (mcpResult.success) {

@@ -816,6 +816,7 @@ export const configSchema = z.object({
   includedTools: z.array(z.string()).optional(),
   filteredTools: z.array(z.string()).optional(),
   mcpServers: MCPServersSchema.optional(),
+  pipedreamServerInstructions: z.record(z.string(), z.string()).optional(),
   addUserSpecificMcpFromDb: z.boolean().default(false),
   interface: intefaceSchema,
   turnstile: turnstileSchema.optional(),

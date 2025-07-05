@@ -84,6 +84,7 @@ const AppService = async (app) => {
 
   // Store MCP config for later initialization
   const mcpConfig = config.mcpServers || null;
+  const pipedreamServerInstructions = config.pipedreamServerInstructions || null;
 
   const socialLogins =
     config?.registration?.socialLogins ?? configDefaults?.registration?.socialLogins;
@@ -111,6 +112,7 @@ const AppService = async (app) => {
     workflows: workflowsConfig,
     addUserSpecificMcpFromDb,
     mcpConfig,
+    pipedreamServerInstructions,
   };
 
   if (!Object.keys(config).length) {

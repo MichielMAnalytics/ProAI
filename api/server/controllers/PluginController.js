@@ -207,7 +207,10 @@ const getAvailableTools = async (req, res) => {
         userId,
         'PluginController',
         req.app.locals.availableTools,
-        { mcpToolRegistry: req.app.locals.mcpToolRegistry },
+        { 
+          mcpToolRegistry: req.app.locals.mcpToolRegistry,
+          pipedreamServerInstructions: req.app.locals.pipedreamServerInstructions,
+        },
       );
 
       logger.info(`After MCP initialization: availableTools count = ${Object.keys(req.app.locals.availableTools || {}).length}`);

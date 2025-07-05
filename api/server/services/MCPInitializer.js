@@ -239,11 +239,12 @@ class MCPInitializer {
    * @param {Object} options - Additional options
    * @param {boolean} options.forceRefresh - Force refresh even if cached (default: false)
    * @param {Map} options.mcpToolRegistry - The MCP tool registry for storing tool metadata
+   * @param {Object} options.pipedreamServerInstructions - Pipedream server instructions from config
    * @returns {Promise<Object>} Initialization result with mcpManager, serverCount, toolCount, and cache info
    */
   async ensureUserMCPReady(userId, context, availableTools = {}, options = {}) {
     const startTime = Date.now();
-    const { forceRefresh = false, mcpToolRegistry = null } = options;
+    const { forceRefresh = false, mcpToolRegistry = null, pipedreamServerInstructions = null } = options;
 
     if (!userId) {
       return {
@@ -403,6 +404,7 @@ class MCPInitializer {
       availableTools,
       startTime,
       mcpToolRegistry,
+      pipedreamServerInstructions,
     );
     this.pendingInitializations.set(userId, initializationPromise);
 
@@ -424,6 +426,7 @@ class MCPInitializer {
    * @param {Object} availableTools - Tools registry to enhance with MCP tools
    * @param {number} startTime - Start time for duration calculation
    * @param {Map} mcpToolRegistry - The MCP tool registry for storing tool metadata
+   * @param {Object} pipedreamServerInstructions - Pipedream server instructions from config
    * @returns {Promise<Object>} Initialization result
    */
   async performUserMCPInitialization(
@@ -432,6 +435,7 @@ class MCPInitializer {
     availableTools,
     startTime,
     mcpToolRegistry = null,
+    pipedreamServerInstructions = null,
   ) {
     try {
       const mcpManager = getMCPManager(userId);
@@ -452,7 +456,9 @@ class MCPInitializer {
       // Get user MCP servers
       const UserMCPService = require('~/server/services/UserMCPService');
       logger.info(`[MCPInitializer][${context}] Getting user MCP servers for user ${userId}`);
-      const userMCPServers = await UserMCPService.getUserMCPServers(userId);
+      const userMCPServers = await UserMCPService.getUserMCPServers(userId, {
+        pipedreamServerInstructions,
+      });
       const serverCount = Object.keys(userMCPServers).length;
 
       logger.info(

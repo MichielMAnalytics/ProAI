@@ -24,25 +24,30 @@ class UserMCPService {
    * Get user-specific MCP servers configuration from user integrations
    *
    * @param {string} userId - The user ID
+   * @param {Object} options - Optional configuration
    * @returns {Promise<Object>} Object of user MCP server configurations
    */
-  async getUserMCPServers(userId) {
-    return UserMCPService.getUserMCPServers(userId);
+  async getUserMCPServers(userId, options = {}) {
+    return UserMCPService.getUserMCPServers(userId, options);
   }
 
   /**
    * Static method: Get user-specific MCP servers configuration from user integrations
    *
    * @param {string} userId - The user ID
+   * @param {Object} options - Optional configuration
+   * @param {Object} options.pipedreamServerInstructions - Pipedream server instructions from config
    * @returns {Promise<Object>} Object of user MCP server configurations
    */
-  static async getUserMCPServers(userId) {
+  static async getUserMCPServers(userId, options = {}) {
     logger.info(`=== UserMCPService.getUserMCPServers: Starting for user ${userId} ===`);
 
     if (!userId) {
       logger.warn('UserMCPService.getUserMCPServers: No userId provided');
       return {};
     }
+
+    const { pipedreamServerInstructions } = options;
 
     try {
       // Check cache first
@@ -175,6 +180,17 @@ class UserMCPService {
             authError.message,
           );
           // Continue without auth token - the connection will fail and trigger token refresh
+        }
+
+        // Apply Pipedream server instructions if available
+        if (pipedreamServerInstructions && appSlug) {
+          const instructions = pipedreamServerInstructions[appSlug];
+          if (instructions) {
+            mcpServers[serverName].serverInstructions = instructions;
+            logger.info(
+              `UserMCPService: Applied server instructions for ${serverName} (${appSlug}): ${instructions.substring(0, 100)}...`,
+            );
+          }
         }
 
         // logger.info(`UserMCPService: Added MCP server ${serverName}:`, {
