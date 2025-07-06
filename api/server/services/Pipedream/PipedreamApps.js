@@ -51,7 +51,7 @@ class PipedreamApps {
         );
 
         authToken = tokenResponse.data.access_token;
-        logger.info('PipedreamApps: OAuth token obtained successfully');
+        logger.debug('PipedreamApps: OAuth token obtained successfully');
       } catch (error) {
         logger.error('PipedreamApps: Failed to obtain OAuth token:', error.message);
         throw new Error('Failed to authenticate with Pipedream API');
@@ -70,7 +70,7 @@ class PipedreamApps {
    */
   async getAvailableIntegrations() {
     const startTime = Date.now();
-    logger.info('PipedreamApps: Getting available integrations');
+    logger.debug('PipedreamApps: Getting available integrations');
 
     if (!this.isEnabled()) {
       logger.warn('PipedreamApps: Service is disabled');
@@ -95,7 +95,7 @@ class PipedreamApps {
         const isStale = cacheAgeSeconds > CACHE_STALE_DURATION;
         const isExpired = cacheAgeSeconds > CACHE_MAX_AGE;
 
-        logger.info('PipedreamApps: Cache analysis', {
+        logger.debug('PipedreamApps: Cache analysis', {
           ageHours: Math.floor(cacheAgeSeconds / 3600),
           isFresh,
           isStale,
@@ -104,16 +104,16 @@ class PipedreamApps {
 
         // If cache is fresh, return immediately
         if (isFresh) {
-          logger.info(`PipedreamApps: Returning ${cached.length} fresh cached integrations`);
+          logger.debug(`PipedreamApps: Returning ${cached.length} fresh cached integrations`);
           return cached;
         }
 
         // If cache is expired, force refresh
         if (isExpired) {
-          logger.info('PipedreamApps: Cache expired, forcing refresh');
+          logger.debug('PipedreamApps: Cache expired, forcing refresh');
         } else if (isStale) {
           // For stale cache, return cached data and refresh in background
-          logger.info(
+          logger.debug(
             'PipedreamApps: Cache stale, returning cached data and refreshing in background',
           );
           setImmediate(() => this.refreshCacheInBackground());
@@ -126,7 +126,7 @@ class PipedreamApps {
 
       if (integrations.length > 0) {
         await this.cacheIntegrations(integrations);
-        logger.info(
+        logger.debug(
           `PipedreamApps: Fetched and cached ${integrations.length} integrations in ${Date.now() - startTime}ms`,
         );
         return integrations;
@@ -148,7 +148,7 @@ class PipedreamApps {
       try {
         const cached = await AvailableIntegration.find({ isActive: true }).lean();
         if (cached && cached.length > 0) {
-          logger.info('PipedreamApps: Returning cached data as error fallback');
+          logger.debug('PipedreamApps: Returning cached data as error fallback');
           return cached;
         }
       } catch (cacheError) {
@@ -163,7 +163,7 @@ class PipedreamApps {
    * Fetch integrations from Pipedream API with pagination
    */
   async fetchFromAPI() {
-    logger.info('PipedreamApps: Fetching integrations from Pipedream API');
+    logger.debug('PipedreamApps: Fetching integrations from Pipedream API');
 
     try {
       const authToken = await this.getAuthToken();
@@ -174,7 +174,7 @@ class PipedreamApps {
       const seenAppIds = new Set();
 
       while (true) {
-        logger.info(`PipedreamApps: Fetching page ${page} (limit: ${limit})`);
+        logger.debug(`PipedreamApps: Fetching page ${page} (limit: ${limit})`);
 
         const params = { limit };
         if (cursor) params.after = cursor;
@@ -201,7 +201,7 @@ class PipedreamApps {
 
           allApps = allApps.concat(pageApps);
 
-          logger.info(
+          logger.debug(
             `PipedreamApps: Page ${page} processed: ${pageApps.length} unique apps (${allApps.length} total)`,
           );
 
@@ -220,7 +220,7 @@ class PipedreamApps {
         }
       }
 
-      logger.info(`PipedreamApps: Fetched ${allApps.length} unique apps from ${page} pages`);
+      logger.debug(`PipedreamApps: Fetched ${allApps.length} unique apps from ${page} pages`);
 
       // Transform to our integration format
       const integrations = allApps.map((app) => ({
@@ -265,7 +265,7 @@ class PipedreamApps {
    */
   async cacheIntegrations(integrations) {
     try {
-      logger.info(`PipedreamApps: Caching ${integrations.length} integrations`);
+      logger.debug(`PipedreamApps: Caching ${integrations.length} integrations`);
 
       // Clear existing cache
       await AvailableIntegration.deleteMany({});
@@ -277,7 +277,7 @@ class PipedreamApps {
         await AvailableIntegration.insertMany(batch, { ordered: false });
       }
 
-      logger.info(`PipedreamApps: Successfully cached ${integrations.length} integrations`);
+      logger.debug(`PipedreamApps: Successfully cached ${integrations.length} integrations`);
     } catch (error) {
       logger.error('PipedreamApps: Failed to cache integrations:', error.message);
     }
@@ -288,12 +288,12 @@ class PipedreamApps {
    */
   async refreshCacheInBackground() {
     try {
-      logger.info('PipedreamApps: Starting background cache refresh');
+      logger.debug('PipedreamApps: Starting background cache refresh');
       const integrations = await this.fetchFromAPI();
 
       if (integrations.length > 0) {
         await this.cacheIntegrations(integrations);
-        logger.info(
+        logger.debug(
           `PipedreamApps: Background refresh completed: ${integrations.length} integrations`,
         );
       }
@@ -309,11 +309,11 @@ class PipedreamApps {
     const REFRESH_INTERVAL = parseInt(process.env.PIPEDREAM_SCHEDULED_REFRESH_HOURS) || 12; // 12 hours
     const intervalMs = REFRESH_INTERVAL * 60 * 60 * 1000;
 
-    logger.info(`PipedreamApps: Initializing scheduled refresh every ${REFRESH_INTERVAL} hours`);
+    logger.debug(`PipedreamApps: Initializing scheduled refresh every ${REFRESH_INTERVAL} hours`);
 
     // Periodic refresh
     setInterval(() => {
-      logger.info('PipedreamApps: Starting scheduled cache refresh');
+      logger.debug('PipedreamApps: Starting scheduled cache refresh');
       this.refreshCacheInBackground();
     }, intervalMs);
 
@@ -322,7 +322,7 @@ class PipedreamApps {
       try {
         const cached = await AvailableIntegration.find({ isActive: true }).lean();
         if (!cached || cached.length === 0) {
-          logger.info('PipedreamApps: No cache found, performing initial refresh');
+          logger.debug('PipedreamApps: No cache found, performing initial refresh');
           await this.refreshCacheInBackground();
         }
       } catch (error) {
@@ -335,7 +335,7 @@ class PipedreamApps {
    * Get app details by identifier
    */
   async getAppDetails(appIdentifier) {
-    logger.info(`PipedreamApps: Getting app details for ${appIdentifier}`);
+    logger.debug(`PipedreamApps: Getting app details for ${appIdentifier}`);
 
     try {
       // Check cache first
@@ -346,7 +346,7 @@ class PipedreamApps {
       const cachedApp = await AvailableIntegration.findOne(query).lean();
 
       if (cachedApp) {
-        logger.info(`PipedreamApps: Found cached app details for ${appIdentifier}`);
+        logger.debug(`PipedreamApps: Found cached app details for ${appIdentifier}`);
         return {
           id: cachedApp.pipedreamAppId,
           name_slug: cachedApp.appSlug,
@@ -374,7 +374,7 @@ class PipedreamApps {
 
           if (response.data?.data) {
             const appData = response.data.data;
-            logger.info(`PipedreamApps: Fetched app details from API for ${appIdentifier}`);
+            logger.debug(`PipedreamApps: Fetched app details from API for ${appIdentifier}`);
             return {
               id: appData.id,
               name_slug: appData.name_slug,

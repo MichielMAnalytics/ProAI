@@ -74,7 +74,7 @@ class PipedreamComponents {
    */
   async getAppComponents(appIdentifier, type = null) {
     const startTime = Date.now();
-    logger.info(
+    logger.debug(
       `PipedreamComponents: Getting components for app ${appIdentifier}, type: ${type || 'all'}`,
     );
 
@@ -110,7 +110,7 @@ class PipedreamComponents {
         const isStale = cacheAgeSeconds > CACHE_STALE_DURATION;
         const isExpired = cacheAgeSeconds > CACHE_MAX_AGE;
 
-        logger.info('PipedreamComponents: Cache analysis', {
+        logger.debug('PipedreamComponents: Cache analysis', {
           app: appIdentifier,
           ageHours: Math.floor(cacheAgeSeconds / 3600),
           isFresh,
@@ -122,7 +122,7 @@ class PipedreamComponents {
         // If cache is fresh, return immediately
         if (isFresh) {
           const result = this.formatCachedComponents(cached, type);
-          logger.info(
+          logger.debug(
             `PipedreamComponents: Returning ${result.actions.length} cached actions for ${appIdentifier} in ${Date.now() - startTime}ms`,
           );
           return result;
@@ -160,7 +160,7 @@ class PipedreamComponents {
         await this.cacheComponents(appIdentifier, result.actions, 'action');
       }
 
-      logger.info(
+      logger.debug(
         `PipedreamComponents: Retrieved ${result.actions.length} actions for ${appIdentifier} in ${Date.now() - startTime}ms`,
       );
       return result;
@@ -222,7 +222,7 @@ class PipedreamComponents {
    * @returns {Promise<Array>} Array of actions
    */
   async fetchActionsFromAPI(appIdentifier) {
-    logger.info(`PipedreamComponents: Fetching actions for app ${appIdentifier} from API`);
+    logger.debug(`PipedreamComponents: Fetching actions for app ${appIdentifier} from API`);
 
     try {
       // First try using the SDK client
@@ -247,11 +247,11 @@ class PipedreamComponents {
               );
             });
 
-            logger.info(
-              `PipedreamComponents: SDK returned ${actions.length} actions for ${appIdentifier}`,
-            );
-            return actions;
-          }
+              logger.debug(
+                `PipedreamComponents: SDK returned ${actions.length} actions for ${appIdentifier}`,
+              );
+              return actions;
+            }
         } catch (sdkError) {
           logger.warn(`PipedreamComponents: SDK error for ${appIdentifier}:`, sdkError.message);
         }
@@ -273,7 +273,7 @@ class PipedreamComponents {
           });
 
           if (response.data?.data) {
-            logger.info(
+            logger.debug(
               `PipedreamComponents: Connect API returned ${response.data.data.length} actions for ${appIdentifier}`,
             );
             return response.data.data;
@@ -333,7 +333,7 @@ class PipedreamComponents {
         await AppComponents.insertMany(componentsToCache, { ordered: false });
       }
 
-      logger.info(
+      logger.debug(
         `PipedreamComponents: Successfully cached ${componentsToCache.length} ${componentType}s for ${appSlug}`,
       );
     } catch (error) {
@@ -349,12 +349,12 @@ class PipedreamComponents {
    */
   async refreshComponentsInBackground(appIdentifier) {
     try {
-      logger.info(`PipedreamComponents: Starting background refresh for ${appIdentifier}`);
+      logger.debug(`PipedreamComponents: Starting background refresh for ${appIdentifier}`);
       const actions = await this.fetchActionsFromAPI(appIdentifier);
 
       if (actions.length > 0) {
         await this.cacheComponents(appIdentifier, actions, 'action');
-        logger.info(
+        logger.debug(
           `PipedreamComponents: Background refresh completed for ${appIdentifier}: ${actions.length} actions`,
         );
       } else {
@@ -382,7 +382,7 @@ class PipedreamComponents {
    * @returns {Promise<Object>} Configuration result
    */
   async configureComponent(userId, options) {
-    logger.info(`PipedreamComponents: Configuring component for user ${userId}`);
+    logger.debug(`PipedreamComponents: Configuring component for user ${userId}`);
 
     if (!this.isEnabled()) {
       throw new Error('Pipedream Components service is not enabled');
@@ -400,7 +400,7 @@ class PipedreamComponents {
         throw new Error('Component ID and property name are required');
       }
 
-      logger.info(`PipedreamComponents: Configuring component ${componentId}, prop: ${propName}`);
+      logger.debug(`PipedreamComponents: Configuring component ${componentId}, prop: ${propName}`);
 
       const result = await client.configureComponent({
         id: componentId,
@@ -410,7 +410,7 @@ class PipedreamComponents {
         dynamic_props_id: dynamicPropsId,
       });
 
-      logger.info(`PipedreamComponents: Component configured successfully for user ${userId}`);
+      logger.debug(`PipedreamComponents: Component configured successfully for user ${userId}`);
       return result;
     } catch (error) {
       logger.error(
@@ -432,7 +432,7 @@ class PipedreamComponents {
    * @returns {Promise<Object>} Action execution result
    */
   async runAction(userId, options) {
-    logger.info(`PipedreamComponents: Running action for user ${userId}`);
+    logger.debug(`PipedreamComponents: Running action for user ${userId}`);
 
     if (!this.isEnabled()) {
       throw new Error('Pipedream Components service is not enabled');
@@ -450,7 +450,7 @@ class PipedreamComponents {
         throw new Error('Component ID is required');
       }
 
-      logger.info(`PipedreamComponents: Running action ${componentId} for user ${userId}`);
+      logger.debug(`PipedreamComponents: Running action ${componentId} for user ${userId}`);
 
       const result = await client.runAction({
         id: componentId,
@@ -459,7 +459,7 @@ class PipedreamComponents {
         dynamic_props_id: dynamicPropsId,
       });
 
-      logger.info(`PipedreamComponents: Action executed successfully for user ${userId}`);
+      logger.debug(`PipedreamComponents: Action executed successfully for user ${userId}`);
       return result;
     } catch (error) {
       logger.error(`PipedreamComponents: Failed to run action for user ${userId}:`, error.message);
@@ -475,7 +475,7 @@ class PipedreamComponents {
    * @returns {Promise<Object>} Deployment result
    */
   async deployTrigger(userId, options) {
-    logger.info(
+    logger.debug(
       `PipedreamComponents: Deploy trigger requested for user ${userId} (not implemented)`,
     );
 
@@ -492,7 +492,7 @@ class PipedreamComponents {
    * @returns {Promise<Object>} Component documentation
    */
   async getComponentDocumentation(componentId) {
-    logger.info(`PipedreamComponents: Getting documentation for component ${componentId}`);
+    logger.debug(`PipedreamComponents: Getting documentation for component ${componentId}`);
 
     if (!this.isEnabled()) {
       return this.getMockComponentDocumentation(componentId);
@@ -529,7 +529,7 @@ class PipedreamComponents {
    * @returns {Promise<Array>} Array of matching components
    */
   async searchComponents(searchTerm, options = {}) {
-    logger.info(`PipedreamComponents: Searching components with term: ${searchTerm}`);
+    logger.debug(`PipedreamComponents: Searching components with term: ${searchTerm}`);
 
     if (!this.isEnabled()) {
       return this.getMockSearchResults(searchTerm);
@@ -538,7 +538,7 @@ class PipedreamComponents {
     try {
       // This would implement component search across the Pipedream registry
       // For now, return empty results
-      logger.info('PipedreamComponents: Component search not yet implemented');
+      logger.debug('PipedreamComponents: Component search not yet implemented');
       return [];
     } catch (error) {
       logger.error(`PipedreamComponents: Error searching components:`, error.message);

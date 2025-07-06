@@ -263,9 +263,9 @@ const getAvailableTools = async (req, res) => {
     // logger.info(`After authentication check: ${authenticatedPlugins.length}`);
 
     const toolDefinitions = req.app.locals.availableTools || {};
-    logger.info(`Available tools count: ${Object.keys(toolDefinitions).length}`);
-    logger.info(`All available tools:`, Object.keys(toolDefinitions));
-    logger.info(`Sample plugin keys:`, authenticatedPlugins.slice(0, 5).map(p => p.pluginKey));
+    logger.debug(`Available tools count: ${Object.keys(toolDefinitions).length}`);
+    logger.debug(`All available tools:`, Object.keys(toolDefinitions));
+    logger.debug(`Sample plugin keys:`, authenticatedPlugins.slice(0, 5).map(p => p.pluginKey));
 
     const tools = authenticatedPlugins.filter(
       (plugin) => {

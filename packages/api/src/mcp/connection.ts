@@ -150,7 +150,7 @@ export class MCPConnection extends EventEmitter {
         return null;
       }
 
-      logger.info(`${this.getLogPrefix()} Getting fresh Pipedream token via SDK`);
+      logger.debug(`${this.getLogPrefix()} Getting fresh Pipedream token via SDK`);
 
       // Dynamically import PipedreamConnect to avoid circular dependencies
       const PipedreamConnect = require('../../../api/server/services/Pipedream/PipedreamConnect');
@@ -159,7 +159,7 @@ export class MCPConnection extends EventEmitter {
         // Use SDK's automatic token management - no need to clear cache manually
         const newToken = await PipedreamConnect.getOAuthAccessToken();
         if (newToken) {
-          logger.info(`${this.getLogPrefix()} Successfully retrieved fresh Pipedream token via SDK`);
+          logger.debug(`${this.getLogPrefix()} Successfully retrieved fresh Pipedream token via SDK`);
           return newToken;
         }
       }
@@ -220,7 +220,7 @@ export class MCPConnection extends EventEmitter {
           }
           this.url = options.url;
           const url = new URL(options.url);
-          logger.info(`${this.getLogPrefix()} Creating SSE transport: ${url.toString()}`);
+          logger.debug(`${this.getLogPrefix()} Creating SSE transport: ${url.toString()}`);
           const abortController = new AbortController();
 
           /** Add OAuth token to headers if available */
@@ -247,7 +247,7 @@ export class MCPConnection extends EventEmitter {
           });
 
           transport.onclose = () => {
-            logger.info(`${this.getLogPrefix()} SSE transport closed`);
+            logger.debug(`${this.getLogPrefix()} SSE transport closed`);
             this.emit('connectionChange', 'disconnected');
           };
 
@@ -257,7 +257,7 @@ export class MCPConnection extends EventEmitter {
           };
 
           transport.onmessage = (message) => {
-            logger.info(`${this.getLogPrefix()} Message received: ${JSON.stringify(message)}`);
+            logger.debug(`${this.getLogPrefix()} Message received: ${JSON.stringify(message)}`);
           };
 
           this.setupTransportErrorHandlers(transport);
@@ -270,7 +270,7 @@ export class MCPConnection extends EventEmitter {
           }
           this.url = options.url;
           const url = new URL(options.url);
-          logger.info(
+          logger.debug(
             `${this.getLogPrefix()} Creating streamable-http transport: ${url.toString()}`,
           );
           const abortController = new AbortController();
@@ -290,7 +290,7 @@ export class MCPConnection extends EventEmitter {
           });
 
           transport.onclose = () => {
-            logger.info(`${this.getLogPrefix()} Streamable-http transport closed`);
+            logger.debug(`${this.getLogPrefix()} Streamable-http transport closed`);
             this.emit('connectionChange', 'disconnected');
           };
 
@@ -300,7 +300,7 @@ export class MCPConnection extends EventEmitter {
           };
 
           transport.onmessage = (message: JSONRPCMessage) => {
-            logger.info(`${this.getLogPrefix()} Message received: ${JSON.stringify(message)}`);
+            logger.debug(`${this.getLogPrefix()} Message received: ${JSON.stringify(message)}`);
           };
 
           this.setupTransportErrorHandlers(transport);
@@ -355,7 +355,7 @@ export class MCPConnection extends EventEmitter {
       this.oauthRequired
     ) {
       if (this.oauthRequired) {
-        logger.info(`${this.getLogPrefix()} OAuth required, skipping reconnection attempts`);
+        logger.debug(`${this.getLogPrefix()} OAuth required, skipping reconnection attempts`);
       }
       return;
     }
@@ -371,7 +371,7 @@ export class MCPConnection extends EventEmitter {
         this.reconnectAttempts++;
         const delay = backoffDelay(this.reconnectAttempts);
 
-        logger.info(
+        logger.debug(
           `${this.getLogPrefix()} Reconnecting ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS} (delay: ${delay}ms)`,
         );
 
@@ -438,11 +438,11 @@ export class MCPConnection extends EventEmitter {
 
         // Get fresh Pipedream token before creating transport if this is a Pipedream server
         if (this.isPipedreamServer()) {
-          logger.info(`${this.getLogPrefix()} Getting fresh Pipedream token before connection`);
+          logger.debug(`${this.getLogPrefix()} Getting fresh Pipedream token before connection`);
           const freshToken = await this.getFreshPipedreamToken();
           if (freshToken && 'headers' in this.options && this.options.headers) {
             this.options.headers['Authorization'] = `Bearer ${freshToken}`;
-            logger.info(`${this.getLogPrefix()} Updated connection headers with fresh token`);
+            logger.debug(`${this.getLogPrefix()} Updated connection headers with fresh token`);
           }
         }
 
@@ -473,13 +473,13 @@ export class MCPConnection extends EventEmitter {
 
           // For Pipedream servers, try to refresh token instead of full OAuth flow
           if (serverUrl?.includes('remote.mcp.pipedream.net')) {
-            logger.info(`${this.getLogPrefix()} Attempting to get fresh Pipedream token`);
+            logger.debug(`${this.getLogPrefix()} Attempting to get fresh Pipedream token`);
             try {
               const freshToken = await this.getFreshPipedreamToken();
               if (freshToken && 'headers' in this.options && this.options.headers) {
                 this.options.headers['Authorization'] = `Bearer ${freshToken}`;
                 this.oauthRequired = false;
-                logger.info(
+                logger.debug(
                   `${this.getLogPrefix()} Fresh Pipedream token obtained, connection will be retried`,
                 );
                 return;
@@ -546,7 +546,7 @@ export class MCPConnection extends EventEmitter {
             // Reset the oauthRequired flag
             this.oauthRequired = false;
             // Don't throw the error - just return so connection can be retried
-            logger.info(
+            logger.debug(
               `${this.getLogPrefix()} OAuth handled successfully, connection will be retried`,
             );
             return;
@@ -633,7 +633,7 @@ export class MCPConnection extends EventEmitter {
                              errorMessage.includes('SSE stream disconnected: TypeError: terminated');
         
         if (isIdleTimeout) {
-          logger.info(`${this.getLogPrefix()} Connection idle timeout - will reconnect on demand`);
+          logger.debug(`${this.getLogPrefix()} Connection idle timeout - will reconnect on demand`);
           this.connectionState = 'disconnected';
           this.emit('connectionChange', 'disconnected');
           return;
