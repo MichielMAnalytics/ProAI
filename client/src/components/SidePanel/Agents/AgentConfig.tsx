@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { Controller, useWatch, useFormContext } from 'react-hook-form';
 import { EModelEndpoint, AgentCapabilities } from 'librechat-data-provider';
-import type { TPlugin } from 'librechat-data-provider';
 import type { AgentForm, AgentPanelProps, IconComponentTypes } from '~/common';
 import { cn, defaultTextProps, removeFocusOutlines, getEndpointField, getIconKey } from '~/utils';
 import { useToastContext, useFileMapContext } from '~/Providers';

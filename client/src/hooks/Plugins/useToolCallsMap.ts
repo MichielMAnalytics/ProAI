@@ -23,6 +23,6 @@ export default function useToolCallsMap({
     return toolCallsMap !== null ? toolCallsMap : undefined;
   }, [toolCallsMap]);
 
-  logger.log('tools', 'tool calls map:', result);
+  logger.debug('tools', 'tool calls map:', result);
   return result;
 }

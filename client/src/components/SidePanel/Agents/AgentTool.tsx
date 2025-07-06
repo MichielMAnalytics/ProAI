@@ -30,14 +30,14 @@ export default function AgentTool({
   const toolKey = typeof tool === 'string' ? tool : tool.tool;
   
   // Debug logging
-  console.log('AgentTool Debug:', {
-    tool,
-    toolKey,
-    allToolsCount: allTools.length,
-    allToolKeys: allTools.map(t => t.pluginKey),
-    hubspotTools: allTools.filter(t => t.pluginKey && t.pluginKey.includes('hubspot')),
-    toolsWithServerName: allTools.filter(t => t.serverName).map(t => ({ pluginKey: t.pluginKey, serverName: t.serverName }))
-  });
+  // console.log('AgentTool Debug:', {
+  //   tool,
+  //   toolKey,
+  //   allToolsCount: allTools.length,
+  //   allToolKeys: allTools.map(t => t.pluginKey),
+  //   hubspotTools: allTools.filter(t => t.pluginKey && t.pluginKey.includes('hubspot')),
+  //   toolsWithServerName: allTools.filter(t => t.serverName).map(t => ({ pluginKey: t.pluginKey, serverName: t.serverName }))
+  // });
   
   const currentTool = allTools.find((t) => {
     if (typeof tool === 'string') {
@@ -49,11 +49,11 @@ export default function AgentTool({
     }
   });
   
-  console.log('AgentTool Match Result:', {
-    toolKey,
-    foundTool: !!currentTool,
-    currentTool: currentTool ? { pluginKey: currentTool.pluginKey, serverName: currentTool.serverName } : null
-  });
+  // console.log('AgentTool Match Result:', {
+  //   toolKey,
+  //   foundTool: !!currentTool,
+  //   currentTool: currentTool ? { pluginKey: currentTool.pluginKey, serverName: currentTool.serverName } : null
+  // });
 
   // Check if this is a global MCP tool
   const isGlobalTool = typeof tool === 'object' && tool.type === 'global';
