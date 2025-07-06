@@ -904,6 +904,36 @@ class MCPInitializer {
       `[MCPInitializer][${context}] Disconnecting single MCP server '${serverName}' for user ${userId}`,
     );
 
+    // Check if this is a global server that should not be disconnected by users
+    try {
+      const { ToolMetadataUtils } = require('librechat-data-provider');
+      
+      // Look for any global MCP tools with this server name in availableTools
+      const globalToolsFromServer = Object.entries(availableTools).filter(([toolName, toolDef]) => {
+        return ToolMetadataUtils.isMCPTool(toolDef) && 
+               ToolMetadataUtils.isGlobalMCPTool(toolDef) &&
+               ToolMetadataUtils.getServerName(toolDef) === serverName;
+      });
+
+      if (globalToolsFromServer.length > 0) {
+        logger.warn(
+          `[MCPInitializer][${context}] Attempted to disconnect global MCP server '${serverName}' by user ${userId}. This operation is not allowed.`,
+        );
+        return {
+          success: false,
+          error: `Cannot disconnect global MCP server '${serverName}'. Global servers can only be managed by administrators.`,
+          serverName,
+          toolsRemoved: 0,
+          duration: Date.now() - startTime,
+        };
+      }
+    } catch (globalCheckError) {
+      logger.warn(
+        `[MCPInitializer][${context}] Failed to check for global servers, proceeding with disconnection:`,
+        globalCheckError.message,
+      );
+    }
+
     try {
       const mcpManager = getMCPManager(userId);
       if (!mcpManager) {
