@@ -31,7 +31,8 @@ const formatCount = (count: number): string => {
 
 // Custom priority apps - these will appear first in the "all apps" view
 const PRIORITY_APPS = [
-  'linkedin',
+  'gmail',
+  'microsoft_calendar',
   'googlesheets',
   'google_calendar',
   'slack',
@@ -40,7 +41,6 @@ const PRIORITY_APPS = [
   'salesforce_rest_api',
   'hubspot',
   'discord',
-  'gmail',
   'calendar',
   'zoom',
   'stripe',
