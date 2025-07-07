@@ -946,30 +946,26 @@ class MCPInitializer {
         };
       }
 
-      // Disconnect the specific server
-      // The disconnection will automatically remove tools from memory/connections
-      await mcpManager.disconnectUserConnection(userId, serverName);
-
+      // Update manifest tools cache BEFORE disconnecting the server
+      // This ensures we capture the current state and can properly exclude the server being removed
       logger.info(
-        `[MCPInitializer][${context}] Successfully disconnected server '${serverName}' for user ${userId}`,
-      );
-
-      // Note: Only update manifest tools cache here. Tool cleanup is no longer performed automatically.
-
-      // Update manifest tools cache incrementally
-      logger.info(
-        `[MCPInitializer][${context}] Updating manifest tools cache after disconnecting server '${serverName}'`,
+        `[MCPInitializer][${context}] Updating manifest tools cache before disconnecting server '${serverName}'`,
       );
       try {
         const cached = this.getUserInitializationCache(userId);
         if (cached) {
-          // Refresh the cached manifest tools to exclude the removed server
-          const updatedManifestTools = await mcpManager.loadUserManifestTools(userId, []);
-          cached.manifestTools = updatedManifestTools;
+          // Get current manifest tools and filter out the tools from the server being disconnected
+          const currentManifestTools = cached.manifestTools || [];
+          const filteredManifestTools = currentManifestTools.filter(tool => {
+            // Remove tools that belong to the server being disconnected
+            return tool.serverName !== serverName;
+          });
+          
+          cached.manifestTools = filteredManifestTools;
           cached.timestamp = Date.now();
           this.setUserInitializationCache(userId, cached);
           logger.info(
-            `[MCPInitializer][${context}] Updated manifest tools cache: ${updatedManifestTools.length} total manifest tools`,
+            `[MCPInitializer][${context}] Updated manifest tools cache: ${filteredManifestTools.length} total manifest tools (removed tools from server '${serverName}')`,
           );
         }
       } catch (manifestError) {
@@ -978,6 +974,14 @@ class MCPInitializer {
           manifestError.message,
         );
       }
+
+      // Disconnect the specific server
+      // The disconnection will automatically remove tools from memory/connections
+      await mcpManager.disconnectUserConnection(userId, serverName);
+
+      logger.info(
+        `[MCPInitializer][${context}] Successfully disconnected server '${serverName}' for user ${userId}`,
+      );
 
       return {
         success: true,
