@@ -816,13 +816,14 @@ class MCPInitializer {
         try {
           const cached = this.getUserInitializationCache(userId);
           if (cached) {
-            // Refresh the cached manifest tools to include the new server
-            const updatedManifestTools = await mcpManager.loadUserManifestTools(userId, []);
+            // Use existing cached manifest tools as base and add new server tools to it
+            const existingManifestTools = cached.manifestTools || [];
+            const updatedManifestTools = await mcpManager.loadUserManifestTools(userId, existingManifestTools);
             cached.manifestTools = updatedManifestTools;
             cached.timestamp = Date.now();
             this.setUserInitializationCache(userId, cached);
             logger.info(
-              `[MCPInitializer][${context}] Updated manifest tools cache: ${updatedManifestTools.length} total manifest tools`,
+              `[MCPInitializer][${context}] Updated manifest tools cache: ${updatedManifestTools.length} total manifest tools (was ${existingManifestTools.length})`,
             );
           }
         } catch (manifestError) {
