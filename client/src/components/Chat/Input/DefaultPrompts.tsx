@@ -17,7 +17,6 @@ export default function DefaultPrompts({
   onPromptSelect,
   isCompact = false,
 }: DefaultPromptsProps) {
-  const { areAllMCPServersConnected } = useMCPConnection();
 
   // Check if there's any submission happening
   const isSubmitting = useRecoilValue(store.isSubmitting);
@@ -65,8 +64,48 @@ export default function DefaultPrompts({
     onPromptSelect(prompt);
   };
 
+  const formatPromptText = (text: string) => {
+    // Regular expression to match URLs
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(urlRegex);
+    
+    const abbreviateUrl = (url: string) => {
+      try {
+        const urlObj = new URL(url);
+        const domain = urlObj.hostname.replace('www.', '');
+        const path = urlObj.pathname;
+        
+        // If URL is short enough, show it as is
+        if (url.length <= 30) {
+          return url;
+        }
+        
+        // Show domain + truncated path
+        if (path.length > 15) {
+          return `${domain}${path.substring(0, 12)}...`;
+        }
+        
+        return `${domain}${path}`;
+      } catch {
+        // Fallback for invalid URLs
+        return url.length > 30 ? `${url.substring(0, 27)}...` : url;
+      }
+    };
+    
+    return parts.map((part, index) => {
+      if (urlRegex.test(part)) {
+        return (
+          <span key={index} className="text-blue-500 underline" title={part}>
+            {abbreviateUrl(part)}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
+
   return (
-    <div className={isCompact ? 'w-full' : 'mx-auto flex w-full flex-row gap-3 px-3 sm:px-2'}>
+    <div className={isCompact ? 'w-full px-2' : 'mx-auto flex w-full flex-row gap-3 px-3 sm:px-2'}>
       <div className="relative flex h-full flex-1 items-stretch md:flex-col">
         <div className={isCompact ? 'mb-2' : 'mb-4 mt-2'}>
           {!isCompact && (
@@ -78,7 +117,7 @@ export default function DefaultPrompts({
             className={
               isCompact
                 ? 'grid w-full grid-cols-3 gap-2'
-                : 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3'
+                : 'grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3'
             }
           >
             {defaultPrompts.slice(0, isCompact ? 3 : 6).map((prompt, index) => (
@@ -87,8 +126,8 @@ export default function DefaultPrompts({
                   onClick={() => handlePromptClick(prompt)}
                   className={
                     isCompact
-                      ? 'group relative flex h-[58px] flex-col rounded-lg border border-border-light bg-surface-secondary px-2 py-2 text-left transition-all duration-200 hover:border-green-400 hover:bg-surface-hover hover:shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2'
-                      : 'group relative flex h-[100px] flex-col rounded-xl border border-border-light bg-surface-secondary px-3 py-3 text-left transition-all duration-200 hover:border-green-400 hover:bg-surface-hover hover:shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2'
+                      ? 'group relative flex h-[58px] w-full flex-col rounded-lg border border-border-light bg-surface-secondary px-2 py-2 text-left transition-all duration-200 hover:border-green-400 hover:bg-surface-hover hover:shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2'
+                      : 'group relative flex h-[100px] w-full flex-col rounded-xl border border-border-light bg-surface-secondary px-3 py-3 text-left transition-all duration-200 hover:border-green-400 hover:bg-surface-hover hover:shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2'
                   }
                 >
                   {prompt.toLowerCase().includes('workflow') && (
@@ -110,7 +149,7 @@ export default function DefaultPrompts({
                           : 'line-clamp-3 text-sm text-text-primary'
                       }
                     >
-                      {prompt}
+                      {formatPromptText(prompt)}
                     </p>
                   </div>
                   <div
