@@ -98,7 +98,7 @@ export default function AppDetailsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 backdrop-blur-sm sm:p-6"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-3 backdrop-blur-sm sm:p-6"
       onClick={handleBackdropClick}
     >
       <div className="relative max-h-[96vh] w-full max-w-sm overflow-hidden rounded-2xl bg-surface-primary shadow-2xl dark:bg-surface-primary sm:max-h-[90vh] sm:max-w-4xl">
