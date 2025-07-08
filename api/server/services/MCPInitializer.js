@@ -539,60 +539,23 @@ class MCPInitializer {
 
       // CRITICAL FIX: Always register global MCP tools for all users, regardless of user-specific servers
       if (globalServerCount > 0) {
-        logger.info(`[MCPInitializer][${context}] Registering global MCP tools for user ${userId}`);
+        logger.info(`[MCPInitializer][${context}] Global MCP servers available: ${globalServerCount}`);
 
-        // Count how many global MCP tools are currently in availableTools
-        let globalToolsInRegistry = 0;
+        // Count global MCP tools already in availableTools without verification loops
         let globalToolsRegistered = 0;
-
-        for (const [serverName, connection] of globalMCPServers.entries()) {
-          try {
-            if (await connection.isConnected()) {
-              const tools = await connection.fetchTools();
-              logger.info(
-                `[MCPInitializer][${context}] Global server '${serverName}' has ${tools.length} tools: ${tools.map((t) => t.name).join(', ')}`,
-              );
-
-              for (const tool of tools) {
-                if (availableTools[tool.name]) {
-                  globalToolsInRegistry++;
-
-                  // Verify that global tools are MCP tools with metadata
-                  const toolDef = availableTools[tool.name];
-                  if (ToolMetadataUtils.isMCPTool(toolDef) && ToolMetadataUtils.isGlobalMCPTool(toolDef)) {
-                    globalToolsRegistered++;
-                    logger.info(
-                      `[MCPInitializer][${context}] Verified global MCP tool '${tool.name}' from server '${serverName}' in availableTools`,
-                    );
-
-                    // Add to cached tools for future use
-                    mcpTools[tool.name] = toolDef;
-                  } else {
-                    logger.warn(
-                      `[MCPInitializer][${context}] Global tool '${tool.name}' from server '${serverName}' is missing MCP metadata`,
-                    );
-                  }
-                } else {
-                  logger.warn(
-                    `[MCPInitializer][${context}] Global MCP tool '${tool.name}' from server '${serverName}' NOT found in availableTools`,
-                  );
-                }
-              }
-            } else {
-              logger.warn(
-                `[MCPInitializer][${context}] Global server '${serverName}' is not connected`,
-              );
-            }
-          } catch (error) {
-            logger.warn(
-              `[MCPInitializer][${context}] Error checking global server '${serverName}':`,
-              error.message,
-            );
+        
+        // Global tools are already in availableTools from app initialization
+        // Just count them and add to cache without verification
+        for (const [toolName, toolDef] of Object.entries(availableTools)) {
+          if (ToolMetadataUtils.isMCPTool(toolDef) && ToolMetadataUtils.isGlobalMCPTool(toolDef)) {
+            globalToolsRegistered++;
+            // Add to cached tools for future use
+            mcpTools[toolName] = toolDef;
           }
         }
 
         logger.info(
-          `[MCPInitializer][${context}] Global MCP tools found in availableTools: ${globalToolsInRegistry}, registered: ${globalToolsRegistered}`,
+          `[MCPInitializer][${context}] Found ${globalToolsRegistered} global MCP tools in availableTools`,
         );
 
         // Update tool count to include global tools
