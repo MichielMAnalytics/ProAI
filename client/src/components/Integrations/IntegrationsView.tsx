@@ -337,14 +337,18 @@ export default function IntegrationsView() {
       return [];
     }
 
-    // First filter by category and active status
+    // First filter by category, active status, and apps with actions
     const categoryFiltered = integrations.filter((integration) => {
       const matchesCategory =
         selectedCategory === 'all' ||
         (integration.appCategories &&
           Array.isArray(integration.appCategories) &&
           integration.appCategories.includes(selectedCategory));
-      return matchesCategory && integration.isActive;
+      
+      // Filter out apps with 0 actions
+      const hasActions = integration.actionCount === undefined || integration.actionCount > 0;
+      
+      return matchesCategory && integration.isActive && hasActions;
     });
 
     // If no search term, apply custom priority sorting and return
@@ -603,13 +607,13 @@ export default function IntegrationsView() {
                   {/* Top line with numbers */}
                   <div className="flex items-center gap-1 whitespace-nowrap">
                     <span className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-700 bg-clip-text font-comfortaa text-sm font-bold tracking-tight text-transparent dark:from-indigo-300 dark:via-blue-200 dark:to-indigo-300 sm:text-base">
-                      2,700+
+                      1,500+
                     </span>
                     <span className="font-inter text-sm font-medium text-text-primary sm:text-base">
                       Apps &
                     </span>
                     <span className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-700 bg-clip-text font-comfortaa text-sm font-bold tracking-tight text-transparent dark:from-indigo-300 dark:via-blue-200 dark:to-indigo-300 sm:text-base">
-                      10,000+
+                      5,900+
                     </span>
                   </div>
                   {/* Bottom line */}

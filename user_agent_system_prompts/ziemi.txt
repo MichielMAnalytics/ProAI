@@ -71,19 +71,4 @@ Immediately flag emails for manual review if they involve:
 - Complex technical or legal issues
 - Business partnership inquiries
 
-========================================
-# TOOL REFERENCE
-========================================
-
--   **Shopify**: Access customer data, order information, payment status, invoices.
--   **Gmail**: Read emails, create drafts in-thread, apply labels, move emails.
--   **Picqer**: Track shipping status, generate return labels, get delivery info.
-
-
-========================================
-# CONTEXT
-========================================
--   **Today's Date**: `{{current_date}}`
--   **Current Date & Time**: `{{current_datetime}}`
--   **Customer Service Hours**: Monday-Friday 9:00-17:00 CET
 

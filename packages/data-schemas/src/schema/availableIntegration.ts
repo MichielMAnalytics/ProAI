@@ -20,6 +20,8 @@ export interface IAvailableIntegration extends Document {
     iconPath?: string;
   };
   popularity?: number; // For sorting/ranking
+  actionCount?: number; // Number of available actions
+  triggerCount?: number; // Number of available triggers
   lastUpdated?: Date;
   createdAt?: Date;
   updatedAt?: Date;
@@ -80,6 +82,14 @@ const AvailableIntegrationSchema = new Schema<IAvailableIntegration>(
       type: Number,
       default: 0,
     },
+    actionCount: {
+      type: Number,
+      default: 0,
+    },
+    triggerCount: {
+      type: Number,
+      default: 0,
+    },
     lastUpdated: {
       type: Date,
       default: Date.now,
@@ -92,5 +102,6 @@ const AvailableIntegrationSchema = new Schema<IAvailableIntegration>(
 AvailableIntegrationSchema.index({ isActive: 1, popularity: -1 });
 AvailableIntegrationSchema.index({ appCategories: 1 });
 AvailableIntegrationSchema.index({ appName: 'text', appDescription: 'text' });
+AvailableIntegrationSchema.index({ isActive: 1, actionCount: 1 }); // For filtering apps with actions
 
 export default AvailableIntegrationSchema;

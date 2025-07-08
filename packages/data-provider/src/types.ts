@@ -635,6 +635,8 @@ export type TAvailableIntegration = {
     iconPath?: string;
   };
   popularity?: number;
+  actionCount?: number;
+  triggerCount?: number;
   lastUpdated?: Date;
   createdAt?: Date;
   updatedAt?: Date;

@@ -278,6 +278,12 @@ class PipedreamApps {
       }
 
       logger.debug(`PipedreamApps: Successfully cached ${integrations.length} integrations`);
+
+      // Sync component counts after caching integrations
+      logger.info('PipedreamApps: Starting component count sync...');
+      const { syncComponentCounts } = require('./syncComponentCounts');
+      const syncResult = await syncComponentCounts();
+      logger.info('PipedreamApps: Component count sync completed', syncResult);
     } catch (error) {
       logger.error('PipedreamApps: Failed to cache integrations:', error.message);
     }
