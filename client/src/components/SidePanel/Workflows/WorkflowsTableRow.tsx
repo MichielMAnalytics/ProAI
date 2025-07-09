@@ -1,16 +1,15 @@
 import React from 'react';
 import { Play, Pause, Trash2, Eye } from 'lucide-react';
-import { useSetRecoilState, useRecoilValue } from 'recoil';
 import type { TUserWorkflow } from 'librechat-data-provider';
-import { EModelEndpoint } from 'librechat-data-provider';
 import { Button, TableCell, TableRow } from '~/components/ui';
 import { useDeleteWorkflowMutation, useToggleWorkflowMutation } from '~/data-provider';
 import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
 import { useNavigateToConvo } from '~/hooks';
-import store from '~/store';
 import { useTimezone } from '~/hooks/useTimezone';
 import { TooltipAnchor } from '~/components/ui/Tooltip';
+import { useLocalize } from '~/hooks';
+import { useWorkflowBuilder } from '~/hooks/useWorkflowBuilder';
 
 interface WorkflowsTableRowProps {
   workflow: TUserWorkflow;
@@ -18,19 +17,14 @@ interface WorkflowsTableRowProps {
 
 const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
   const { showToast } = useToastContext();
+  const localize = useLocalize();
+  const { openWorkflowBuilder } = useWorkflowBuilder();
   const { formatDateTime, getTimezoneAbbr } = useTimezone();
-  const { navigateToConvo } = useNavigateToConvo();
+  const { navigateToConvo } = useNavigateToConvo(); // Preserved for future navigation functionality
+
+  // Workflow mutations
   const toggleMutation = useToggleWorkflowMutation();
   const deleteMutation = useDeleteWorkflowMutation();
-
-  // Artifact state management
-  const setArtifacts = useSetRecoilState(store.artifactsState);
-  const setCurrentArtifactId = useSetRecoilState(store.currentArtifactId);
-  const setArtifactsVisible = useSetRecoilState(store.artifactsVisibility);
-
-  // Check if this workflow is currently being tested
-  const testingWorkflows = useRecoilValue(store.testingWorkflows);
-  const isWorkflowTesting = testingWorkflows.has(workflow.id);
 
   const handleToggle = () => {
     toggleMutation.mutate(
@@ -72,167 +66,9 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
   };
 
   const handleView = () => {
-    try {
-      console.log('Opening workflow visualization for:', workflow);
-      console.log('Workflow conversation_id:', workflow.conversation_id);
-      console.log('Workflow fields:', Object.keys(workflow));
-
-      // Create workflow artifact with proper positioning
-      const artifactId = `workflow-${workflow.id}`;
-
-      // Generate positions for steps that don't have them
-      const nodesWithPositions = workflow.steps.map((step, index) => {
-        // If step doesn't have position, create a default layout
-        const defaultPosition = step.position || {
-          x: 100 + (index % 3) * 200, // Arrange in columns
-          y: 150 + Math.floor(index / 3) * 100, // Arrange in rows
-        };
-
-        return {
-          id: step.id,
-          type: step.type,
-          position: defaultPosition,
-          data: {
-            label: step.name,
-            config: step.config,
-            status: 'pending', // Default status for viewing
-          },
-        };
-      });
-
-      // Generate edges more carefully
-      const edges: Array<{
-        id: string;
-        source: string;
-        target: string;
-        type: 'success' | 'failure';
-      }> = [];
-      workflow.steps.forEach((step) => {
-        if (step.onSuccess) {
-          // Check if target step exists
-          const targetExists = workflow.steps.some((s) => s.id === step.onSuccess);
-          if (targetExists) {
-            edges.push({
-              id: `${step.id}-success-${step.onSuccess}`,
-              source: step.id,
-              target: step.onSuccess,
-              type: 'success',
-            });
-          }
-        }
-        if (step.onFailure) {
-          // Check if target step exists
-          const targetExists = workflow.steps.some((s) => s.id === step.onFailure);
-          if (targetExists) {
-            edges.push({
-              id: `${step.id}-failure-${step.onFailure}`,
-              source: step.id,
-              target: step.onFailure,
-              type: 'failure',
-            });
-          }
-        }
-      });
-
-      const workflowData = {
-        workflow: {
-          id: workflow.id,
-          name: workflow.name,
-          description: workflow.description,
-          trigger: workflow.trigger,
-          steps: workflow.steps,
-        },
-        nodes: nodesWithPositions,
-        edges: edges,
-        trigger: workflow.trigger,
-      };
-
-      console.log('Generated workflow data:', workflowData);
-
-      const workflowArtifact = {
-        id: artifactId,
-        identifier: artifactId,
-        title: `Workflow: ${workflow.name}`,
-        type: 'application/vnd.workflow',
-        content: JSON.stringify(workflowData, null, 2),
-        messageId: workflow.parent_message_id || `workflow-view-${Date.now()}`,
-        index: 0,
-        lastUpdateTime: Date.now(),
-      };
-
-      console.log('Creating artifact:', workflowArtifact);
-
-      // Check if we have conversation info for navigation
-      if (workflow.conversation_id) {
-        // Navigate to the conversation where the workflow was created
-        const targetConversation = {
-          conversationId: workflow.conversation_id,
-          title: `Workflow: ${workflow.name}`,
-          endpoint: (workflow.endpoint as EModelEndpoint) || null,
-          model: workflow.ai_model || null,
-          createdAt: workflow.createdAt
-            ? typeof workflow.createdAt === 'object' && '$date' in workflow.createdAt
-              ? workflow.createdAt.$date
-              : workflow.createdAt.toString()
-            : new Date().toISOString(),
-          updatedAt: workflow.updatedAt
-            ? typeof workflow.updatedAt === 'object' && '$date' in workflow.updatedAt
-              ? workflow.updatedAt.$date
-              : workflow.updatedAt.toString()
-            : new Date().toISOString(),
-          // Include other necessary fields
-        };
-
-        // Set up artifacts after navigation using a slight delay to ensure navigation completes
-        const setupArtifacts = () => {
-          // Set the artifact in state
-          setArtifacts((prev) => ({
-            ...prev,
-            [artifactId]: workflowArtifact,
-          }));
-
-          // Set as current artifact and show artifacts panel
-          setCurrentArtifactId(artifactId);
-          setArtifactsVisible(true);
-        };
-
-        // Navigate to conversation first, then set up artifacts
-        navigateToConvo(targetConversation);
-
-        // Use setTimeout to ensure navigation completes before setting artifacts
-        setTimeout(setupArtifacts, 100);
-
-        showToast({
-          message: 'Opening workflow visualization',
-          severity: NotificationSeverity.SUCCESS,
-        });
-      } else {
-        // Fallback: Just show the artifact in the current conversation
-        console.log('No conversation_id found, showing artifact in current conversation');
-
-        // Set the artifact in state
-        setArtifacts((prev) => ({
-          ...prev,
-          [artifactId]: workflowArtifact,
-        }));
-
-        // Set as current artifact and show artifacts panel
-        setCurrentArtifactId(artifactId);
-        setArtifactsVisible(true);
-
-        showToast({
-          message: 'Workflow visualization opened (no source conversation found)',
-          severity: NotificationSeverity.SUCCESS,
-        });
-      }
-    } catch (error) {
-      console.error('Failed to open workflow visualization:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      showToast({
-        message: `Failed to open workflow visualization: ${errorMessage}`,
-        severity: NotificationSeverity.ERROR,
-      });
-    }
+    console.log('Opening workflow in builder for:', workflow);
+    // Open the workflow builder with this specific workflow ID for editing
+    openWorkflowBuilder(workflow.id);
   };
 
   const formatDate = (dateInput?: string | Date | { $date: string }) => {
@@ -310,7 +146,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
                   ? 'border border-amber-500/60 bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:border-amber-500 hover:from-amber-600 hover:to-orange-700'
                   : 'border border-green-500/60 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:border-green-500 hover:from-green-600 hover:to-emerald-700'
               }`}
-              disabled={toggleMutation.isLoading || isWorkflowTesting}
+              disabled={toggleMutation.isLoading}
             >
               {workflow.isActive ? (
                 <Pause className="h-3 w-3 text-white" />
@@ -323,7 +159,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
             <button
               onClick={handleDelete}
               className="flex h-6 w-6 items-center justify-center rounded-lg border border-red-500/60 bg-gradient-to-r from-red-500 to-red-600 text-white shadow-sm transition-all hover:border-red-500 hover:from-red-600 hover:to-red-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={deleteMutation.isLoading || isWorkflowTesting}
+              disabled={deleteMutation.isLoading}
             >
               <Trash2 className="h-3 w-3 text-white" />
             </button>
@@ -347,12 +183,6 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
             >
               {getStatusText(workflow.isActive, workflow.isDraft)}
             </span>
-            {/* Show testing indicator */}
-            {isWorkflowTesting && (
-              <span className="inline-flex flex-shrink-0 animate-pulse items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                testing
-              </span>
-            )}
           </div>
 
           {/* Description with tooltip */}

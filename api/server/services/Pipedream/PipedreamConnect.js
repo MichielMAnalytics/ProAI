@@ -474,12 +474,14 @@ class PipedreamConnect {
    */
   async getUserOAuthToken(externalUserId) {
     try {
-      logger.debug(`PipedreamConnect: Getting user OAuth credentials via SDK for user ${externalUserId}`);
+      logger.debug(
+        `PipedreamConnect: Getting user OAuth credentials via SDK for user ${externalUserId}`,
+      );
 
       // Use SDK's automatic credential management
       const response = await this.client.getAccounts({
         external_user_id: externalUserId,
-        include_credentials: true
+        include_credentials: true,
       });
 
       // Correctly access the accounts array from SDK response
@@ -493,8 +495,8 @@ class PipedreamConnect {
       }
 
       // Find the first account with valid OAuth credentials
-      const accountWithCredentials = accounts.find(account => 
-        account.credentials && account.credentials.oauth_access_token
+      const accountWithCredentials = accounts.find(
+        (account) => account.credentials && account.credentials.oauth_access_token,
       );
 
       if (!accountWithCredentials) {
@@ -507,7 +509,7 @@ class PipedreamConnect {
         last_refreshed_at: credentials.last_refreshed_at,
         next_refresh_at: credentials.next_refresh_at,
         account_id: accountWithCredentials.id,
-        externalUserId
+        externalUserId,
       });
 
       return credentials.oauth_access_token;
@@ -516,7 +518,7 @@ class PipedreamConnect {
         message: error.message,
         status: error.status,
         response: error.response?.data,
-        externalUserId
+        externalUserId,
       });
       throw new Error(`Failed to get user OAuth access token: ${error.message}`);
     }
@@ -529,7 +531,9 @@ class PipedreamConnect {
    */
   async getSystemOAuthToken() {
     try {
-      logger.debug('PipedreamConnect: Getting system OAuth credentials via client credentials flow');
+      logger.debug(
+        'PipedreamConnect: Getting system OAuth credentials via client credentials flow',
+      );
 
       const axios = require('axios');
       const baseURL = process.env.PIPEDREAM_API_BASE_URL || 'https://api.pipedream.com/v1';
@@ -551,9 +555,12 @@ class PipedreamConnect {
       const expiresIn = tokenResponse.data.expires_in || 3600; // Default to 1 hour
 
       if (accessToken) {
-        logger.info('PipedreamConnect: Retrieved system OAuth access token via client credentials', {
-          expires_in_minutes: Math.floor(expiresIn / 60),
-        });
+        logger.info(
+          'PipedreamConnect: Retrieved system OAuth access token via client credentials',
+          {
+            expires_in_minutes: Math.floor(expiresIn / 60),
+          },
+        );
         return accessToken;
       }
 
@@ -582,12 +589,14 @@ class PipedreamConnect {
     }
 
     try {
-      logger.debug(`PipedreamConnect: Getting OAuth credentials for app ${appName}, user ${externalUserId}`);
+      logger.debug(
+        `PipedreamConnect: Getting OAuth credentials for app ${appName}, user ${externalUserId}`,
+      );
 
       const response = await this.client.getAccounts({
         app: appName,
         external_user_id: externalUserId,
-        include_credentials: true
+        include_credentials: true,
       });
 
       // Correctly access the accounts array from SDK response
@@ -608,7 +617,7 @@ class PipedreamConnect {
       logger.info(`PipedreamConnect: Retrieved OAuth credentials for ${appName}`, {
         expires_at: account.credentials.expires_at,
         last_refreshed_at: account.credentials.last_refreshed_at,
-        account_id: account.id
+        account_id: account.id,
       });
 
       return account.credentials;
@@ -617,7 +626,7 @@ class PipedreamConnect {
         message: error.message,
         status: error.status,
         appName,
-        externalUserId
+        externalUserId,
       });
       throw new Error(`Failed to get ${appName} OAuth credentials: ${error.message}`);
     }
@@ -629,7 +638,9 @@ class PipedreamConnect {
    */
   clearTokenCache() {
     // SDK handles token caching automatically, but we can still log this for backwards compatibility
-    logger.debug('PipedreamConnect: Token cache clear requested (SDK handles caching automatically)');
+    logger.debug(
+      'PipedreamConnect: Token cache clear requested (SDK handles caching automatically)',
+    );
   }
 
   /**

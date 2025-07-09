@@ -207,12 +207,14 @@ const getAvailableTools = async (req, res) => {
         userId,
         'PluginController',
         req.app.locals.availableTools,
-        { 
+        {
           pipedreamServerInstructions: req.app.locals.pipedreamServerInstructions,
         },
       );
 
-      logger.info(`After MCP initialization: availableTools count = ${Object.keys(req.app.locals.availableTools || {}).length}`);
+      logger.info(
+        `After MCP initialization: availableTools count = ${Object.keys(req.app.locals.availableTools || {}).length}`,
+      );
 
       if (mcpResult.success) {
         logger.info(`=== User MCP initialization successful ===`);
@@ -265,36 +267,39 @@ const getAvailableTools = async (req, res) => {
     const toolDefinitions = req.app.locals.availableTools || {};
     logger.debug(`Available tools count: ${Object.keys(toolDefinitions).length}`);
     logger.debug(`All available tools:`, Object.keys(toolDefinitions));
-    logger.debug(`Sample plugin keys:`, authenticatedPlugins.slice(0, 5).map(p => p.pluginKey));
-
-    const tools = authenticatedPlugins.filter(
-      (plugin) => {
-        // First check if it's a direct match (for structured tools)
-        if (toolDefinitions[plugin.pluginKey] !== undefined) {
-          return true;
-        }
-        
-        // Check if it's a toolkit
-        if (plugin.toolkit === true &&
-            Object.keys(toolDefinitions).some((key) => getToolkitKey(key) === plugin.pluginKey)) {
-          return true;
-        }
-        
-        // Check if it's an MCP tool (pluginKey contains MCP delimiter)
-        if (plugin.pluginKey && plugin.pluginKey.includes('_mcp_')) {
-          // Extract the simple tool name from the pluginKey
-          const toolName = plugin.pluginKey.split('_mcp_')[0];
-          
-          // Check if the simple tool name exists in toolDefinitions and is an MCP tool
-          const toolDef = toolDefinitions[toolName];
-          if (toolDef && ToolMetadataUtils.isMCPTool(toolDef)) {
-            return true;
-          }
-        }
-        
-        return false;
-      }
+    logger.debug(
+      `Sample plugin keys:`,
+      authenticatedPlugins.slice(0, 5).map((p) => p.pluginKey),
     );
+
+    const tools = authenticatedPlugins.filter((plugin) => {
+      // First check if it's a direct match (for structured tools)
+      if (toolDefinitions[plugin.pluginKey] !== undefined) {
+        return true;
+      }
+
+      // Check if it's a toolkit
+      if (
+        plugin.toolkit === true &&
+        Object.keys(toolDefinitions).some((key) => getToolkitKey(key) === plugin.pluginKey)
+      ) {
+        return true;
+      }
+
+      // Check if it's an MCP tool (pluginKey contains MCP delimiter)
+      if (plugin.pluginKey && plugin.pluginKey.includes('_mcp_')) {
+        // Extract the simple tool name from the pluginKey
+        const toolName = plugin.pluginKey.split('_mcp_')[0];
+
+        // Check if the simple tool name exists in toolDefinitions and is an MCP tool
+        const toolDef = toolDefinitions[toolName];
+        if (toolDef && ToolMetadataUtils.isMCPTool(toolDef)) {
+          return true;
+        }
+      }
+
+      return false;
+    });
     logger.info(`After filtering by tool definitions: ${tools.length}`);
 
     // Clean pluginKeys for MCP tools after filtering
@@ -303,7 +308,7 @@ const getAvailableTools = async (req, res) => {
         // Create a copy with cleaned pluginKey
         return {
           ...tool,
-          pluginKey: tool.pluginKey.split('_mcp_')[0]
+          pluginKey: tool.pluginKey.split('_mcp_')[0],
         };
       }
       return tool;
@@ -314,17 +319,15 @@ const getAvailableTools = async (req, res) => {
     // No need for additional manual tool registration here
 
     // Count MCP tools in final result (check the enhanced availableTools structure)
-    const mcpToolsFromAvailableTools = Object.entries(toolDefinitions).filter(([toolName, toolDef]) => 
-      ToolMetadataUtils.isMCPTool(toolDef)
+    const mcpToolsFromAvailableTools = Object.entries(toolDefinitions).filter(
+      ([toolName, toolDef]) => ToolMetadataUtils.isMCPTool(toolDef),
     );
     logger.info(`MCP tools in availableTools: ${mcpToolsFromAvailableTools.length}`);
-    
-    const mcpTools = cleanedTools.filter(
-      (tool) => {
-        const toolDef = toolDefinitions[tool.pluginKey];
-        return toolDef && ToolMetadataUtils.isMCPTool(toolDef);
-      }
-    );
+
+    const mcpTools = cleanedTools.filter((tool) => {
+      const toolDef = toolDefinitions[tool.pluginKey];
+      return toolDef && ToolMetadataUtils.isMCPTool(toolDef);
+    });
     // logger.info(`=== MCP Tool Analysis ===`);
     // logger.info(`Total tools after filtering: ${cleanedTools.length}`);
     // logger.info(`MCP tools found: ${mcpTools.length}`);

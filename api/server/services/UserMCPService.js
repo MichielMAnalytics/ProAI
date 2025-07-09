@@ -387,7 +387,7 @@ class UserMCPService {
         try {
           // Import ToolMetadataUtils for enhanced tool operations
           const { ToolMetadataUtils } = require('librechat-data-provider');
-          
+
           // Use the enhanced availableTools to discover tools from the disconnected server
           if (availableTools && Object.keys(availableTools).length > 0) {
             const discoveredTools = [];
@@ -395,10 +395,12 @@ class UserMCPService {
               if (ToolMetadataUtils.isMCPTool(toolDef)) {
                 const serverName = ToolMetadataUtils.getServerName(toolDef);
                 const toolUserId = toolDef._mcp?.userId;
-                
+
                 // Match tools from the disconnected server for this user
-                if (serverName === disconnectedServerName && 
-                    (toolUserId === userId || toolDef._mcp?.isGlobal)) {
+                if (
+                  serverName === disconnectedServerName &&
+                  (toolUserId === userId || toolDef._mcp?.isGlobal)
+                ) {
                   discoveredTools.push(toolName);
                 }
               }

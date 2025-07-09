@@ -309,10 +309,10 @@ function createMockRequestForWorkflow(context, user, prompt, model, endpoint) {
   // Debug: Log MCP context being passed
   const availableTools = context.mcp.availableTools || {};
   const { ToolMetadataUtils } = require('librechat-data-provider');
-  const mcpToolsCount = Object.entries(availableTools).filter(([toolName, toolDef]) => 
-    ToolMetadataUtils.isMCPTool(toolDef)
+  const mcpToolsCount = Object.entries(availableTools).filter(([toolName, toolDef]) =>
+    ToolMetadataUtils.isMCPTool(toolDef),
   ).length;
-  
+
   logger.info(
     `[createMockRequestForWorkflow] MCP context: availableTools=${Object.keys(availableTools).length}, mcpTools=${mcpToolsCount}`,
   );

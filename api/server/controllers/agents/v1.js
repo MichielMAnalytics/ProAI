@@ -44,32 +44,39 @@ const systemTools = {
  */
 const injectSpecialVariables = (instructions = '') => {
   const variableKeys = Object.keys(specialVariables);
-  
+
   // Variable descriptions mapping
   const variableDescriptions = {
     current_date: 'Current Date',
     current_user: 'Current User',
     current_datetime: 'Current Date & Time',
     utc_iso_datetime: 'UTC ISO Datetime',
-    tools: 'Tools'
+    tools: 'Tools',
+    other_agents: 'Other Agents',
   };
-  
+
   // Check if sections already exist to avoid duplication
-  const hasVariablesSection = instructions.includes('--- Available Variables ---') && instructions.includes('--- End Variables ---');
-  const hasWorkflowSection = instructions.includes('--- Workflow Capabilities ---') && instructions.includes('--- End Workflow Capabilities ---');
-  
+  const hasVariablesSection =
+    instructions.includes('--- Available Variables ---') &&
+    instructions.includes('--- End Variables ---');
+  const hasWorkflowSection =
+    instructions.includes('--- Workflow Capabilities ---') &&
+    instructions.includes('--- End Workflow Capabilities ---');
+
   let result = instructions;
-  
+
   // Check which special variables are missing
-  const missingVariables = variableKeys.filter(key => !instructions.includes(`{{${key}}}`));
-  
+  const missingVariables = variableKeys.filter((key) => !instructions.includes(`{{${key}}}`));
+
   // Only add variables section if it doesn't exist AND there are missing variables
   if (!hasVariablesSection && missingVariables.length > 0) {
-    const variableList = missingVariables.map(key => `${variableDescriptions[key]}: {{${key}}}`).join('\n');
-    
+    const variableList = missingVariables
+      .map((key) => `${variableDescriptions[key]}: {{${key}}}`)
+      .join('\n');
+
     // Check if any variables are already referenced in instructions above
-    const referencedVariables = variableKeys.filter(key => instructions.includes(`{{${key}}}`));
-    
+    const referencedVariables = variableKeys.filter((key) => instructions.includes(`{{${key}}}`));
+
     let variableSection;
     if (referencedVariables.length > 0) {
       // Some variables already referenced, clarify the additional ones
@@ -78,15 +85,19 @@ const injectSpecialVariables = (instructions = '') => {
       // No variables referenced above, standard message
       variableSection = `\n\n--- Available Variables ---\nYou have access to these special variables:\n${variableList}\n--- End Variables ---`;
     }
-    
+
     result += variableSection;
-    logger.info(`[injectSpecialVariables] Added variables section with ${missingVariables.length} missing special variables: ${missingVariables.join(', ')}`);
+    logger.info(
+      `[injectSpecialVariables] Added variables section with ${missingVariables.length} missing special variables: ${missingVariables.join(', ')}`,
+    );
   } else if (missingVariables.length === 0) {
-    logger.info(`[injectSpecialVariables] All special variables already referenced in instructions, skipping variables section injection`);
+    logger.info(
+      `[injectSpecialVariables] All special variables already referenced in instructions, skipping variables section injection`,
+    );
   } else {
     logger.info(`[injectSpecialVariables] Variables section already exists, skipping injection`);
   }
-  
+
   // Only add workflow capabilities section if it doesn't exist
   // TODO: Uncomment when workflow capabilities are ready
   /*
@@ -98,10 +109,9 @@ const injectSpecialVariables = (instructions = '') => {
     logger.info(`[injectSpecialVariables] Workflow capabilities section already exists, skipping injection`);
   }
   */
-  
+
   return result;
 };
-
 
 // Add this function to map tools to their corresponding capabilities
 const getToolCapability = (tool) => {
@@ -137,7 +147,7 @@ const enhanceToolsWithMCPMetadata = (tools, availableTools = {}) => {
       if (toolDef && ToolMetadataUtils.isMCPTool(toolDef)) {
         const serverName = ToolMetadataUtils.getServerName(toolDef);
         const isGlobal = ToolMetadataUtils.isGlobalMCPTool(toolDef);
-        
+
         // Create enhanced MCP tool object
         enhancedTools.push({
           tool: tool,
@@ -391,7 +401,7 @@ const updateAgentHandler = async (req, res) => {
         const originalToolCount = cloneData.tools.length;
         const { ToolMetadataUtils } = require('librechat-data-provider');
         const availableTools = req.app.locals.availableTools || {};
-        
+
         const mcpTools = cloneData.tools.filter((tool) => {
           if (typeof tool === 'string') {
             const toolDef = availableTools[tool];
@@ -593,7 +603,7 @@ const duplicateAgentHandler = async (req, res) => {
       const originalToolCount = cloneData.tools.length;
       const { ToolMetadataUtils } = require('librechat-data-provider');
       const availableTools = req.app.locals.availableTools || {};
-      
+
       const mcpTools = cloneData.tools.filter((tool) => {
         if (typeof tool === 'string') {
           const toolDef = availableTools[tool];

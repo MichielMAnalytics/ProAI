@@ -27,7 +27,10 @@ delete process.env.MEILI_MASTER_KEY;
 
 const { connectDb } = require('~/db/connect');
 const { logger } = require('~/config');
-const { syncComponentCounts, syncComponentCountsForIntegration } = require('~/server/services/Pipedream/syncComponentCounts');
+const {
+  syncComponentCounts,
+  syncComponentCountsForIntegration,
+} = require('~/server/services/Pipedream/syncComponentCounts');
 
 async function main() {
   const args = process.argv.slice(2);
@@ -35,16 +38,16 @@ async function main() {
 
   try {
     logger.info('🚀 Starting component count sync...');
-    
+
     // Connect to database
     await connectDb();
     logger.info('✅ Connected to database');
-    
+
     if (appSlug) {
       // Sync specific app
       logger.info(`📦 Syncing component counts for: ${appSlug}`);
       const result = await syncComponentCountsForIntegration(appSlug);
-      
+
       if (result) {
         logger.info(`✅ ${appSlug} synced successfully:`, result);
       } else {
@@ -54,7 +57,7 @@ async function main() {
       // Sync all apps
       logger.info('📦 Syncing component counts for all integrations...');
       const result = await syncComponentCounts();
-      
+
       logger.info('✅ Component count sync completed!');
       logger.info(`📊 Summary:`);
       logger.info(`   - Total integrations: ${result.total}`);
@@ -63,7 +66,7 @@ async function main() {
       logger.info(`   - Duration: ${result.duration}ms`);
       logger.info(`   - Average time per integration: ${result.averageTimePerIntegration}ms`);
     }
-    
+
     process.exit(0);
   } catch (error) {
     logger.error('❌ Failed to sync component counts:', error);

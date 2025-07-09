@@ -28,7 +28,7 @@ export default function AgentTool({
 
   // Extract tool key from both string tools and MCP tool objects
   const toolKey = typeof tool === 'string' ? tool : tool.tool;
-  
+
   // Debug logging
   // console.log('AgentTool Debug:', {
   //   tool,
@@ -38,7 +38,7 @@ export default function AgentTool({
   //   hubspotTools: allTools.filter(t => t.pluginKey && t.pluginKey.includes('hubspot')),
   //   toolsWithServerName: allTools.filter(t => t.serverName).map(t => ({ pluginKey: t.pluginKey, serverName: t.serverName }))
   // });
-  
+
   const currentTool = allTools.find((t) => {
     if (typeof tool === 'string') {
       // For string tools, match directly
@@ -48,7 +48,7 @@ export default function AgentTool({
       return t.pluginKey === tool.tool && t.serverName === tool.server;
     }
   });
-  
+
   // console.log('AgentTool Match Result:', {
   //   toolKey,
   //   foundTool: !!currentTool,

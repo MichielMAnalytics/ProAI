@@ -113,15 +113,15 @@ export function EndpointItem({ endpoint }: EndpointItemProps) {
       isAgentsEndpoint(endpoint.value) || isAssistantsEndpoint(endpoint.value)
         ? localize('com_endpoint_search_var', { 0: endpoint.label })
         : localize('com_endpoint_search_endpoint_models', { 0: endpoint.label });
-    
+
     // Only show search bar if there are 5 or more models
     const modelCount = endpoint.models?.length || 0;
     const showSearchBar = modelCount >= 5;
-    
+
     const menuProps = {
       id: `endpoint-${endpoint.value}-menu`,
       key: `endpoint-${endpoint.value}-item`,
-      className: "transition-opacity duration-200 ease-in-out",
+      className: 'transition-opacity duration-200 ease-in-out',
       defaultOpen: endpoint.value === selectedEndpoint,
       label: (
         <div
@@ -137,8 +137,8 @@ export function EndpointItem({ endpoint }: EndpointItemProps) {
       ...(showSearchBar && {
         searchValue,
         onSearch: (value) => setEndpointSearchValue(endpoint.value, value),
-        combobox: <input placeholder={placeholder} />
-      })
+        combobox: <input placeholder={placeholder} />,
+      }),
     };
 
     return (

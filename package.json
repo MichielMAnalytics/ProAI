@@ -149,6 +149,7 @@
     "cron-schedule": "^5.0.4",
     "node-cron": "^4.0.7",
     "p-queue": "^8.1.0",
-    "stripe": "^18.2.0"
+    "stripe": "^18.2.0",
+    "zustand": "^5.0.6"
   }
 }

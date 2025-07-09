@@ -39,8 +39,18 @@ router.get('/', async function (req, res) {
   try {
     // Extract endpoints configuration from app.locals for frontend access
     const endpoints = {};
-    const endpointKeys = ['openAI', 'google', 'anthropic', 'bedrock', 'agents', 'assistants', 'azureOpenAI', 'azureAssistants', 'gptPlugins'];
-    
+    const endpointKeys = [
+      'openAI',
+      'google',
+      'anthropic',
+      'bedrock',
+      'agents',
+      'assistants',
+      'azureOpenAI',
+      'azureAssistants',
+      'gptPlugins',
+    ];
+
     endpointKeys.forEach((key) => {
       if (req.app.locals[key]) {
         endpoints[key] = req.app.locals[key];

@@ -94,8 +94,8 @@ export class ToolMetadataUtils {
 
     // Auto-generate appSlug if not provided
     if (!appSlug) {
-      appSlug = serverName.startsWith('pipedream-') 
-        ? serverName.replace('pipedream-', '') 
+      appSlug = serverName.startsWith('pipedream-')
+        ? serverName.replace('pipedream-', '')
         : serverName;
     }
 
@@ -115,7 +115,7 @@ export class ToolMetadataUtils {
   static createEnhancedTool(
     toolName: string,
     toolDefinition: { description?: string; parameters?: any },
-    mcpMetadata?: MCPMetadata
+    mcpMetadata?: MCPMetadata,
   ): EnhancedToolDefinition {
     return {
       type: 'function',
@@ -138,7 +138,7 @@ export class ToolMetadataUtils {
       isGlobal?: boolean;
       userId?: string;
       serverName?: string;
-    }
+    },
   ): EnhancedAvailableTools {
     const filtered: EnhancedAvailableTools = {};
 
@@ -146,19 +146,19 @@ export class ToolMetadataUtils {
       let matches = true;
 
       if (criteria.isMCP !== undefined) {
-        matches = matches && (this.isMCPTool(tool) === criteria.isMCP);
+        matches = matches && this.isMCPTool(tool) === criteria.isMCP;
       }
 
       if (criteria.isGlobal !== undefined && tool._mcp) {
-        matches = matches && (tool._mcp.isGlobal === criteria.isGlobal);
+        matches = matches && tool._mcp.isGlobal === criteria.isGlobal;
       }
 
       if (criteria.userId !== undefined && tool._mcp) {
-        matches = matches && (tool._mcp.userId === criteria.userId);
+        matches = matches && tool._mcp.userId === criteria.userId;
       }
 
       if (criteria.serverName !== undefined && tool._mcp) {
-        matches = matches && (tool._mcp.serverName === criteria.serverName);
+        matches = matches && tool._mcp.serverName === criteria.serverName;
       }
 
       if (matches) {
@@ -182,7 +182,7 @@ export class ToolMetadataUtils {
       toolName: string;
       isGlobal?: boolean;
       userId?: string;
-    }
+    },
   ): EnhancedToolDefinition {
     const enhanced: EnhancedToolDefinition = {
       type: 'function',

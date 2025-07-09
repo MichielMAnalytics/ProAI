@@ -21,10 +21,33 @@ export interface ISchedulerTask extends Document {
     type?: 'task' | 'workflow';
     workflowId?: string;
     workflowVersion?: number;
-    trigger?: any;
-    steps?: any[];
+    trigger?: {
+      type: 'manual' | 'schedule' | 'webhook' | 'email' | 'event';
+      config: {
+        schedule?: string;
+        webhookUrl?: string;
+        emailAddress?: string;
+        eventType?: string;
+        parameters?: Record<string, unknown>;
+      };
+    };
+    steps?: Array<{
+      id: string;
+      name: string;
+      type: 'mcp_agent_action';
+      agentId: string;
+      task: string;
+      config: {
+        instruction: string;
+        agent_id: string;
+      };
+      onSuccess?: string;
+      onFailure?: string;
+    }>;
     description?: string;
     isDraft?: boolean;
+    created_from_agent?: boolean;
+    dedicatedConversationId?: string;
     [key: string]: any;
   };
   createdAt?: Date;

@@ -698,7 +698,7 @@ export class MCPManager {
     if (userConfigs && userConfigs[serverName]) {
       delete userConfigs[serverName];
       logger.debug(`[MCP][User: ${userId}] Removed server config for: ${serverName}`);
-      
+
       // Clean up empty user config objects
       if (Object.keys(userConfigs).length === 0) {
         this.userConfigs.delete(userId);
@@ -770,8 +770,10 @@ export class MCPManager {
     flowManager?: FlowStateManager<MCPOAuthTokens | null>,
   ): Promise<void> {
     const hasFlowManager = !!flowManager;
-    logger.debug(`[MCP] mapAvailableTools called with flowManager: ${hasFlowManager} for ${this.connections.size} global servers`);
-    
+    logger.debug(
+      `[MCP] mapAvailableTools called with flowManager: ${hasFlowManager} for ${this.connections.size} global servers`,
+    );
+
     for (const [serverName, connection] of this.connections.entries()) {
       try {
         /** Attempt to ensure connection is active, with reconnection if needed */
@@ -780,20 +782,28 @@ export class MCPManager {
           logger.debug(`[MCP][${serverName}] Checking connection with reconnection support`);
           isActive = await this.isConnectionActive({ serverName, connection, flowManager });
           if (isActive) {
-            logger.info(`[MCP][${serverName}] Global server connection is active (reconnection enabled)`);
+            logger.info(
+              `[MCP][${serverName}] Global server connection is active (reconnection enabled)`,
+            );
           }
         } else {
           // Fallback: Just check connection status without reconnection capability
           isActive = await connection.isConnected();
           if (!isActive) {
-            logger.warn(`[MCP][${serverName}] Global server disconnected and no flowManager provided for reconnection. Skipping tool mapping.`);
+            logger.warn(
+              `[MCP][${serverName}] Global server disconnected and no flowManager provided for reconnection. Skipping tool mapping.`,
+            );
           } else {
-            logger.debug(`[MCP][${serverName}] Global server connection is active (no reconnection capability)`);
+            logger.debug(
+              `[MCP][${serverName}] Global server connection is active (no reconnection capability)`,
+            );
           }
         }
-        
+
         if (!isActive) {
-          logger.warn(`[MCP][${serverName}] Global server connection not available. Skipping tool mapping.`);
+          logger.warn(
+            `[MCP][${serverName}] Global server connection not available. Skipping tool mapping.`,
+          );
           continue;
         }
 
@@ -825,22 +835,26 @@ export class MCPManager {
       flowManager?: FlowStateManager<MCPOAuthTokens | null>;
       serverToolsCallback?: (serverName: string, tools: t.LCManifestTool[]) => Promise<void>;
       getServerTools?: (serverName: string) => Promise<t.LCManifestTool[] | undefined>;
-    } = {}
+    } = {},
   ): Promise<t.LCToolManifest> {
     const { flowManager, serverToolsCallback, getServerTools } = options;
     const mcpTools: t.LCManifestTool[] = [...baseManifest];
-    
-    logger.info(`[MCP] loadManifestTools called with flowManager: ${!!flowManager} for ${this.connections.size} global servers`);
+
+    logger.info(
+      `[MCP] loadManifestTools called with flowManager: ${!!flowManager} for ${this.connections.size} global servers`,
+    );
 
     for (const [serverName, connection] of this.connections.entries()) {
       try {
         /** Attempt to ensure connection is active, with reconnection if needed */
-        const isActive = flowManager ? await this.isConnectionActive({
-          serverName,
-          connection,
-          flowManager,
-          skipReconnect: false, // Enable reconnection for global servers during manifest loading
-        }) : await connection.isConnected();
+        const isActive = flowManager
+          ? await this.isConnectionActive({
+              serverName,
+              connection,
+              flowManager,
+              skipReconnect: false, // Enable reconnection for global servers during manifest loading
+            })
+          : await connection.isConnected();
         if (!isActive) {
           logger.warn(
             `[MCP][${serverName}] Connection not available for ${serverName} manifest tools.`,
@@ -892,25 +906,28 @@ export class MCPManager {
   /**
    * Load manifest tools for a specific user from their user-specific connections
    */
-  public async loadUserManifestTools(userId: string, baseManifest: t.LCManifestTool[] = []): Promise<t.LCManifestTool[]> {
+  public async loadUserManifestTools(
+    userId: string,
+    baseManifest: t.LCManifestTool[] = [],
+  ): Promise<t.LCManifestTool[]> {
     const mcpTools: t.LCManifestTool[] = [...baseManifest];
     const userConnections = this.userConnections.get(userId);
-    
+
     if (!userConnections) {
       logger.debug(`[MCP][User: ${userId}] No user connections found for manifest`);
       return mcpTools;
     }
-    
+
     for (const [serverName, connection] of userConnections.entries()) {
       try {
         if (!(await connection.isConnected())) {
           logger.debug(`[MCP][User: ${userId}][${serverName}] Connection not active for manifest`);
           continue;
         }
-        
+
         const tools = await connection.fetchTools();
         const serverTools: t.LCManifestTool[] = [];
-        
+
         for (const tool of tools) {
           const pluginKey = `${tool.name}${CONSTANTS.mcp_delimiter}${serverName}`;
           const manifestTool: t.LCManifestTool = {
@@ -921,23 +938,28 @@ export class MCPManager {
             serverName: serverName, // Add serverName for frontend grouping
             isGlobal: false, // User-specific tools are not global
           };
-          
+
           // Check if user server config has chatMenu setting
           const userConfig = this.userConfigs.get(userId)?.[serverName];
           if (userConfig?.chatMenu === false) {
             manifestTool.chatMenu = false;
           }
-          
+
           mcpTools.push(manifestTool);
           serverTools.push(manifestTool);
         }
-        
-        logger.debug(`[MCP][User: ${userId}][${serverName}] Added ${serverTools.length} tools to manifest`);
+
+        logger.debug(
+          `[MCP][User: ${userId}][${serverName}] Added ${serverTools.length} tools to manifest`,
+        );
       } catch (error) {
-        logger.error(`[MCP][User: ${userId}][${serverName}] Error fetching tools for manifest:`, error);
+        logger.error(
+          `[MCP][User: ${userId}][${serverName}] Error fetching tools for manifest:`,
+          error,
+        );
       }
     }
-    
+
     return mcpTools;
   }
 
@@ -1110,7 +1132,6 @@ export class MCPManager {
 
     return instructions;
   }
-
 
   /**
    * Format MCP server instructions for injection into context

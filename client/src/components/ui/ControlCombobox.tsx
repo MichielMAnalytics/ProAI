@@ -50,7 +50,7 @@ function ControlCombobox({
   const [searchValue, setSearchValue] = useState('');
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [buttonWidth, setButtonWidth] = useState<number | null>(null);
-  
+
   // Determine if search should be shown
   const showSearch = !hideSearchWhenFewItems || items.length >= 5;
 

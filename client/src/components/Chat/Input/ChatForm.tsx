@@ -316,7 +316,7 @@ const MCPServerIcons = ({
 
   return (
     <>
-      <div className="absolute bottom-3 sm:bottom-2 left-1/2 -translate-x-1/2 transform">
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 transform sm:bottom-2">
         <div className="rounded-lg bg-black/20 px-2 py-1 backdrop-blur-sm">
           <div className="flex items-center gap-2">
             {allItems.map((item) => (
@@ -676,7 +676,7 @@ const ChatForm = memo(
               )}
               <div
                 className={cn(
-                  'items-between flex gap-1 sm:gap-2 -mb-1 pb-0 sm:pb-2 sm:mb-0',
+                  'items-between -mb-1 flex gap-1 pb-0 sm:mb-0 sm:gap-2 sm:pb-2',
                   isRTL ? 'flex-row-reverse' : 'flex-row',
                 )}
               >

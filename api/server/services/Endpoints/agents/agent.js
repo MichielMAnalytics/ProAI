@@ -18,8 +18,8 @@ const { processFiles } = require('~/server/services/Files/process');
 const { getConvoFiles } = require('~/models/Conversation');
 const { getToolFilesByIds } = require('~/models/File');
 const { getModelMaxTokens } = require('~/utils');
-const { getFiles } = require('~/models/File');
 const { logger } = require('~/config');
+const { getFiles } = require('~/models/File');
 
 const providerConfigMap = {
   [Providers.XAI]: initCustom,
@@ -174,11 +174,29 @@ const initializeAgent = async ({
       toolsType: typeof tools,
     });
 
+    // Get other agents for the current user to populate the other_agents special variable
+    let otherAgents = [];
+    try {
+      const { getListAgents } = require('~/models/Agent');
+      const agentsResult = await getListAgents({ author: req.user.id });
+
+      if (agentsResult && agentsResult.data) {
+        // Filter out the current agent and format as "name: id"
+        otherAgents = agentsResult.data
+          .filter((agentData) => agentData.id !== agent.id)
+          .map((agentData) => `${agentData.name}: ${agentData.id}`)
+          .sort(); // Sort alphabetically for consistent output
+      }
+    } catch (error) {
+      logger.warn(`[initializeAgent] Failed to fetch other agents for user ${req.user.id}:`, error);
+    }
+
     agent.instructions = replaceSpecialVars({
       text: agent.instructions,
       user: req.user,
       tools: connectedTools, // Use connected tools instead of designed tools
       timezone: req.user?.timezone,
+      otherAgents: otherAgents,
     });
   }
 

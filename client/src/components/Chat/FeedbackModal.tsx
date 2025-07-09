@@ -79,10 +79,10 @@ export default function FeedbackModal({ open, onOpenChange, conversationId }: Fe
         <DialogHeader className="px-6 pt-6">
           <DialogTitle>Send Feedback</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 px-6 pb-6">
           <div>
             <label htmlFor="feedback" className="mb-2 block text-sm font-medium text-text-primary">
-              🔧 Your feedback will help us improve the product. 
+              🔧 Your feedback will help us improve the product.
             </label>
             <textarea
               id="feedback"

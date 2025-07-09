@@ -159,7 +159,9 @@ export class MCPConnection extends EventEmitter {
         // Use SDK's automatic token management - no need to clear cache manually
         const newToken = await PipedreamConnect.getOAuthAccessToken();
         if (newToken) {
-          logger.debug(`${this.getLogPrefix()} Successfully retrieved fresh Pipedream token via SDK`);
+          logger.debug(
+            `${this.getLogPrefix()} Successfully retrieved fresh Pipedream token via SDK`,
+          );
           return newToken;
         }
       }
@@ -607,7 +609,7 @@ export class MCPConnection extends EventEmitter {
 
   private setupTransportErrorHandlers(transport: Transport): void {
     const isGlobalServer = !this.userId; // Global servers have undefined userId
-    
+
     if (isGlobalServer) {
       // Use upstream behavior for global servers - always emit 'error' to trigger reconnection
       transport.onerror = (error) => {
@@ -629,9 +631,10 @@ export class MCPConnection extends EventEmitter {
       transport.onerror = (error) => {
         // Check if it's a normal idle timeout (terminated connection)
         const errorMessage = error instanceof Error ? error.message : String(error);
-        const isIdleTimeout = errorMessage.includes('terminated') || 
-                             errorMessage.includes('SSE stream disconnected: TypeError: terminated');
-        
+        const isIdleTimeout =
+          errorMessage.includes('terminated') ||
+          errorMessage.includes('SSE stream disconnected: TypeError: terminated');
+
         if (isIdleTimeout) {
           logger.debug(`${this.getLogPrefix()} Connection idle timeout - will reconnect on demand`);
           this.connectionState = 'disconnected';
@@ -829,9 +832,11 @@ export class MCPConnection extends EventEmitter {
     // Check for HTTP 500 errors that might indicate token issues
     if ('message' in error && typeof error.message === 'string') {
       const message = error.message.toLowerCase();
-      return message.includes('500') || 
-             message.includes('access token missing') ||
-             message.includes('non-200 status code (500)');
+      return (
+        message.includes('500') ||
+        message.includes('access token missing') ||
+        message.includes('non-200 status code (500)')
+      );
     }
 
     // Check for error code 500

@@ -51,10 +51,7 @@ export default function Instructions() {
         </label>
         <div className="ml-auto flex items-center gap-2">
           <PromptAssist className="h-7" />
-          <TooltipAnchor
-            description="Add variables to instructions"
-            side="top"
-          >
+          <TooltipAnchor description="Add variables to instructions" side="top">
             <div>
               {/* ControlCombobox implementation
               <ControlCombobox
@@ -87,10 +84,12 @@ export default function Instructions() {
                   <Menu.MenuButton
                     id="variables-menu-button"
                     aria-label="Add variable to instructions"
-                    className="flex h-7 items-center gap-1 rounded-md border border-border-medium bg-surface-secondary px-2 py-0 text-xs text-text-primary transition-colors duration-200 hover:bg-surface-tertiary whitespace-nowrap"
+                    className="flex h-7 items-center gap-1 whitespace-nowrap rounded-md border border-border-medium bg-surface-secondary px-2 py-0 text-xs text-text-primary transition-colors duration-200 hover:bg-surface-tertiary"
                   >
                     <PlusCircle className="h-3 w-3 text-text-secondary" aria-hidden={true} />
-                    <span className="hidden min-[420px]:inline">{localize('com_ui_variables')}</span>
+                    <span className="hidden min-[420px]:inline">
+                      {localize('com_ui_variables')}
+                    </span>
                     <span className="inline min-[420px]:hidden">Vars</span>
                   </Menu.MenuButton>
                 }

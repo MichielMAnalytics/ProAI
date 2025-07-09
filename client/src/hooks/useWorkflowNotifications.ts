@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useWorkflowBuilder } from './useWorkflowBuilder';
 
 interface ExecutionResult {
   success: boolean;
@@ -29,6 +30,7 @@ interface QueuedNotification {
 }
 
 export const useWorkflowNotifications = (options: UseWorkflowNotificationsOptions = {}) => {
+  const { openWorkflowBuilder } = useWorkflowBuilder();
   const [testingWorkflows, setTestingWorkflows] = useState<Set<string>>(new Set());
   const [executionResults, setExecutionResults] = useState<Map<string, ExecutionResult>>(new Map());
   const [currentSteps, setCurrentSteps] = useState<Map<string, StepData>>(new Map());
@@ -104,7 +106,7 @@ export const useWorkflowNotifications = (options: UseWorkflowNotificationsOption
 
         case 'step_started':
         case 'step_completed':
-        case 'step_failed':
+        case 'step_failed': {
           const stepData = extractStepData(data);
           if (stepData) {
             console.log(`[WorkflowNotifications] Step ${data.notificationType}:`, stepData);
@@ -112,9 +114,10 @@ export const useWorkflowNotifications = (options: UseWorkflowNotificationsOption
             options.onStepUpdate?.(workflowId, stepData);
           }
           break;
+        }
 
         case 'execution_completed':
-        case 'execution_failed':
+        case 'execution_failed': {
           console.log(
             '[WorkflowNotifications] Workflow execution complete:',
             data.notificationType,
@@ -140,9 +143,15 @@ export const useWorkflowNotifications = (options: UseWorkflowNotificationsOption
             executionResult,
           );
           break;
+        }
+
+        case 'open_workflow_builder':
+          console.log('[WorkflowNotifications] Opening workflow builder');
+          openWorkflowBuilder();
+          break;
       }
     },
-    [extractStepData, options],
+    [extractStepData, options, openWorkflowBuilder],
   );
 
   // Process notification queue for a workflow
@@ -264,7 +273,7 @@ export const useWorkflowNotifications = (options: UseWorkflowNotificationsOption
         handleWorkflowNotification as EventListener,
       );
     };
-  }, [handleWorkflowNotification]);
+  }, [handleWorkflowNotification, options.workflowId]);
 
   const clearExecutionResult = useCallback((workflowId: string) => {
     setExecutionResults((prev) => {

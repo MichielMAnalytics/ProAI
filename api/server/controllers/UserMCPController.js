@@ -96,7 +96,7 @@ const initializeUserMCP = async (req, res) => {
         for (const [serverName, serverConfig] of Object.entries(userMCPServers)) {
           // Register the server config for this user
           mcpManager.addUserServerConfig(userId, serverName, serverConfig);
-          
+
           // Initialize the connection
           await mcpManager.getUserConnection({
             user: { id: userId },
@@ -110,10 +110,10 @@ const initializeUserMCP = async (req, res) => {
         const { getFlowStateManager } = require('~/config');
         const { getLogStores } = require('~/cache');
         const { CacheKeys } = require('librechat-data-provider');
-        
+
         const flowsCache = getLogStores(CacheKeys.FLOWS);
         const flowManager = flowsCache ? getFlowStateManager(flowsCache) : null;
-        
+
         // Map the available tools with flowManager to enable global server reconnection
         const availableTools = req.app.locals.availableTools || {};
         await mcpManager.mapAvailableTools(availableTools, flowManager);
@@ -180,22 +180,22 @@ const refreshUserMCP = async (req, res) => {
     // Reinitialize if there are servers
     if (Object.keys(refreshedServers).length > 0) {
       const mcpManager = getMCPManager(userId);
-      
+
       // Get proper flow manager and token methods for user-specific connections
       const { getFlowStateManager } = require('~/config');
       const { getLogStores } = require('~/cache');
       const { CacheKeys } = require('librechat-data-provider');
       const { findToken, updateToken, createToken } = require('~/models');
-      
+
       const flowsCache = getLogStores(CacheKeys.FLOWS);
       const flowManager = getFlowStateManager(flowsCache);
       const tokenMethods = { findToken, updateToken, createToken };
-      
+
       // Register user server configs and initialize connections
       for (const [serverName, serverConfig] of Object.entries(refreshedServers)) {
         // Register the server config for this user
         mcpManager.addUserServerConfig(userId, serverName, serverConfig);
-        
+
         // Initialize the connection with proper OAuth support
         await mcpManager.getUserConnection({
           user: { id: userId },

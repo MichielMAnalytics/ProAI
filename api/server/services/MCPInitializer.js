@@ -317,9 +317,7 @@ class MCPInitializer {
         }
 
         // Cached tools already have embedded metadata, no additional processing needed
-        logger.debug(
-          `[MCPInitializer][${context}] Using cached MCP tools with embedded metadata`,
-        );
+        logger.debug(`[MCPInitializer][${context}] Using cached MCP tools with embedded metadata`);
 
         return {
           ...cached,
@@ -418,17 +416,17 @@ class MCPInitializer {
           `[MCPInitializer][${context}] Processing user server configurations:`,
           JSON.stringify(userMCPServers, null, 2),
         );
-        
+
         // Count tools before adding user MCP tools
         const toolCountBefore = Object.keys(availableTools).length;
-        
+
         // Initialize all servers in parallel using Promise.allSettled for better performance
         const serverEntries = Object.entries(userMCPServers);
         const serverInitPromises = serverEntries.map(async ([serverName, serverConfig]) => {
           try {
             // First, register the server config for this user
             mcpManager.addUserServerConfig(userId, serverName, serverConfig);
-            
+
             // Then get/create the connection (which will now find the config)
             const connection = await mcpManager.getUserConnection({
               user: { id: userId },
@@ -436,17 +434,19 @@ class MCPInitializer {
               flowManager: null, // We don't have flowManager in this context yet
               tokenMethods: null, // Token methods handled by our existing Pipedream integration
             });
-            
-            if (connection && await connection.isConnected()) {
-              logger.debug(`[MCPInitializer][${context}] Successfully initialized user connection for server ${serverName}`);
-              
+
+            if (connection && (await connection.isConnected())) {
+              logger.debug(
+                `[MCPInitializer][${context}] Successfully initialized user connection for server ${serverName}`,
+              );
+
               // Fetch and map tools directly while we have the connection
               try {
                 const tools = await connection.fetchTools();
                 const serverTools = [];
                 for (const tool of tools) {
                   const toolName = tool.name;
-                  
+
                   // Create MCP metadata for this user-specific tool
                   const mcpMetadata = ToolMetadataUtils.createMCPMetadata({
                     serverName,
@@ -454,7 +454,7 @@ class MCPInitializer {
                     userId,
                     originalToolName: tool.name,
                   });
-                  
+
                   // Create enhanced tool with embedded metadata
                   const enhancedTool = ToolMetadataUtils.createEnhancedTool(
                     toolName,
@@ -462,28 +462,36 @@ class MCPInitializer {
                       description: tool.description,
                       parameters: tool.inputSchema,
                     },
-                    mcpMetadata
+                    mcpMetadata,
                   );
-                  
+
                   serverTools.push({ toolName, toolDef: enhancedTool, serverName, tool });
                 }
-                logger.debug(`[MCPInitializer][${context}] Mapped ${tools.length} tools from server ${serverName}`);
+                logger.debug(
+                  `[MCPInitializer][${context}] Mapped ${tools.length} tools from server ${serverName}`,
+                );
                 return { serverName, tools: serverTools, success: true };
               } catch (toolError) {
-                logger.warn(`[MCPInitializer][${context}] Failed to fetch tools from server ${serverName}:`, toolError.message);
+                logger.warn(
+                  `[MCPInitializer][${context}] Failed to fetch tools from server ${serverName}:`,
+                  toolError.message,
+                );
                 return { serverName, tools: [], success: false, error: toolError.message };
               }
             }
             return { serverName, tools: [], success: false, error: 'Connection failed' };
           } catch (initError) {
-            logger.warn(`[MCPInitializer][${context}] Failed to initialize user connection for server ${serverName}:`, initError.message);
+            logger.warn(
+              `[MCPInitializer][${context}] Failed to initialize user connection for server ${serverName}:`,
+              initError.message,
+            );
             return { serverName, tools: [], success: false, error: initError.message };
           }
         });
 
         // Wait for all server initializations to complete
         const serverResults = await Promise.allSettled(serverInitPromises);
-        
+
         // Process results and add tools to availableTools (enhanced structure)
         for (const result of serverResults) {
           if (result.status === 'fulfilled' && result.value.success) {
@@ -491,10 +499,15 @@ class MCPInitializer {
             for (const { toolName, toolDef } of tools) {
               // toolDef is already an enhanced tool with embedded metadata
               availableTools[toolName] = toolDef;
-              logger.debug(`[MCPInitializer][${context}] Added enhanced tool '${toolName}' from server '${serverName}' to availableTools`);
+              logger.debug(
+                `[MCPInitializer][${context}] Added enhanced tool '${toolName}' from server '${serverName}' to availableTools`,
+              );
             }
           } else if (result.status === 'rejected') {
-            logger.warn(`[MCPInitializer][${context}] Server initialization promise rejected:`, result.reason);
+            logger.warn(
+              `[MCPInitializer][${context}] Server initialization promise rejected:`,
+              result.reason,
+            );
           }
         }
 
@@ -502,8 +515,8 @@ class MCPInitializer {
         toolCount = toolCountAfter - toolCountBefore;
 
         // Debug: Log MCP tools in availableTools after mapping
-        const mcpToolsInAvailable = Object.entries(availableTools).filter(([toolName, toolDef]) => 
-          ToolMetadataUtils.isMCPTool(toolDef)
+        const mcpToolsInAvailable = Object.entries(availableTools).filter(([toolName, toolDef]) =>
+          ToolMetadataUtils.isMCPTool(toolDef),
         );
         logger.info(
           `[MCPInitializer][${context}] MCP tools in availableTools after mapping: ${mcpToolsInAvailable.length}`,
@@ -539,11 +552,13 @@ class MCPInitializer {
 
       // CRITICAL FIX: Always register global MCP tools for all users, regardless of user-specific servers
       if (globalServerCount > 0) {
-        logger.info(`[MCPInitializer][${context}] Global MCP servers available: ${globalServerCount}`);
+        logger.info(
+          `[MCPInitializer][${context}] Global MCP servers available: ${globalServerCount}`,
+        );
 
         // Count global MCP tools already in availableTools without verification loops
         let globalToolsRegistered = 0;
-        
+
         // Global tools are already in availableTools from app initialization
         // Just count them and add to cache without verification
         for (const [toolName, toolDef] of Object.entries(availableTools)) {
@@ -741,7 +756,7 @@ class MCPInitializer {
 
         for (const tool of tools) {
           const toolName = tool.name; // Use actual tool name without delimiter
-          
+
           // Create MCP metadata for this user-specific tool
           const mcpMetadata = ToolMetadataUtils.createMCPMetadata({
             serverName,
@@ -749,7 +764,7 @@ class MCPInitializer {
             userId,
             originalToolName: tool.name,
           });
-          
+
           // Create enhanced tool with embedded metadata
           const enhancedTool = ToolMetadataUtils.createEnhancedTool(
             toolName,
@@ -757,7 +772,7 @@ class MCPInitializer {
               description: tool.description,
               parameters: tool.inputSchema,
             },
-            mcpMetadata
+            mcpMetadata,
           );
 
           availableTools[toolName] = enhancedTool;
@@ -781,7 +796,10 @@ class MCPInitializer {
           if (cached) {
             // Use existing cached manifest tools as base and add new server tools to it
             const existingManifestTools = cached.manifestTools || [];
-            const updatedManifestTools = await mcpManager.loadUserManifestTools(userId, existingManifestTools);
+            const updatedManifestTools = await mcpManager.loadUserManifestTools(
+              userId,
+              existingManifestTools,
+            );
             cached.manifestTools = updatedManifestTools;
             cached.timestamp = Date.now();
             this.setUserInitializationCache(userId, cached);
@@ -871,12 +889,14 @@ class MCPInitializer {
     // Check if this is a global server that should not be disconnected by users
     try {
       const { ToolMetadataUtils } = require('librechat-data-provider');
-      
+
       // Look for any global MCP tools with this server name in availableTools
       const globalToolsFromServer = Object.entries(availableTools).filter(([toolName, toolDef]) => {
-        return ToolMetadataUtils.isMCPTool(toolDef) && 
-               ToolMetadataUtils.isGlobalMCPTool(toolDef) &&
-               ToolMetadataUtils.getServerName(toolDef) === serverName;
+        return (
+          ToolMetadataUtils.isMCPTool(toolDef) &&
+          ToolMetadataUtils.isGlobalMCPTool(toolDef) &&
+          ToolMetadataUtils.getServerName(toolDef) === serverName
+        );
       });
 
       if (globalToolsFromServer.length > 0) {
@@ -920,11 +940,11 @@ class MCPInitializer {
         if (cached) {
           // Get current manifest tools and filter out the tools from the server being disconnected
           const currentManifestTools = cached.manifestTools || [];
-          const filteredManifestTools = currentManifestTools.filter(tool => {
+          const filteredManifestTools = currentManifestTools.filter((tool) => {
             // Remove tools that belong to the server being disconnected
             return tool.serverName !== serverName;
           });
-          
+
           cached.manifestTools = filteredManifestTools;
           cached.timestamp = Date.now();
           this.setUserInitializationCache(userId, cached);

@@ -117,7 +117,7 @@ export default function AppCard({
       if (allToolsSelected) {
         // For MCP tools, we can now use the clean pluginKey directly
         const toolsToRemove = app.tools.map((tool) => tool.pluginKey);
-        
+
         // Remove tools directly from the form state
         const currentToolsList = getValues(toolsFormKey) || [];
         const updatedTools = currentToolsList.filter((currentTool: string | any) => {
@@ -125,7 +125,10 @@ export default function AppCard({
             return !toolsToRemove.includes(currentTool);
           } else if (typeof currentTool === 'object' && currentTool.tool && currentTool.server) {
             // For MCP tool objects, check if this tool belongs to this server
-            return !(toolsToRemove.includes(currentTool.tool) && currentTool.server === app.tools[0]?.serverName);
+            return !(
+              toolsToRemove.includes(currentTool.tool) &&
+              currentTool.server === app.tools[0]?.serverName
+            );
           }
           return true;
         });
@@ -137,7 +140,9 @@ export default function AppCard({
           const isAlreadySelected = tool.serverName
             ? currentTools.some((currentTool: any) => {
                 if (typeof currentTool === 'object' && currentTool.tool && currentTool.server) {
-                  return currentTool.tool === tool.pluginKey && currentTool.server === tool.serverName;
+                  return (
+                    currentTool.tool === tool.pluginKey && currentTool.server === tool.serverName
+                  );
                 }
                 return false;
               })
@@ -447,7 +452,10 @@ export default function AppCard({
               const isSelected = tool.serverName
                 ? currentTools.some((currentTool: any) => {
                     if (typeof currentTool === 'object' && currentTool.tool && currentTool.server) {
-                      return currentTool.tool === tool.pluginKey && currentTool.server === tool.serverName;
+                      return (
+                        currentTool.tool === tool.pluginKey &&
+                        currentTool.server === tool.serverName
+                      );
                     }
                     return false;
                   })

@@ -1627,6 +1627,7 @@ export const specialVariables = {
   current_datetime: true,
   utc_iso_datetime: true,
   tools: true,
+  other_agents: true,
 };
 
 export type TSpecialVarLabel = `com_ui_special_var_${keyof typeof specialVariables}`;

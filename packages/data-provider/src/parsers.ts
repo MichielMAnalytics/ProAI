@@ -434,12 +434,14 @@ export function replaceSpecialVars({
 
   tools,
   timezone,
+  otherAgents,
 }: {
   text: string;
   user?: t.TUser | null;
 
   tools?: string[];
   timezone?: string;
+  otherAgents?: string[];
 }) {
   let result = text;
   if (!result) {
@@ -533,6 +535,11 @@ export function replaceSpecialVars({
   if (tools && tools.length > 0) {
     const toolsText = tools.join(', ');
     result = result.replace(/{{tools}}/gi, toolsText);
+  }
+
+  if (otherAgents && otherAgents.length > 0) {
+    const agentsText = otherAgents.join(', ');
+    result = result.replace(/{{other_agents}}/gi, agentsText);
   }
 
   return result;

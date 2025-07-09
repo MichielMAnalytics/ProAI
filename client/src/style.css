@@ -2759,17 +2759,25 @@ button, .btn {
 }
 
 /* Workflow Testing Scanner Animation */
-@keyframes scanner-move {
+@keyframes scanner {
   0% {
-    top: -4px;
+    top: 0;
+    opacity: 0;
+  }
+  5% {
+    opacity: 1;
+  }
+  95% {
+    opacity: 1;
   }
   100% {
     top: 100%;
+    opacity: 0;
   }
 }
 
 .scanner-line {
-  animation: scanner-move 2s linear infinite;
+  animation: scanner 3s ease-in-out infinite;
 }
 
 /* Typing Effect Cursor Animation */

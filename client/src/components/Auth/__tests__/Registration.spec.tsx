@@ -148,7 +148,6 @@ test('renders registration form', () => {
   );
 });
 
-// eslint-disable-next-line jest/no-commented-out-tests
 // test('calls registerUser.mutate on registration', async () => {
 //   const mutate = jest.fn();
 //   const { getByTestId, getByRole, history } = setup({
