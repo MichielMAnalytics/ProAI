@@ -263,6 +263,7 @@ class WorkflowTool extends Tool {
         isActive: false, // Start inactive by default
         isDraft: false, // Mark as not draft since we're saving
         version: 1,
+        conversation_id: this.conversationId, // Include the conversation ID (using underscore for consistency with WorkflowService)
       };
 
       // Create the workflow using WorkflowService
@@ -286,6 +287,7 @@ class WorkflowTool extends Tool {
               action: 'open_workflow_builder_edit',
               type: 'workflow_builder_panel',
               createdWorkflowId: createdWorkflow.id,
+              conversationId: this.conversationId,
             },
           });
         } catch (notificationError) {

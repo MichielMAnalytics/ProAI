@@ -549,14 +549,8 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
             )}
           </div>
 
-          {/* Right: Save button */}
-          <button
-            onClick={handleSave}
-            disabled={isSaving || !workflowName || steps.length === 0}
-            className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-600 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300 sm:h-8 sm:w-8"
-          >
-            <Save className="h-4 w-4" />
-          </button>
+          {/* Right: Empty placeholder for alignment */}
+          <div className="h-7 w-7 sm:h-8 sm:w-8" />
         </div>
 
         {/* Main Content */}
@@ -819,15 +813,8 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
               </TooltipAnchor>
             </div>
 
-            {/* Right side: Clear and Save buttons */}
+            {/* Right side: Save button */}
             <div className="flex flex-1 gap-2">
-              <button
-                onClick={handleClear}
-                className="flex items-center gap-1 rounded-md border border-border-medium px-3 py-1 text-sm font-medium text-text-secondary hover:bg-surface-hover sm:gap-2 sm:px-4 sm:py-2"
-              >
-                <Trash2 size={14} />
-                Clear
-              </button>
               <button
                 onClick={handleSave}
                 disabled={isSaving || !workflowName || steps.length === 0}

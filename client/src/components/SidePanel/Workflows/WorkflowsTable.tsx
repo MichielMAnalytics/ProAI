@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { TUserWorkflow } from 'librechat-data-provider';
+import type { TUserWorkflow, TConversation } from 'librechat-data-provider';
 import {
   Button,
   Input,
@@ -12,6 +12,11 @@ import {
 } from '~/components/ui';
 import WorkflowsTableRow from './WorkflowsTableRow';
 import { useLocalize } from '~/hooks';
+import { Plus } from 'lucide-react';
+import { useWorkflowBuilder } from '~/hooks/useWorkflowBuilder';
+import { TooltipAnchor } from '~/components/ui/Tooltip';
+import { useNavigateToConvo } from '~/hooks';
+import { EModelEndpoint, Constants } from 'librechat-data-provider';
 
 interface WorkflowsTableProps {
   workflows: TUserWorkflow[];
@@ -19,9 +24,13 @@ interface WorkflowsTableProps {
 
 const WorkflowsTable: React.FC<WorkflowsTableProps> = ({ workflows }) => {
   const localize = useLocalize();
+  const { openWorkflowBuilder } = useWorkflowBuilder();
+  const { navigateToConvo } = useNavigateToConvo();
   const [pageIndex, setPageIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const pageSize = 10;
+  
+  const WORKFLOW_AGENT_ID = 'agent_mQT-2PApQWxqlveER8Myb';
 
   const filteredWorkflows = workflows.filter(
     (workflow) =>
@@ -37,19 +46,48 @@ const WorkflowsTable: React.FC<WorkflowsTableProps> = ({ workflows }) => {
 
   return (
     <div role="region" aria-label="User Workflows" className="mt-2 space-y-2">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2">
         <Input
           placeholder="Filter workflows..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           aria-label="Filter workflows"
+          className="flex-1"
         />
+        <TooltipAnchor description="Create new workflow" side="top">
+          <button
+            onClick={() => {
+              // Create a new conversation with the workflow agent
+              const newConversation: TConversation = {
+                conversationId: String(Constants.NEW_CONVO),
+                title: 'New Workflow',
+                endpoint: EModelEndpoint.agents,
+                endpointType: EModelEndpoint.agents,
+                agent_id: WORKFLOW_AGENT_ID,
+                model: null,
+                user: undefined,
+                messages: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              };
+              
+              // Navigate to the new conversation with the workflow agent
+              navigateToConvo(newConversation);
+              
+              // Then open the workflow builder
+              setTimeout(() => openWorkflowBuilder(), 100);
+            }}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-blue-500/60 bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm transition-all hover:border-blue-500 hover:from-blue-600 hover:to-blue-700 hover:shadow-md"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        </TooltipAnchor>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border-light bg-transparent shadow-sm transition-colors">
         <Table className="w-full table-fixed">
           <colgroup>
-            <col className="w-32 sm:w-36" />
+            <col className="w-20 sm:w-24" />
             <col className="w-auto" />
           </colgroup>
           <TableHeader>

@@ -1,8 +1,8 @@
 import React from 'react';
-import { Play, Pause, Trash2, Eye } from 'lucide-react';
+import { Trash2, Eye } from 'lucide-react';
 import type { TUserWorkflow } from 'librechat-data-provider';
 import { Button, TableCell, TableRow } from '~/components/ui';
-import { useDeleteWorkflowMutation, useToggleWorkflowMutation } from '~/data-provider';
+import { useDeleteWorkflowMutation } from '~/data-provider';
 import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
 import { useNavigateToConvo } from '~/hooks';
@@ -10,6 +10,8 @@ import { useTimezone } from '~/hooks/useTimezone';
 import { TooltipAnchor } from '~/components/ui/Tooltip';
 import { useLocalize } from '~/hooks';
 import { useWorkflowBuilder } from '~/hooks/useWorkflowBuilder';
+import { useQueryClient } from '@tanstack/react-query';
+import { QueryKeys, dataService } from 'librechat-data-provider';
 
 interface WorkflowsTableRowProps {
   workflow: TUserWorkflow;
@@ -18,38 +20,23 @@ interface WorkflowsTableRowProps {
 const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
   const { showToast } = useToastContext();
   const localize = useLocalize();
-  const { openWorkflowBuilder } = useWorkflowBuilder();
+  const { openWorkflowBuilder, closeWorkflowBuilder, workflowId: currentOpenWorkflowId } = useWorkflowBuilder();
   const { formatDateTime, getTimezoneAbbr } = useTimezone();
-  const { navigateToConvo } = useNavigateToConvo(); // Preserved for future navigation functionality
+  const { navigateToConvo } = useNavigateToConvo();
+  const queryClient = useQueryClient();
 
   // Workflow mutations
-  const toggleMutation = useToggleWorkflowMutation();
   const deleteMutation = useDeleteWorkflowMutation();
 
-  const handleToggle = () => {
-    toggleMutation.mutate(
-      { workflowId: workflow.id, isActive: !workflow.isActive },
-      {
-        onSuccess: () => {
-          showToast({
-            message: `Workflow ${workflow.isActive ? 'deactivated' : 'activated'} successfully`,
-            severity: NotificationSeverity.SUCCESS,
-          });
-        },
-        onError: (error: unknown) => {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          showToast({
-            message: `Failed to ${workflow.isActive ? 'deactivate' : 'activate'} workflow: ${errorMessage}`,
-            severity: NotificationSeverity.ERROR,
-          });
-        },
-      },
-    );
-  };
 
   const handleDelete = () => {
     deleteMutation.mutate(workflow.id, {
       onSuccess: () => {
+        // If this workflow is currently open in the builder, close it
+        if (currentOpenWorkflowId === workflow.id) {
+          closeWorkflowBuilder();
+        }
+        
         showToast({
           message: 'Workflow deleted successfully',
           severity: NotificationSeverity.SUCCESS,
@@ -65,8 +52,30 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
     });
   };
 
-  const handleView = () => {
+  const handleView = async () => {
     console.log('Opening workflow in builder for:', workflow);
+    
+    // If the workflow has an associated conversation, navigate to it
+    if (workflow.conversation_id) {
+      try {
+        console.log('Fetching conversation:', workflow.conversation_id);
+        // Fetch the conversation data
+        const conversation = await queryClient.fetchQuery(
+          [QueryKeys.conversation, workflow.conversation_id],
+          () => dataService.getConversationById(workflow.conversation_id as string)
+        );
+        
+        if (conversation) {
+          console.log('Navigating to workflow conversation:', conversation);
+          // Navigate to the conversation first
+          navigateToConvo(conversation);
+        }
+      } catch (error) {
+        console.error('Error fetching conversation:', error);
+        // If we can't fetch the conversation, just open the workflow builder
+      }
+    }
+    
     // Open the workflow builder with this specific workflow ID for editing
     openWorkflowBuilder(workflow.id);
   };
@@ -133,26 +142,6 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
               disabled={false}
             >
               <Eye className="h-3 w-3" />
-            </button>
-          </TooltipAnchor>
-          <TooltipAnchor
-            description={workflow.isActive ? 'Deactivate workflow' : 'Activate workflow'}
-            side="top"
-          >
-            <button
-              onClick={handleToggle}
-              className={`flex h-6 w-6 items-center justify-center rounded-lg shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 ${
-                workflow.isActive
-                  ? 'border border-amber-500/60 bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:border-amber-500 hover:from-amber-600 hover:to-orange-700'
-                  : 'border border-green-500/60 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:border-green-500 hover:from-green-600 hover:to-emerald-700'
-              }`}
-              disabled={toggleMutation.isLoading}
-            >
-              {workflow.isActive ? (
-                <Pause className="h-3 w-3 text-white" />
-              ) : (
-                <Play className="h-3 w-3 text-white" />
-              )}
             </button>
           </TooltipAnchor>
           <TooltipAnchor description="Delete workflow" side="top">
