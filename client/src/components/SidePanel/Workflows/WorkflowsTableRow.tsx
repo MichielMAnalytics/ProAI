@@ -1,6 +1,6 @@
 import React from 'react';
 import { Trash2, Eye } from 'lucide-react';
-import type { TUserWorkflow } from 'librechat-data-provider';
+import type { TUserWorkflow, TConversation } from 'librechat-data-provider';
 import { Button, TableCell, TableRow } from '~/components/ui';
 import { useDeleteWorkflowMutation } from '~/data-provider';
 import { NotificationSeverity } from '~/common';
@@ -60,7 +60,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
       try {
         console.log('Fetching conversation:', workflow.conversation_id);
         // Fetch the conversation data
-        const conversation = await queryClient.fetchQuery(
+        const conversation = await queryClient.fetchQuery<TConversation>(
           [QueryKeys.conversation, workflow.conversation_id],
           () => dataService.getConversationById(workflow.conversation_id as string)
         );
@@ -70,7 +70,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
           // Navigate to the conversation first
           navigateToConvo(conversation);
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('Error fetching conversation:', error);
         // If we can't fetch the conversation, just open the workflow builder
       }

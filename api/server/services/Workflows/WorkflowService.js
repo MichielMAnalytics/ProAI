@@ -31,12 +31,11 @@ class WorkflowService {
       // Generate unique workflow ID if not provided
       const workflowId = workflowData.id || `workflow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Create scheduler task data
+      // Create scheduler task data with new simplified structure
       const schedulerTaskData = {
         id: workflowId,
         name: workflowData.name,
-        schedule: workflowData.trigger?.config?.schedule || '0 9 * * *',
-        prompt: `WORKFLOW_EXECUTION:${workflowId}:${workflowData.name}`,
+        description: workflowData.description || '',
         enabled: workflowData.isActive || false,
         do_only_once: false,
         type: 'workflow',
@@ -47,16 +46,24 @@ class WorkflowService {
         endpoint: workflowData.endpoint,
         ai_model: workflowData.ai_model,
         agent_id: workflowData.agent_id,
-        metadata: {
-          type: 'workflow',
-          workflowId: workflowId,
-          workflowVersion: workflowData.version || 1,
-          trigger: workflowData.trigger || { type: 'manual', config: {} },
-          steps: workflowData.steps || [],
-          description: workflowData.description || '',
-          isDraft: workflowData.isDraft !== undefined ? workflowData.isDraft : true,
-          created_from_agent: workflowData.created_from_agent || false,
+        trigger: {
+          type: workflowData.trigger?.type || 'manual',
+          config: {
+            ...workflowData.trigger?.config,
+            schedule: workflowData.trigger?.config?.schedule || '0 9 * * *'
+          }
         },
+        metadata: {
+          steps: (workflowData.steps || []).map(step => ({
+            id: step.id,
+            name: step.name,
+            type: step.type,
+            instruction: step.config?.parameters?.instruction || step.instruction,
+            agent_id: step.config?.parameters?.agent_id || step.agent_id
+          })),
+          isDraft: workflowData.isDraft !== undefined ? workflowData.isDraft : true,
+        },
+        version: workflowData.version || 1,
       };
 
       // Create scheduler task
@@ -86,9 +93,7 @@ class WorkflowService {
     try {
       const allTasks = await getSchedulerTasksByUser(userId);
       const workflowTasks = allTasks.filter(task => 
-        task.type === 'workflow' && 
-        task.prompt && 
-        task.prompt.startsWith('WORKFLOW_EXECUTION:')
+        task.type === 'workflow'
       );
       
       return workflowTasks.map(task => this.schedulerTaskToWorkflow(task));
@@ -140,24 +145,40 @@ class WorkflowService {
       
       if (updateData.name) {
         schedulerUpdateData.name = updateData.name;
-        schedulerUpdateData.prompt = `WORKFLOW_EXECUTION:${workflowId}:${updateData.name}`;
       }
 
-      if (updateData.trigger?.type === 'schedule') {
-        schedulerUpdateData.schedule = updateData.trigger.config.schedule;
+      if (updateData.trigger) {
+        schedulerUpdateData.trigger = {
+          type: updateData.trigger.type,
+          config: {
+            ...updateData.trigger.config,
+            schedule: updateData.trigger.config?.schedule || '0 9 * * *'
+          }
+        };
       }
 
-      // Update metadata
+      // Update metadata with simplified structure
       const updatedMetadata = {
         ...currentTask.metadata,
-        ...(updateData.trigger && { trigger: updateData.trigger }),
-        ...(updateData.steps && { steps: updateData.steps }),
-        ...(updateData.description && { description: updateData.description }),
+        ...(updateData.steps && { 
+          steps: updateData.steps.map(step => ({
+            id: step.id,
+            name: step.name,
+            type: step.type,
+            instruction: step.config?.parameters?.instruction || step.instruction,
+            agent_id: step.config?.parameters?.agent_id || step.agent_id
+          }))
+        }),
         ...(updateData.isDraft !== undefined && { isDraft: updateData.isDraft }),
-        workflowVersion: (currentTask.metadata.workflowVersion || 1) + 1,
       };
 
       schedulerUpdateData.metadata = updatedMetadata;
+      
+      // Update description and increment version
+      if (updateData.description !== undefined) {
+        schedulerUpdateData.description = updateData.description;
+      }
+      schedulerUpdateData.version = (currentTask.version || 1) + 1;
 
       const updatedTask = await updateSchedulerTask(workflowId, userId, schedulerUpdateData);
       if (!updatedTask) {
@@ -241,13 +262,13 @@ class WorkflowService {
     return {
       id: schedulerTask.id,
       name: schedulerTask.name,
-      description: schedulerTask.metadata?.description || '',
-      trigger: schedulerTask.metadata?.trigger || { type: 'manual', config: {} },
+      description: schedulerTask.description || '',
+      trigger: schedulerTask.trigger || { type: 'manual', config: {} },
       steps: schedulerTask.metadata?.steps || [],
       type: schedulerTask.type,
       isDraft: schedulerTask.metadata?.isDraft || false,
       isActive: schedulerTask.enabled,
-      version: schedulerTask.metadata?.workflowVersion || 1,
+      version: schedulerTask.version || 1,
       user: schedulerTask.user,
       conversation_id: schedulerTask.conversation_id,
       parent_message_id: schedulerTask.parent_message_id,
@@ -257,7 +278,6 @@ class WorkflowService {
       last_run: convertDate(schedulerTask.last_run),
       next_run: convertDate(schedulerTask.next_run),
       status: schedulerTask.status,
-      created_from_agent: schedulerTask.metadata?.created_from_agent || false,
       metadata: schedulerTask.metadata,
       createdAt: convertDate(schedulerTask.createdAt),
       updatedAt: convertDate(schedulerTask.updatedAt),

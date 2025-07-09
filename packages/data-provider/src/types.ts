@@ -856,12 +856,8 @@ export type TWorkflowStep = {
   id: string;
   name: string;
   type: 'mcp_agent_action';
-  config: {
-    toolName?: string;
-    parameters?: Record<string, unknown>;
-    instruction?: string;
-    agent_id?: string;
-  };
+  instruction: string;
+  agent_id: string;
   onSuccess?: string; // Next step ID
   onFailure?: string; // Next step ID
 };

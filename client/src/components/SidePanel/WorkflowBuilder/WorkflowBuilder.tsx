@@ -34,6 +34,7 @@ import {
   useStopWorkflowMutation,
   useWorkflowQuery,
   useCreateWorkflowMutation,
+  useUpdateWorkflowMutation,
 } from '~/data-provider';
 import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
@@ -102,6 +103,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
   const testMutation = useTestWorkflowMutation();
   const stopMutation = useStopWorkflowMutation();
   const createMutation = useCreateWorkflowMutation();
+  const updateMutation = useUpdateWorkflowMutation();
 
   // Query the current workflow state from the database (if editing existing workflow)
   const { data: currentWorkflowData, refetch: refetchWorkflow } = useWorkflowQuery(
@@ -127,25 +129,11 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
       // Convert workflow steps to WorkflowStep format
       if (currentWorkflowData.steps && currentWorkflowData.steps.length > 0) {
         const convertedSteps: WorkflowStep[] = currentWorkflowData.steps.map((step) => {
-          // Extract agent ID from various possible locations
-          let agentId = '';
-          if (step.config?.parameters?.agent_id && typeof step.config.parameters.agent_id === 'string') {
-            agentId = step.config.parameters.agent_id;
-          } else if (step.config?.toolName && typeof step.config.toolName === 'string' && step.config.toolName.startsWith('agent_')) {
-            agentId = step.config.toolName.replace('agent_', '');
-          }
-          
-          // Extract task/instruction
-          let task = '';
-          if (step.config?.parameters?.instruction && typeof step.config.parameters.instruction === 'string') {
-            task = step.config.parameters.instruction;
-          }
-          
           return {
             id: step.id,
             name: step.name,
-            agentId: agentId,
-            task: task,
+            agentId: step.agent_id || '',
+            task: step.instruction || '',
           };
         });
         setSteps(convertedSteps);
@@ -428,7 +416,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
     setIsSaving(true);
     try {
       if (workflowId) {
-        // Update existing workflow
+        // Update existing workflow (creates new version)
         const updateData = {
           name: workflowName,
           description: workflowDescription,
@@ -440,25 +428,21 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
             id: step.id,
             name: step.name,
             type: 'mcp_agent_action' as const,
-            config: {
-              toolName: `agent_${step.agentId}`,
-              parameters: {
-                instruction: step.task,
-                agent_id: step.agentId,
-              },
-            },
+            instruction: step.task,
+            agent_id: step.agentId,
           })),
+          isDraft: false,
         };
 
-        // Use update mutation instead of create
-        // Note: You might need to import and use an update mutation here
-        // For now, using the create mutation as a placeholder
-        const result = await createMutation.mutateAsync(updateData);
+        const result = await updateMutation.mutateAsync({ workflowId, data: updateData });
         
         showToast({
-          message: `Workflow "${result.name}" updated successfully!`,
+          message: `Workflow "${result.name}" updated successfully! (Version ${result.version})`,
           severity: NotificationSeverity.SUCCESS,
         });
+        
+        // Refresh the workflow data to show the new version
+        refetchWorkflow();
       } else {
         // Create new workflow
         const workflowId = `workflow_${Date.now()}`;
@@ -475,13 +459,8 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
             id: step.id,
             name: step.name,
             type: 'mcp_agent_action' as const,
-            config: {
-              toolName: `agent_${step.agentId}`,
-              parameters: {
-                instruction: step.task,
-                agent_id: step.agentId,
-              },
-            },
+            instruction: step.task,
+            agent_id: step.agentId,
           })),
           isActive: false, // Start inactive by default
           isDraft: false, // Mark as not draft since we're saving
@@ -507,7 +486,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
     } finally {
       setIsSaving(false);
     }
-  }, [workflowId, workflowName, workflowDescription, triggerType, scheduleConfig, steps, createMutation, showToast]);
+  }, [workflowId, workflowName, workflowDescription, triggerType, scheduleConfig, steps, createMutation, updateMutation, showToast, refetchWorkflow]);
 
   const handleClear = useCallback(() => {
     if (confirm('Are you sure you want to clear all workflow data?')) {
