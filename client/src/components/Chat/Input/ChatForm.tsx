@@ -425,6 +425,8 @@ const ChatForm = memo(
     const [isTextAreaFocused, setIsTextAreaFocused] = useState(false);
     const [backupBadges, setBackupBadges] = useState<Pick<BadgeItem, 'id'>[]>([]);
     const [isBadgeHidden, setIsBadgeHidden] = useState(false);
+    const [badgeWidth, setBadgeWidth] = useState(0);
+    const badgeRef = useRef<HTMLDivElement>(null);
 
     const SpeechToText = useRecoilValue(store.speechToText);
     const TextToSpeech = useRecoilValue(store.textToSpeech);
@@ -639,6 +641,24 @@ const ChatForm = memo(
       }
     }, [isEditingBadges, badges, backupBadges.length]);
 
+    // Measure badge width for text indentation
+    useEffect(() => {
+      if (shouldShowBadge && badgeRef.current) {
+        const resizeObserver = new ResizeObserver((entries) => {
+          const entry = entries[0];
+          if (entry) {
+            setBadgeWidth(entry.contentRect.width);
+          }
+        });
+        
+        resizeObserver.observe(badgeRef.current);
+        
+        return () => resizeObserver.disconnect();
+      } else {
+        setBadgeWidth(0);
+      }
+    }, [shouldShowBadge, agentData.name]);
+
     const handleSaveBadges = useCallback(() => {
       setIsEditingBadges(false);
       setBackupBadges([]);
@@ -717,9 +737,9 @@ const ChatForm = memo(
               />
               <FileFormChat disableInputs={disableInputs} />
               {endpoint && (
-                <div className={cn('flex items-start', isRTL ? 'flex-row-reverse' : 'flex-row')}>
+                <div className={cn('relative flex', isRTL ? 'flex-row-reverse' : 'flex-row')}>
                   {shouldShowBadge && (
-                    <div className="flex items-center pl-3 -mr-2 pt-3.5">
+                    <div ref={badgeRef} className="absolute top-2.5 left-3 z-10 flex items-center">
                       <AgentBadge 
                         agentName={agentData.name}
                         agentIcon={agentData.icon}
@@ -751,14 +771,19 @@ const ChatForm = memo(
                     }}
                     onBlur={setIsTextAreaFocused.bind(null, false)}
                     onClick={handleFocusOrClick}
-                    style={{ height: 44, overflowY: 'auto' }}
+                    style={{ 
+                      height: 44, 
+                      overflowY: 'auto',
+                      textIndent: shouldShowBadge && badgeWidth ? `${badgeWidth + 12}px` : '0',
+                      paddingLeft: shouldShowBadge ? '0.75rem' : undefined
+                    }}
                     className={cn(
                       baseClasses,
                       removeFocusRings,
                       'transition-[max-height] duration-200 disabled:cursor-not-allowed',
                     )}
                   />
-                  <div className="flex flex-col items-start justify-start pt-1.5">
+                  <div className="flex flex-col items-start justify-start pt-1.5 pr-3">
                     <CollapseChat
                       isCollapsed={isCollapsed}
                       isScrollable={isMoreThanThreeRows}

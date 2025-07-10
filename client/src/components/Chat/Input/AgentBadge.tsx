@@ -21,9 +21,13 @@ const AgentBadge: React.FC<AgentBadgeProps> = ({
     return null;
   }
 
-  // Smart truncation: remove ' Agent' suffix if the name would be too long
-  const getDisplayName = (name: string) => {
-    const maxLength = 20; // Approximate character limit for max-w-40
+  // Smart truncation for mobile only: remove ' Agent' suffix if the name would be too long
+  const getDisplayName = (name: string, isMobile: boolean) => {
+    if (!isMobile) {
+      return name; // No truncation on desktop
+    }
+    
+    const maxLength = 15; // Shorter limit for mobile
     
     if (name.length <= maxLength) {
       return name;
@@ -88,7 +92,7 @@ const AgentBadge: React.FC<AgentBadgeProps> = ({
       className
     )}>
       {renderIcon()}
-      <span className="hidden sm:block truncate max-w-40" title={agentName}>{getDisplayName(agentName)}</span>
+      <span className="hidden sm:block" title={agentName}>{getDisplayName(agentName, false)}</span>
       <button
         onClick={onRemove}
         className="flex items-center justify-center w-4 h-4 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800/50 transition-colors flex-shrink-0"
