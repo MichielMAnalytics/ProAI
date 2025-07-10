@@ -127,12 +127,29 @@ class SchedulerTaskExecutor {
       status: 'running',
       start_time: startTime,
       context: {
-        task_name: task.name,
-        prompt: task.prompt.substring(0, 500), // Truncate for storage
-        endpoint: task.endpoint,
-        ai_model: task.ai_model,
-        agent_id: task.agent_id,
+        trigger: {
+          type: 'schedule',
+          source: 'scheduler',
+          scheduledTime: startTime,
+        },
+        workflow: task.type === 'workflow' ? {
+          id: task.id,
+          name: task.name,
+          totalSteps: task.metadata?.steps?.length || 0,
+        } : undefined,
       },
+      steps: task.type === 'workflow' ? (task.metadata?.steps || []).map(step => ({
+        ...step,
+        status: 'pending',
+        retryCount: 0,
+        toolsUsed: [],
+        mcpToolsCount: 0,
+      })) : [],
+      progress: task.type === 'workflow' ? {
+        completedSteps: 0,
+        totalSteps: task.metadata?.steps?.length || 0,
+        percentage: 0,
+      } : undefined,
     });
 
     try {
@@ -277,8 +294,8 @@ class SchedulerTaskExecutor {
         );
       }
 
-      // Replace special variables in the prompt
-      const prompt = replaceSpecialVars({ text: task.prompt, user });
+      // Replace special variables in the prompt (for non-workflow tasks)
+      const prompt = task.prompt ? replaceSpecialVars({ text: task.prompt, user }) : task.name;
 
       // Set up ephemeral agent configuration with MCP tools
       const setupResult = await this.agentHandler.createEphemeralAgentSetup(task, user);
@@ -355,7 +372,7 @@ class SchedulerTaskExecutor {
         onProgress: (data) => {
           logger.debug(
             `[SchedulerTaskExecutor] Agent progress for task ${task.id}:`,
-            data?.text?.substring(0, 100),
+            data?.text ? data.text.substring(0, 100) : 'No text content',
           );
         },
       });
@@ -369,7 +386,7 @@ class SchedulerTaskExecutor {
       // Extract response text from agent response
       const result = this.extractResponseText(response);
       logger.info(
-        `[SchedulerTaskExecutor] Extracted result for task ${task.id}: ${result?.substring(0, 200)}...`,
+        `[SchedulerTaskExecutor] Extracted result for task ${task.id}: ${result ? result.substring(0, 200) : 'No result'}...`,
       );
 
       return result;
@@ -465,7 +482,7 @@ class SchedulerTaskExecutor {
    * @returns {boolean} True if this is a workflow task
    */
   isWorkflowTask(task) {
-    return task.prompt && task.prompt.startsWith('WORKFLOW_EXECUTION:');
+    return task.type === 'workflow';
   }
 
   /**
@@ -476,30 +493,30 @@ class SchedulerTaskExecutor {
    */
   async executeWorkflowTask(task, executionId) {
     try {
-      // Parse workflow information from the task prompt
-      const workflowInfo = this.parseWorkflowInfo(task.prompt);
+      // Modern workflow tasks have the workflow ID as the task ID and metadata structure
+      const workflowId = task.id;
+      const workflowName = task.name;
 
-      if (!workflowInfo) {
-        throw new Error('Invalid workflow task format');
+      if (!workflowId) {
+        throw new Error('Invalid workflow task format - missing workflow ID');
       }
 
       logger.info(
-        `[SchedulerTaskExecutor] Executing workflow ${workflowInfo.workflowId} (${workflowInfo.workflowName})`,
+        `[SchedulerTaskExecutor] Executing workflow ${workflowId} (${workflowName})`,
       );
 
       // Get workflow data from task metadata
-      if (!task.metadata || task.metadata.type !== 'workflow') {
-        throw new Error('Task is not a workflow or missing workflow metadata');
+      if (!task.metadata || !task.metadata.steps) {
+        throw new Error('Task is not a workflow or missing workflow steps');
       }
 
       // Create workflow object from task metadata
       const workflow = {
-        id: task.metadata.workflowId,
-        name: workflowInfo.workflowName,
-        description: task.metadata.description,
-        trigger: task.metadata.trigger,
+        id: workflowId,
+        name: workflowName,
+        trigger: task.trigger,
         steps: task.metadata.steps,
-        isDraft: task.metadata.isDraft,
+        isDraft: task.metadata.isDraft || false,
         isActive: task.enabled,
         user: task.user,
         conversation_id: task.conversation_id,
@@ -511,6 +528,8 @@ class SchedulerTaskExecutor {
       };
 
       // Create execution context for scheduler-triggered execution
+      // Include memory and agents config like the test execution does
+      const config = await getCustomConfig();
       const context = {
         trigger: {
           type: 'schedule',
@@ -521,6 +540,8 @@ class SchedulerTaskExecutor {
             schedule: task.schedule,
           },
         },
+        memoryConfig: config?.memory || {},
+        agentsConfig: config?.endpoints?.agents || {},
       };
 
       // Use WorkflowExecutor singleton to maintain execution state
@@ -536,12 +557,12 @@ class SchedulerTaskExecutor {
 
       if (workflowResult.success) {
         logger.info(
-          `[SchedulerTaskExecutor] Workflow ${workflowInfo.workflowId} executed successfully`,
+          `[SchedulerTaskExecutor] Workflow ${workflowId} executed successfully`,
         );
-        return `Workflow "${workflowInfo.workflowName}" executed successfully. ${workflowResult.result?.summary || ''}`;
+        return `Workflow "${workflowName}" executed successfully. ${workflowResult.result?.summary || ''}`;
       } else {
         logger.error(
-          `[SchedulerTaskExecutor] Workflow ${workflowInfo.workflowId} execution failed:`,
+          `[SchedulerTaskExecutor] Workflow ${workflowId} execution failed:`,
           workflowResult.error,
         );
         throw new Error(`Workflow execution failed: ${workflowResult.error}`);

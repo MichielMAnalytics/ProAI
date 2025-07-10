@@ -479,11 +479,20 @@ class MCPInitializer {
                 return { serverName, tools: [], success: false, error: toolError.message };
               }
             }
+            logger.error(
+              `[MCPInitializer][${context}] Connection failed for server ${serverName} - connection not established or not connected`,
+              { serverName, userId, hasConnection: !!connection }
+            );
             return { serverName, tools: [], success: false, error: 'Connection failed' };
           } catch (initError) {
-            logger.warn(
+            logger.error(
               `[MCPInitializer][${context}] Failed to initialize user connection for server ${serverName}:`,
-              initError.message,
+              {
+                error: initError.message,
+                stack: initError.stack,
+                serverName,
+                userId,
+              }
             );
             return { serverName, tools: [], success: false, error: initError.message };
           }

@@ -76,6 +76,47 @@ interface WorkflowBuilderProps {
 /** TODO: make configurable */
 const MAX_STEPS = 10;
 
+// Helper function to convert user-friendly schedule to cron expression
+const generateCronExpression = (type: string, time: string, days: number[], date: number): string => {
+  const [hour, minute] = time.split(':');
+  
+  switch (type) {
+    case 'daily':
+      return `${minute} ${hour} * * *`;
+    case 'weekly':
+      const cronDays = days.map(day => day === 7 ? 0 : day).join(','); // Convert Sunday from 7 to 0
+      return `${minute} ${hour} * * ${cronDays}`;
+    case 'monthly':
+      return `${minute} ${hour} ${date} * *`;
+    default:
+      return '0 9 * * *'; // Default fallback
+  }
+};
+
+// Helper function to parse cron expression to user-friendly format
+const parseCronExpression = (cron: string): { type: string; time: string; days: number[]; date: number } => {
+  const parts = cron.trim().split(' ');
+  if (parts.length !== 5) {
+    return { type: 'daily', time: '09:00', days: [1], date: 1 };
+  }
+  
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+  const time = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+  
+  if (dayOfWeek !== '*') {
+    // Weekly schedule
+    const days = dayOfWeek.split(',').map(d => d === '0' ? 7 : parseInt(d)).filter(d => !isNaN(d));
+    return { type: 'weekly', time, days, date: 1 };
+  } else if (dayOfMonth !== '*') {
+    // Monthly schedule
+    const date = parseInt(dayOfMonth) || 1;
+    return { type: 'monthly', time, days: [1], date };
+  } else {
+    // Daily schedule
+    return { type: 'daily', time, days: [1], date: 1 };
+  }
+};
+
 const TRIGGER_OPTIONS = [
   { value: 'manual', label: 'Manual', icon: <User size={16} /> },
   { value: 'schedule', label: 'Schedule', icon: <Calendar size={16} /> },
@@ -93,6 +134,10 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
     'manual' | 'schedule' | 'webhook' | 'email' | 'event'
   >('manual');
   const [scheduleConfig, setScheduleConfig] = useState('');
+  const [scheduleType, setScheduleType] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('daily');
+  const [scheduleTime, setScheduleTime] = useState('09:00');
+  const [scheduleDays, setScheduleDays] = useState<number[]>([1]); // 1 = Monday
+  const [scheduleDate, setScheduleDate] = useState(1); // Day of month
   const [steps, setSteps] = useState<WorkflowStep[]>([]);
   const [newStepAgentId, setNewStepAgentId] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -102,6 +147,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
   const [copiedStepId, setCopiedStepId] = useState<string | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
   const [expandedOutputs, setExpandedOutputs] = useState<Set<string>>(new Set());
+  const [isTriggerExpanded, setIsTriggerExpanded] = useState(true);
   const [showDashboard, setShowDashboard] = useState(false);
   const [currentRunningStepId, setCurrentRunningStepId] = useState<string | null>(null);
   const [completedStepIds, setCompletedStepIds] = useState<Set<string>>(new Set());
@@ -145,7 +191,18 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
       // Populate form fields with existing workflow data
       setWorkflowName(currentWorkflowData.name || 'New Workflow');
       setTriggerType(currentWorkflowData.trigger?.type || 'manual');
-      setScheduleConfig(currentWorkflowData.trigger?.config?.schedule || '');
+      
+      const existingSchedule = currentWorkflowData.trigger?.config?.schedule || '';
+      setScheduleConfig(existingSchedule);
+      
+      // Parse existing cron expression to user-friendly format
+      if (existingSchedule && currentWorkflowData.trigger?.type === 'schedule') {
+        const parsed = parseCronExpression(existingSchedule);
+        setScheduleType(parsed.type as 'daily' | 'weekly' | 'monthly' | 'custom');
+        setScheduleTime(parsed.time);
+        setScheduleDays(parsed.days);
+        setScheduleDate(parsed.date);
+      }
       
       // Convert workflow steps to WorkflowStep format
       if (currentWorkflowData.steps && currentWorkflowData.steps.length > 0) {
@@ -533,7 +590,11 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
           name: workflowName,
           trigger: {
             type: triggerType,
-            config: triggerType === 'schedule' ? { schedule: scheduleConfig || '0 9 * * *' } : {},
+            config: triggerType === 'schedule' ? { 
+              schedule: scheduleType === 'custom' 
+                ? (scheduleConfig || '0 9 * * *') 
+                : generateCronExpression(scheduleType, scheduleTime, scheduleDays, scheduleDate)
+            } : {},
           },
           steps: steps.map((step) => ({
             id: step.id,
@@ -563,7 +624,11 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
           name: workflowName,
           trigger: {
             type: triggerType,
-            config: triggerType === 'schedule' ? { schedule: scheduleConfig || '0 9 * * *' } : {},
+            config: triggerType === 'schedule' ? { 
+              schedule: scheduleType === 'custom' 
+                ? (scheduleConfig || '0 9 * * *') 
+                : generateCronExpression(scheduleType, scheduleTime, scheduleDays, scheduleDate)
+            } : {},
           },
           steps: steps.map((step) => ({
             id: step.id,
@@ -599,7 +664,15 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
     } finally {
       setIsSaving(false);
     }
-  }, [currentWorkflowId, workflowName, triggerType, scheduleConfig, steps, createMutation, updateMutation, showToast, refetchWorkflow]);
+  }, [currentWorkflowId, workflowName, triggerType, scheduleConfig, scheduleType, scheduleTime, scheduleDays, scheduleDate, steps, createMutation, updateMutation, showToast, refetchWorkflow]);
+
+  // Update scheduleConfig when user-friendly schedule options change
+  useEffect(() => {
+    if (triggerType === 'schedule' && scheduleType !== 'custom') {
+      const newCron = generateCronExpression(scheduleType, scheduleTime, scheduleDays, scheduleDate);
+      setScheduleConfig(newCron);
+    }
+  }, [triggerType, scheduleType, scheduleTime, scheduleDays, scheduleDate]);
 
 
   return (
@@ -680,10 +753,20 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
 
             {/* Trigger Configuration */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div 
+                className="flex items-center justify-between cursor-pointer"
+                onClick={() => setIsTriggerExpanded(!isTriggerExpanded)}
+              >
                 <h3 className="text-base font-semibold text-text-primary sm:text-lg">Trigger</h3>
+                {isTriggerExpanded ? (
+                  <ChevronUp size={20} className="text-text-secondary" />
+                ) : (
+                  <ChevronDown size={20} className="text-text-secondary" />
+                )}
               </div>
-              <div className="space-y-2">
+              
+              {isTriggerExpanded && (
+                <div className="space-y-2">
                 <ControlCombobox
                   isCollapsed={false}
                   ariaLabel="Select trigger type"
@@ -700,18 +783,130 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                   disabled={isTesting}
                 />
                 {triggerType === 'schedule' && (
-                  <input
-                    type="text"
-                    value={scheduleConfig}
-                    onChange={(e) => setScheduleConfig(e.target.value)}
-                    disabled={isTesting}
-                    className={`w-full rounded-md border border-border-heavy p-2 text-sm focus:border-blue-500 focus:outline-none sm:p-3 ${
-                      isTesting ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                    placeholder="0 9 * * * (Every day at 9 AM)"
-                  />
+                  <div className="space-y-3">
+                    {/* Schedule Type Selection */}
+                    <div>
+                      <label className="block text-sm font-medium text-text-primary mb-2">
+                        How often should this run?
+                      </label>
+                      <select
+                        value={scheduleType}
+                        onChange={(e) => setScheduleType(e.target.value as 'daily' | 'weekly' | 'monthly' | 'custom')}
+                        disabled={isTesting}
+                        className={`w-full rounded-md border border-border-heavy p-2 text-sm focus:border-blue-500 focus:outline-none ${
+                          isTesting ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        <option value="daily">Every day</option>
+                        <option value="weekly">Weekly (specific days)</option>
+                        <option value="monthly">Monthly (specific date)</option>
+                        <option value="custom">Custom (cron expression)</option>
+                      </select>
+                    </div>
+
+                    {/* Time Selection */}
+                    {scheduleType !== 'custom' && (
+                      <div>
+                        <label className="block text-sm font-medium text-text-primary mb-2">
+                          What time?
+                        </label>
+                        <input
+                          type="time"
+                          value={scheduleTime}
+                          onChange={(e) => setScheduleTime(e.target.value)}
+                          disabled={isTesting}
+                          className={`w-full rounded-md border border-border-heavy p-2 text-sm focus:border-blue-500 focus:outline-none ${
+                            isTesting ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                        />
+                      </div>
+                    )}
+
+                    {/* Weekly Days Selection */}
+                    {scheduleType === 'weekly' && (
+                      <div>
+                        <label className="block text-sm font-medium text-text-primary mb-2">
+                          Which days?
+                        </label>
+                        <div className="grid grid-cols-7 gap-2">
+                          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, index) => {
+                            const dayValue = index + 1; // 1 = Monday, 7 = Sunday
+                            const isSelected = scheduleDays.includes(dayValue);
+                            return (
+                              <button
+                                key={day}
+                                type="button"
+                                disabled={isTesting}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setScheduleDays(scheduleDays.filter(d => d !== dayValue));
+                                  } else {
+                                    setScheduleDays([...scheduleDays, dayValue]);
+                                  }
+                                }}
+                                className={`p-2 text-xs rounded border ${
+                                  isSelected 
+                                    ? 'bg-blue-500 text-white border-blue-500' 
+                                    : 'bg-surface-secondary border-border-light text-text-secondary'
+                                } ${isTesting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-400'}`}
+                              >
+                                {day}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Monthly Date Selection */}
+                    {scheduleType === 'monthly' && (
+                      <div>
+                        <label className="block text-sm font-medium text-text-primary mb-2">
+                          On which day of the month?
+                        </label>
+                        <select
+                          value={scheduleDate}
+                          onChange={(e) => setScheduleDate(parseInt(e.target.value))}
+                          disabled={isTesting}
+                          className={`w-full rounded-md border border-border-heavy p-2 text-sm focus:border-blue-500 focus:outline-none ${
+                            isTesting ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                        >
+                          {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                            <option key={day} value={day}>
+                              {day}{day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : 'th'} of the month
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Custom Cron Expression */}
+                    {scheduleType === 'custom' && (
+                      <div>
+                        <label className="block text-sm font-medium text-text-primary mb-2">
+                          Cron expression
+                        </label>
+                        <input
+                          type="text"
+                          value={scheduleConfig}
+                          onChange={(e) => setScheduleConfig(e.target.value)}
+                          disabled={isTesting}
+                          className={`w-full rounded-md border border-border-heavy p-2 text-sm focus:border-blue-500 focus:outline-none ${
+                            isTesting ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                          placeholder="0 9 * * * (Every day at 9 AM)"
+                        />
+                        <p className="text-xs text-text-secondary mt-1">
+                          Format: minute hour day month weekday
+                        </p>
+                      </div>
+                    )}
+
+                  </div>
                 )}
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Workflow Steps */}

@@ -261,17 +261,75 @@ const activateWorkflow = async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      message: `Workflow "${workflow.name}" activated successfully`,
-      workflow: {
-        id: workflow.id,
-        name: workflow.name,
-        isActive: workflow.isActive,
-        isDraft: workflow.isDraft,
-        dedicatedConversationId: workflow.metadata?.dedicatedConversationId, // Expose dedicated conversation ID
-      },
-    });
+    // Check if trigger is 'manual' - if so, execute immediately using same path as cron
+    if (workflow.trigger?.type === 'manual') {
+      logger.info(`[WorkflowController] Manual workflow "${workflow.name}" activated - executing immediately via scheduler`);
+      
+      try {
+        // Use SchedulerTaskExecutor to execute the workflow (same as cron execution)
+        const SchedulerTaskExecutor = require('~/server/services/Scheduler/SchedulerTaskExecutor');
+        const taskExecutor = new SchedulerTaskExecutor();
+        
+        // Get the scheduler task for this workflow
+        const { getSchedulerTaskById } = require('~/models/SchedulerTask');
+        const schedulerTask = await getSchedulerTaskById(workflowId, userId);
+        
+        if (!schedulerTask) {
+          throw new Error('Scheduler task not found for workflow');
+        }
+        
+        // Execute using the same method as cron jobs
+        const executionResult = await taskExecutor.executeTask(schedulerTask);
+        
+        res.json({
+          success: true,
+          message: `Workflow "${workflow.name}" activated and executed successfully`,
+          workflow: {
+            id: workflow.id,
+            name: workflow.name,
+            isActive: workflow.isActive,
+            isDraft: workflow.isDraft,
+            dedicatedConversationId: workflow.metadata?.dedicatedConversationId,
+          },
+          execution: {
+            executed: true,
+            result: executionResult,
+          },
+        });
+      } catch (executionError) {
+        logger.error(`[WorkflowController] Error executing manual workflow "${workflow.name}":`, executionError);
+        
+        // Still return success for activation, but include execution error
+        res.json({
+          success: true,
+          message: `Workflow "${workflow.name}" activated successfully, but execution failed`,
+          workflow: {
+            id: workflow.id,
+            name: workflow.name,
+            isActive: workflow.isActive,
+            isDraft: workflow.isDraft,
+            dedicatedConversationId: workflow.metadata?.dedicatedConversationId,
+          },
+          execution: {
+            executed: false,
+            error: executionError.message,
+          },
+        });
+      }
+    } else {
+      // For non-manual triggers (scheduled, etc.), just activate normally
+      res.json({
+        success: true,
+        message: `Workflow "${workflow.name}" activated successfully`,
+        workflow: {
+          id: workflow.id,
+          name: workflow.name,
+          isActive: workflow.isActive,
+          isDraft: workflow.isDraft,
+          dedicatedConversationId: workflow.metadata?.dedicatedConversationId,
+        },
+      });
+    }
   } catch (error) {
     logger.error('[WorkflowController] Error activating workflow:', error);
     res.status(500).json({

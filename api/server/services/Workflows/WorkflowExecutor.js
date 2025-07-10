@@ -185,7 +185,7 @@ class WorkflowExecutor {
   }
 
   /**
-   * Ensure MCP tools are ready for a user (similar to scheduler approach)
+   * Ensure MCP tools are ready for a user (using same approach as SchedulerAgentHandler)
    * @param {string} userId - User ID
    * @returns {Promise<Object>} MCP initialization result
    */
@@ -198,15 +198,17 @@ class WorkflowExecutor {
     try {
       logger.info(`[WorkflowExecutor] Initializing MCP for user ${userId}`);
 
+      // Use the same approach as SchedulerAgentHandler
       const MCPInitializer = require('~/server/services/MCPInitializer');
       const mcpInitializer = MCPInitializer.getInstance();
 
+      // Create availableTools object to be populated by MCPInitializer
       const availableTools = {};
 
       const mcpResult = await mcpInitializer.ensureUserMCPReady(
         userId,
         'WorkflowExecutor',
-        availableTools,
+        availableTools, // This gets populated with MCP tools
         {}, // No additional options needed
       );
 
@@ -264,7 +266,7 @@ class WorkflowExecutor {
       }
       const user = { ...userDbObject, id: userDbObject._id.toString() };
 
-      // Initialize MCP tools for the user
+      // Initialize MCP tools for the user using the same approach as scheduler
       const mcpResult = await this.ensureMCPReady(userId);
       logger.info(
         `[WorkflowExecutor] MCP ready for workflow ${workflowId}: ${mcpResult.toolCount} tools available`,

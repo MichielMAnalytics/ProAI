@@ -105,7 +105,7 @@ async function executeStepWithAgent(step, stepMessages, context, userId, abortSi
         }
         logger.debug(
           `[WorkflowAgentExecutor] Agent progress for step "${step.name}":`,
-          data?.text?.substring(0, 100),
+          data?.text ? data.text.substring(0, 100) : 'No text content',
         );
       },
     });
