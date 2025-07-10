@@ -54,7 +54,6 @@ class WorkflowTool extends Tool {
        {
          "action": "open_sidepanel",
          "workflow_name": "Customer Support Automation",
-         "workflow_description": "Automated workflow to handle customer inquiries and provide responses",
          "first_step_task": "Analyze the customer inquiry and determine the appropriate response type"
        }`;
 
@@ -74,11 +73,6 @@ class WorkflowTool extends Tool {
         .string()
         .optional()
         .describe('Name for the workflow (required for open_sidepanel action)'),
-      
-      workflow_description: z
-        .string()
-        .optional()
-        .describe('Description of what the workflow does (required for open_sidepanel action)'),
       
       first_step_task: z
         .string()
@@ -177,18 +171,14 @@ class WorkflowTool extends Tool {
    * Open the workflow sidepanel for manual workflow creation
    * @param {string} userId - User ID
    * @param {string} workflowName - Name for the workflow
-   * @param {string} workflowDescription - Description of the workflow
    * @param {string} firstStepTask - Task description for the first step
    * @returns {Promise<Object>} Response indicating sidepanel should be opened
    */
-  async openSidepanel(userId, workflowName, workflowDescription, firstStepTask) {
+  async openSidepanel(userId, workflowName, firstStepTask) {
     try {
       // Validate required parameters
       if (!workflowName) {
         throw new Error('workflow_name is required for open_sidepanel action');
-      }
-      if (!workflowDescription) {
-        throw new Error('workflow_description is required for open_sidepanel action');
       }
       if (!firstStepTask) {
         throw new Error('first_step_task is required for open_sidepanel action');
@@ -198,7 +188,6 @@ class WorkflowTool extends Tool {
         `[WorkflowTool] Opening workflow sidepanel and creating workflow for user ${userId}`,
         {
           workflowName,
-          workflowDescription,
           firstStepTask,
         },
       );
@@ -254,7 +243,6 @@ class WorkflowTool extends Tool {
       const workflowData = {
         id: workflowId,
         name: workflowName,
-        description: workflowDescription,
         trigger: {
           type: 'manual',
           config: {},
@@ -304,13 +292,11 @@ class WorkflowTool extends Tool {
           data: {
             type: 'workflow_builder',
             title: 'Workflow Builder',
-            description: 'Edit your newly created workflow',
             panel_type: 'workflow_editing',
             workflowId: createdWorkflow.id,
             workflow: {
               id: createdWorkflow.id,
               name: createdWorkflow.name,
-              description: createdWorkflow.description,
               trigger: createdWorkflow.trigger,
               steps: createdWorkflow.steps,
               isActive: createdWorkflow.isActive,
@@ -353,7 +339,6 @@ class WorkflowTool extends Tool {
           return await this.openSidepanel(
             userId,
             data.workflow_name,
-            data.workflow_description,
             data.first_step_task,
           );
 

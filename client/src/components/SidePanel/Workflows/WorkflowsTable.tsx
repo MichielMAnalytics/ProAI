@@ -34,9 +34,7 @@ const WorkflowsTable: React.FC<WorkflowsTableProps> = ({ workflows }) => {
 
   const filteredWorkflows = workflows.filter(
     (workflow) =>
-      (workflow.name && workflow.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (workflow.description &&
-        workflow.description.toLowerCase().includes(searchQuery.toLowerCase())),
+      workflow.name && workflow.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const currentWorkflows = filteredWorkflows.slice(

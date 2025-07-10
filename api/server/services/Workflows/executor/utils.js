@@ -2,34 +2,6 @@ const { EModelEndpoint } = require('librechat-data-provider');
 const { getCustomConfig } = require('~/server/services/Config/getCustomConfig');
 const { logger } = require('~/config');
 
-/**
- * Summarize step result for logging and context
- * @param {*} result - Step result to summarize
- * @returns {string} Summary of the result
- */
-function summarizeStepResult(result) {
-  if (typeof result === 'string') {
-    return result.length > 200 ? result.substring(0, 200) + '...' : result;
-  }
-
-  if (typeof result === 'object' && result !== null) {
-    // For objects, provide a brief summary
-    if (Array.isArray(result)) {
-      return `Array with ${result.length} items: ${JSON.stringify(result.slice(0, 2))}${
-        result.length > 2 ? '...' : ''
-      }`;
-    } else {
-      const keys = Object.keys(result);
-      if (keys.length > 5) {
-        return `Object with keys: ${keys.slice(0, 5).join(', ')}... (${keys.length} total)`;
-      } else {
-        return JSON.stringify(result);
-      }
-    }
-  }
-
-  return JSON.stringify(result);
-}
 
 /**
  * Get full step result for passing data between workflow steps
@@ -178,41 +150,7 @@ function findFirstStep(steps) {
   return unreferencedSteps.length > 0 ? unreferencedSteps[0] : steps[0];
 }
 
-/**
- * Resolve parameters by replacing context variables
- * @param {Object} parameters - Parameters with potential context references
- * @param {Object} context - Execution context
- * @returns {Object} Resolved parameters
- */
-function resolveParameters(parameters, context) {
-  const resolved = {};
 
-  for (const [key, value] of Object.entries(parameters)) {
-    if (typeof value === 'string' && value.startsWith('{{') && value.endsWith('}}')) {
-      // Extract variable path (e.g., "{{steps.step1.result.data}}")
-      const varPath = value.slice(2, -2).trim();
-      resolved[key] = getValueFromPath(context, varPath);
-    } else if (typeof value === 'object' && value !== null) {
-      resolved[key] = resolveParameters(value, context);
-    } else {
-      resolved[key] = value;
-    }
-  }
-
-  return resolved;
-}
-
-/**
- * Get value from object path (e.g., "steps.step1.result.data")
- * @param {Object} obj - Object to traverse
- * @param {string} path - Dot-separated path
- * @returns {*} Value at path or undefined
- */
-function getValueFromPath(obj, path) {
-  return path.split('.').reduce((current, key) => {
-    return current && current[key] !== undefined ? current[key] : undefined;
-  }, obj);
-}
 
 /**
  * Create a serializable version of the execution context for database storage
@@ -254,41 +192,6 @@ function createSerializableContext(context) {
   return serializable;
 }
 
-/**
- * Generate execution hints for a workflow step
- * @param {Object} step - Workflow step
- * @returns {Object} Execution hints
- */
-function generateExecutionHints(step) {
-  const hints = {
-    expectedExecutionTime: 'fast', // fast, medium, slow
-    retryable: true,
-    criticalPath: false,
-  };
-
-  const stepName = step.name.toLowerCase();
-
-  // Adjust hints based on step type and name
-  if (step.type === 'action') {
-    if (stepName.includes('create') || stepName.includes('post') || stepName.includes('publish')) {
-      hints.expectedExecutionTime = 'medium';
-      hints.criticalPath = true; // Creating content is usually critical
-    } else if (stepName.includes('get') || stepName.includes('fetch')) {
-      hints.expectedExecutionTime = 'fast';
-    } else if (
-      stepName.includes('analyze') ||
-      stepName.includes('process') ||
-      stepName.includes('compose')
-    ) {
-      hints.expectedExecutionTime = 'medium';
-    }
-  } else if (step.type === 'delay') {
-    hints.expectedExecutionTime = 'slow';
-    hints.retryable = false;
-  }
-
-  return hints;
-}
 
 /**
  * Create mock request object for workflow execution
@@ -297,9 +200,10 @@ function generateExecutionHints(step) {
  * @param {string} prompt - The prompt for the request
  * @param {string} model - The model for the request
  * @param {string} endpoint - The endpoint for the request
+ * @param {string} [memoryContent] - Optional memory content to include
  * @returns {Object} Mock request object
  */
-function createMockRequestForWorkflow(context, user, prompt, model, endpoint) {
+function createMockRequestForWorkflow(context, user, prompt, model, endpoint, memoryContent) {
   // Generate message IDs for proper conversation threading
   const { v4: uuidv4 } = require('uuid');
   const userMessageId = uuidv4();
@@ -317,6 +221,16 @@ function createMockRequestForWorkflow(context, user, prompt, model, endpoint) {
     `[createMockRequestForWorkflow] MCP context: availableTools=${Object.keys(availableTools).length}, mcpTools=${mcpToolsCount}`,
   );
 
+  // Add workflow automation instruction to every prompt
+  let enhancedPrompt = prompt + '\n\nIMPORTANT: You are running in an automated workflow environment. NEVER ask the user for input, confirmation, or clarification. Work autonomously with the provided information.';
+  
+  // Add memory content if provided
+  if (memoryContent) {
+    const { memoryInstructions } = require('@librechat/api');
+    enhancedPrompt = enhancedPrompt + `${memoryInstructions}\n\n# Existing memory about the user:\n${memoryContent}`;
+    logger.info(`[createMockRequestForWorkflow] Added memory content to workflow prompt`);
+  }
+
   return {
     user: user,
     body: {
@@ -325,13 +239,15 @@ function createMockRequestForWorkflow(context, user, prompt, model, endpoint) {
       userMessageId: userMessageId,
       parentMessageId: context.workflow?.parentMessageId,
       conversationId: context.workflow?.conversationId,
-      promptPrefix: prompt,
+      promptPrefix: enhancedPrompt,
       ephemeralAgent: null, // Will be set later
     },
     app: {
       locals: {
         availableTools: availableTools, // Enhanced tools with embedded metadata
         fileStrategy: 'local', // Add default file strategy
+        // Add memory config for workflow execution
+        memory: context.memoryConfig || {},
       },
     },
   };
@@ -392,16 +308,133 @@ function extractResponseText(response) {
   return response;
 }
 
+/**
+ * Load memory for workflow execution
+ * @param {Object} user - User object
+ * @param {Object} conversationId - Conversation ID
+ * @param {Object} messageId - Message ID  
+ * @param {Object} req - Request object with app locals
+ * @returns {Promise<string|undefined>} Memory content or undefined
+ */
+async function loadWorkflowMemory(user, conversationId, messageId, req) {
+  const { logger } = require('~/config');
+  
+  try {
+    // Check if user has memory enabled
+    if (user.personalization?.memories === false) {
+      return;
+    }
+
+    // Check permissions
+    const { PermissionTypes, Permissions } = require('librechat-data-provider');
+    const { checkAccess } = require('~/server/middleware/roles/access');
+    const hasAccess = await checkAccess(user, PermissionTypes.MEMORIES, [Permissions.USE]);
+
+    if (!hasAccess) {
+      logger.debug(
+        `[loadWorkflowMemory] User ${user.id} does not have USE permission for memories`,
+      );
+      return;
+    }
+
+    // Get memory config from app locals
+    const memoryConfig = req?.app?.locals?.memory;
+    if (!memoryConfig || memoryConfig.disabled === true) {
+      return;
+    }
+
+    // Load agent for memory processing  
+    const { EModelEndpoint, Constants } = require('librechat-data-provider');
+    const { loadAgent } = require('~/models/Agent');
+    const { initializeAgent } = require('~/server/services/Endpoints/agents/agent');
+
+    let prelimAgent;
+    const allowedProviders = new Set(
+      req?.app?.locals?.[EModelEndpoint.agents]?.allowedProviders,
+    );
+
+    try {
+      if (memoryConfig.agent?.id != null) {
+        prelimAgent = await loadAgent({
+          req: req,
+          agent_id: memoryConfig.agent.id,
+          endpoint: EModelEndpoint.agents,
+        });
+      } else if (
+        memoryConfig.agent?.id == null &&
+        memoryConfig.agent?.model != null &&
+        memoryConfig.agent?.provider != null
+      ) {
+        prelimAgent = { id: Constants.EPHEMERAL_AGENT_ID, ...memoryConfig.agent };
+      }
+    } catch (error) {
+      logger.error('[loadWorkflowMemory] Error loading agent for memory', error);
+    }
+
+    const agent = await initializeAgent({
+      req: req,
+      res: null, // No response object for workflow execution
+      agent: prelimAgent,
+      allowedProviders,
+    });
+
+    if (!agent) {
+      logger.warn('[loadWorkflowMemory] No agent found for memory', memoryConfig);
+      return;
+    }
+
+    const llmConfig = Object.assign(
+      {
+        provider: agent.provider,
+        model: agent.model,
+      },
+      agent.model_parameters,
+    );
+
+    // Create memory processor config
+    const config = {
+      validKeys: memoryConfig.validKeys,
+      instructions: agent.instructions,
+      llmConfig,
+      tokenLimit: memoryConfig.tokenLimit,
+    };
+
+    const userId = user.id + '';
+    const messageIdStr = messageId + '';
+    const conversationIdStr = conversationId + '';
+
+    // Load memory processor
+    const { createMemoryProcessor } = require('@librechat/api');
+    const { setMemory, deleteMemory, getFormattedMemories } = require('~/models');
+
+    const [withoutKeys] = await createMemoryProcessor({
+      userId,
+      config,
+      messageId: messageIdStr,
+      conversationId: conversationIdStr,
+      memoryMethods: {
+        setMemory,
+        deleteMemory,
+        getFormattedMemories,
+      },
+      res: null, // No response object for workflow execution
+    });
+
+    logger.info(`[loadWorkflowMemory] Successfully loaded memory for user ${user.id}`);
+    return withoutKeys;
+  } catch (error) {
+    logger.error('[loadWorkflowMemory] Error loading memory:', error);
+    return;
+  }
+}
+
 module.exports = {
-  summarizeStepResult,
   getFullStepResult,
   getConfiguredModelAndEndpoint,
   findFirstStep,
-  resolveParameters,
-  getValueFromPath,
   createSerializableContext,
-  generateExecutionHints,
   createMockRequestForWorkflow,
   extractMCPServerNames,
   extractResponseText,
+  loadWorkflowMemory,
 };

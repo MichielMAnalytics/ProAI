@@ -27,7 +27,6 @@ const getUserWorkflows = async (req, res) => {
     const mappedWorkflows = workflows.map((workflow) => ({
       id: workflow.id,
       name: workflow.name,
-      description: workflow.description,
       trigger: workflow.trigger,
       steps: workflow.steps,
       type: workflow.type,
@@ -90,7 +89,6 @@ const getWorkflowById = async (req, res) => {
       workflow: {
         id: workflow.id,
         name: workflow.name,
-        description: workflow.description,
         trigger: workflow.trigger,
         steps: workflow.steps,
         type: workflow.type,
@@ -142,7 +140,6 @@ const createWorkflow = async (req, res) => {
       workflow: {
         id: workflow.id,
         name: workflow.name,
-        description: workflow.description,
         trigger: workflow.trigger,
         steps: workflow.steps,
         type: workflow.type,
@@ -190,7 +187,6 @@ const updateWorkflow = async (req, res) => {
       workflow: {
         id: updatedWorkflow.id,
         name: updatedWorkflow.name,
-        description: updatedWorkflow.description,
         trigger: updatedWorkflow.trigger,
         steps: updatedWorkflow.steps,
         type: updatedWorkflow.type,
@@ -338,8 +334,15 @@ const testWorkflow = async (req, res) => {
     const { workflowId } = req.params;
     const { context = {} } = req.body;
 
+    // Include memory configuration and other app.locals in context
+    const enhancedContext = {
+      ...context,
+      memoryConfig: req.app?.locals?.memory || {},
+      agentsConfig: req.app?.locals?.agents || {},
+    };
+
     const workflowService = new WorkflowService();
-    const result = await workflowService.executeWorkflow(workflowId, userId, context, true);
+    const result = await workflowService.executeWorkflow(workflowId, userId, enhancedContext, true);
 
     res.json({
       success: true,
@@ -395,8 +398,15 @@ const executeWorkflow = async (req, res) => {
     const { workflowId } = req.params;
     const { context = {} } = req.body;
 
+    // Include memory configuration and other app.locals in context
+    const enhancedContext = {
+      ...context,
+      memoryConfig: req.app?.locals?.memory || {},
+      agentsConfig: req.app?.locals?.agents || {},
+    };
+
     const workflowService = new WorkflowService();
-    const result = await workflowService.executeWorkflow(workflowId, userId, context, false);
+    const result = await workflowService.executeWorkflow(workflowId, userId, enhancedContext, false);
 
     res.json({
       success: true,

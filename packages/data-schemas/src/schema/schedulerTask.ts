@@ -42,7 +42,6 @@ export interface ISchedulerTask extends Document {
       onSuccess?: string;
       onFailure?: string;
     }>;
-    description?: string;
     isDraft?: boolean;
     created_from_agent?: boolean;
     dedicatedConversationId?: string;

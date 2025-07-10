@@ -120,8 +120,8 @@ function extractMeaningfulContent(result) {
       if (Array.isArray(result.data)) {
         return `Retrieved ${result.data.length} items`;
       }
-      if (result.data.summary || result.data.description) {
-        return result.data.summary || result.data.description;
+      if (result.data.summary) {
+        return result.data.summary;
       }
     }
   }

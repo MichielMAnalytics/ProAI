@@ -12,6 +12,7 @@ const {
   createMockRequestForWorkflow,
   extractMCPServerNames,
   extractResponseText,
+  loadWorkflowMemory,
 } = require('./utils');
 
 /**
@@ -30,7 +31,7 @@ function createEnhancedPromptWithContext(step, context, stepMessages) {
   }
 
   // Workflow context
-  const workflowContext = context.workflow?.description || context.workflow?.name;
+  const workflowContext = context.workflow?.name;
   if (workflowContext) {
     prompt += `WORKFLOW GOAL: ${workflowContext}\n\n`;
   }
@@ -44,8 +45,8 @@ function createEnhancedPromptWithContext(step, context, stepMessages) {
     logger.info(`[WorkflowAgentExecutor] Added ${stepMessages.length} previous step messages as context`);
   }
 
-  // Final instruction
-  prompt += `Please execute your step objective using the context from previous steps.`;
+  // Final instruction with automated execution guidance
+  prompt += `IMPORTANT: You are running in an automated workflow environment. NEVER ask the user for input, confirmation, or clarification. Work autonomously with the provided information and execute your step objective using the context from previous steps.`;
 
   return prompt;
 }
@@ -178,13 +179,43 @@ async function createFreshAgent(workflow, step, context) {
     `[WorkflowAgentExecutor] Using step-specific agent for step "${step.name}": ${agentIdToLoad}`,
   );
 
-  // Create mock request for agent initialization
+  // Load memory for this workflow execution
+  let memoryContent;
+  try {
+    // Create a minimal request object for memory loading with proper app.locals
+    const memoryReq = {
+      user: user,
+      app: {
+        locals: {
+          memory: context.memoryConfig || {},
+          // Add any other app.locals that might be needed for memory loading
+          [EModelEndpoint.agents]: context.agentsConfig || {},
+        },
+      },
+    };
+    
+    memoryContent = await loadWorkflowMemory(
+      user, 
+      conversationId, 
+      parentMessageId, 
+      memoryReq
+    );
+    
+    if (memoryContent) {
+      logger.info(`[WorkflowAgentExecutor] Loaded memory for workflow step "${step.name}"`);
+    }
+  } catch (error) {
+    logger.warn(`[WorkflowAgentExecutor] Failed to load memory for step "${step.name}":`, error);
+  }
+
+  // Create mock request for agent initialization with memory
   const mockReq = createMockRequestForWorkflow(
     context,
     user,
     step.instruction || `Executing step: ${step.name}`,
     configuredModel,
     configuredEndpoint,
+    memoryContent,
   );
 
   // If we are using an ephemeral agent, we need to set up its config
@@ -226,18 +257,6 @@ async function createFreshAgent(workflow, step, context) {
     throw new Error('Failed to load agent for fresh agent creation');
   }
 
-  // Filter out the workflows tool to prevent recursive workflow creation during execution
-  if (agent.tools && Array.isArray(agent.tools)) {
-    const originalToolCount = agent.tools.length;
-    agent.tools = agent.tools.filter((tool) => tool !== 'workflows');
-    const filteredToolCount = agent.tools.length;
-
-    if (originalToolCount > filteredToolCount) {
-      logger.info(
-        `[WorkflowAgentExecutor] Filtered out 'workflows' tool to prevent recursive workflow creation (${originalToolCount} -> ${filteredToolCount} tools)`,
-      );
-    }
-  }
 
   logger.info(
     `[WorkflowAgentExecutor] Loaded fresh agent (agent_id: ${agentIdToLoad}) with ${

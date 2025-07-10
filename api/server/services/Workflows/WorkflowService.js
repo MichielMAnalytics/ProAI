@@ -35,7 +35,6 @@ class WorkflowService {
       const schedulerTaskData = {
         id: workflowId,
         name: workflowData.name,
-        description: workflowData.description || '',
         enabled: workflowData.isActive || false,
         do_only_once: false,
         type: 'workflow',
@@ -174,10 +173,7 @@ class WorkflowService {
 
       schedulerUpdateData.metadata = updatedMetadata;
       
-      // Update description and increment version
-      if (updateData.description !== undefined) {
-        schedulerUpdateData.description = updateData.description;
-      }
+      // Increment version
       schedulerUpdateData.version = (currentTask.version || 1) + 1;
 
       const updatedTask = await updateSchedulerTask(workflowId, userId, schedulerUpdateData);
@@ -262,7 +258,6 @@ class WorkflowService {
     return {
       id: schedulerTask.id,
       name: schedulerTask.name,
-      description: schedulerTask.description || '',
       trigger: schedulerTask.trigger || { type: 'manual', config: {} },
       steps: schedulerTask.metadata?.steps || [],
       type: schedulerTask.type,

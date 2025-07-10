@@ -129,7 +129,6 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
     }).length;
   };
 
-  const description = workflow.description || 'No description';
 
   return (
     <TableRow className="border-b border-border-light hover:bg-surface-hover">
@@ -174,12 +173,6 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
             </span>
           </div>
 
-          {/* Description with tooltip */}
-          <div className="mb-1 min-w-0 text-xs text-text-secondary">
-            <TooltipAnchor description={description} side="top">
-              <span className="block cursor-help truncate">{description}</span>
-            </TooltipAnchor>
-          </div>
 
           {/* Additional details - only visible when sidebar is wider */}
           <div className="hidden min-w-0 space-y-1 lg:block">

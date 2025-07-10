@@ -84,12 +84,11 @@ const TRIGGER_OPTIONS = [
   { value: 'event', label: 'Event', icon: <Clock size={16} /> },
 ];
 
-const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }) => {
+const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: initialWorkflowId }) => {
   const localize = useLocalize();
   const agentsMap = useAgentsMapContext() || {};
   const { showToast } = useToastContext();
   const [workflowName, setWorkflowName] = useState('New Workflow');
-  const [workflowDescription, setWorkflowDescription] = useState('');
   const [triggerType, setTriggerType] = useState<
     'manual' | 'schedule' | 'webhook' | 'email' | 'event'
   >('manual');
@@ -107,6 +106,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
   const [currentRunningStepId, setCurrentRunningStepId] = useState<string | null>(null);
   const [completedStepIds, setCompletedStepIds] = useState<Set<string>>(new Set());
   const [testingWorkflows, setTestingWorkflows] = useRecoilState(store.testingWorkflows);
+  const [currentWorkflowId, setCurrentWorkflowId] = useState<string | undefined>(initialWorkflowId);
 
   // Workflow mutations
   const toggleMutation = useToggleWorkflowMutation();
@@ -118,9 +118,9 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
 
   // Query the current workflow state from the database (if editing existing workflow)
   const { data: currentWorkflowData, refetch: refetchWorkflow } = useWorkflowQuery(
-    workflowId || '',
+    currentWorkflowId || '',
     {
-      enabled: !!workflowId,
+      enabled: !!currentWorkflowId,
       refetchOnWindowFocus: true,
       staleTime: 30000,
     },
@@ -128,9 +128,9 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
 
   // Query the latest execution result for step outputs
   const { data: latestExecutionData, refetch: refetchLatestExecution } = useLatestWorkflowExecutionQuery(
-    workflowId || '',
+    currentWorkflowId || '',
     {
-      enabled: !!workflowId,
+      enabled: !!currentWorkflowId,
       refetchOnWindowFocus: false,
       refetchInterval: isTesting ? 2000 : false, // Poll every 2 seconds while testing
       staleTime: 10000,
@@ -139,12 +139,11 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
 
   // Load existing workflow data into form when editing
   useEffect(() => {
-    if (currentWorkflowData && workflowId) {
+    if (currentWorkflowData && currentWorkflowId) {
       console.log('Loading existing workflow data:', currentWorkflowData);
       
       // Populate form fields with existing workflow data
       setWorkflowName(currentWorkflowData.name || 'New Workflow');
-      setWorkflowDescription(currentWorkflowData.description || '');
       setTriggerType(currentWorkflowData.trigger?.type || 'manual');
       setScheduleConfig(currentWorkflowData.trigger?.config?.schedule || '');
       
@@ -166,27 +165,27 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
         setSteps([]);
       }
     }
-  }, [currentWorkflowData, workflowId]);
+  }, [currentWorkflowData, currentWorkflowId]);
 
   // Use the current workflow data if available, fallback to default values
   const isWorkflowActive = currentWorkflowData?.isActive ?? false;
   const isDraft = currentWorkflowData?.isDraft ?? true;
 
   // Check if this workflow is currently being tested
-  const isWorkflowTesting = workflowId ? testingWorkflows.has(workflowId) : false;
+  const isWorkflowTesting = currentWorkflowId ? testingWorkflows.has(currentWorkflowId) : false;
 
-  // Listen for workflow test notifications (only if workflowId exists)
+  // Listen for workflow test notifications (only if currentWorkflowId exists)
   const {
     isWorkflowTesting: isWorkflowTestingFromHook,
     getCurrentStep,
     getExecutionResult,
     clearExecutionResult,
   } = useWorkflowNotifications(
-    workflowId
+    currentWorkflowId
       ? {
-          workflowId,
+          workflowId: currentWorkflowId,
           onTestStart: (testWorkflowId) => {
-            if (testWorkflowId === workflowId) {
+            if (testWorkflowId === currentWorkflowId) {
               setIsTesting(true);
               setCurrentRunningStepId(null);
               setCompletedStepIds(new Set());
@@ -194,12 +193,12 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
             }
           },
           onStepUpdate: (testWorkflowId, stepData) => {
-            if (testWorkflowId === workflowId) {
+            if (testWorkflowId === currentWorkflowId) {
               // getCurrentStep handles step state internally
             }
           },
           onTestComplete: (testWorkflowId, success, result) => {
-            if (testWorkflowId === workflowId) {
+            if (testWorkflowId === currentWorkflowId) {
               // Check if this is the immediate stop notification
               if (
                 result?.error === 'Execution stopped by user' &&
@@ -252,11 +251,19 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
   };
 
   // Workflow management handlers
-  const handleToggleWorkflow = () => {
-    if (!workflowId) return;
+  const handleToggleWorkflow = async () => {
+    if (!currentWorkflowId) return;
+
+    // Auto-save workflow before toggling
+    try {
+      await handleSave();
+    } catch (error) {
+      // If save fails, don't proceed with toggle
+      return;
+    }
 
     toggleMutation.mutate(
-      { workflowId, isActive: !isWorkflowActive },
+      { workflowId: currentWorkflowId, isActive: !isWorkflowActive },
       {
         onSuccess: () => {
           showToast({
@@ -277,9 +284,9 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
   };
 
   const handleDeleteWorkflow = () => {
-    if (!workflowId) return;
+    if (!currentWorkflowId) return;
 
-    deleteMutation.mutate(workflowId, {
+    deleteMutation.mutate(currentWorkflowId, {
       onSuccess: () => {
         showToast({
           message: 'Workflow deleted successfully',
@@ -297,26 +304,26 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
     });
   };
 
-  const handleTestWorkflow = () => {
-    if (!workflowId) return;
+  const handleTestWorkflow = async () => {
+    if (!currentWorkflowId) return;
 
     // If workflow is currently testing, stop it
     if (isWorkflowTesting) {
       setIsCancelling(true);
       setHasReceivedStopNotification(false);
 
-      stopMutation.mutate(workflowId, {
+      stopMutation.mutate(currentWorkflowId, {
         onSuccess: () => {
           setTestingWorkflows((prev) => {
             const newSet = new Set(prev);
-            newSet.delete(workflowId);
+            newSet.delete(currentWorkflowId);
             return newSet;
           });
           setIsTesting(false);
           setCurrentRunningStepId(null);
           setCompletedStepIds(new Set());
-          if (workflowId) {
-            clearExecutionResult(workflowId);
+          if (currentWorkflowId) {
+            clearExecutionResult(currentWorkflowId);
           }
         },
         onError: (error: unknown) => {
@@ -327,7 +334,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
           });
           setTestingWorkflows((prev) => {
             const newSet = new Set(prev);
-            newSet.delete(workflowId);
+            newSet.delete(currentWorkflowId);
             return newSet;
           });
           setIsTesting(false);
@@ -339,17 +346,25 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
       return;
     }
 
+    // Auto-save workflow before testing
+    try {
+      await handleSave();
+    } catch (error) {
+      // If save fails, don't proceed with test
+      return;
+    }
+
     // Otherwise, start testing
     setIsTesting(true);
     setHasReceivedStopNotification(false);
-    setTestingWorkflows((prev) => new Set(prev).add(workflowId));
+    setTestingWorkflows((prev) => new Set(prev).add(currentWorkflowId));
 
-    testMutation.mutate(workflowId, {
+    testMutation.mutate(currentWorkflowId, {
       onSuccess: (response) => {
         setIsTesting(false);
         setTestingWorkflows((prev) => {
           const newSet = new Set(prev);
-          newSet.delete(workflowId);
+          newSet.delete(currentWorkflowId);
           return newSet;
         });
         // Refetch the latest execution data to get step outputs
@@ -359,7 +374,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
         setIsTesting(false);
         setTestingWorkflows((prev) => {
           const newSet = new Set(prev);
-          newSet.delete(workflowId);
+          newSet.delete(currentWorkflowId);
           return newSet;
         });
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -374,12 +389,12 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
   };
 
   // Get current step and result from the hook
-  const currentStep = workflowId ? getCurrentStep(workflowId) : null;
-  const resultData = workflowId ? getExecutionResult(workflowId) : null;
+  const currentStep = currentWorkflowId ? getCurrentStep(currentWorkflowId) : null;
+  const resultData = currentWorkflowId ? getExecutionResult(currentWorkflowId) : null;
 
   const handleCloseResult = () => {
-    if (workflowId) {
-      clearExecutionResult(workflowId);
+    if (currentWorkflowId) {
+      clearExecutionResult(currentWorkflowId);
     }
   };
 
@@ -419,23 +434,16 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
     [],
   );
 
-  const addStep = useCallback(() => {
-    if (newStepAgentId && steps.length < MAX_STEPS) {
-      const newStep: WorkflowStep = {
-        id: `step_${Date.now()}`,
-        name: `Step ${steps.length + 1}`,
-        agentId: newStepAgentId,
-        task: '',
-      };
-      setSteps((prev) => [...prev, newStep]);
-      // Expand the new step by default
-      setExpandedSteps((prev) => new Set(prev).add(newStep.id));
-      setNewStepAgentId('');
-    }
-  }, [newStepAgentId, steps]);
 
   const removeStep = useCallback((stepId: string) => {
-    setSteps((prev) => prev.filter((step) => step.id !== stepId));
+    setSteps((prev) => {
+      const filteredSteps = prev.filter((step) => step.id !== stepId);
+      // Renumber the remaining steps
+      return filteredSteps.map((step, index) => ({
+        ...step,
+        name: `Step ${index + 1}`,
+      }));
+    });
   }, []);
 
   const updateStep = useCallback((stepId: string, updates: Partial<WorkflowStep>) => {
@@ -519,11 +527,10 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
   const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
-      if (workflowId) {
+      if (currentWorkflowId) {
         // Update existing workflow (creates new version)
         const updateData = {
           name: workflowName,
-          description: workflowDescription,
           trigger: {
             type: triggerType,
             config: triggerType === 'schedule' ? { schedule: scheduleConfig || '0 9 * * *' } : {},
@@ -538,10 +545,10 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
           isDraft: false,
         };
 
-        const result = await updateMutation.mutateAsync({ workflowId, data: updateData });
+        const result = await updateMutation.mutateAsync({ workflowId: currentWorkflowId, data: updateData });
         
         showToast({
-          message: `Workflow "${result.name}" updated successfully! (Version ${result.version})`,
+          message: `Workflow "${result.name}" updated successfully!`,
           severity: NotificationSeverity.SUCCESS,
         });
         
@@ -554,7 +561,6 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
         const workflowData = {
           id: workflowId,
           name: workflowName,
-          description: workflowDescription,
           trigger: {
             type: triggerType,
             config: triggerType === 'schedule' ? { schedule: scheduleConfig || '0 9 * * *' } : {},
@@ -573,6 +579,9 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
 
         const result = await createMutation.mutateAsync(workflowData);
         
+        // Update the current workflow ID so the component knows about the newly created workflow
+        setCurrentWorkflowId(result.id);
+        
         showToast({
           message: `Workflow "${result.name}" created successfully!`,
           severity: NotificationSeverity.SUCCESS,
@@ -590,17 +599,8 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
     } finally {
       setIsSaving(false);
     }
-  }, [workflowId, workflowName, workflowDescription, triggerType, scheduleConfig, steps, createMutation, updateMutation, showToast, refetchWorkflow]);
+  }, [currentWorkflowId, workflowName, triggerType, scheduleConfig, steps, createMutation, updateMutation, showToast, refetchWorkflow]);
 
-  const handleClear = useCallback(() => {
-    if (confirm('Are you sure you want to clear all workflow data?')) {
-      setWorkflowName('New Workflow');
-      setWorkflowDescription('');
-      setTriggerType('manual');
-      setScheduleConfig('');
-      setSteps([]);
-    }
-  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex h-full w-full items-center justify-center bg-black/20 backdrop-blur-sm sm:relative sm:inset-auto sm:z-auto sm:h-full sm:w-full sm:bg-transparent sm:backdrop-blur-none">
@@ -651,7 +651,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
         {/* Main Content */}
         <div className="relative flex-1 overflow-auto p-3 sm:p-4">
           <div className="space-y-4 sm:space-y-6">
-            {/* Workflow Name and Description */}
+            {/* Workflow Name */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <input
@@ -665,7 +665,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
                   placeholder="Workflow Name"
                 />
                 {/* Status Badge - only show if editing existing workflow */}
-                {workflowId && (
+                {currentWorkflowId && (
                   <span
                     className={`inline-flex items-center rounded-md px-3 py-1.5 font-inter text-sm font-medium ml-3 ${getStatusColor(
                       isWorkflowActive || false,
@@ -676,16 +676,6 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
                   </span>
                 )}
               </div>
-              <textarea
-                value={workflowDescription}
-                onChange={(e) => setWorkflowDescription(e.target.value)}
-                disabled={isTesting}
-                className={`w-full resize-none border-none bg-transparent text-sm text-text-secondary focus:outline-none focus:ring-0 ${
-                  isTesting ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-                placeholder="Workflow description..."
-                rows={1}
-              />
             </div>
 
             {/* Trigger Configuration */}
@@ -789,7 +779,6 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
                                       } as TMessage
                                     }
                                     agent={agentsMap[step.agentId]}
-                                    size={16}
                                   />
                                   <span className="text-sm text-text-secondary truncate">
                                     {getAgentDetails(step.agentId)?.name}
@@ -982,29 +971,37 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
                         />
                       </div>
                     )}
-                    <div className={`flex gap-2 ${
+                    <div className={`${
                       isTesting ? 'opacity-50 pointer-events-none' : ''
                     }`}>
                       <ControlCombobox
                         isCollapsed={false}
                         ariaLabel="Add step with agent"
                         selectedValue={newStepAgentId}
-                        setValue={setNewStepAgentId}
+                        setValue={(agentId) => {
+                          setNewStepAgentId(agentId);
+                          // Automatically add step when agent is selected
+                          if (agentId && steps.length < MAX_STEPS) {
+                            const newStep: WorkflowStep = {
+                              id: `step_${Date.now()}`,
+                              name: `Step ${steps.length + 1}`,
+                              agentId: agentId,
+                              task: '',
+                            };
+                            setSteps((prev) => [...prev, newStep]);
+                            // Expand the new step by default
+                            setExpandedSteps((prev) => new Set(prev).add(newStep.id));
+                            setNewStepAgentId('');
+                          }
+                        }}
                         selectPlaceholder="Select agent to add step"
                         searchPlaceholder="Search agents"
                         items={selectableAgents}
                         displayValue={getAgentDetails(newStepAgentId)?.name ?? ''}
                         SelectIcon={<PlusCircle size={14} className="text-text-secondary" />}
-                        className="h-8 flex-1 border-dashed border-border-heavy text-center text-sm text-text-secondary hover:text-text-primary sm:h-10"
+                        className="h-8 w-full border-dashed border-border-heavy text-center text-sm text-text-secondary hover:text-text-primary sm:h-10"
                         disabled={isTesting}
                       />
-                      <button
-                        onClick={addStep}
-                        disabled={!newStepAgentId || isTesting}
-                        className="rounded-md bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300 sm:px-4 sm:py-2"
-                      >
-                        Add
-                      </button>
                     </div>
                   </>
                 )}
@@ -1020,9 +1017,9 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
 
 
           {/* Execution Dashboard */}
-          {workflowId && showDashboard && (
+          {currentWorkflowId && showDashboard && (
             <div className="absolute inset-0 z-50 bg-surface-primary">
-              <ExecutionDashboard workflowId={workflowId} />
+              <ExecutionDashboard workflowId={currentWorkflowId} />
             </div>
           )}
         </div>
@@ -1035,7 +1032,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
               {/* Test/Stop Button */}
               <TooltipAnchor
                 description={
-                  !workflowId
+                  !currentWorkflowId
                     ? 'Save workflow first to test'
                     : isWorkflowTesting
                       ? 'Stop workflow test'
@@ -1045,19 +1042,19 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
               >
                 <button
                   className={`flex h-8 w-8 items-center justify-center rounded-md shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-9 ${
-                    !workflowId
+                    !currentWorkflowId
                       ? 'border border-gray-300 bg-gray-100 text-gray-400'
                       : isWorkflowTesting
                         ? 'border border-red-500/60 bg-gradient-to-r from-red-500 to-red-600 hover:border-red-500 hover:from-red-600 hover:to-red-700'
                         : 'border border-brand-blue/60 bg-gradient-to-r from-brand-blue to-indigo-600 hover:border-brand-blue hover:from-indigo-600 hover:to-blue-700'
                   }`}
                   onClick={handleTestWorkflow}
-                  disabled={!workflowId || (!isWorkflowTesting ? testMutation.isLoading : stopMutation.isLoading)}
+                  disabled={!currentWorkflowId || (!isWorkflowTesting ? testMutation.isLoading : stopMutation.isLoading)}
                 >
                   {isWorkflowTesting ? (
                     <Square className="h-3 w-3 text-white sm:h-4 sm:w-4" />
                   ) : (
-                    <TestTube className={`h-3 w-3 sm:h-4 sm:w-4 ${!workflowId ? 'text-gray-400' : 'text-white'}`} />
+                    <TestTube className={`h-3 w-3 sm:h-4 sm:w-4 ${!currentWorkflowId ? 'text-gray-400' : 'text-white'}`} />
                   )}
                 </button>
               </TooltipAnchor>
@@ -1065,7 +1062,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
               {/* Toggle Button */}
               <TooltipAnchor
                 description={
-                  !workflowId
+                  !currentWorkflowId
                     ? 'Save workflow first to activate'
                     : isWorkflowActive
                       ? 'Deactivate workflow'
@@ -1075,40 +1072,40 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
               >
                 <button
                   className={`flex h-8 w-8 items-center justify-center rounded-md shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-9 ${
-                    !workflowId
+                    !currentWorkflowId
                       ? 'border border-gray-300 bg-gray-100 text-gray-400'
                       : isWorkflowActive
                         ? 'border border-amber-500/60 bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:border-amber-500 hover:from-amber-600 hover:to-orange-700'
                         : 'border border-green-500/60 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:border-green-500 hover:from-green-600 hover:to-emerald-700'
                   }`}
                   onClick={handleToggleWorkflow}
-                  disabled={!workflowId || toggleMutation.isLoading || isWorkflowTesting || isTesting}
+                  disabled={!currentWorkflowId || toggleMutation.isLoading || isWorkflowTesting || isTesting}
                 >
                   {toggleMutation.isLoading ? (
                     <RefreshCw className="h-3 w-3 animate-spin text-white sm:h-4 sm:w-4" />
                   ) : isWorkflowActive ? (
                     <Pause className="h-3 w-3 text-white sm:h-4 sm:w-4" />
                   ) : (
-                    <Play className={`h-3 w-3 sm:h-4 sm:w-4 ${!workflowId ? 'text-gray-400' : 'text-white'}`} />
+                    <Play className={`h-3 w-3 sm:h-4 sm:w-4 ${!currentWorkflowId ? 'text-gray-400' : 'text-white'}`} />
                   )}
                 </button>
               </TooltipAnchor>
 
               {/* Delete Button */}
               <TooltipAnchor
-                description={!workflowId ? 'Save workflow first to delete' : 'Delete workflow'}
+                description={!currentWorkflowId ? 'Save workflow first to delete' : 'Delete workflow'}
                 side="top"
               >
                 <button
                   className={`flex h-8 w-8 items-center justify-center rounded-md shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-9 ${
-                    !workflowId
+                    !currentWorkflowId
                       ? 'border border-gray-300 bg-gray-100 text-gray-400'
                       : 'border border-red-500/60 bg-gradient-to-r from-red-500 to-red-600 text-white hover:border-red-500 hover:from-red-600 hover:to-red-700'
                   }`}
                   onClick={handleDeleteWorkflow}
-                  disabled={!workflowId || deleteMutation.isLoading || isWorkflowTesting || isTesting}
+                  disabled={!currentWorkflowId || deleteMutation.isLoading || isWorkflowTesting || isTesting}
                 >
-                  <Trash2 className={`h-3 w-3 sm:h-4 sm:w-4 ${!workflowId ? 'text-gray-400' : 'text-white'}`} />
+                  <Trash2 className={`h-3 w-3 sm:h-4 sm:w-4 ${!currentWorkflowId ? 'text-gray-400' : 'text-white'}`} />
                 </button>
               </TooltipAnchor>
             </div>

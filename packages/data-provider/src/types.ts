@@ -876,7 +876,6 @@ export type TWorkflowTrigger = {
 export type TUserWorkflow = {
   id: string;
   name: string;
-  description?: string;
   trigger: TWorkflowTrigger;
   steps: TWorkflowStep[];
   isActive: boolean;
