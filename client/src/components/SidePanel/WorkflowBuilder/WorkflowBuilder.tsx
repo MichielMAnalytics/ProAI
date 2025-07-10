@@ -18,6 +18,7 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   BarChart3,
 } from 'lucide-react';
 import { EModelEndpoint } from 'librechat-data-provider';
@@ -103,6 +104,8 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
   const [expandedOutputs, setExpandedOutputs] = useState<Set<string>>(new Set());
   const [showDashboard, setShowDashboard] = useState(false);
+  const [currentRunningStepId, setCurrentRunningStepId] = useState<string | null>(null);
+  const [completedStepIds, setCompletedStepIds] = useState<Set<string>>(new Set());
   const [testingWorkflows, setTestingWorkflows] = useRecoilState(store.testingWorkflows);
 
   // Workflow mutations
@@ -156,6 +159,8 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
           };
         });
         setSteps(convertedSteps);
+        // Expand all steps by default when loading existing workflow
+        setExpandedSteps(new Set(convertedSteps.map(step => step.id)));
       } else {
         // Start with empty steps for new workflow
         setSteps([]);
@@ -183,6 +188,8 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
           onTestStart: (testWorkflowId) => {
             if (testWorkflowId === workflowId) {
               setIsTesting(true);
+              setCurrentRunningStepId(null);
+              setCompletedStepIds(new Set());
               setTestingWorkflows((prev) => new Set(prev).add(testWorkflowId));
             }
           },
@@ -201,6 +208,8 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
               ) {
                 setHasReceivedStopNotification(true);
                 setIsTesting(false);
+                setCurrentRunningStepId(null);
+                setCompletedStepIds(new Set());
                 setTestingWorkflows((prev) => {
                   const newSet = new Set(prev);
                   newSet.delete(testWorkflowId);
@@ -213,6 +222,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
               setIsTesting(false);
               setIsCancelling(false);
               setHasReceivedStopNotification(false);
+              setCurrentRunningStepId(null);
               setTestingWorkflows((prev) => {
                 const newSet = new Set(prev);
                 newSet.delete(testWorkflowId);
@@ -303,6 +313,8 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
             return newSet;
           });
           setIsTesting(false);
+          setCurrentRunningStepId(null);
+          setCompletedStepIds(new Set());
           if (workflowId) {
             clearExecutionResult(workflowId);
           }
@@ -320,6 +332,8 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
           });
           setIsTesting(false);
           setIsCancelling(false);
+          setCurrentRunningStepId(null);
+          setCompletedStepIds(new Set());
         },
       });
       return;
@@ -414,6 +428,8 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
         task: '',
       };
       setSteps((prev) => [...prev, newStep]);
+      // Expand the new step by default
+      setExpandedSteps((prev) => new Set(prev).add(newStep.id));
       setNewStepAgentId('');
     }
   }, [newStepAgentId, steps]);
@@ -446,6 +462,59 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
       return newSet;
     });
   }, []);
+
+  const toggleStepExpanded = useCallback((stepId: string) => {
+    setExpandedSteps((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(stepId)) {
+        newSet.delete(stepId);
+      } else {
+        newSet.add(stepId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  // Track current step execution state
+  useEffect(() => {
+    if (isTesting && latestExecutionData) {
+      const actualExecutionData = latestExecutionData as any;
+      const currentStepId = actualExecutionData?.currentStepId;
+      
+      if (currentStepId) {
+        setCurrentRunningStepId(currentStepId);
+        
+        // Update completed steps based on execution data
+        if (actualExecutionData?.steps) {
+          const completed = new Set<string>();
+          actualExecutionData.steps.forEach((execStep: any) => {
+            if (execStep.status === 'completed') {
+              // Find matching step by name since IDs might differ
+              const matchingStep = steps.find(s => s.name === execStep.name);
+              if (matchingStep) {
+                completed.add(matchingStep.id);
+              }
+            }
+          });
+          setCompletedStepIds(completed);
+        }
+      }
+    }
+  }, [isTesting, latestExecutionData, steps]);
+
+  // Get step status for styling
+  const getStepStatus = (stepId: string) => {
+    if (!isTesting) return 'idle';
+    if (completedStepIds.has(stepId)) return 'completed';
+    
+    // Check if this step is currently running by matching name
+    const step = steps.find(s => s.id === stepId);
+    const actualExecutionData = latestExecutionData as any;
+    const currentExecStep = actualExecutionData?.steps?.find((s: any) => s.name === step?.name);
+    
+    if (currentExecStep?.status === 'running') return 'running';
+    return 'pending';
+  };
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
@@ -542,25 +611,17 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
           {/* Left: Close button */}
           <button
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary sm:h-8 sm:w-8"
+            disabled={isTesting}
+            className={`flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary sm:h-8 sm:w-8 ${
+              isTesting ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             <X className="h-4 w-4" />
           </button>
 
-          {/* Center: Title with status badge */}
-          <div className="flex-1 flex items-center justify-center gap-2">
+          {/* Center: Title */}
+          <div className="flex-1 flex items-center justify-center">
             <h2 className="text-base font-semibold text-text-primary sm:text-lg">Workflow Builder</h2>
-            {/* Status Badge - only show if editing existing workflow */}
-            {workflowId && (
-              <span
-                className={`inline-flex items-center rounded-full px-2 py-0.5 font-inter text-xs font-medium ${getStatusColor(
-                  isWorkflowActive || false,
-                  isDraft || false,
-                )}`}
-              >
-                {getStatusText(isWorkflowActive || false, isDraft || false)}
-              </span>
-            )}
           </div>
 
           {/* Right: Dashboard and back buttons */}
@@ -576,7 +637,10 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
             )}
             <button
               onClick={() => setShowDashboard(!showDashboard)}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary sm:h-8 sm:w-8"
+              disabled={isTesting}
+              className={`flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary sm:h-8 sm:w-8 ${
+                isTesting ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
               title="Execution Dashboard"
             >
               <BarChart3 className="h-4 w-4" />
@@ -589,19 +653,38 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
           <div className="space-y-4 sm:space-y-6">
             {/* Workflow Name and Description */}
             <div className="space-y-2">
-              <input
-                type="text"
-                value={workflowName}
-                onChange={(e) => setWorkflowName(e.target.value)}
-                className="w-full border-none bg-transparent text-lg font-bold text-text-primary focus:outline-none focus:ring-0 sm:text-xl"
-                placeholder="Workflow Name"
-              />
+              <div className="flex items-center justify-between">
+                <input
+                  type="text"
+                  value={workflowName}
+                  onChange={(e) => setWorkflowName(e.target.value)}
+                  disabled={isTesting}
+                  className={`flex-1 border-none bg-transparent text-lg font-bold text-text-primary focus:outline-none focus:ring-0 sm:text-xl ${
+                    isTesting ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                  placeholder="Workflow Name"
+                />
+                {/* Status Badge - only show if editing existing workflow */}
+                {workflowId && (
+                  <span
+                    className={`inline-flex items-center rounded-md px-3 py-1.5 font-inter text-sm font-medium ml-3 ${getStatusColor(
+                      isWorkflowActive || false,
+                      isDraft || false,
+                    )}`}
+                  >
+                    {getStatusText(isWorkflowActive || false, isDraft || false)}
+                  </span>
+                )}
+              </div>
               <textarea
                 value={workflowDescription}
                 onChange={(e) => setWorkflowDescription(e.target.value)}
-                className="w-full resize-none border-none bg-transparent text-sm text-text-secondary focus:outline-none focus:ring-0"
+                disabled={isTesting}
+                className={`w-full resize-none border-none bg-transparent text-sm text-text-secondary focus:outline-none focus:ring-0 ${
+                  isTesting ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
                 placeholder="Workflow description..."
-                rows={2}
+                rows={1}
               />
             </div>
 
@@ -621,14 +704,20 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
                   items={triggerOptions}
                   displayValue={triggerOptions.find((t) => t.value === triggerType)?.label || ''}
                   SelectIcon={triggerOptions.find((t) => t.value === triggerType)?.icon}
-                  className="h-8 w-full border-border-heavy text-sm sm:h-10"
+                  className={`h-8 w-full border-border-heavy text-sm sm:h-10 ${
+                    isTesting ? 'opacity-50 pointer-events-none' : ''
+                  }`}
+                  disabled={isTesting}
                 />
                 {triggerType === 'schedule' && (
                   <input
                     type="text"
                     value={scheduleConfig}
                     onChange={(e) => setScheduleConfig(e.target.value)}
-                    className="w-full rounded-md border border-border-heavy p-2 text-sm focus:border-blue-500 focus:outline-none sm:p-3"
+                    disabled={isTesting}
+                    className={`w-full rounded-md border border-border-heavy p-2 text-sm focus:border-blue-500 focus:outline-none sm:p-3 ${
+                      isTesting ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                     placeholder="0 9 * * * (Every day at 9 AM)"
                   />
                 )}
@@ -647,136 +736,232 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
               <div className="space-y-2">
                 {steps.map((step, idx) => (
                   <React.Fragment key={step.id}>
-                    <div className="rounded-lg border border-border-medium bg-surface-tertiary p-3">
+                    <div 
+                      className={`rounded-lg border transition-all duration-300 ${
+                        expandedSteps.has(step.id) ? 'p-3' : 'px-3 pt-2 pb-1.5'
+                      } ${
+                        getStepStatus(step.id) === 'running' 
+                          ? 'border-blue-500 bg-blue-50/20 shadow-lg shadow-blue-500/20 animate-pulse' 
+                          : getStepStatus(step.id) === 'completed' 
+                          ? 'border-green-500 bg-green-50/20' 
+                          : getStepStatus(step.id) === 'pending' 
+                          ? 'border-border-medium bg-surface-tertiary opacity-60' 
+                          : 'border-border-medium bg-surface-tertiary'
+                      } ${
+                        isTesting ? 'pointer-events-none' : ''
+                      }`}
+                      style={getStepStatus(step.id) === 'running' ? {
+                        boxShadow: `
+                          0 0 0 1px rgb(59 130 246 / 0.5),
+                          0 0 0 3px rgb(59 130 246 / 0.3),
+                          0 0 20px rgb(59 130 246 / 0.4),
+                          inset 0 0 20px rgb(59 130 246 / 0.1)
+                        `,
+                        animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+                      } : {}}
+                    >
                       <div className="mb-2 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={step.name}
-                            onChange={(e) => updateStep(step.id, { name: e.target.value })}
-                            className="border-none bg-transparent text-sm font-medium text-text-primary focus:outline-none"
-                            placeholder="Step name"
-                          />
-                        </div>
-                        <button
-                          className="rounded-xl p-1 transition hover:bg-surface-hover"
-                          onClick={() => removeStep(step.id)}
-                        >
-                          <X size={14} className="text-text-secondary" />
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="relative">
-                          <ControlCombobox
-                            isCollapsed={false}
-                            ariaLabel="Select agent"
-                            selectedValue={step.agentId}
-                            setValue={(id) => updateStep(step.id, { agentId: id })}
-                            selectPlaceholder="Select agent"
-                            searchPlaceholder="Search agents"
-                            items={selectableAgents}
-                            displayValue={getAgentDetails(step.agentId)?.name ?? ''}
-                            SelectIcon={
-                              <MessageIcon
-                                message={
-                                  {
-                                    endpoint: EModelEndpoint.agents,
-                                    isCreatedByUser: false,
-                                  } as TMessage
-                                }
-                                agent={step.agentId ? agentsMap[step.agentId] : undefined}
-                              />
-                            }
-                            className="h-8 w-full border-border-heavy text-sm sm:h-10"
-                          />
-                          {step.agentId && agentsMap[step.agentId]?.tools && (
-                            <div 
-                              className="absolute top-1/2 -translate-y-1/2 pointer-events-none" 
-                              style={{
-                                left: `calc(40px + ${(getAgentDetails(step.agentId)?.name ?? '').length * 0.65}ch + 16px)`
-                              }}
-                            >
-                              <div className="pointer-events-auto" onClick={(e) => e.stopPropagation()}>
-                                <MCPServerIcons
-                                  agentTools={(agentsMap[step.agentId]?.tools as Array<string | { tool: string; server: string; type: 'global' | 'user' }>) || []}
-                                  size="lg"
-                                  showBackground={true}
-                                  className="flex-shrink-0"
-                                />
-                              </div>
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          {expandedSteps.has(step.id) ? (
+                            /* Expanded view - show only step name input */
+                            <input
+                              type="text"
+                              value={step.name}
+                              onChange={(e) => updateStep(step.id, { name: e.target.value })}
+                              disabled={isTesting}
+                              className={`border-none bg-transparent text-sm font-medium text-text-primary focus:outline-none ${
+                                isTesting ? 'opacity-50 cursor-not-allowed' : ''
+                              }`}
+                              placeholder="Step name"
+                            />
+                          ) : (
+                            /* Collapsed view - show step name + agent info inline */
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-text-primary">{step.name}</span>
+                              {step.agentId && (
+                                <>
+                                  <span className="text-text-secondary">•</span>
+                                  <MessageIcon
+                                    message={
+                                      {
+                                        endpoint: EModelEndpoint.agents,
+                                        isCreatedByUser: false,
+                                      } as TMessage
+                                    }
+                                    agent={agentsMap[step.agentId]}
+                                    size={16}
+                                  />
+                                  <span className="text-sm text-text-secondary truncate">
+                                    {getAgentDetails(step.agentId)?.name}
+                                  </span>
+                                </>
+                              )}
                             </div>
                           )}
                         </div>
-                        <textarea
-                          value={step.task}
-                          onChange={(e) => updateStep(step.id, { task: e.target.value })}
-                          className="w-full resize-none rounded-md border border-border-heavy p-2 text-sm focus:border-blue-500 focus:outline-none"
-                          placeholder="Describe the task for this agent..."
-                          rows={2}
-                        />
-                        
-                        {/* Step Output Field */}
-                        <div className="space-y-1">
+                        <div className="flex items-center gap-1">
                           <button
-                            onClick={() => toggleOutputExpanded(step.id)}
-                            className="flex w-full items-center justify-between text-left text-xs font-medium text-text-secondary transition-colors hover:text-text-primary"
+                            className={`rounded-xl p-1 transition hover:bg-surface-hover ${
+                              isTesting ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
+                            }`}
+                            onClick={() => toggleStepExpanded(step.id)}
+                            disabled={isTesting}
+                            title={expandedSteps.has(step.id) ? 'Collapse step' : 'Expand step'}
                           >
-                            <span>Step Output</span>
-                            {expandedOutputs.has(step.id) ? (
-                              <ChevronDown size={14} />
+                            {expandedSteps.has(step.id) ? (
+                              <ChevronUp size={14} className="text-text-secondary" />
                             ) : (
-                              <ChevronRight size={14} />
+                              <ChevronDown size={14} className="text-text-secondary" />
                             )}
                           </button>
-                          <div className="w-full rounded-md border border-border-light bg-surface-secondary p-2 text-sm text-text-secondary">
-                            {(() => {
-                              // Get step output from latest execution data
-                              // The data structure uses 'steps' array, not 'stepExecutions'
-                              const actualExecutionData = latestExecutionData as any;
-                              const stepExecution = actualExecutionData?.steps?.find((s: any) => {
-                                // Try to match by step name or step ID
-                                return s.name === step.name || s.id === step.id;
-                              });
-                              
-                              const stepOutput = stepExecution?.output;
-                              const stepStatus = stepExecution?.status;
-                              const stepError = stepExecution?.error;
-                              const currentStepId = latestExecutionData?.currentStepId;
-                              
-                              let content = '';
-                              if (stepOutput && stepOutput !== 'undefined') {
-                                content = typeof stepOutput === 'string' ? stepOutput : JSON.stringify(stepOutput);
-                              } else if (currentStepId === step.id && stepStatus === 'running') {
-                                content = 'Step is currently running...';
-                              } else if (stepStatus === 'failed' && stepError) {
-                                content = `Step failed: ${stepError}`;
-                              } else if (stepStatus === 'completed' && !stepOutput) {
-                                content = 'Step completed but no output available';
-                              } else if (stepStatus === 'pending') {
-                                content = 'Step is pending execution';
-                              } else if (actualExecutionData && actualExecutionData.steps && actualExecutionData.steps.length > 0) {
-                                content = 'No output from this step';
-                              } else {
-                                content = 'No output yet - run workflow test to see results';
-                              }
-
-                              // Show preview (first 2 lines) when collapsed, full content when expanded
-                              if (!expandedOutputs.has(step.id) && content) {
-                                const lines = content.split('\n');
-                                if (lines.length > 2) {
-                                  return lines.slice(0, 2).join('\n') + '...';
-                                }
-                              }
-                              
-                              return content;
-                            })()}
-                          </div>
+                          <button
+                            className={`rounded-xl p-1 transition hover:bg-surface-hover ${
+                              isTesting ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
+                            }`}
+                            onClick={() => removeStep(step.id)}
+                            disabled={isTesting}
+                            title="Remove step"
+                          >
+                            <X size={14} className="text-text-secondary" />
+                          </button>
                         </div>
                       </div>
+                      {expandedSteps.has(step.id) && (
+                        <div className="space-y-2">
+                          <div className="relative">
+                            <ControlCombobox
+                              isCollapsed={false}
+                              ariaLabel="Select agent"
+                              selectedValue={step.agentId}
+                              setValue={(id) => updateStep(step.id, { agentId: id })}
+                              selectPlaceholder="Select agent"
+                              searchPlaceholder="Search agents"
+                              items={selectableAgents}
+                              displayValue={getAgentDetails(step.agentId)?.name ?? ''}
+                              SelectIcon={
+                                <MessageIcon
+                                  message={
+                                    {
+                                      endpoint: EModelEndpoint.agents,
+                                      isCreatedByUser: false,
+                                    } as TMessage
+                                  }
+                                  agent={step.agentId ? agentsMap[step.agentId] : undefined}
+                                />
+                              }
+                              className={`h-8 w-full border-border-heavy text-sm sm:h-10 ${
+                                isTesting ? 'opacity-50 pointer-events-none' : ''
+                              }`}
+                              disabled={isTesting}
+                            />
+                            {step.agentId && agentsMap[step.agentId]?.tools && (
+                              <div 
+                                className="absolute top-1/2 -translate-y-1/2 pointer-events-none" 
+                                style={{
+                                  left: `calc(40px + ${(getAgentDetails(step.agentId)?.name ?? '').length * 0.65}ch + 16px)`
+                                }}
+                              >
+                                <div className="pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+                                  <MCPServerIcons
+                                    agentTools={(agentsMap[step.agentId]?.tools as Array<string | { tool: string; server: string; type: 'global' | 'user' }>) || []}
+                                    size="lg"
+                                    showBackground={false}
+                                    className="flex-shrink-0"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <textarea
+                            value={step.task}
+                            onChange={(e) => updateStep(step.id, { task: e.target.value })}
+                            disabled={isTesting}
+                            className={`w-full resize-none rounded-md border border-border-heavy p-2 text-sm focus:border-blue-500 focus:outline-none ${
+                              isTesting ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                            placeholder="Describe the task for this agent..."
+                            rows={2}
+                          />
+                          
+                          {/* Step Output Field */}
+                          <div className="space-y-1">
+                            <div className="text-xs font-medium text-text-secondary">
+                              Step Output
+                            </div>
+                            <button
+                              onClick={() => toggleOutputExpanded(step.id)}
+                              className="w-full rounded-md border border-border-light bg-surface-secondary p-2 text-sm text-text-secondary transition-colors hover:bg-surface-hover text-left"
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 min-w-0">
+                              {(() => {
+                                // Get step output from latest execution data
+                                // The data structure uses 'steps' array, not 'stepExecutions'
+                                const actualExecutionData = latestExecutionData as any;
+                                const stepExecution = actualExecutionData?.steps?.find((s: any) => {
+                                  // Try to match by step name or step ID
+                                  return s.name === step.name || s.id === step.id;
+                                });
+                                
+                                const stepOutput = stepExecution?.output;
+                                const stepStatus = stepExecution?.status;
+                                const stepError = stepExecution?.error;
+                                const currentStepId = latestExecutionData?.currentStepId;
+                                
+                                let content = '';
+                                if (stepOutput && stepOutput !== 'undefined') {
+                                  content = typeof stepOutput === 'string' ? stepOutput : JSON.stringify(stepOutput);
+                                } else if (currentStepId === step.id && stepStatus === 'running') {
+                                  content = 'Step is currently running...';
+                                } else if (stepStatus === 'failed' && stepError) {
+                                  content = `Step failed: ${stepError}`;
+                                } else if (stepStatus === 'completed' && !stepOutput) {
+                                  content = 'Step completed but no output available';
+                                } else if (stepStatus === 'pending') {
+                                  content = 'Step is pending execution';
+                                } else if (actualExecutionData && actualExecutionData.steps && actualExecutionData.steps.length > 0) {
+                                  content = 'No output from this step';
+                                } else {
+                                  content = 'No output yet - run workflow test to see results';
+                                }
+
+                                // Show preview (first 2 lines) when collapsed, full content when expanded
+                                if (!expandedOutputs.has(step.id) && content) {
+                                  const lines = content.split('\n');
+                                  if (lines.length > 2) {
+                                    return lines.slice(0, 2).join('\n') + '...';
+                                  }
+                                }
+                                
+                                return content;
+                              })()}
+                                </div>
+                                <div className="ml-2 flex-shrink-0">
+                                  {expandedOutputs.has(step.id) ? (
+                                    <ChevronUp size={14} />
+                                  ) : (
+                                    <ChevronDown size={14} />
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     {idx < steps.length - 1 && (
                       <div className="flex justify-center">
-                        <Link2 className="text-text-secondary" size={14} />
+                        <Link2 
+                          className={`transition-all duration-500 ${
+                            getStepStatus(step.id) === 'completed' && 
+                            getStepStatus(steps[idx + 1].id) === 'running' 
+                              ? 'text-blue-500 animate-bounce scale-125' 
+                              : getStepStatus(step.id) === 'completed'
+                              ? 'text-green-500'
+                              : 'text-text-secondary'
+                          }`} 
+                          size={14} 
+                        />
                       </div>
                     )}
                   </React.Fragment>
@@ -787,10 +972,19 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
                   <>
                     {steps.length > 0 && (
                       <div className="flex justify-center">
-                        <Link2 className="text-text-secondary" size={14} />
+                        <Link2 
+                          className={`transition-all duration-500 ${
+                            steps.length > 0 && getStepStatus(steps[steps.length - 1].id) === 'completed'
+                              ? 'text-green-500 animate-pulse'
+                              : 'text-text-secondary'
+                          }`} 
+                          size={14} 
+                        />
                       </div>
                     )}
-                    <div className="flex gap-2">
+                    <div className={`flex gap-2 ${
+                      isTesting ? 'opacity-50 pointer-events-none' : ''
+                    }`}>
                       <ControlCombobox
                         isCollapsed={false}
                         ariaLabel="Add step with agent"
@@ -802,10 +996,11 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
                         displayValue={getAgentDetails(newStepAgentId)?.name ?? ''}
                         SelectIcon={<PlusCircle size={14} className="text-text-secondary" />}
                         className="h-8 flex-1 border-dashed border-border-heavy text-center text-sm text-text-secondary hover:text-text-primary sm:h-10"
+                        disabled={isTesting}
                       />
                       <button
                         onClick={addStep}
-                        disabled={!newStepAgentId}
+                        disabled={!newStepAgentId || isTesting}
                         className="rounded-md bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300 sm:px-4 sm:py-2"
                       >
                         Add
@@ -823,18 +1018,6 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
             </div>
           </div>
 
-          {/* Testing Overlay */}
-          {workflowId && (
-            <WorkflowTestingOverlay
-              workflowId={workflowId}
-              isTesting={isTesting}
-              isCancelling={isCancelling}
-              isWorkflowTestingFromHook={isWorkflowTestingFromHook}
-              currentStep={currentStep || null}
-              resultData={resultData || null}
-              onCloseResult={handleCloseResult}
-            />
-          )}
 
           {/* Execution Dashboard */}
           {workflowId && showDashboard && (
@@ -934,7 +1117,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
             <div className="flex flex-1 gap-2">
               <button
                 onClick={handleSave}
-                disabled={isSaving || !workflowName || steps.length === 0}
+                disabled={isSaving || !workflowName || steps.length === 0 || isTesting}
                 className="flex flex-1 items-center justify-center gap-1 rounded-md bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300 sm:gap-2 sm:px-4 sm:py-2"
               >
                 <Save size={14} />
