@@ -16,6 +16,8 @@ import {
   TestTube,
   Square,
   RefreshCw,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { EModelEndpoint } from 'librechat-data-provider';
 import type { TMessage } from 'librechat-data-provider';
@@ -97,6 +99,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
   const [hasReceivedStopNotification, setHasReceivedStopNotification] = useState(false);
   const [copiedStepId, setCopiedStepId] = useState<string | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
+  const [expandedOutputs, setExpandedOutputs] = useState<Set<string>>(new Set());
   const [testingWorkflows, setTestingWorkflows] = useRecoilState(store.testingWorkflows);
 
   // Workflow mutations
@@ -429,6 +432,18 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
     );
   }, []);
 
+  const toggleOutputExpanded = useCallback((stepId: string) => {
+    setExpandedOutputs((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(stepId)) {
+        newSet.delete(stepId);
+      } else {
+        newSet.add(stepId);
+      }
+      return newSet;
+    });
+  }, []);
+
   const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
@@ -529,13 +544,13 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
             <X className="h-4 w-4" />
           </button>
 
-          {/* Center: Title */}
-          <div className="flex-1 text-center">
+          {/* Center: Title with status badge */}
+          <div className="flex-1 flex items-center justify-center gap-2">
             <h2 className="text-base font-semibold text-text-primary sm:text-lg">Workflow Builder</h2>
             {/* Status Badge - only show if editing existing workflow */}
             {workflowId && (
               <span
-                className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 font-inter text-xs font-medium ${getStatusColor(
+                className={`inline-flex items-center rounded-full px-2 py-0.5 font-inter text-xs font-medium ${getStatusColor(
                   isWorkflowActive || false,
                   isDraft || false,
                 )}`}
@@ -640,19 +655,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
                             selectPlaceholder="Select agent"
                             searchPlaceholder="Search agents"
                             items={selectableAgents}
-                            displayValue={
-                              <div className="flex items-center gap-2">
-                                <span>{getAgentDetails(step.agentId)?.name ?? ''}</span>
-                                {step.agentId && agentsMap[step.agentId]?.tools && (
-                                  <MCPServerIcons
-                                    agentTools={agentsMap[step.agentId].tools}
-                                    size="lg"
-                                    showBackground={true}
-                                    className="flex-shrink-0"
-                                  />
-                                )}
-                              </div>
-                            }
+                            displayValue={getAgentDetails(step.agentId)?.name ?? ''}
                             SelectIcon={
                               <MessageIcon
                                 message={
@@ -666,6 +669,23 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
                             }
                             className="h-8 w-full border-border-heavy text-sm sm:h-10"
                           />
+                          {step.agentId && agentsMap[step.agentId]?.tools && (
+                            <div 
+                              className="absolute top-1/2 -translate-y-1/2 pointer-events-none" 
+                              style={{
+                                left: `calc(40px + ${(getAgentDetails(step.agentId)?.name ?? '').length * 0.65}ch + 16px)`
+                              }}
+                            >
+                              <div className="pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+                                <MCPServerIcons
+                                  agentTools={(agentsMap[step.agentId]?.tools as Array<string | { tool: string; server: string; type: 'global' | 'user' }>) || []}
+                                  size="lg"
+                                  showBackground={true}
+                                  className="flex-shrink-0"
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <textarea
                           value={step.task}
@@ -677,28 +697,48 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
                         
                         {/* Step Output Field */}
                         <div className="space-y-1">
-                          <label className="text-xs font-medium text-text-secondary">
-                            Step Output (read-only)
-                          </label>
-                          <div className="min-h-[60px] w-full rounded-md border border-border-light bg-surface-secondary p-2 text-sm text-text-secondary">
+                          <button
+                            onClick={() => toggleOutputExpanded(step.id)}
+                            className="flex w-full items-center justify-between text-left text-xs font-medium text-text-secondary transition-colors hover:text-text-primary"
+                          >
+                            <span>Step Output</span>
+                            {expandedOutputs.has(step.id) ? (
+                              <ChevronDown size={14} />
+                            ) : (
+                              <ChevronRight size={14} />
+                            )}
+                          </button>
+                          <div className="w-full rounded-md border border-border-light bg-surface-secondary p-2 text-sm text-text-secondary">
                             {(() => {
                               // Get step output from latest execution data
-                              const stepOutput = latestExecutionData?.steps?.find(s => s.id === step.id)?.output;
-                              const stepStatus = latestExecutionData?.steps?.find(s => s.id === step.id)?.status;
+                              const stepExecution = latestExecutionData?.stepExecutions?.find((s: any) => s.stepId === step.id);
+                              const stepOutput = typeof stepExecution?.output === 'string' ? stepExecution.output : JSON.stringify(stepExecution?.output);
+                              const stepStatus = stepExecution?.status;
                               const currentStepId = latestExecutionData?.currentStepId;
                               
+                              let content = '';
                               if (stepOutput) {
-                                return stepOutput;
+                                content = stepOutput;
                               } else if (currentStepId === step.id && stepStatus === 'running') {
-                                return 'Step is currently running...';
+                                content = 'Step is currently running...';
                               } else if (stepStatus === 'failed') {
-                                const stepError = latestExecutionData?.steps?.find(s => s.id === step.id)?.error;
-                                return `Step failed: ${stepError || 'Unknown error'}`;
-                              } else if (latestExecutionData && latestExecutionData.steps && latestExecutionData.steps.length > 0) {
-                                return stepStatus === 'pending' ? 'Step is pending execution' : 'No output from this step';
+                                const stepError = stepExecution?.error;
+                                content = `Step failed: ${stepError || 'Unknown error'}`;
+                              } else if (latestExecutionData && latestExecutionData.stepExecutions && latestExecutionData.stepExecutions.length > 0) {
+                                content = stepStatus === 'pending' ? 'Step is pending execution' : 'No output from this step';
                               } else {
-                                return 'No output yet - run workflow test to see results';
+                                content = 'No output yet - run workflow test to see results';
                               }
+
+                              // Show preview (first 2 lines) when collapsed, full content when expanded
+                              if (!expandedOutputs.has(step.id) && content) {
+                                const lines = content.split('\n');
+                                if (lines.length > 2) {
+                                  return lines.slice(0, 2).join('\n') + '...';
+                                }
+                              }
+                              
+                              return content;
                             })()}
                           </div>
                         </div>
