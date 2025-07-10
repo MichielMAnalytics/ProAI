@@ -18,6 +18,7 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronRight,
+  BarChart3,
 } from 'lucide-react';
 import { EModelEndpoint } from 'librechat-data-provider';
 import type { TMessage } from 'librechat-data-provider';
@@ -45,6 +46,7 @@ import { useWorkflowNotifications } from '~/hooks/useWorkflowNotifications';
 import { TooltipAnchor } from '~/components/ui/Tooltip';
 import WorkflowTestingOverlay from './WorkflowTestingOverlay';
 import MCPServerIcons from '~/components/Chat/Input/MCPServerIcons';
+import ExecutionDashboard from '~/components/SidePanel/WorkflowBuilder/ExecutionDashboard';
 import store from '~/store';
 
 interface WorkflowStep {
@@ -100,6 +102,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
   const [copiedStepId, setCopiedStepId] = useState<string | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
   const [expandedOutputs, setExpandedOutputs] = useState<Set<string>>(new Set());
+  const [showDashboard, setShowDashboard] = useState(false);
   const [testingWorkflows, setTestingWorkflows] = useRecoilState(store.testingWorkflows);
 
   // Workflow mutations
@@ -560,8 +563,25 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
             )}
           </div>
 
-          {/* Right: Empty placeholder for alignment */}
-          <div className="h-7 w-7 sm:h-8 sm:w-8" />
+          {/* Right: Dashboard and back buttons */}
+          <div className="flex items-center gap-1">
+            {showDashboard && (
+              <button
+                onClick={() => setShowDashboard(false)}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary sm:h-8 sm:w-8"
+                title="Back to Workflow Builder"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+            )}
+            <button
+              onClick={() => setShowDashboard(!showDashboard)}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary sm:h-8 sm:w-8"
+              title="Execution Dashboard"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Main Content */}
@@ -711,21 +731,31 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
                           <div className="w-full rounded-md border border-border-light bg-surface-secondary p-2 text-sm text-text-secondary">
                             {(() => {
                               // Get step output from latest execution data
-                              const stepExecution = latestExecutionData?.stepExecutions?.find((s: any) => s.stepId === step.id);
-                              const stepOutput = typeof stepExecution?.output === 'string' ? stepExecution.output : JSON.stringify(stepExecution?.output);
+                              // The data structure uses 'steps' array, not 'stepExecutions'
+                              const actualExecutionData = latestExecutionData as any;
+                              const stepExecution = actualExecutionData?.steps?.find((s: any) => {
+                                // Try to match by step name or step ID
+                                return s.name === step.name || s.id === step.id;
+                              });
+                              
+                              const stepOutput = stepExecution?.output;
                               const stepStatus = stepExecution?.status;
+                              const stepError = stepExecution?.error;
                               const currentStepId = latestExecutionData?.currentStepId;
                               
                               let content = '';
-                              if (stepOutput) {
-                                content = stepOutput;
+                              if (stepOutput && stepOutput !== 'undefined') {
+                                content = typeof stepOutput === 'string' ? stepOutput : JSON.stringify(stepOutput);
                               } else if (currentStepId === step.id && stepStatus === 'running') {
                                 content = 'Step is currently running...';
-                              } else if (stepStatus === 'failed') {
-                                const stepError = stepExecution?.error;
-                                content = `Step failed: ${stepError || 'Unknown error'}`;
-                              } else if (latestExecutionData && latestExecutionData.stepExecutions && latestExecutionData.stepExecutions.length > 0) {
-                                content = stepStatus === 'pending' ? 'Step is pending execution' : 'No output from this step';
+                              } else if (stepStatus === 'failed' && stepError) {
+                                content = `Step failed: ${stepError}`;
+                              } else if (stepStatus === 'completed' && !stepOutput) {
+                                content = 'Step completed but no output available';
+                              } else if (stepStatus === 'pending') {
+                                content = 'Step is pending execution';
+                              } else if (actualExecutionData && actualExecutionData.steps && actualExecutionData.steps.length > 0) {
+                                content = 'No output from this step';
                               } else {
                                 content = 'No output yet - run workflow test to see results';
                               }
@@ -804,6 +834,13 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
               resultData={resultData || null}
               onCloseResult={handleCloseResult}
             />
+          )}
+
+          {/* Execution Dashboard */}
+          {workflowId && showDashboard && (
+            <div className="absolute inset-0 z-50 bg-surface-primary">
+              <ExecutionDashboard workflowId={workflowId} />
+            </div>
           )}
         </div>
 
