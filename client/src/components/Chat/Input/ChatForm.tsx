@@ -21,18 +21,20 @@ import {
   useQueryParams,
   useSubmitMessage,
   useFocusChatEffect,
+  useEndpoints,
 } from '~/hooks';
 import {
   useAvailableIntegrationsQuery,
   useAvailableToolsQuery,
   useUserIntegrationsQuery,
   useGetStartupConfig,
+  useGetEndpointsQuery,
 } from '~/data-provider';
 import { mainTextareaId, BadgeItem } from '~/common';
 import AttachFileChat from './Files/AttachFileChat';
 import FileFormChat from './Files/FileFormChat';
 import { TextareaAutosize, TooltipAnchor } from '~/components';
-import { cn, removeFocusRings } from '~/utils';
+import { cn, removeFocusRings, getEntity } from '~/utils';
 import TextareaHeader from './TextareaHeader';
 import PromptsCommand from './PromptsCommand';
 import AudioRecorder from './AudioRecorder';
@@ -46,9 +48,12 @@ import Mention from './Mention';
 import EnhancePrompt from './EnhancePrompt';
 import AppDetailsModal from '../../Integrations/AppDetailsModal';
 import ToolDetailsModal from '../../Tools/ToolDetailsModal';
+import AgentBadge from './AgentBadge';
 import store from '~/store';
 import type { TAvailableIntegration } from 'librechat-data-provider';
 import { useMCPConnection } from '~/hooks/useMCPConnection';
+import { useAgentsMapContext } from '~/Providers/AgentsMapContext';
+import useLocalize from '~/hooks/useLocalize';
 
 const MCPServerIcons = ({
   agentTools,
@@ -419,6 +424,7 @@ const ChatForm = memo(
     const [visualRowCount, setVisualRowCount] = useState(1);
     const [isTextAreaFocused, setIsTextAreaFocused] = useState(false);
     const [backupBadges, setBackupBadges] = useState<Pick<BadgeItem, 'id'>[]>([]);
+    const [isBadgeHidden, setIsBadgeHidden] = useState(false);
 
     const SpeechToText = useRecoilValue(store.speechToText);
     const TextToSpeech = useRecoilValue(store.textToSpeech);
@@ -440,6 +446,7 @@ const ChatForm = memo(
 
     const { requiresKey } = useRequiresKey();
     const { data: startupConfig } = useGetStartupConfig();
+    const { data: endpointsConfig } = useGetEndpointsQuery();
     const methods = useChatFormContext();
     const {
       files,
@@ -458,6 +465,14 @@ const ChatForm = memo(
       isSubmitting: isSubmittingAdded,
     } = useAddedChatContext();
     const assistantMap = useAssistantsMapContext();
+    const agentsMap = useAgentsMapContext();
+    const localize = useLocalize();
+    const { mappedEndpoints } = useEndpoints({
+      agentsMap,
+      assistantsMap: assistantMap,
+      endpointsConfig: endpointsConfig || {},
+      startupConfig,
+    });
     const showStopAdded = useRecoilValue(store.showStopButtonByIndex(addedIndex));
 
     const endpoint = useMemo(
@@ -485,6 +500,61 @@ const ChatForm = memo(
       [requiresKey, invalidAssistant, disabled],
     );
 
+    const agentData = useMemo(() => {
+      if (!conversation || !endpoint) return { name: '', icon: null };
+      
+      const { entity, isAgent, isAssistant } = getEntity({
+        endpoint,
+        agentsMap,
+        assistantMap,
+        agent_id: conversation?.agent_id,
+        assistant_id: conversation?.assistant_id,
+      });
+      
+      if (entity?.name) {
+        // For agents, try to get avatar; for assistants, try iconURL
+        const iconURL = isAgent 
+          ? (entity as any).avatar?.filepath 
+          : isAssistant 
+            ? conversation?.iconURL 
+            : undefined;
+        
+        return { 
+          name: entity.name,
+          icon: iconURL ? iconURL : null
+        };
+      }
+      
+      if (isAgent) {
+        return { 
+          name: localize('com_ui_agent'),
+          icon: null
+        };
+      }
+      
+      if (isAssistant) {
+        return { 
+          name: localize('com_ui_assistant'),
+          icon: conversation?.iconURL || null
+        };
+      }
+      
+      // For regular endpoints, get icon from mapped endpoints
+      if (endpoint) {
+        const mappedEndpoint = mappedEndpoints?.find(e => e.value === endpoint);
+        return { 
+          name: endpoint.charAt(0).toUpperCase() + endpoint.slice(1),
+          icon: mappedEndpoint?.icon || null
+        };
+      }
+      
+      return { name: '', icon: null };
+    }, [conversation, endpoint, agentsMap, assistantMap, localize, mappedEndpoints]);
+
+    const shouldShowBadge = useMemo(() => {
+      return Boolean(agentData.name) && !isBadgeHidden;
+    }, [agentData.name, isBadgeHidden]);
+
     const handleContainerClick = useCallback(() => {
       /** Check if the device is a touchscreen */
       if (window.matchMedia?.('(pointer: coarse)').matches) {
@@ -498,6 +568,17 @@ const ChatForm = memo(
         setIsCollapsed(false);
       }
     }, [isCollapsed]);
+
+    const handleRemoveBadge = useCallback(() => {
+      // Just hide the badge, don't create new conversation
+      setIsBadgeHidden(true);
+    }, []);
+
+    // Wrapper for newConversation that resets badge visibility when user selects via @mention
+    const newConversationWithBadgeReset = useCallback((template?: any) => {
+      setIsBadgeHidden(false);
+      return newConversation(template);
+    }, [newConversation]);
 
     useAutoSave({
       files,
@@ -527,6 +608,8 @@ const ChatForm = memo(
       setIsScrollable,
       disabled: disableInputs,
       isMcpChecking: isMcpChecking,
+      shouldShowBadge,
+      onRemoveBadge: handleRemoveBadge,
     });
 
     useQueryParams({ textAreaRef });
@@ -610,7 +693,7 @@ const ChatForm = memo(
             {showMentionPopover && (
               <Mention
                 setShowMentionPopover={setShowMentionPopover}
-                newConversation={newConversation}
+                newConversation={newConversationWithBadgeReset}
                 textAreaRef={textAreaRef}
               />
             )}
@@ -634,7 +717,17 @@ const ChatForm = memo(
               />
               <FileFormChat disableInputs={disableInputs} />
               {endpoint && (
-                <div className={cn('flex', isRTL ? 'flex-row-reverse' : 'flex-row')}>
+                <div className={cn('flex items-start', isRTL ? 'flex-row-reverse' : 'flex-row')}>
+                  {shouldShowBadge && (
+                    <div className="flex items-center pl-3 -mr-2 pt-3.5">
+                      <AgentBadge 
+                        agentName={agentData.name}
+                        agentIcon={agentData.icon}
+                        onRemove={handleRemoveBadge}
+                        isVisible={shouldShowBadge}
+                      />
+                    </div>
+                  )}
                   <TextareaAutosize
                     {...registerProps}
                     ref={(e) => {

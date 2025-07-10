@@ -28,12 +28,16 @@ export default function useTextarea({
   setIsScrollable,
   disabled = false,
   isMcpChecking = false,
+  shouldShowBadge = false,
+  onRemoveBadge,
 }: {
   textAreaRef: React.RefObject<HTMLTextAreaElement>;
   submitButtonRef: React.RefObject<HTMLButtonElement>;
   setIsScrollable: React.Dispatch<React.SetStateAction<boolean>>;
   disabled?: boolean;
   isMcpChecking?: boolean;
+  shouldShowBadge?: boolean;
+  onRemoveBadge?: () => void;
 }) {
   const localize = useLocalize();
   const getSender = useGetSender();
@@ -84,6 +88,11 @@ export default function useTextarea({
 
       if (disabled) {
         return localize('com_endpoint_config_placeholder');
+      }
+
+      // Show simple placeholder when badge is visible
+      if (shouldShowBadge) {
+        return 'Ask anything';
       }
 
       const currentEndpoint = conversation?.endpoint ?? '';
@@ -145,6 +154,7 @@ export default function useTextarea({
     latestMessage,
     isNotAppendable,
     isMcpChecking,
+    shouldShowBadge,
   ]);
 
   const handleKeyDown = useCallback(
@@ -153,6 +163,17 @@ export default function useTextarea({
         const scrollable = checkIfScrollable(textAreaRef.current);
         scrollable && setIsScrollable(scrollable);
       }
+      
+      // Handle badge removal with backspace when input is empty
+      if (e.key === 'Backspace' && shouldShowBadge && onRemoveBadge && textAreaRef.current) {
+        const currentValue = textAreaRef.current.value;
+        if (!currentValue || currentValue.trim() === '') {
+          e.preventDefault();
+          onRemoveBadge();
+          return;
+        }
+      }
+      
       if (e.key === 'Enter' && isSubmitting) {
         return;
       }
@@ -207,6 +228,8 @@ export default function useTextarea({
       setIsScrollable,
       textAreaRef,
       submitButtonRef,
+      shouldShowBadge,
+      onRemoveBadge,
     ],
   );
 
