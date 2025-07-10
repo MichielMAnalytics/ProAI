@@ -42,6 +42,7 @@ import { useToastContext } from '~/Providers';
 import { useWorkflowNotifications } from '~/hooks/useWorkflowNotifications';
 import { TooltipAnchor } from '~/components/ui/Tooltip';
 import WorkflowTestingOverlay from './WorkflowTestingOverlay';
+import MCPServerIcons from '~/components/Chat/Input/MCPServerIcons';
 import store from '~/store';
 
 interface WorkflowStep {
@@ -613,13 +614,15 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
                   <React.Fragment key={step.id}>
                     <div className="rounded-lg border border-border-medium bg-surface-tertiary p-3">
                       <div className="mb-2 flex items-center justify-between">
-                        <input
-                          type="text"
-                          value={step.name}
-                          onChange={(e) => updateStep(step.id, { name: e.target.value })}
-                          className="border-none bg-transparent text-sm font-medium text-text-primary focus:outline-none"
-                          placeholder="Step name"
-                        />
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={step.name}
+                            onChange={(e) => updateStep(step.id, { name: e.target.value })}
+                            className="border-none bg-transparent text-sm font-medium text-text-primary focus:outline-none"
+                            placeholder="Step name"
+                          />
+                        </div>
                         <button
                           className="rounded-xl p-1 transition hover:bg-surface-hover"
                           onClick={() => removeStep(step.id)}
@@ -628,28 +631,42 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
                         </button>
                       </div>
                       <div className="space-y-2">
-                        <ControlCombobox
-                          isCollapsed={false}
-                          ariaLabel="Select agent"
-                          selectedValue={step.agentId}
-                          setValue={(id) => updateStep(step.id, { agentId: id })}
-                          selectPlaceholder="Select agent"
-                          searchPlaceholder="Search agents"
-                          items={selectableAgents}
-                          displayValue={getAgentDetails(step.agentId)?.name ?? ''}
-                          SelectIcon={
-                            <MessageIcon
-                              message={
-                                {
-                                  endpoint: EModelEndpoint.agents,
-                                  isCreatedByUser: false,
-                                } as TMessage
-                              }
-                              agent={step.agentId ? agentsMap[step.agentId] : undefined}
-                            />
-                          }
-                          className="h-8 w-full border-border-heavy text-sm sm:h-10"
-                        />
+                        <div className="relative">
+                          <ControlCombobox
+                            isCollapsed={false}
+                            ariaLabel="Select agent"
+                            selectedValue={step.agentId}
+                            setValue={(id) => updateStep(step.id, { agentId: id })}
+                            selectPlaceholder="Select agent"
+                            searchPlaceholder="Search agents"
+                            items={selectableAgents}
+                            displayValue={
+                              <div className="flex items-center gap-2">
+                                <span>{getAgentDetails(step.agentId)?.name ?? ''}</span>
+                                {step.agentId && agentsMap[step.agentId]?.tools && (
+                                  <MCPServerIcons
+                                    agentTools={agentsMap[step.agentId].tools}
+                                    size="lg"
+                                    showBackground={true}
+                                    className="flex-shrink-0"
+                                  />
+                                )}
+                              </div>
+                            }
+                            SelectIcon={
+                              <MessageIcon
+                                message={
+                                  {
+                                    endpoint: EModelEndpoint.agents,
+                                    isCreatedByUser: false,
+                                  } as TMessage
+                                }
+                                agent={step.agentId ? agentsMap[step.agentId] : undefined}
+                              />
+                            }
+                            className="h-8 w-full border-border-heavy text-sm sm:h-10"
+                          />
+                        </div>
                         <textarea
                           value={step.task}
                           onChange={(e) => updateStep(step.id, { task: e.target.value })}
