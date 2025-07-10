@@ -35,6 +35,7 @@ import {
   useWorkflowQuery,
   useCreateWorkflowMutation,
   useUpdateWorkflowMutation,
+  useLatestWorkflowExecutionQuery,
 } from '~/data-provider';
 import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
@@ -112,6 +113,17 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
       enabled: !!workflowId,
       refetchOnWindowFocus: true,
       staleTime: 30000,
+    },
+  );
+
+  // Query the latest execution result for step outputs
+  const { data: latestExecutionData, refetch: refetchLatestExecution } = useLatestWorkflowExecutionQuery(
+    workflowId || '',
+    {
+      enabled: !!workflowId,
+      refetchOnWindowFocus: false,
+      refetchInterval: isTesting ? 2000 : false, // Poll every 2 seconds while testing
+      staleTime: 10000,
     },
   );
 
@@ -319,6 +331,8 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
           newSet.delete(workflowId);
           return newSet;
         });
+        // Refetch the latest execution data to get step outputs
+        refetchLatestExecution();
       },
       onError: (error: unknown) => {
         setIsTesting(false);
@@ -332,6 +346,8 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
           message: `Failed to test workflow: ${errorMessage}`,
           severity: NotificationSeverity.ERROR,
         });
+        // Also refetch in case of error to show any partial results
+        refetchLatestExecution();
       },
     });
   };
@@ -641,6 +657,34 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId }
                           placeholder="Describe the task for this agent..."
                           rows={2}
                         />
+                        
+                        {/* Step Output Field */}
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium text-text-secondary">
+                            Step Output (read-only)
+                          </label>
+                          <div className="min-h-[60px] w-full rounded-md border border-border-light bg-surface-secondary p-2 text-sm text-text-secondary">
+                            {(() => {
+                              // Get step output from latest execution data
+                              const stepOutput = latestExecutionData?.steps?.find(s => s.id === step.id)?.output;
+                              const stepStatus = latestExecutionData?.steps?.find(s => s.id === step.id)?.status;
+                              const currentStepId = latestExecutionData?.currentStepId;
+                              
+                              if (stepOutput) {
+                                return stepOutput;
+                              } else if (currentStepId === step.id && stepStatus === 'running') {
+                                return 'Step is currently running...';
+                              } else if (stepStatus === 'failed') {
+                                const stepError = latestExecutionData?.steps?.find(s => s.id === step.id)?.error;
+                                return `Step failed: ${stepError || 'Unknown error'}`;
+                              } else if (latestExecutionData && latestExecutionData.steps && latestExecutionData.steps.length > 0) {
+                                return stepStatus === 'pending' ? 'Step is pending execution' : 'No output from this step';
+                              } else {
+                                return 'No output yet - run workflow test to see results';
+                              }
+                            })()}
+                          </div>
+                        </div>
                       </div>
                     </div>
                     {idx < steps.length - 1 && (

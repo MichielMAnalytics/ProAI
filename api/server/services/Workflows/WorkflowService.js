@@ -285,6 +285,107 @@ class WorkflowService {
   }
 
   /**
+   * Execute a workflow immediately
+   * @param {string} workflowId - Workflow ID
+   * @param {string} userId - User ID
+   * @param {Object} context - Execution context
+   * @param {boolean} isTest - Whether this is a test execution
+   * @returns {Promise<Object>} Execution result
+   */
+  async executeWorkflow(workflowId, userId, context = {}, isTest = false) {
+    try {
+      logger.info(`[WorkflowService] ${isTest ? 'Testing' : 'Executing'} workflow ${workflowId}`);
+
+      // Get the workflow by ID
+      const workflow = await this.getWorkflowById(workflowId, userId);
+      if (!workflow) {
+        throw new Error('Workflow not found');
+      }
+
+      // Create execution record
+      const { createSchedulerExecution } = require('~/models/SchedulerExecution');
+      const executionId = `exec_${workflowId}_${Date.now()}`;
+      
+      const execution = await createSchedulerExecution({
+        id: executionId,
+        task_id: workflowId,
+        user: userId,
+        status: 'running',
+        start_time: new Date(),
+        context: {
+          isTest,
+          workflowName: workflow.name,
+          trigger: { type: 'manual', source: isTest ? 'test' : 'manual' },
+          ...context,
+        },
+      });
+
+      // Use WorkflowExecutor singleton to execute the workflow
+      const WorkflowExecutor = require('./WorkflowExecutor');
+      const workflowExecutor = WorkflowExecutor.getInstance();
+
+      // Create execution context
+      const executionContext = {
+        ...context,
+        isTest,
+        trigger: {
+          type: 'manual',
+          source: isTest ? 'test' : 'manual',
+        },
+      };
+
+      // Execute the workflow
+      const result = await workflowExecutor.executeWorkflow(
+        workflow,
+        { id: executionId, user: userId },
+        executionContext
+      );
+
+      logger.info(`[WorkflowService] Workflow ${workflowId} execution completed successfully`);
+      return result;
+    } catch (error) {
+      logger.error(`[WorkflowService] Error executing workflow ${workflowId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Stop a running workflow execution
+   * @param {string} workflowId - Workflow ID
+   * @param {string} userId - User ID
+   * @returns {Promise<Object>} Stop result
+   */
+  async stopWorkflow(workflowId, userId) {
+    try {
+      logger.info(`[WorkflowService] Stopping workflow executions for ${workflowId}`);
+
+      // Use WorkflowExecutor singleton to stop the workflow
+      const WorkflowExecutor = require('./WorkflowExecutor');
+      const workflowExecutor = WorkflowExecutor.getInstance();
+
+      // Stop all running executions for this workflow
+      const stopped = await workflowExecutor.stopWorkflowExecutions(workflowId, userId);
+
+      if (stopped) {
+        logger.info(`[WorkflowService] Successfully stopped executions for workflow ${workflowId}`);
+        return {
+          success: true,
+          message: 'Workflow execution stopped successfully',
+        };
+      } else {
+        logger.info(`[WorkflowService] No running executions found for workflow ${workflowId}`);
+        return {
+          success: true,
+          message: 'No running executions to stop',
+        };
+      }
+    } catch (error) {
+      logger.error(`[WorkflowService] Error stopping workflow ${workflowId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Send workflow event notification
    * @param {string} userId - User ID
    * @param {string} eventType - Event type

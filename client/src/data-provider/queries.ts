@@ -876,3 +876,17 @@ export const useWorkflowExecutionQuery = (
     refetchOnMount: false,
     ...options,
   });
+
+export const useLatestWorkflowExecutionQuery = (
+  workflowId: string,
+  options?: UseQueryOptions<t.TWorkflowExecution>,
+) =>
+  useQuery<t.TWorkflowExecution>({
+    queryKey: [QueryKeys.workflowExecution, workflowId, 'latest'],
+    queryFn: () => dataService.getLatestWorkflowExecution(workflowId),
+    enabled: !!workflowId,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    ...options,
+  });

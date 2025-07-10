@@ -12,7 +12,7 @@ const { getFullStepResult } = require('./utils');
  * @returns {Promise<Object>} Step result
  */
 async function executeMCPAgentActionStep(step, context, userId, abortSignal) {
-  logger.info(`[WorkflowStepExecutor] Executing MCP agent action step: "${step.name}"`);
+  logger.info(`[WorkflowStepExecutor] Executing MCP agent action step: "${step.name}" (agent_id: ${step.agent_id || 'ephemeral'})`);
 
   // Check if execution has been cancelled
   if (abortSignal?.aborted) {
@@ -135,7 +135,7 @@ async function executeStep(workflow, execution, step, context, abortSignal) {
       );
     }
 
-    logger.info(`[WorkflowStepExecutor] Step completed: ${step.name}`);
+    logger.info(`[WorkflowStepExecutor] Step completed: ${step.name} (agent_id: ${step.agent_id || 'ephemeral'})`);
     return {
       success: true,
       result: result,
@@ -143,7 +143,7 @@ async function executeStep(workflow, execution, step, context, abortSignal) {
       responseMessageId: result.responseMessageId,
     };
   } catch (error) {
-    logger.error(`[WorkflowStepExecutor] Step failed: ${step.name}`, error);
+    logger.error(`[WorkflowStepExecutor] Step failed: ${step.name} (agent_id: ${step.agent_id || 'ephemeral'})`, error);
 
     // Update step execution with failure
     await updateSchedulerExecution(execution.id, execution.user, {

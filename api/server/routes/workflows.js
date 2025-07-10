@@ -12,6 +12,7 @@ const {
   stopWorkflow,
   executeWorkflow,
   getWorkflowExecutions,
+  getLatestWorkflowExecution,
   getSchedulerStatus,
 } = require('~/server/controllers/WorkflowController');
 
@@ -109,5 +110,13 @@ router.post('/:workflowId/execute', requireJwtAuth, executeWorkflow);
  * @returns {object} Array of workflow executions
  */
 router.get('/:workflowId/executions', requireJwtAuth, getWorkflowExecutions);
+
+/**
+ * Get latest workflow execution with step details
+ * @route GET /workflows/:workflowId/latest-execution
+ * @param {string} workflowId - The workflow ID
+ * @returns {object} Latest execution result with step details
+ */
+router.get('/:workflowId/latest-execution', requireJwtAuth, getLatestWorkflowExecution);
 
 module.exports = router;

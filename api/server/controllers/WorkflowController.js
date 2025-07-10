@@ -426,28 +426,28 @@ const getWorkflowExecutions = async (req, res) => {
 
     logger.info(`[WorkflowController] Getting executions for workflow ${workflowId}`);
 
-    // Convert workflow ID to scheduler task ID
-    const schedulerTaskId = `workflow_${workflowId.replace('workflow_', '')}`;
-
     // Get scheduler executions for this workflow
-    const executions = await getSchedulerExecutionsByTask(schedulerTaskId, userId, limit);
+    const executions = await getSchedulerExecutionsByTask(workflowId, userId, limit);
 
     // Convert scheduler executions to workflow execution format
     const formattedExecutions = executions.map((exec) => ({
       id: exec.id,
-      workflowId: exec.metadata?.workflowId || workflowId,
-      workflowName: exec.metadata?.workflowName || exec.task_name.replace('Workflow: ', ''),
+      workflowId: exec.task_id || workflowId,
+      workflowName: exec.context?.workflow?.name || 'Unknown Workflow',
       status: exec.status,
-      trigger: exec.trigger || { type: 'unknown' },
+      trigger: exec.context?.trigger || { type: 'unknown' },
       result: exec.result,
       error: exec.error,
-      duration:
+      duration: exec.duration || (
         exec.end_time && exec.start_time
           ? new Date(exec.end_time) - new Date(exec.start_time)
-          : null,
+          : null
+      ),
       startTime: exec.start_time,
       endTime: exec.end_time,
-      isTest: exec.metadata?.isTest || false,
+      isTest: exec.context?.isTest || false,
+      steps: exec.steps || [],
+      progress: exec.progress || { completedSteps: 0, totalSteps: 0, percentage: 0 },
       createdAt: exec.createdAt,
     }));
 
@@ -458,6 +458,72 @@ const getWorkflowExecutions = async (req, res) => {
     });
   } catch (error) {
     logger.error('[WorkflowController] Error getting workflow executions:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get latest execution result for a workflow
+ * @route GET /workflows/:workflowId/latest-execution
+ * @param {string} workflowId - The workflow ID
+ * @returns {object} Latest execution result with step details
+ */
+const getLatestWorkflowExecution = async (req, res) => {
+  try {
+    const { workflowId } = req.params;
+    const userId = req.user.id;
+
+    logger.info(`[WorkflowController] Getting latest execution for workflow ${workflowId}`);
+
+    // Get the most recent execution for this workflow
+    const executions = await getSchedulerExecutionsByTask(workflowId, userId, 1);
+
+    if (!executions || executions.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No executions found for this workflow',
+      });
+    }
+
+    const latestExecution = executions[0];
+
+    // Format the execution result with full step details
+    const formattedExecution = {
+      id: latestExecution.id,
+      workflowId: latestExecution.task_id || workflowId,
+      workflowName: latestExecution.context?.workflow?.name || 'Unknown Workflow',
+      status: latestExecution.status,
+      trigger: latestExecution.context?.trigger || { type: 'unknown' },
+      output: latestExecution.output,
+      error: latestExecution.error,
+      duration: latestExecution.duration || (
+        latestExecution.end_time && latestExecution.start_time
+          ? new Date(latestExecution.end_time) - new Date(latestExecution.start_time)
+          : null
+      ),
+      startTime: latestExecution.start_time,
+      endTime: latestExecution.end_time,
+      isTest: latestExecution.context?.isTest || false,
+      currentStepId: latestExecution.currentStepId,
+      currentStepIndex: latestExecution.currentStepIndex,
+      progress: latestExecution.progress || { completedSteps: 0, totalSteps: 0, percentage: 0 },
+      steps: latestExecution.steps || [],
+      context: latestExecution.context || {},
+      logs: latestExecution.logs || [],
+      notifications: latestExecution.notifications || [],
+      createdAt: latestExecution.createdAt,
+      updatedAt: latestExecution.updatedAt,
+    };
+
+    res.status(200).json({
+      success: true,
+      execution: formattedExecution,
+    });
+  } catch (error) {
+    logger.error('[WorkflowController] Error getting latest workflow execution:', error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -533,5 +599,6 @@ module.exports = {
   stopWorkflow,
   executeWorkflow,
   getWorkflowExecutions,
+  getLatestWorkflowExecution,
   getSchedulerStatus,
 };

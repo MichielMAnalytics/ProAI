@@ -316,26 +316,102 @@ class WorkflowExecutor {
       // Extract workflow name for metadata
       const workflowName = workflow.name?.replace(/^Workflow:\s*/, '') || 'Unnamed Workflow';
 
-      // Initialize metadata with isTest flag and workflow info
-      const executionMetadata = {
-        isTest: context.isTest || false,
-        workflowName,
-        steps:
-          workflow.steps?.map((step) => ({
-            id: step.id,
-            name: step.name,
-            type: step.type,
-            status: 'pending',
-          })) || [],
+      // Initialize enhanced execution context with workflow info
+      executionContext = {
+        ...context,
+        user, // Add full user object to context
+        workflow: {
+          // Include full workflow object for context access
+          ...workflow,
+          // Override/add execution-specific properties
+          conversationId: workflowExecutionConversationId, // Used for context but not saved
+          parentMessageId: null, // Start fresh for workflow execution
+          // No workflow-level agent - each step will create its own
+        },
+        execution: {
+          id: executionId,
+          startTime: new Date(),
+        },
+        mcp: {
+          available: mcpResult.success,
+          toolCount: mcpResult.toolCount,
+          serverCount: mcpResult.serverCount,
+          availableTools: mcpResult.availableTools,
+          // Enhanced tools already included in availableTools
+        },
+        steps: {},
+        variables: {},
       };
 
-      // Update execution record with serializable context and metadata
-      const serializableContext = createSerializableContext(executionContext);
-      await updateSchedulerExecution(executionId, execution.user, {
+      // Prepare structured execution record with enhanced schema
+      const executionRecord = {
+        id: executionId,
+        task_id: workflowId,
+        user: userId,
+        start_time: new Date(),
         status: 'running',
-        startTime: new Date(),
-        context: serializableContext,
-        metadata: executionMetadata,
+        currentStepId: null,
+        currentStepIndex: 0,
+        progress: {
+          completedSteps: 0,
+          totalSteps: workflow.steps?.length || 0,
+          percentage: 0,
+        },
+        steps: workflow.steps?.map((step) => ({
+          id: step.id,
+          name: step.name,
+          type: step.type,
+          instruction: step.instruction,
+          agent_id: step.agent_id,
+          status: 'pending',
+          retryCount: 0,
+          toolsUsed: [],
+          mcpToolsCount: 0,
+        })) || [],
+        context: {
+          isTest: context.isTest || false,
+          trigger: {
+            type: 'manual',
+            source: context.isTest ? 'test' : 'manual',
+            parameters: context.trigger?.parameters || {},
+          },
+          workflow: {
+            id: workflowId,
+            name: workflowName,
+            version: workflow.version || 1,
+            description: workflow.description || '',
+            totalSteps: workflow.steps?.length || 0,
+          },
+          execution: {
+            totalDuration: 0,
+            successfulSteps: 0,
+            failedSteps: 0,
+            skippedSteps: 0,
+          },
+          mcp: {
+            available: mcpResult.success,
+            toolCount: mcpResult.toolCount,
+            serverCount: mcpResult.serverCount,
+            initializationTime: 0, // TODO: Track this
+          },
+          environment: {
+            timezone: user.timezone || 'UTC',
+            locale: user.locale || 'en-US',
+            platform: process.platform,
+          },
+        },
+        logs: [],
+        notifications: [],
+      };
+
+      // Update the existing execution record with enhanced structure
+      // (The execution record was already created in WorkflowService.executeWorkflow)
+      await updateSchedulerExecution(executionId, execution.user, {
+        ...executionRecord,
+        // Remove fields that shouldn't be updated
+        id: undefined,
+        task_id: undefined,
+        user: undefined,
       });
 
       // Find the first step (usually the one without any incoming connections)
@@ -350,7 +426,7 @@ class WorkflowExecutor {
         execution,
         firstStep.id,
         executionContext,
-        executionMetadata,
+        executionRecord,
         stepMessages,
       );
 
@@ -372,10 +448,13 @@ class WorkflowExecutor {
         errorOutput = `${errorOutput}\n\nPartial results before failure:\n${partialSummary}`;
       }
 
-      // Update execution status
+      // Update execution status with error
+      const errorEndTime = new Date();
+      const errorStartTime = executionContext?.execution?.startTime || new Date();
       await updateSchedulerExecution(executionId, execution.user, {
         status: 'failed',
-        endTime: new Date(),
+        end_time: errorEndTime,
+        duration: errorEndTime.getTime() - errorStartTime.getTime(),
         error: error.message,
         output: errorOutput,
       });
@@ -394,11 +473,11 @@ class WorkflowExecutor {
    * @param {Object} execution - The execution record
    * @param {string} currentStepId - Current step ID to execute
    * @param {Object} context - Execution context
-   * @param {Object} metadata - Execution metadata with step tracking
+   * @param {Object} executionRecord - Execution record with step tracking
    * @param {Array} stepMessages - Array to accumulate step outputs as messages
    * @returns {Promise<Object>} Execution result
    */
-  async executeStepChain(workflow, execution, currentStepId, context, metadata, stepMessages) {
+  async executeStepChain(workflow, execution, currentStepId, context, executionRecord, stepMessages) {
     let currentStep = currentStepId;
     const executionResult = { success: true, error: null };
     const accumulatedStepResults = [];
@@ -425,17 +504,19 @@ class WorkflowExecutor {
         throw new Error(`Step not found: ${currentStep}`);
       }
 
-      logger.info(`[WorkflowExecutor] Executing step: ${step.name} (${step.type})`);
+      logger.info(`[WorkflowExecutor] Executing step: ${step.name} (${step.type}) (agent_id: ${step.agent_id || 'ephemeral'})`);
 
-      // Update step status to running in metadata
-      const stepMetadata = metadata.steps.find((s) => s.id === step.id);
-      if (stepMetadata) {
-        stepMetadata.status = 'running';
-        stepMetadata.startTime = new Date();
+      // Update step status to running in execution record
+      const stepRecord = executionRecord.steps.find((s) => s.id === step.id);
+      if (stepRecord) {
+        stepRecord.status = 'running';
+        stepRecord.startTime = new Date();
 
         // Update execution with current step status
         await updateSchedulerExecution(execution.id, execution.user, {
-          metadata: { ...metadata },
+          currentStepId: step.id,
+          currentStepIndex: executionRecord.steps.findIndex(s => s.id === step.id),
+          steps: executionRecord.steps,
         });
       }
 
@@ -500,28 +581,57 @@ class WorkflowExecutor {
         }
       }
 
-      // Update step status and results in metadata
-      if (stepMetadata) {
-        stepMetadata.status = stepResult.success ? 'completed' : 'failed';
-        stepMetadata.endTime = new Date();
+      // Update step status and results in execution record
+      if (stepRecord) {
+        stepRecord.status = stepResult.success ? 'completed' : 'failed';
+        stepRecord.endTime = new Date();
+        
+        // Calculate step duration
+        if (stepRecord.startTime) {
+          stepRecord.duration = stepRecord.endTime.getTime() - stepRecord.startTime.getTime();
+        }
 
         // Store meaningful output instead of technical metadata
         if (meaningfulOutput) {
-          stepMetadata.output = meaningfulOutput;
+          stepRecord.output = meaningfulOutput;
         } else if (stepResult.result && typeof stepResult.result === 'string') {
-          stepMetadata.output = stepResult.result;
+          stepRecord.output = stepResult.result;
         } else if (stepResult.result && typeof stepResult.result === 'object') {
           // Fallback to technical metadata if no meaningful content can be extracted
-          stepMetadata.output = JSON.stringify(stepResult.result, null, 2);
+          stepRecord.output = JSON.stringify(stepResult.result, null, 2);
         }
 
         if (stepResult.error) {
-          stepMetadata.error = stepResult.error;
+          stepRecord.error = stepResult.error;
         }
+
+        // Update additional step metadata from result
+        if (stepResult.result) {
+          // Only track tools that were actually called, not just available
+          // toolsUsed should be an array of strings (tool names)
+          if (stepResult.result.toolsUsed && Array.isArray(stepResult.result.toolsUsed)) {
+            stepRecord.toolsUsed = stepResult.result.toolsUsed.map(tool => 
+              typeof tool === 'string' ? tool : tool.tool || tool.name || String(tool)
+            );
+          } else {
+            stepRecord.toolsUsed = [];
+          }
+          
+          stepRecord.mcpToolsCount = stepResult.result.mcpToolsCount || 0;
+          stepRecord.modelUsed = stepResult.result.modelUsed;
+          stepRecord.endpointUsed = stepResult.result.endpointUsed;
+          stepRecord.conversationId = stepResult.result.conversationId;
+          stepRecord.responseMessageId = stepResult.result.responseMessageId;
+        }
+
+        // Update progress
+        executionRecord.progress.completedSteps = executionRecord.steps.filter(s => s.status === 'completed').length;
+        executionRecord.progress.percentage = Math.round((executionRecord.progress.completedSteps / executionRecord.progress.totalSteps) * 100);
 
         // Update execution with step results
         await updateSchedulerExecution(execution.id, execution.user, {
-          metadata: { ...metadata },
+          steps: executionRecord.steps,
+          progress: executionRecord.progress,
         });
       }
 
@@ -560,14 +670,34 @@ class WorkflowExecutor {
 
       // Determine next step based on result
       if (stepResult.success) {
-        currentStep = step.onSuccess;
+        // If explicit onSuccess is defined, use it
+        if (step.onSuccess) {
+          currentStep = step.onSuccess;
+        } else {
+          // For sequential execution, find the next step in the workflow
+          const currentStepIndex = workflow.steps.findIndex(s => s.id === step.id);
+          if (currentStepIndex !== -1 && currentStepIndex + 1 < workflow.steps.length) {
+            // Move to next step in sequence
+            currentStep = workflow.steps[currentStepIndex + 1].id;
+            logger.info(`[WorkflowExecutor] Moving to next step in sequence: ${currentStep}`);
+          } else {
+            // No more steps in sequence
+            currentStep = null;
+            logger.info(`[WorkflowExecutor] Sequential execution completed - no more steps`);
+          }
+        }
       } else {
         executionResult.success = false;
         executionResult.error =
           stepResult.error || `Step "${step.name}" failed without a specific error.`;
-        currentStep = step.onFailure;
-        if (!currentStep) {
+        
+        // If explicit onFailure is defined, use it
+        if (step.onFailure) {
+          currentStep = step.onFailure;
+        } else {
           // No failure path defined, workflow fails and stops
+          currentStep = null;
+          logger.info(`[WorkflowExecutor] Workflow failed at step "${step.name}" - no failure path defined`);
           break;
         }
       }
@@ -576,23 +706,32 @@ class WorkflowExecutor {
     executionResult.result = accumulatedStepResults;
 
     // Create a final summary using the buffer string approach
-    if (stepMessages.length > 0) {
-      const finalSummary = getBufferString(stepMessages);
-      executionResult.finalOutput = finalSummary;
+    const endTime = new Date();
+    const finalSummary = stepMessages.length > 0 ? getBufferString(stepMessages) : '';
+    executionResult.finalOutput = finalSummary;
 
-      // Update execution record with final summary
-      await updateSchedulerExecution(execution.id, execution.user, {
-        status: executionResult.success ? 'completed' : 'failed',
-        endTime: new Date(),
-        output: finalSummary, // Store the final buffer string as overall output
-      });
-    } else {
-      // Update execution record without buffer string
-      await updateSchedulerExecution(execution.id, execution.user, {
-        status: executionResult.success ? 'completed' : 'failed',
-        endTime: new Date(),
-      });
-    }
+    // Update execution record with final results
+    const startTime = context.execution?.startTime || executionRecord.start_time;
+    const finalUpdateData = {
+      status: executionResult.success ? 'completed' : 'failed',
+      end_time: endTime,
+      duration: endTime.getTime() - new Date(startTime).getTime(),
+      output: finalSummary, // Store the final buffer string as overall output
+      steps: executionRecord.steps,
+      progress: executionRecord.progress,
+      context: {
+        ...executionRecord.context,
+        execution: {
+          ...executionRecord.context.execution,
+          totalDuration: endTime.getTime() - new Date(startTime).getTime(),
+          successfulSteps: executionRecord.steps.filter(s => s.status === 'completed').length,
+          failedSteps: executionRecord.steps.filter(s => s.status === 'failed').length,
+          skippedSteps: executionRecord.steps.filter(s => s.status === 'skipped').length,
+        },
+      },
+    };
+
+    await updateSchedulerExecution(execution.id, execution.user, finalUpdateData);
 
     return executionResult;
   }

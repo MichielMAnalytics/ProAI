@@ -22,7 +22,8 @@ const {
  * @returns {Promise<Object>} Execution result
  */
 async function executeStepWithAgent(step, prompt, context, userId, abortSignal) {
-  logger.info(`[WorkflowAgentExecutor] Executing step "${step.name}" with fresh agent`);
+  logger.info(`[WorkflowAgentExecutor] Executing step "${step.name}" with fresh agent (agent_id: ${step.agent_id || 'ephemeral'})`);
+  logger.info(`[WorkflowAgentExecutor] Using step instruction: "${step.instruction || 'no instruction set'}"`);
 
   // Check if execution has been cancelled
   if (abortSignal?.aborted) {
@@ -71,25 +72,33 @@ async function executeStepWithAgent(step, prompt, context, userId, abortSignal) 
       throw new Error('No response received from agent');
     }
 
-    logger.info(`[WorkflowAgentExecutor] Agent execution completed for step "${step.name}"`);
+    logger.info(`[WorkflowAgentExecutor] Agent execution completed for step "${step.name}" (agent_id: ${step.agent_id || 'ephemeral'})`);
 
     // Extract response text from agent response
     const responseText = extractResponseText(response);
+
+    // Extract actual tool calls from the agent's content parts instead of available tools
+    const actualToolCalls = [];
+    
+    // If the client has contentParts with tool calls, extract them
+    if (client && client.contentParts && Array.isArray(client.contentParts)) {
+      const { ContentTypes } = require('librechat-data-provider');
+      
+      for (const part of client.contentParts) {
+        if (part.type === ContentTypes.TOOL_CALL && part.tool_call) {
+          actualToolCalls.push(part.tool_call.function?.name || part.tool_call.name || 'unknown_tool');
+        }
+      }
+    }
 
     return {
       status: 'success',
       message: `Successfully executed step "${step.name}" with fresh agent using ${endpointName}/${configuredModel}`,
       agentResponse: responseText,
-      toolsUsed: agent.tools || [],
-      mcpToolsCount:
-        agent.tools?.filter((tool) => {
-          // Handle enhanced tool format (objects with MCP metadata)
-          if (typeof tool === 'object' && tool.tool) {
-            return tool.tool.includes(Constants.mcp_delimiter);
-          }
-          // Handle regular tool format (strings)
-          return typeof tool === 'string' && tool.includes(Constants.mcp_delimiter);
-        }).length || 0,
+      toolsUsed: actualToolCalls, // Only actual tool calls, not available tools
+      mcpToolsCount: actualToolCalls.filter(toolName => 
+        toolName.includes(Constants.mcp_delimiter)
+      ).length,
       modelUsed: configuredModel,
       endpointUsed: endpointName,
       timestamp: new Date().toISOString(),
@@ -121,21 +130,18 @@ async function createFreshAgent(workflow, step, context) {
   const config = await getConfiguredModelAndEndpoint(workflow);
   const { model: configuredModel, endpoint: configuredEndpoint, endpointName } = config;
 
-  // Determine which agent to load
-  const agentIdToLoad =
-    workflow.endpoint === 'agents' && workflow.agent_id
-      ? workflow.agent_id
-      : Constants.EPHEMERAL_AGENT_ID;
+  // Determine which agent to load - use step-specific agent_id
+  const agentIdToLoad = step.agent_id || Constants.EPHEMERAL_AGENT_ID;
 
   logger.info(
-    `[WorkflowAgentExecutor] Determined agent for fresh agent creation: ${agentIdToLoad}`,
+    `[WorkflowAgentExecutor] Using step-specific agent for step "${step.name}": ${agentIdToLoad}`,
   );
 
   // Create mock request for agent initialization
   const mockReq = createMockRequestForWorkflow(
     context,
     user,
-    step.config.instruction || `Executing step: ${step.name}`,
+    step.instruction || `Executing step: ${step.name}`,
     configuredModel,
     configuredEndpoint,
   );
@@ -156,7 +162,7 @@ async function createFreshAgent(workflow, step, context) {
     updateRequestForEphemeralAgent(
       mockReq,
       {
-        prompt: step.config.instruction || `Executing step: ${step.name}`,
+        prompt: step.instruction || `Executing step: ${step.name}`,
         user: userId,
         conversation_id: conversationId,
         parent_message_id: parentMessageId,
@@ -193,7 +199,7 @@ async function createFreshAgent(workflow, step, context) {
   }
 
   logger.info(
-    `[WorkflowAgentExecutor] Loaded fresh agent with ${
+    `[WorkflowAgentExecutor] Loaded fresh agent (agent_id: ${agentIdToLoad}) with ${
       agent.tools?.length || 0
     } tools using ${endpointName}/${configuredModel}`,
   );
@@ -226,7 +232,7 @@ async function createFreshAgent(workflow, step, context) {
   client.skipSaveConvo = true;
 
   logger.info(
-    `[WorkflowAgentExecutor] AgentClient initialized successfully for step "${step.name}" (conversation saving disabled)`,
+    `[WorkflowAgentExecutor] AgentClient initialized successfully for step "${step.name}" (agent_id: ${agentIdToLoad}) (conversation saving disabled)`,
   );
 
   return {
