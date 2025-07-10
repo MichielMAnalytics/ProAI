@@ -1,6 +1,7 @@
 const { logger } = require('~/config');
 const { Constants } = require('librechat-data-provider');
 const { loadAgent } = require('~/models/Agent');
+const { HumanMessage, SystemMessage, getBufferString } = require('@langchain/core/messages');
 const {
   createMinimalMockResponse,
   updateRequestForEphemeralAgent,
@@ -14,14 +15,51 @@ const {
 } = require('./utils');
 
 /**
- * Execute a step using a fresh agent with MCP tools
+ * Create enhanced prompt with AgentChain-style context passing for background execution
  * @param {Object} step - Workflow step
- * @param {string} prompt - Task prompt
+ * @param {Object} context - Execution context  
+ * @param {Array} stepMessages - Previous step messages (HumanMessage objects)
+ * @returns {string} Enhanced prompt with proper context
+ */
+function createEnhancedPromptWithContext(step, context, stepMessages) {
+  let prompt = '';
+
+  // Step instruction (primary objective)
+  if (step.instruction) {
+    prompt += `STEP OBJECTIVE: ${step.instruction}\n\n`;
+  }
+
+  // Workflow context
+  const workflowContext = context.workflow?.description || context.workflow?.name;
+  if (workflowContext) {
+    prompt += `WORKFLOW GOAL: ${workflowContext}\n\n`;
+  }
+
+  // Previous step context (AgentChain pattern - this is the key improvement!)
+  if (stepMessages && stepMessages.length > 0) {
+    // Convert messages to buffer string like AgentChain does
+    const bufferString = getBufferString(stepMessages);
+    prompt += `PREVIOUS STEPS CONTEXT:\n${bufferString}\n\n`;
+    
+    logger.info(`[WorkflowAgentExecutor] Added ${stepMessages.length} previous step messages as context`);
+  }
+
+  // Final instruction
+  prompt += `Please execute your step objective using the context from previous steps.`;
+
+  return prompt;
+}
+
+/**
+ * Execute a step using a fresh agent with MCP tools (AgentChain pattern)
+ * @param {Object} step - Workflow step
+ * @param {Array} stepMessages - Previous step messages for context
  * @param {Object} context - Execution context
  * @param {string} userId - User ID
+ * @param {AbortSignal} abortSignal - Abort signal
  * @returns {Promise<Object>} Execution result
  */
-async function executeStepWithAgent(step, prompt, context, userId, abortSignal) {
+async function executeStepWithAgent(step, stepMessages, context, userId, abortSignal) {
   logger.info(`[WorkflowAgentExecutor] Executing step "${step.name}" with fresh agent (agent_id: ${step.agent_id || 'ephemeral'})`);
   logger.info(`[WorkflowAgentExecutor] Using step instruction: "${step.instruction || 'no instruction set'}"`);
 
@@ -50,8 +88,11 @@ async function executeStepWithAgent(step, prompt, context, userId, abortSignal) 
       throw new Error('Execution was cancelled by user');
     }
 
-    // Execute the step using the fresh agent
-    const response = await client.sendMessage(prompt, {
+    // Create enhanced prompt with AgentChain-style context (key improvement!)
+    const enhancedPrompt = createEnhancedPromptWithContext(step, context, stepMessages);
+
+    // Execute the step using the fresh agent with enhanced context
+    const response = await client.sendMessage(enhancedPrompt, {
       user: userId,
       conversationId: context.workflow?.conversationId,
       parentMessageId: context.workflow?.parentMessageId,
@@ -77,7 +118,7 @@ async function executeStepWithAgent(step, prompt, context, userId, abortSignal) 
     // Extract response text from agent response
     const responseText = extractResponseText(response);
 
-    // Extract actual tool calls from the agent's content parts instead of available tools
+    // Extract actual tool calls from the client's content parts instead of available tools
     const actualToolCalls = [];
     
     // If the client has contentParts with tool calls, extract them

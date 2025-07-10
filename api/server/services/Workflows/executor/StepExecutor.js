@@ -1,6 +1,5 @@
 const { logger } = require('~/config');
 const { updateSchedulerExecution } = require('~/models/SchedulerExecution');
-const { createTaskPromptForStep } = require('./PromptBuilder');
 const { executeStepWithAgent } = require('./AgentExecutor');
 const { getFullStepResult } = require('./utils');
 
@@ -9,9 +8,11 @@ const { getFullStepResult } = require('./utils');
  * @param {Object} step - The action step
  * @param {Object} context - Execution context
  * @param {string} userId - User ID for the execution
+ * @param {Array} stepMessages - Previous step messages for context
+ * @param {AbortSignal} abortSignal - Abort signal
  * @returns {Promise<Object>} Step result
  */
-async function executeMCPAgentActionStep(step, context, userId, abortSignal) {
+async function executeMCPAgentActionStep(step, context, userId, stepMessages, abortSignal) {
   logger.info(`[WorkflowStepExecutor] Executing MCP agent action step: "${step.name}" (agent_id: ${step.agent_id || 'ephemeral'})`);
 
   // Check if execution has been cancelled
@@ -30,16 +31,12 @@ async function executeMCPAgentActionStep(step, context, userId, abortSignal) {
     `[WorkflowStepExecutor] Using fresh agent with ${context.mcp.toolCount} MCP tools for step "${step.name}"`,
   );
 
-  // Create a task prompt based on the step
-  const taskPrompt = createTaskPromptForStep(step, context);
-
-  // Execute using fresh agent with MCP tools
-  const result = await executeStepWithAgent(step, taskPrompt, context, userId, abortSignal);
+  // Execute using fresh agent with enhanced context (stepMessages array)
+  const result = await executeStepWithAgent(step, stepMessages, context, userId, abortSignal);
 
   return {
     type: 'mcp_agent_action',
     stepName: step.name,
-    prompt: taskPrompt,
     ...result,
   };
 }
@@ -105,8 +102,9 @@ async function executeStep(workflow, execution, step, context, abortSignal) {
       throw new Error('Execution was cancelled by user');
     }
 
-    // Execute the MCP agent action step
-    const result = await executeMCPAgentActionStep(step, context, execution.user, abortSignal);
+    // Execute the MCP agent action step with stepMessages context
+    const stepMessages = context.stepMessages || [];
+    const result = await executeMCPAgentActionStep(step, context, execution.user, stepMessages, abortSignal);
 
     // Update step execution with success
     await updateSchedulerExecution(execution.id, execution.user, {

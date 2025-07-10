@@ -526,16 +526,23 @@ class WorkflowExecutor {
         // Convert accumulated step messages into a buffer string for the next step
         const bufferString = getBufferString(stepMessages);
 
-        // Add the buffer string as context for the current step
+        // Add the buffer string and stepMessages array as context for the current step
         stepInput = {
           ...context,
           previousStepsOutput: bufferString,
+          stepMessages: stepMessages, // Pass the message array for enhanced context
           steps: context.steps, // Keep the structured step results for metadata
         };
 
         logger.debug(
           `[WorkflowExecutor] Passing accumulated output to step ${step.name}: ${bufferString.substring(0, 200)}...`,
         );
+      } else {
+        // Even if no previous messages, make sure stepMessages is available
+        stepInput = {
+          ...context,
+          stepMessages: stepMessages,
+        };
       }
 
       // Execute the current step (each step gets a fresh agent)
