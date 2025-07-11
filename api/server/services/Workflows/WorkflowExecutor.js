@@ -185,7 +185,8 @@ class WorkflowExecutor {
   }
 
   /**
-   * Ensure MCP tools are ready for a user (using same approach as SchedulerAgentHandler)
+   * Ensure MCP tools are ready for a user in background execution context (workflows)
+   * Uses system credentials as primary strategy for non-interactive OAuth flows
    * @param {string} userId - User ID
    * @returns {Promise<Object>} MCP initialization result
    */
@@ -196,19 +197,20 @@ class WorkflowExecutor {
     }
 
     try {
-      logger.info(`[WorkflowExecutor] Initializing MCP for user ${userId}`);
+      logger.info(`[WorkflowExecutor] Initializing MCP for background execution (user ${userId})`);
 
-      // Use the same approach as SchedulerAgentHandler
+      // Use background-optimized MCP initialization for workflow execution
       const MCPInitializer = require('~/server/services/MCPInitializer');
       const mcpInitializer = MCPInitializer.getInstance();
 
       // Create availableTools object to be populated by MCPInitializer
       const availableTools = {};
 
-      const mcpResult = await mcpInitializer.ensureUserMCPReady(
+      // Use background-specific initialization that prioritizes system credentials
+      const mcpResult = await mcpInitializer.ensureUserMCPReadyForBackground(
         userId,
         'WorkflowExecutor',
-        availableTools, // This gets populated with MCP tools
+        availableTools, // This gets populated with MCP tools using system credentials
         {}, // No additional options needed
       );
 
@@ -218,16 +220,17 @@ class WorkflowExecutor {
         availableTools, // Enhanced tools with embedded metadata
         toolCount: mcpResult.toolCount,
         serverCount: mcpResult.serverCount,
+        backgroundExecution: true, // Flag to indicate background execution
       };
 
       this.mcpInitialized.set(userId, result);
 
       logger.info(
-        `[WorkflowExecutor] MCP initialized for user ${userId}: ${mcpResult.serverCount} servers, ${mcpResult.toolCount} tools`,
+        `[WorkflowExecutor] Background MCP initialized for user ${userId}: ${mcpResult.serverCount} servers, ${mcpResult.toolCount} tools`,
       );
       return result;
     } catch (error) {
-      logger.error(`[WorkflowExecutor] Failed to initialize MCP for user ${userId}:`, error);
+      logger.error(`[WorkflowExecutor] Failed to initialize background MCP for user ${userId}:`, error);
 
       const errorResult = {
         success: false,
@@ -235,6 +238,7 @@ class WorkflowExecutor {
         toolCount: 0,
         serverCount: 0,
         error: error.message,
+        backgroundExecution: true,
       };
 
       this.mcpInitialized.set(userId, errorResult);

@@ -231,6 +231,126 @@ class MCPInitializer {
   }
 
   /**
+   * Ensure user MCP servers are ready for background execution (workflows, cron jobs)
+   * 
+   * This method is optimized for non-interactive contexts where OAuth flows cannot be completed.
+   * It uses system credentials as the primary strategy instead of attempting user-specific OAuth.
+   *
+   * @param {string} userId - The user ID
+   * @param {string} context - Context identifier for logging (e.g., 'WorkflowExecutor', 'SchedulerService')
+   * @param {Object} availableTools - Tools registry to enhance with MCP tools
+   * @param {Object} options - Additional options
+   * @param {boolean} options.forceRefresh - Force refresh even if cached (default: false)
+   * @param {Object} options.pipedreamServerInstructions - Pipedream server instructions from config
+   * @returns {Promise<Object>} Initialization result with mcpManager, serverCount, toolCount, and cache info
+   */
+  async ensureUserMCPReadyForBackground(userId, context, availableTools = {}, options = {}) {
+    const startTime = Date.now();
+    const { forceRefresh = false, pipedreamServerInstructions = null } = options;
+
+    if (!userId) {
+      return {
+        success: false,
+        error: 'User ID is required',
+        serverCount: 0,
+        toolCount: 0,
+        duration: Date.now() - startTime,
+        cached: false,
+      };
+    }
+
+    logger.debug(`[MCPInitializer][${context}] Starting background MCP initialization for user ${userId}`, {
+      forceRefresh,
+      cacheSize: this.userInitializationCache.size,
+    });
+
+    // Check for pending initialization to prevent concurrent attempts
+    if (this.pendingInitializations.has(userId)) {
+      logger.debug(
+        `[MCPInitializer][${context}] Waiting for pending initialization for user ${userId}`,
+      );
+      try {
+        const result = await this.pendingInitializations.get(userId);
+        logger.info(
+          `[MCPInitializer][${context}] Used pending initialization result for user ${userId} in ${Date.now() - startTime}ms`,
+        );
+        return {
+          ...result,
+          duration: Date.now() - startTime,
+          cached: true,
+          pendingWait: true,
+        };
+      } catch (error) {
+        logger.warn(
+          `[MCPInitializer][${context}] Pending initialization failed for user ${userId}:`,
+          error.message,
+        );
+        this.pendingInitializations.delete(userId);
+      }
+    }
+
+    // Check cache if not forcing refresh
+    if (!forceRefresh) {
+      const cached = this.getUserInitializationCache(userId);
+      if (cached) {
+        logger.info(
+          `[MCPInitializer][${context}] Using cached MCP initialization for user ${userId} (age: ${Math.floor((Date.now() - cached.timestamp) / 1000)}s)`,
+        );
+
+        // Debug: Log cached MCP tools count
+        const cachedMCPToolsCount = cached.mcpTools ? Object.keys(cached.mcpTools).length : 0;
+        logger.info(
+          `[MCPInitializer][${context}] Cached result has ${cachedMCPToolsCount} MCP tools`,
+        );
+
+        // Apply cached tools to current availableTools registry
+        let reportedToolCount = 0;
+        if (cached.mcpTools && Object.keys(cached.mcpTools).length > 0) {
+          const toolsBefore = Object.keys(availableTools).length;
+          Object.assign(availableTools, cached.mcpTools);
+          const toolsAfter = Object.keys(availableTools).length;
+          const newlyAppliedCount = toolsAfter - toolsBefore;
+
+          // Report the total number of MCP tools available for this user, not just newly applied
+          reportedToolCount = Object.keys(cached.mcpTools).length;
+
+          logger.debug(
+            `[MCPInitializer][${context}] Applied ${Object.keys(cached.mcpTools).length} cached MCP tools to availableTools (${newlyAppliedCount} newly added, ${reportedToolCount} total for user)`,
+          );
+        }
+
+        // Cached tools already have embedded metadata, no additional processing needed
+        logger.debug(`[MCPInitializer][${context}] Using cached MCP tools with embedded metadata`);
+
+        return {
+          ...cached,
+          toolCount: reportedToolCount, // Report total MCP tools for user, not just newly applied
+          duration: Date.now() - startTime,
+          cached: true,
+        };
+      }
+    }
+
+    // Create promise for concurrent requests - use background-specific initialization
+    const initializationPromise = this.performBackgroundMCPInitialization(
+      userId,
+      context,
+      availableTools,
+      startTime,
+      pipedreamServerInstructions,
+    );
+    this.pendingInitializations.set(userId, initializationPromise);
+
+    try {
+      const result = await initializationPromise;
+      return result;
+    } finally {
+      // Clean up pending promise
+      this.pendingInitializations.delete(userId);
+    }
+  }
+
+  /**
    * Ensure user MCP servers are ready for use with smart caching
    *
    * @param {string} userId - The user ID
@@ -427,12 +547,22 @@ class MCPInitializer {
             // First, register the server config for this user
             mcpManager.addUserServerConfig(userId, serverName, serverConfig);
 
+            // Get proper flow manager and token methods for OAuth support
+            const { getFlowStateManager } = require('~/config');
+            const { getLogStores } = require('~/cache');
+            const { CacheKeys } = require('librechat-data-provider');
+            const { findToken, updateToken, createToken } = require('~/models');
+
+            const flowsCache = getLogStores(CacheKeys.FLOWS);
+            const flowManager = getFlowStateManager(flowsCache);
+            const tokenMethods = { findToken, updateToken, createToken };
+
             // Then get/create the connection (which will now find the config)
             const connection = await mcpManager.getUserConnection({
               user: { id: userId },
               serverName,
-              flowManager: null, // We don't have flowManager in this context yet
-              tokenMethods: null, // Token methods handled by our existing Pipedream integration
+              flowManager, // Provide flowManager for OAuth support
+              tokenMethods, // Provide tokenMethods for Pipedream SDK
             });
 
             if (connection && (await connection.isConnected())) {
@@ -620,6 +750,280 @@ class MCPInitializer {
         manifestTools: [],
         duration: Date.now() - startTime,
         cached: false,
+      };
+
+      // Cache failed result briefly to prevent rapid retries
+      this.setUserInitializationCache(userId, result);
+
+      return result;
+    }
+  }
+
+  /**
+   * Perform background MCP initialization for non-interactive contexts (workflows, cron jobs)
+   *
+   * This method uses system credentials as the primary strategy for Pipedream connections
+   * instead of attempting user-specific OAuth flows that cannot complete in background execution.
+   *
+   * @private
+   * @param {string} userId - The user ID
+   * @param {string} context - Context identifier for logging
+   * @param {Object} availableTools - Tools registry to enhance with MCP tools
+   * @param {number} startTime - Start time for duration calculation
+   * @param {Object} pipedreamServerInstructions - Pipedream server instructions from config
+   * @returns {Promise<Object>} Initialization result
+   */
+  async performBackgroundMCPInitialization(
+    userId,
+    context,
+    availableTools,
+    startTime,
+    pipedreamServerInstructions = null,
+  ) {
+    try {
+      const mcpManager = getMCPManager(userId);
+      if (!mcpManager) {
+        const result = {
+          success: false,
+          error: 'MCP Manager not available for user',
+          mcpManager: null,
+          serverCount: 0,
+          toolCount: 0,
+          duration: Date.now() - startTime,
+          cached: false,
+        };
+        this.setUserInitializationCache(userId, result);
+        return result;
+      }
+
+      // Get user MCP servers
+      const UserMCPService = require('~/server/services/UserMCPService');
+      logger.info(`[MCPInitializer][${context}] Getting user MCP servers for user ${userId}`);
+      const userMCPServers = await UserMCPService.getUserMCPServers(userId, {
+        pipedreamServerInstructions,
+      });
+      const serverCount = Object.keys(userMCPServers).length;
+
+      logger.info(
+        `[MCPInitializer][${context}] Found ${serverCount} user MCP servers for user ${userId}: ${Object.keys(userMCPServers).join(', ')}`,
+      );
+
+      // Enhanced logging for global MCP servers
+      const globalMCPServers = mcpManager.getAllConnections();
+      const globalServerCount = globalMCPServers.size;
+      logger.info(
+        `[MCPInitializer][${context}] Global MCP servers available: ${globalServerCount} (${Array.from(globalMCPServers.keys()).join(', ')})`,
+      );
+
+      let toolCount = 0;
+      const mcpTools = {}; // Store tools for caching
+      let manifestTools = []; // Store manifest tools for caching
+
+      if (serverCount > 0) {
+        // Initialize user-specific MCP servers with background-optimized strategy
+        logger.info(
+          `[MCPInitializer][${context}] Initializing user MCP servers for background execution (user ${userId})`,
+        );
+        logger.debug(
+          `[MCPInitializer][${context}] Processing user server configurations:`,
+          JSON.stringify(userMCPServers, null, 2),
+        );
+
+        // Count tools before adding user MCP tools
+        const toolCountBefore = Object.keys(availableTools).length;
+
+        // Initialize all servers in parallel using Promise.allSettled for better performance
+        const serverEntries = Object.entries(userMCPServers);
+        const serverInitPromises = serverEntries.map(async ([serverName, serverConfig]) => {
+          try {
+            // First, register the server config for this user
+            mcpManager.addUserServerConfig(userId, serverName, serverConfig);
+
+            // For background execution, use system-first OAuth strategy
+            // This skips user-specific OAuth and directly uses system credentials
+            const connection = await mcpManager.getUserConnectionForBackground({
+              user: { id: userId },
+              serverName,
+              useSystemCredentials: true, // Background execution flag
+            });
+
+            if (connection && (await connection.isConnected())) {
+              logger.debug(
+                `[MCPInitializer][${context}] Successfully initialized background connection for server ${serverName}`,
+              );
+
+              // Fetch and map tools directly while we have the connection
+              try {
+                const tools = await connection.fetchTools();
+                const serverTools = [];
+                for (const tool of tools) {
+                  const toolName = tool.name;
+
+                  // Create MCP metadata for this user-specific tool
+                  const mcpMetadata = ToolMetadataUtils.createMCPMetadata({
+                    serverName,
+                    isGlobal: false,
+                    userId,
+                    originalToolName: tool.name,
+                  });
+
+                  // Create enhanced tool with embedded metadata
+                  const enhancedTool = ToolMetadataUtils.createEnhancedTool(
+                    toolName,
+                    {
+                      description: tool.description,
+                      parameters: tool.inputSchema,
+                    },
+                    mcpMetadata,
+                  );
+
+                  serverTools.push({ toolName, toolDef: enhancedTool, serverName, tool });
+                }
+                logger.debug(
+                  `[MCPInitializer][${context}] Mapped ${tools.length} tools from server ${serverName}`,
+                );
+                return { serverName, tools: serverTools, success: true };
+              } catch (toolError) {
+                logger.warn(
+                  `[MCPInitializer][${context}] Failed to fetch tools from server ${serverName}:`,
+                  toolError.message,
+                );
+                return { serverName, tools: [], success: false, error: toolError.message };
+              }
+            }
+            logger.error(
+              `[MCPInitializer][${context}] Background connection failed for server ${serverName} - connection not established or not connected`,
+              { serverName, userId, hasConnection: !!connection }
+            );
+            return { serverName, tools: [], success: false, error: 'Background connection failed' };
+          } catch (initError) {
+            logger.error(
+              `[MCPInitializer][${context}] Failed to initialize background connection for server ${serverName}:`,
+              {
+                error: initError.message,
+                stack: initError.stack,
+                serverName,
+                userId,
+              }
+            );
+            return { serverName, tools: [], success: false, error: initError.message };
+          }
+        });
+
+        // Wait for all server initializations to complete
+        const serverResults = await Promise.allSettled(serverInitPromises);
+
+        // Process results and add tools to availableTools (enhanced structure)
+        for (const result of serverResults) {
+          if (result.status === 'fulfilled' && result.value.success) {
+            const { serverName, tools } = result.value;
+            for (const { toolName, toolDef } of tools) {
+              // toolDef is already an enhanced tool with embedded metadata
+              availableTools[toolName] = toolDef;
+              logger.debug(
+                `[MCPInitializer][${context}] Added enhanced tool '${toolName}' from server '${serverName}' to availableTools`,
+              );
+            }
+          } else if (result.status === 'rejected') {
+            logger.warn(
+              `[MCPInitializer][${context}] Background server initialization promise rejected:`,
+              result.reason,
+            );
+          }
+        }
+
+        const toolCountAfter = Object.keys(availableTools).length;
+        toolCount = toolCountAfter - toolCountBefore;
+
+        // Debug: Log MCP tools in availableTools after mapping
+        const mcpToolsInAvailable = Object.entries(availableTools).filter(([toolName, toolDef]) =>
+          ToolMetadataUtils.isMCPTool(toolDef),
+        );
+        logger.info(
+          `[MCPInitializer][${context}] MCP tools in availableTools after background mapping: ${mcpToolsInAvailable.length}`,
+        );
+
+        // Store the MCP tools for caching
+        for (const [toolName, toolDef] of mcpToolsInAvailable) {
+          mcpTools[toolName] = toolDef;
+        }
+
+        // Create manifest tools using the same method as normal flow
+        logger.info(`[MCPInitializer][${context}] Creating manifest tools for user ${userId}`);
+        try {
+          manifestTools = await mcpManager.loadUserManifestTools(userId);
+          logger.info(
+            `[MCPInitializer][${context}] Created ${manifestTools.length} manifest tools for user ${userId}`,
+          );
+        } catch (manifestError) {
+          logger.warn(
+            `[MCPInitializer][${context}] Failed to create manifest tools for user ${userId}:`,
+            manifestError.message,
+          );
+          manifestTools = []; // Continue without manifest tools
+        }
+      }
+
+      // Handle global MCP servers (same as normal flow)
+      let globalToolsRegistered = 0;
+      if (globalServerCount > 0) {
+        logger.info(`[MCPInitializer][${context}] Global MCP servers available: ${globalServerCount}`);
+
+        // Global tools are already in availableTools from app initialization
+        // Just count them and add to cache without verification
+        for (const [toolName, toolDef] of Object.entries(availableTools)) {
+          if (ToolMetadataUtils.isMCPTool(toolDef) && ToolMetadataUtils.isGlobalMCPTool(toolDef)) {
+            globalToolsRegistered++;
+            // Add to cached tools for future use
+            mcpTools[toolName] = toolDef;
+          }
+        }
+
+        logger.info(
+          `[MCPInitializer][${context}] Found ${globalToolsRegistered} global MCP tools in availableTools`,
+        );
+
+        // Update tool count to include global tools
+        toolCount += globalToolsRegistered;
+      }
+
+      const result = {
+        success: true,
+        mcpManager,
+        serverCount,
+        toolCount,
+        mcpTools, // Store for caching
+        manifestTools, // Store cached manifest tools
+        duration: Date.now() - startTime,
+        cached: false,
+        backgroundExecution: true, // Flag to indicate this was background execution
+      };
+
+      // Cache the result for future use
+      this.setUserInitializationCache(userId, result);
+
+      logger.info(
+        `[MCPInitializer][${context}] Background MCP initialization complete for user ${userId} in ${result.duration}ms (${serverCount} servers, ${toolCount} tools, ${manifestTools.length} manifest tools)`,
+      );
+
+      return result;
+    } catch (error) {
+      logger.error(
+        `[MCPInitializer][${context}] Background MCP initialization failed for user ${userId}:`,
+        error,
+      );
+
+      const result = {
+        success: false,
+        error: error.message,
+        mcpManager: null,
+        serverCount: 0,
+        toolCount: 0,
+        mcpTools: {},
+        manifestTools: [],
+        duration: Date.now() - startTime,
+        cached: false,
+        backgroundExecution: true,
       };
 
       // Cache failed result briefly to prevent rapid retries

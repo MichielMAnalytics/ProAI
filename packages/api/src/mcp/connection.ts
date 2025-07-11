@@ -156,7 +156,8 @@ export class MCPConnection extends EventEmitter {
       const PipedreamConnect = require('../../../api/server/services/Pipedream/PipedreamConnect');
 
       if (PipedreamConnect.isEnabled()) {
-        // Use SDK's automatic token management - no need to clear cache manually
+        // Use SDK's automatic token management - use system credentials by default
+        // This is what was working in the original normal operation
         const newToken = await PipedreamConnect.getOAuthAccessToken();
         if (newToken) {
           logger.debug(

@@ -621,6 +621,124 @@ export class MCPManager {
     }
   }
 
+  /**
+   * Get user connection optimized for background execution (workflows, cron jobs)
+   * 
+   * This method uses system credentials as the primary strategy instead of attempting
+   * user-specific OAuth flows that cannot complete in non-interactive contexts.
+   */
+  public async getUserConnectionForBackground({
+    user,
+    serverName,
+    useSystemCredentials = true,
+  }: {
+    user: { id: string };
+    serverName: string;
+    useSystemCredentials?: boolean;
+  }): Promise<MCPConnection | null> {
+    const userId = user.id;
+    const logPrefix = `[MCP][User: ${userId}][${serverName}]`;
+
+    logger.debug(`${logPrefix} Getting background connection with system credentials`);
+
+    // Update user activity timestamp for cleanup management
+    this.userLastActivity.set(userId, Date.now());
+
+    // Check for existing user connection first
+    const existingUserMap = this.userConnections.get(userId);
+    const existingConnection = existingUserMap?.get(serverName);
+
+    if (existingConnection) {
+      // Check if connection is still valid
+      if (await existingConnection.isConnected()) {
+        logger.debug(`${logPrefix} Reusing existing background connection`);
+        return existingConnection;
+      } else {
+        // Connection is stale, remove it
+        logger.debug(`${logPrefix} Existing connection is stale, removing`);
+        this.removeUserConnection(userId, serverName);
+      }
+    }
+
+    // Get server configuration (check user-specific config first, then global)
+    const config = this.userConfigs.get(userId)?.[serverName] || this.mcpConfigs[serverName];
+    if (!config) {
+      logger.error(`${logPrefix} No configuration found for server ${serverName}`);
+      return null;
+    }
+
+    logger.info(`${logPrefix} Establishing new background connection`);
+
+    let connection: MCPConnection | null = null;
+
+    try {
+      // For background execution, create connection with system credential strategy
+      // Skip user token loading and OAuth flows - use system credentials directly
+      connection = new MCPConnection(serverName, config, userId, null);
+
+      // Set up system credential OAuth handling for background execution
+      connection.on('oauthRequired', async () => {
+        logger.info(`${logPrefix} OAuth required in background - using system credentials`);
+        
+        // Directly use system credentials for Pipedream servers
+        if (serverName.includes('pipedream')) {
+          try {
+            const PipedreamConnect = require('../../../api/server/services/Pipedream/PipedreamConnect');
+            if (PipedreamConnect.isEnabled()) {
+              const systemToken = await PipedreamConnect.getSystemOAuthToken();
+              if (systemToken && 'headers' in config && config.headers) {
+                config.headers['Authorization'] = `Bearer ${systemToken}`;
+                connection?.emit('oauthHandled');
+                logger.info(`${logPrefix} System credential applied for background execution`);
+                return;
+              }
+            }
+          } catch (error) {
+            logger.error(`${logPrefix} Failed to get system credentials:`, error);
+          }
+        }
+        
+        // If system credentials fail, emit oauthFailed
+        connection?.emit('oauthFailed', new Error('Background OAuth failed - no system credentials available'));
+      });
+
+      const connectTimeout = config.initTimeout ?? 30000;
+      const connectionTimeout = new Promise<void>((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`Background connection timeout after ${connectTimeout}ms`)),
+          connectTimeout,
+        ),
+      );
+
+      await Promise.race([connection.connect(), connectionTimeout]);
+
+      if (!(await connection.isConnected())) {
+        throw new Error('Background connection failed to establish');
+      }
+
+      // Store the new connection
+      if (!this.userConnections.has(userId)) {
+        this.userConnections.set(userId, new Map());
+      }
+      this.userConnections.get(userId)!.set(serverName, connection);
+
+      logger.info(`${logPrefix} Background connection successfully established`);
+      return connection;
+    } catch (error) {
+      logger.error(`${logPrefix} Background connection failed:`, error);
+      
+      if (connection) {
+        try {
+          await connection.disconnect();
+        } catch (disconnectError) {
+          logger.warn(`${logPrefix} Failed to disconnect failed background connection:`, disconnectError);
+        }
+      }
+      
+      return null;
+    }
+  }
+
   /** Removes a specific user connection entry */
   private removeUserConnection(userId: string, serverName: string): void {
     // Remove connection object
