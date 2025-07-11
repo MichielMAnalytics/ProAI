@@ -283,7 +283,7 @@ const activateWorkflow = async (req, res) => {
         
         res.json({
           success: true,
-          message: `Workflow "${workflow.name}" activated and executed successfully`,
+          message: `Workflow "${workflow.name}" executed successfully`,
           workflow: {
             id: workflow.id,
             name: workflow.name,
@@ -299,10 +299,10 @@ const activateWorkflow = async (req, res) => {
       } catch (executionError) {
         logger.error(`[WorkflowController] Error executing manual workflow "${workflow.name}":`, executionError);
         
-        // Still return success for activation, but include execution error
-        res.json({
-          success: true,
-          message: `Workflow "${workflow.name}" activated successfully, but execution failed`,
+        // Return failure since execution failed
+        res.status(500).json({
+          success: false,
+          message: `Workflow "${workflow.name}" execution failed`,
           workflow: {
             id: workflow.id,
             name: workflow.name,

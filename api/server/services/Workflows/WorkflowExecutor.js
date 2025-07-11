@@ -169,6 +169,14 @@ class WorkflowExecutor {
 
     this.runningExecutions = new Map(); // Track running executions
     this.mcpInitialized = new Map(); // Track MCP initialization per user
+    
+    // Memory cleanup configuration
+    this.EXECUTION_TIMEOUT_MS = parseInt(process.env.WORKFLOW_EXECUTION_TIMEOUT) || 30 * 60 * 1000; // 30 minutes
+    this.MCP_CACHE_TIMEOUT_MS = parseInt(process.env.MCP_CACHE_TIMEOUT) || 60 * 60 * 1000; // 1 hour
+    this.MAX_CONCURRENT_EXECUTIONS = parseInt(process.env.MAX_CONCURRENT_WORKFLOWS) || 50;
+    
+    // Start memory cleanup interval
+    this.startMemoryCleanup();
 
     WorkflowExecutor.instance = this;
   }
@@ -182,6 +190,119 @@ class WorkflowExecutor {
       WorkflowExecutor.instance = new WorkflowExecutor();
     }
     return WorkflowExecutor.instance;
+  }
+
+  /**
+   * Start periodic memory cleanup to prevent memory leaks
+   */
+  startMemoryCleanup() {
+    // Clean up every 5 minutes
+    this.cleanupInterval = setInterval(() => {
+      this.performMemoryCleanup();
+    }, 5 * 60 * 1000);
+
+    logger.debug('[WorkflowExecutor] Memory cleanup interval started');
+  }
+
+  /**
+   * Perform memory cleanup - remove expired executions and MCP cache
+   */
+  performMemoryCleanup() {
+    const now = Date.now();
+    let cleanedExecutions = 0;
+    let cleanedMcpCache = 0;
+
+    // Clean up expired executions
+    for (const [executionId, data] of this.runningExecutions.entries()) {
+      const age = now - data.startTime.getTime();
+      if (age > this.EXECUTION_TIMEOUT_MS) {
+        logger.warn(`[WorkflowExecutor] Force cleaning up expired execution: ${executionId} (age: ${Math.round(age / 60000)}min)`);
+        
+        // Signal abort if possible
+        if (data.abortController) {
+          data.abortController.abort('Execution timeout - force cleanup');
+        }
+        
+        this.runningExecutions.delete(executionId);
+        cleanedExecutions++;
+        
+        // Update execution status if possible
+        try {
+          updateSchedulerExecution(executionId, data.userId || 'unknown', {
+            status: 'failed',
+            end_time: new Date(),
+            error: 'Execution timeout - force cleanup',
+          }).catch(err => logger.debug(`Failed to update execution status: ${err.message}`));
+        } catch (error) {
+          // Ignore errors during cleanup
+        }
+      }
+    }
+
+    // Clean up expired MCP cache entries
+    for (const [userId, cacheEntry] of this.mcpInitialized.entries()) {
+      // Add timestamp if missing (backwards compatibility)
+      if (!cacheEntry.timestamp) {
+        cacheEntry.timestamp = now;
+        continue;
+      }
+      
+      const age = now - cacheEntry.timestamp;
+      if (age > this.MCP_CACHE_TIMEOUT_MS) {
+        logger.debug(`[WorkflowExecutor] Cleaning up expired MCP cache for user: ${userId} (age: ${Math.round(age / 60000)}min)`);
+        this.mcpInitialized.delete(userId);
+        cleanedMcpCache++;
+      }
+    }
+
+    // Log cleanup stats if anything was cleaned
+    if (cleanedExecutions > 0 || cleanedMcpCache > 0) {
+      logger.info(`[WorkflowExecutor] Memory cleanup completed: ${cleanedExecutions} executions, ${cleanedMcpCache} MCP cache entries`);
+    }
+
+    // Log current memory usage
+    const stats = this.getMemoryStats();
+    if (stats.runningExecutions > 20 || stats.mcpCacheEntries > 100) {
+      logger.warn(`[WorkflowExecutor] High memory usage detected:`, stats);
+    }
+  }
+
+  /**
+   * Get current memory usage statistics
+   */
+  getMemoryStats() {
+    return {
+      runningExecutions: this.runningExecutions.size,
+      mcpCacheEntries: this.mcpInitialized.size,
+      maxConcurrentExecutions: this.MAX_CONCURRENT_EXECUTIONS,
+      executionTimeoutMinutes: Math.round(this.EXECUTION_TIMEOUT_MS / 60000),
+      mcpCacheTimeoutMinutes: Math.round(this.MCP_CACHE_TIMEOUT_MS / 60000),
+    };
+  }
+
+  /**
+   * Force cleanup of all memory caches (emergency cleanup)
+   */
+  forceCleanupAll() {
+    logger.warn('[WorkflowExecutor] Force cleanup of all caches initiated');
+    
+    // Abort all running executions
+    for (const [executionId, data] of this.runningExecutions.entries()) {
+      if (data.abortController) {
+        data.abortController.abort('Force cleanup - system maintenance');
+      }
+    }
+    
+    const stats = {
+      executions: this.runningExecutions.size,
+      mcpCache: this.mcpInitialized.size,
+    };
+    
+    this.runningExecutions.clear();
+    this.mcpInitialized.clear();
+    
+    logger.warn(`[WorkflowExecutor] Force cleanup completed: ${stats.executions} executions, ${stats.mcpCache} MCP cache entries`);
+    return stats;
   }
 
   /**
@@ -214,13 +335,14 @@ class WorkflowExecutor {
         {}, // No additional options needed
       );
 
-      // Store the result
+      // Store the result with timestamp for cache expiration
       const result = {
         success: mcpResult.success,
         availableTools, // Enhanced tools with embedded metadata
         toolCount: mcpResult.toolCount,
         serverCount: mcpResult.serverCount,
         backgroundExecution: true, // Flag to indicate background execution
+        timestamp: Date.now(), // For cache expiration
       };
 
       this.mcpInitialized.set(userId, result);
@@ -239,6 +361,7 @@ class WorkflowExecutor {
         serverCount: 0,
         error: error.message,
         backgroundExecution: true,
+        timestamp: Date.now(), // For cache expiration
       };
 
       this.mcpInitialized.set(userId, errorResult);
@@ -279,13 +402,28 @@ class WorkflowExecutor {
       // Create cancellation controller for this execution
       const abortController = new AbortController();
 
-      // Track this execution with cancellation support
+      // Check concurrency limits before starting
+      if (this.runningExecutions.size >= this.MAX_CONCURRENT_EXECUTIONS) {
+        throw new Error(`Maximum concurrent workflow executions reached (${this.MAX_CONCURRENT_EXECUTIONS}). Please wait for other workflows to complete.`);
+      }
+
+      // Track this execution with enhanced data and timeout
+      const timeoutHandle = setTimeout(() => {
+        logger.warn(`[WorkflowExecutor] Execution ${executionId} timeout reached, force aborting`);
+        if (abortController) {
+          abortController.abort('Execution timeout');
+        }
+        this.forceCleanupExecution(executionId, userId);
+      }, this.EXECUTION_TIMEOUT_MS);
+
       this.runningExecutions.set(executionId, {
         workflowId,
+        userId,
         startTime: new Date(),
         status: 'running',
         mcpResult,
         abortController,
+        timeoutHandle,
       });
 
       // Generate a conversation ID for step execution context (won't be saved due to skipSaveConvo)
@@ -436,14 +574,14 @@ class WorkflowExecutor {
         stepMessages,
       );
 
-      // Clean up tracking
-      this.runningExecutions.delete(executionId);
+      // Clean up tracking with timeout cleanup
+      this.cleanupExecution(executionId);
 
       logger.info(`[WorkflowExecutor] Workflow execution completed: ${workflowId}`);
       return result;
     } catch (error) {
-      // Clean up tracking
-      this.runningExecutions.delete(executionId);
+      // Clean up tracking with timeout cleanup
+      this.cleanupExecution(executionId);
 
       logger.error(`[WorkflowExecutor] Workflow execution failed: ${workflowId}`, error);
 
@@ -759,11 +897,20 @@ class WorkflowExecutor {
     if (this.runningExecutions.has(executionId)) {
       logger.info(`[WorkflowExecutor] Cancelling execution: ${executionId}`);
 
-      this.runningExecutions.delete(executionId);
+      const data = this.runningExecutions.get(executionId);
+      
+      // Signal abort if possible
+      if (data && data.abortController) {
+        data.abortController.abort('Execution cancelled by user');
+      }
+
+      // Clean up tracking
+      this.cleanupExecution(executionId);
 
       await updateSchedulerExecution(executionId, userId, {
         status: 'cancelled',
-        endTime: new Date(),
+        end_time: new Date(),
+        error: 'Execution cancelled by user',
       });
 
       return true;
@@ -793,8 +940,8 @@ class WorkflowExecutor {
           logger.info(`[WorkflowExecutor] Sent abort signal to execution ${executionId}`);
         }
 
-        // Remove from running executions
-        this.runningExecutions.delete(executionId);
+        // Clean up tracking
+        this.cleanupExecution(executionId);
 
         // Update execution status
         try {
@@ -829,8 +976,88 @@ class WorkflowExecutor {
   getRunningExecutions() {
     return Array.from(this.runningExecutions.entries()).map(([id, data]) => ({
       executionId: id,
-      ...data,
+      workflowId: data.workflowId,
+      userId: data.userId,
+      startTime: data.startTime,
+      status: data.status,
+      age: Date.now() - data.startTime.getTime(),
     }));
+  }
+
+  /**
+   * Clean up a specific execution (removes from tracking and clears timeout)
+   * @param {string} executionId - Execution ID to clean up
+   */
+  cleanupExecution(executionId) {
+    const data = this.runningExecutions.get(executionId);
+    if (data) {
+      // Clear timeout if it exists
+      if (data.timeoutHandle) {
+        clearTimeout(data.timeoutHandle);
+      }
+      
+      // Remove from tracking
+      this.runningExecutions.delete(executionId);
+      
+      logger.debug(`[WorkflowExecutor] Cleaned up execution: ${executionId}`);
+    }
+  }
+
+  /**
+   * Force cleanup a specific execution with status update
+   * @param {string} executionId - Execution ID to force cleanup
+   * @param {string} userId - User ID for status update
+   */
+  async forceCleanupExecution(executionId, userId) {
+    const data = this.runningExecutions.get(executionId);
+    if (data) {
+      logger.warn(`[WorkflowExecutor] Force cleaning up execution: ${executionId}`);
+      
+      // Clear timeout and remove tracking
+      this.cleanupExecution(executionId);
+      
+      // Update execution status
+      try {
+        await updateSchedulerExecution(executionId, userId, {
+          status: 'failed',
+          end_time: new Date(),
+          error: 'Execution timeout - force cleanup',
+        });
+      } catch (error) {
+        logger.debug(`[WorkflowExecutor] Failed to update execution status during force cleanup: ${error.message}`);
+      }
+    }
+  }
+
+  /**
+   * Stop the memory cleanup interval (for testing/shutdown)
+   */
+  stopMemoryCleanup() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+      logger.debug('[WorkflowExecutor] Memory cleanup interval stopped');
+    }
+  }
+
+  /**
+   * Destroy the singleton instance and clean up all resources
+   */
+  static async destroyInstance() {
+    if (WorkflowExecutor.instance) {
+      const instance = WorkflowExecutor.instance;
+      
+      // Stop cleanup interval
+      instance.stopMemoryCleanup();
+      
+      // Force cleanup all executions
+      const stats = instance.forceCleanupAll();
+      
+      // Clear singleton reference
+      WorkflowExecutor.instance = null;
+      
+      logger.info('[WorkflowExecutor] Singleton instance destroyed', stats);
+    }
   }
 }
 
