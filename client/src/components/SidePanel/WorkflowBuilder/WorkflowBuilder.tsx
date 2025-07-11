@@ -118,11 +118,11 @@ const parseCronExpression = (cron: string): { type: string; time: string; days: 
 };
 
 const TRIGGER_OPTIONS = [
-  { value: 'manual', label: 'Manual', icon: <User size={16} /> },
-  { value: 'schedule', label: 'Schedule', icon: <Calendar size={16} /> },
-  { value: 'webhook', label: 'Webhook', icon: <Zap size={16} /> },
-  { value: 'email', label: 'Email', icon: <Settings size={16} /> },
-  { value: 'event', label: 'Event', icon: <Clock size={16} /> },
+  { value: 'manual', label: 'Manual', icon: <User size={16} />, disabled: false },
+  { value: 'schedule', label: 'Schedule', icon: <Calendar size={16} />, disabled: false },
+  { value: 'webhook', label: 'Webhook', icon: <Zap size={16} />, disabled: true },
+  { value: 'email', label: 'Email', icon: <Settings size={16} />, disabled: true },
+  { value: 'event', label: 'Event', icon: <Clock size={16} />, disabled: true },
 ];
 
 const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: initialWorkflowId }) => {
@@ -771,7 +771,13 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                   isCollapsed={false}
                   ariaLabel="Select trigger type"
                   selectedValue={triggerType}
-                  setValue={(value) => setTriggerType(value as any)}
+                  setValue={(value) => {
+                    // Prevent selecting disabled trigger types
+                    const selectedOption = TRIGGER_OPTIONS.find(option => option.value === value);
+                    if (selectedOption && !selectedOption.disabled) {
+                      setTriggerType(value as any);
+                    }
+                  }}
                   selectPlaceholder="Select trigger type"
                   searchPlaceholder="Search trigger types"
                   items={triggerOptions}

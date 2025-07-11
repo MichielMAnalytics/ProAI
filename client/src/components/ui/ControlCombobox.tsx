@@ -59,6 +59,7 @@ function ControlCombobox({
     value: option.value as string | undefined,
     label: option.label,
     icon: option.icon,
+    disabled: (option as any).disabled || false,
   });
 
   const combobox = Ariakit.useComboboxStore({
@@ -181,23 +182,32 @@ function ControlCombobox({
         <div className="max-h-[300px] overflow-auto">
           <Ariakit.ComboboxList store={combobox}>
             <SelectRenderer store={select} items={matches} itemSize={ROW_HEIGHT} overscan={5}>
-              {({ value, icon, label, ...item }) => (
+              {({ value, icon, label, disabled, ...item }) => (
                 <Ariakit.ComboboxItem
                   key={item.id}
                   {...item}
+                  disabled={disabled}
                   className={cn(
-                    'flex w-full cursor-pointer items-center px-3 text-sm',
-                    'text-text-primary hover:bg-surface-tertiary',
-                    'data-[active-item]:bg-surface-tertiary',
+                    'flex w-full items-center px-3 text-sm',
+                    disabled 
+                      ? 'cursor-not-allowed text-text-secondary/50 opacity-60' 
+                      : 'cursor-pointer text-text-primary hover:bg-surface-tertiary data-[active-item]:bg-surface-tertiary',
                   )}
-                  render={<Ariakit.SelectItem value={value} />}
+                  render={<Ariakit.SelectItem value={disabled ? undefined : value} />}
                 >
                   {icon != null && iconSide === 'left' && (
-                    <div className={optionIconClassName}>{icon}</div>
+                    <div className={cn(optionIconClassName, disabled && 'opacity-50')}>{icon}</div>
                   )}
-                  <span className="flex-grow truncate text-left">{label}</span>
+                  <span className="flex-grow truncate text-left">
+                    {label}
+                    {disabled && (
+                      <span className="ml-2 text-xs font-medium text-text-secondary/70">
+                        Coming Soon
+                      </span>
+                    )}
+                  </span>
                   {icon != null && iconSide === 'right' && (
-                    <div className={optionIconClassName}>{icon}</div>
+                    <div className={cn(optionIconClassName, disabled && 'opacity-50')}>{icon}</div>
                   )}
                 </Ariakit.ComboboxItem>
               )}
