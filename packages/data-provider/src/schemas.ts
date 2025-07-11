@@ -538,7 +538,7 @@ export type MemoryArtifact = {
   key: string;
   value?: string;
   tokenCount?: number;
-  type: 'update' | 'delete';
+  type: 'update' | 'delete' | 'error';
 };
 
 export type TAttachmentMetadata = {
