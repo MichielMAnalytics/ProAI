@@ -47,10 +47,12 @@ class WorkflowService {
         agent_id: workflowData.agent_id,
         trigger: {
           type: workflowData.trigger?.type || 'manual',
-          config: {
-            ...workflowData.trigger?.config,
-            schedule: workflowData.trigger?.config?.schedule || '0 9 * * *'
-          }
+          config: workflowData.trigger?.type === 'manual' 
+            ? {} 
+            : {
+                ...workflowData.trigger?.config,
+                schedule: workflowData.trigger?.config?.schedule || '0 9 * * *'
+              }
         },
         metadata: {
           steps: (workflowData.steps || []).map(step => ({
@@ -149,10 +151,12 @@ class WorkflowService {
       if (updateData.trigger) {
         schedulerUpdateData.trigger = {
           type: updateData.trigger.type,
-          config: {
-            ...updateData.trigger.config,
-            schedule: updateData.trigger.config?.schedule || '0 9 * * *'
-          }
+          config: updateData.trigger.type === 'manual' 
+            ? {} 
+            : {
+                ...updateData.trigger.config,
+                schedule: updateData.trigger.config?.schedule || '0 9 * * *'
+              }
         };
       }
 

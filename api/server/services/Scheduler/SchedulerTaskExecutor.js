@@ -202,8 +202,15 @@ class SchedulerTaskExecutor {
       // Update task status and schedule next run if recurring
       await this.updateTaskAfterSuccess(task, endTime);
 
-      // Send all success notifications
-      await this.notificationManager.sendSuccessNotifications(task, result, duration);
+      // Send all success notifications (don't let notification failures fail the execution)
+      try {
+        await this.notificationManager.sendSuccessNotifications(task, result, duration);
+      } catch (notificationError) {
+        logger.warn(
+          `[SchedulerTaskExecutor] Task ${task.id} completed successfully but notification failed: ${notificationError.message}`,
+        );
+        // Don't throw - the task itself was successful
+      }
 
       logger.info(
         `[SchedulerTaskExecutor] Task ${task.id} completed successfully in ${duration}ms`,
@@ -235,8 +242,15 @@ class SchedulerTaskExecutor {
         last_run: endTime,
       });
 
-      // Send all failure notifications
-      await this.notificationManager.sendFailureNotifications(task, error, duration);
+      // Send all failure notifications (don't let notification failures mask the original error)
+      try {
+        await this.notificationManager.sendFailureNotifications(task, error, duration);
+      } catch (notificationError) {
+        logger.warn(
+          `[SchedulerTaskExecutor] Task ${task.id} failed and notification also failed: ${notificationError.message}`,
+        );
+        // Don't throw the notification error - preserve the original task error
+      }
 
       throw error;
     }
@@ -447,31 +461,46 @@ class SchedulerTaskExecutor {
       );
       await updateSchedulerTask(task.id, task.user, updateData);
     } else {
-      // For recurring tasks, calculate next run time
-      const cronTime = calculateNextRun(task.schedule);
-      if (cronTime) {
+      // Check if this is a manual workflow (no recurring schedule)
+      if (!task.schedule || task.trigger?.type === 'manual') {
+        // For manual workflows, mark as completed and disable to prevent re-execution
         const updateData = {
-          status: 'pending',
+          status: 'completed',
           last_run: endTime,
-          next_run: cronTime,
+          enabled: false, // Disable manual workflows after execution
         };
 
         logger.info(
-          `[SchedulerTaskExecutor] Scheduling next run for recurring task ${task.id} at ${cronTime.toISOString()}`,
+          `[SchedulerTaskExecutor] Manual workflow ${task.id} completed successfully - disabling to prevent re-execution`,
         );
         await updateSchedulerTask(task.id, task.user, updateData);
       } else {
-        // Disable if we can't calculate next run
-        const updateData = {
-          status: 'failed',
-          last_run: endTime,
-          enabled: false,
-        };
+        // For recurring tasks, calculate next run time
+        const cronTime = calculateNextRun(task.schedule);
+        if (cronTime) {
+          const updateData = {
+            status: 'pending',
+            last_run: endTime,
+            next_run: cronTime,
+          };
 
-        logger.warn(
-          `[SchedulerTaskExecutor] Unable to calculate next run for task ${task.id}, disabling`,
-        );
-        await updateSchedulerTask(task.id, task.user, updateData);
+          logger.info(
+            `[SchedulerTaskExecutor] Scheduling next run for recurring task ${task.id} at ${cronTime.toISOString()}`,
+          );
+          await updateSchedulerTask(task.id, task.user, updateData);
+        } else {
+          // Disable if we can't calculate next run
+          const updateData = {
+            status: 'failed',
+            last_run: endTime,
+            enabled: false,
+          };
+
+          logger.warn(
+            `[SchedulerTaskExecutor] Unable to calculate next run for task ${task.id}, disabling`,
+          );
+          await updateSchedulerTask(task.id, task.user, updateData);
+        }
       }
     }
   }

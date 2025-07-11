@@ -343,6 +343,11 @@ async function loadWorkflowMemory(user, conversationId, messageId, req) {
       return;
     }
 
+    // Ensure req has a body property for memory processor
+    if (!req.body) {
+      req.body = {};
+    }
+
     // Load agent for memory processing  
     const { EModelEndpoint, Constants } = require('librechat-data-provider');
     const { loadAgent } = require('~/models/Agent');
@@ -418,6 +423,7 @@ async function loadWorkflowMemory(user, conversationId, messageId, req) {
         getFormattedMemories,
       },
       res: null, // No response object for workflow execution
+      req: req, // Pass the request object for memory processor
     });
 
     logger.info(`[loadWorkflowMemory] Successfully loaded memory for user ${user.id}`);

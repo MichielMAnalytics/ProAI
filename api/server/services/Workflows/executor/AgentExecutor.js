@@ -1,5 +1,5 @@
 const { logger } = require('~/config');
-const { Constants } = require('librechat-data-provider');
+const { Constants, EModelEndpoint } = require('librechat-data-provider');
 const { loadAgent } = require('~/models/Agent');
 const { HumanMessage, SystemMessage, getBufferString } = require('@langchain/core/messages');
 const {

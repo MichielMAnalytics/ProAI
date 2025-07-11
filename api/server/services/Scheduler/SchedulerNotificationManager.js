@@ -92,6 +92,14 @@ class SchedulerNotificationManager {
    */
   async sendTaskResultMessage(task, result) {
     try {
+      // Skip message sending for manual workflows without conversation context
+      if (!task.conversation_id) {
+        logger.debug(
+          `[SchedulerNotificationManager] Skipping task result message for task ${task.id} - no conversation context (manual workflow)`,
+        );
+        return;
+      }
+
       await SchedulerService.sendSchedulerMessage({
         userId: task.user.toString(),
         conversationId: task.conversation_id,
@@ -105,7 +113,10 @@ class SchedulerNotificationManager {
       logger.error(
         `[SchedulerNotificationManager] Failed to send task result message: ${error.message}`,
       );
-      throw error; // This is more critical than status notifications
+      // Don't throw for manual workflows - they don't need conversation messages
+      if (task.conversation_id) {
+        throw error; // This is more critical than status notifications for conversation-based tasks
+      }
     }
   }
 
@@ -117,6 +128,14 @@ class SchedulerNotificationManager {
    */
   async sendTaskFailureMessage(task, error) {
     try {
+      // Skip message sending for manual workflows without conversation context
+      if (!task.conversation_id) {
+        logger.debug(
+          `[SchedulerNotificationManager] Skipping task failure message for task ${task.id} - no conversation context (manual workflow)`,
+        );
+        return;
+      }
+
       await SchedulerService.sendSchedulerMessage({
         userId: task.user.toString(),
         conversationId: task.conversation_id,
