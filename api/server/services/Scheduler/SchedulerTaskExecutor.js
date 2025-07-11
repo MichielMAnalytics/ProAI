@@ -3,6 +3,8 @@ const { EModelEndpoint, Constants } = require('librechat-data-provider');
 const {
   createSchedulerExecution,
   updateSchedulerExecution,
+  optimisticUpdateSchedulerExecution,
+  getSchedulerExecutionById,
 } = require('~/models/SchedulerExecution');
 const { updateSchedulerTask, atomicUpdateTaskStatus } = require('~/models/SchedulerTask');
 const { User } = require('~/db/models');
@@ -199,13 +201,36 @@ class SchedulerTaskExecutor {
       const endTime = new Date();
       const duration = endTime - startTime;
 
-      // Update execution record with success
-      await updateSchedulerExecution(executionId, task.user, {
+      // Update execution record with success using optimistic locking
+      const successUpdateData = {
         status: 'completed',
         end_time: endTime,
         duration,
         result: typeof result === 'string' ? result : JSON.stringify(result),
-      });
+      };
+      
+      try {
+        const currentExecution = await getSchedulerExecutionById(executionId, task.user);
+        if (currentExecution) {
+          const currentVersion = currentExecution.version || 1;
+          const updatedExecution = await optimisticUpdateSchedulerExecution(
+            executionId, 
+            task.user, 
+            currentVersion, 
+            successUpdateData
+          );
+          
+          if (!updatedExecution) {
+            logger.warn(`[SchedulerTaskExecutor] Success update conflict for ${executionId}, using fallback`);
+            await updateSchedulerExecution(executionId, task.user, successUpdateData);
+          }
+        } else {
+          await updateSchedulerExecution(executionId, task.user, successUpdateData);
+        }
+      } catch (updateError) {
+        logger.error(`[SchedulerTaskExecutor] Error during optimistic success update: ${updateError.message}`);
+        await updateSchedulerExecution(executionId, task.user, successUpdateData);
+      }
 
       // Update task status and schedule next run if recurring
       await this.updateTaskAfterSuccess(task, endTime);
@@ -236,13 +261,36 @@ class SchedulerTaskExecutor {
 
       logger.error(`[SchedulerTaskExecutor] Task execution failed: ${task.id} -`, error.message);
 
-      // Update execution record with failure
-      await updateSchedulerExecution(executionId, task.user, {
+      // Update execution record with failure using optimistic locking
+      const failureUpdateData = {
         status: 'failed',
         end_time: endTime,
         duration,
         error: error.message,
-      });
+      };
+      
+      try {
+        const currentExecution = await getSchedulerExecutionById(executionId, task.user);
+        if (currentExecution) {
+          const currentVersion = currentExecution.version || 1;
+          const updatedExecution = await optimisticUpdateSchedulerExecution(
+            executionId, 
+            task.user, 
+            currentVersion, 
+            failureUpdateData
+          );
+          
+          if (!updatedExecution) {
+            logger.warn(`[SchedulerTaskExecutor] Failure update conflict for ${executionId}, using fallback`);
+            await updateSchedulerExecution(executionId, task.user, failureUpdateData);
+          }
+        } else {
+          await updateSchedulerExecution(executionId, task.user, failureUpdateData);
+        }
+      } catch (updateError) {
+        logger.error(`[SchedulerTaskExecutor] Error during optimistic failure update: ${updateError.message}`);
+        await updateSchedulerExecution(executionId, task.user, failureUpdateData);
+      }
 
       // Update task status
       await updateSchedulerTask(task.id, task.user, {

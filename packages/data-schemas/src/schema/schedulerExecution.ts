@@ -97,6 +97,7 @@ export interface ISchedulerExecution extends Document {
     sent: boolean;
     details?: Record<string, any>;
   }>;
+  version?: number; // For optimistic locking
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -246,6 +247,10 @@ const schedulerExecutionSchema: Schema<ISchedulerExecution> = new Schema(
       sent: { type: Boolean, default: false },
       details: { type: mongoose.Schema.Types.Mixed },
     }],
+    version: {
+      type: Number,
+      default: 1,
+    },
   },
   {
     timestamps: true,

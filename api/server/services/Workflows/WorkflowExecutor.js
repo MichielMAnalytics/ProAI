@@ -1,6 +1,6 @@
 const { logger } = require('~/config');
 const { Constants } = require('librechat-data-provider');
-const { updateSchedulerExecution } = require('~/models/SchedulerExecution');
+const { updateSchedulerExecution, optimisticUpdateSchedulerExecution, getSchedulerExecutionById } = require('~/models/SchedulerExecution');
 const { loadAgent } = require('~/models/Agent');
 const { User } = require('~/db/models');
 const { getBufferString } = require('@langchain/core/messages');
@@ -592,16 +592,39 @@ class WorkflowExecutor {
         errorOutput = `${errorOutput}\n\nPartial results before failure:\n${partialSummary}`;
       }
 
-      // Update execution status with error
+      // Update execution status with error using optimistic locking
       const errorEndTime = new Date();
       const errorStartTime = executionContext?.execution?.startTime || new Date();
-      await updateSchedulerExecution(executionId, execution.user, {
+      const errorUpdateData = {
         status: 'failed',
         end_time: errorEndTime,
         duration: errorEndTime.getTime() - errorStartTime.getTime(),
         error: error.message,
         output: errorOutput,
-      });
+      };
+      
+      try {
+        const currentExecution = await getSchedulerExecutionById(executionId, execution.user);
+        if (currentExecution) {
+          const currentVersion = currentExecution.version || 1;
+          const updatedExecution = await optimisticUpdateSchedulerExecution(
+            executionId, 
+            execution.user, 
+            currentVersion, 
+            errorUpdateData
+          );
+          
+          if (!updatedExecution) {
+            logger.warn(`[WorkflowExecutor] Error update conflict for ${executionId}, using fallback`);
+            await updateSchedulerExecution(executionId, execution.user, errorUpdateData);
+          }
+        } else {
+          await updateSchedulerExecution(executionId, execution.user, errorUpdateData);
+        }
+      } catch (updateError) {
+        logger.error(`[WorkflowExecutor] Error during optimistic error update: ${updateError.message}`);
+        await updateSchedulerExecution(executionId, execution.user, errorUpdateData);
+      }
 
       return {
         success: false,
@@ -882,7 +905,47 @@ class WorkflowExecutor {
       },
     };
 
-    await updateSchedulerExecution(execution.id, execution.user, finalUpdateData);
+    // Use optimistic locking for final status update to prevent conflicts
+    let updateAttempts = 0;
+    const maxRetries = 3;
+    
+    while (updateAttempts < maxRetries) {
+      try {
+        // Get current execution with version
+        const currentExecution = await getSchedulerExecutionById(execution.id, execution.user);
+        if (!currentExecution) {
+          logger.error(`[WorkflowExecutor] Execution not found during final update: ${execution.id}`);
+          break;
+        }
+        
+        const currentVersion = currentExecution.version || 1;
+        const updatedExecution = await optimisticUpdateSchedulerExecution(
+          execution.id, 
+          execution.user, 
+          currentVersion, 
+          finalUpdateData
+        );
+        
+        if (updatedExecution) {
+          logger.debug(`[WorkflowExecutor] Final status update successful on attempt ${updateAttempts + 1}`);
+          break;
+        } else {
+          updateAttempts++;
+          if (updateAttempts < maxRetries) {
+            logger.warn(`[WorkflowExecutor] Final status update conflict, retrying... (${updateAttempts}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, 50 * updateAttempts)); // Brief backoff
+          } else {
+            logger.error(`[WorkflowExecutor] Final status update failed after ${maxRetries} attempts - using fallback`);
+            await updateSchedulerExecution(execution.id, execution.user, finalUpdateData);
+          }
+        }
+      } catch (error) {
+        logger.error(`[WorkflowExecutor] Error during optimistic final update: ${error.message}`);
+        // Fallback to regular update
+        await updateSchedulerExecution(execution.id, execution.user, finalUpdateData);
+        break;
+      }
+    }
 
     return executionResult;
   }
@@ -907,11 +970,39 @@ class WorkflowExecutor {
       // Clean up tracking
       this.cleanupExecution(executionId);
 
-      await updateSchedulerExecution(executionId, userId, {
-        status: 'cancelled',
-        end_time: new Date(),
-        error: 'Execution cancelled by user',
-      });
+      // Use optimistic locking for cancellation to prevent conflicts
+      try {
+        const currentExecution = await getSchedulerExecutionById(executionId, userId);
+        if (currentExecution && currentExecution.status === 'running') {
+          const currentVersion = currentExecution.version || 1;
+          const updatedExecution = await optimisticUpdateSchedulerExecution(
+            executionId, 
+            userId, 
+            currentVersion, 
+            {
+              status: 'cancelled',
+              end_time: new Date(),
+              error: 'Execution cancelled by user',
+            }
+          );
+          
+          if (!updatedExecution) {
+            logger.warn(`[WorkflowExecutor] Cancellation update conflict for ${executionId}, using fallback`);
+            await updateSchedulerExecution(executionId, userId, {
+              status: 'cancelled',
+              end_time: new Date(),
+              error: 'Execution cancelled by user',
+            });
+          }
+        }
+      } catch (error) {
+        logger.error(`[WorkflowExecutor] Error during optimistic cancellation: ${error.message}`);
+        await updateSchedulerExecution(executionId, userId, {
+          status: 'cancelled',
+          end_time: new Date(),
+          error: 'Execution cancelled by user',
+        });
+      }
 
       return true;
     }
@@ -943,13 +1034,31 @@ class WorkflowExecutor {
         // Clean up tracking
         this.cleanupExecution(executionId);
 
-        // Update execution status
+        // Update execution status with optimistic locking
         try {
-          await updateSchedulerExecution(executionId, userId, {
-            status: 'cancelled',
-            endTime: new Date(),
-            error: 'Execution stopped by user',
-          });
+          const currentExecution = await getSchedulerExecutionById(executionId, userId);
+          if (currentExecution && currentExecution.status === 'running') {
+            const currentVersion = currentExecution.version || 1;
+            const updatedExecution = await optimisticUpdateSchedulerExecution(
+              executionId, 
+              userId, 
+              currentVersion, 
+              {
+                status: 'cancelled',
+                end_time: new Date(),
+                error: 'Execution stopped by user',
+              }
+            );
+            
+            if (!updatedExecution) {
+              logger.warn(`[WorkflowExecutor] Stop update conflict for ${executionId}, using fallback`);
+              await updateSchedulerExecution(executionId, userId, {
+                status: 'cancelled',
+                end_time: new Date(),
+                error: 'Execution stopped by user',
+              });
+            }
+          }
         } catch (error) {
           logger.warn(
             `[WorkflowExecutor] Failed to update execution status for ${executionId}: ${error.message}`,
