@@ -4,7 +4,7 @@ const {
   createSchedulerExecution,
   updateSchedulerExecution,
 } = require('~/models/SchedulerExecution');
-const { updateSchedulerTask } = require('~/models/SchedulerTask');
+const { updateSchedulerTask, atomicUpdateTaskStatus } = require('~/models/SchedulerTask');
 const { User } = require('~/db/models');
 const { replaceSpecialVars } = require('librechat-data-provider');
 const { calculateNextRun } = require('./utils/cronUtils');
@@ -153,18 +153,26 @@ class SchedulerTaskExecutor {
     });
 
     try {
-      // Update task status to running (atomic update to prevent race conditions)
-      const updatedTask = await updateSchedulerTask(task.id, task.user, {
-        status: 'running',
-        last_run: startTime,
-      });
+      // Atomically update task status to running (prevents race conditions)
+      const updatedTask = await atomicUpdateTaskStatus(
+        task.id, 
+        task.user, 
+        'pending',  // Expected current status
+        'running',  // New status
+        { last_run: startTime }
+      );
 
-      // Verify the update succeeded and task wasn't modified by another process
+      // Verify the update succeeded - if null, another process already picked up this task
       if (!updatedTask) {
-        throw new Error('Failed to update task status to running - task may have been deleted');
+        logger.info(`[SchedulerTaskExecutor] Task ${task.id} was already picked up by another process, skipping`);
+        return {
+          success: false,
+          error: 'Task already running in another process',
+          skipped: true,
+        };
       }
 
-      logger.debug(`[SchedulerTaskExecutor] Task ${task.id} status updated to running`);
+      logger.debug(`[SchedulerTaskExecutor] Task ${task.id} status atomically updated to running`);
 
       // Use the updated task for the rest of the execution
       task = updatedTask;
