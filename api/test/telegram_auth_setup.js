@@ -3,8 +3,8 @@
 /**
  * One-time Telegram Authentication Setup Script
  * 
- * This script will authenticate your Telegram client and create a session file
- * that can be reused by the Telegram tool without requiring interactive authentication.
+ * This script will authenticate your Telegram client and output a session string
+ * that you can add to your .env file for the Telegram tool to use.
  * 
  * Run this script once to set up authentication:
  * node telegram_auth_setup.js
@@ -14,7 +14,6 @@ const { TelegramClient } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const readline = require('readline');
 const path = require('path');
-const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 // Create readline interface for user input
@@ -72,20 +71,14 @@ async function authenticateTelegram() {
     const me = await client.getMe();
     console.log(`👤 Logged in as: ${me.firstName} ${me.lastName || ''} (@${me.username || 'no username'})`);
 
-    // Save session to file
+    // Get session string for .env file
     const sessionString = client.session.save();
-    const sessionPath = path.join(__dirname, 'data', 'telegram.session');
     
-    // Create data directory if it doesn't exist
-    const sessionDir = path.dirname(sessionPath);
-    if (!fs.existsSync(sessionDir)) {
-      fs.mkdirSync(sessionDir, { recursive: true });
-      console.log(`📁 Created directory: ${sessionDir}`);
-    }
-
-    // Write session file
-    fs.writeFileSync(sessionPath, sessionString);
-    console.log(`💾 Session saved to: ${sessionPath}`);
+    console.log('\n🔑 TELEGRAM SESSION STRING:');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`TELEGRAM_SESSION_STRING=${sessionString}`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('\n📋 COPY THE ABOVE LINE TO YOUR .env FILE');
 
     // Test channel access
     console.log('\n🧪 Testing channel access...');
@@ -109,7 +102,7 @@ async function authenticateTelegram() {
     }
 
     console.log('\n🎉 Setup complete! The Telegram tool is now ready to use.');
-    console.log('🔧 You can now use the fetch_messages tool in LibreChat to fetch messages from public channels.');
+    console.log('🔧 Add the session string above to your .env file, then you can use the Telegram tool in LibreChat to fetch messages from public channels.');
 
   } catch (error) {
     console.error('❌ Setup failed:', error.message);

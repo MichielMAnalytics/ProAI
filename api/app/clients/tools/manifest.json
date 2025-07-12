@@ -208,7 +208,7 @@
     ]
   },
   {
-    "name": "Telegram",
+    "name": "Telegram Public Channels",
     "pluginKey": "telegram",
     "description": "Fetch messages from public Telegram channels with optional date filtering. Useful for monitoring news, updates, and content from public channels.",
     "icon": "https://telegram.org/img/website_icon.svg",
@@ -222,6 +222,11 @@
         "authField": "TELEGRAM_API_HASH",
         "label": "Telegram API Hash",
         "description": "Your Telegram API Hash. Get this from <a href='https://my.telegram.org' target='_blank'>my.telegram.org</a> along with your API ID."
+      },
+      {
+        "authField": "TELEGRAM_SESSION_STRING",
+        "label": "Telegram Session String",
+        "description": "Your Telegram session string from a previously authenticated session. This is required for the tool to access Telegram's API without interactive authentication."
       }
     ]
   }

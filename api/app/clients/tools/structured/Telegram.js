@@ -5,9 +5,6 @@ const { TelegramClient } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const { FileContext } = require('librechat-data-provider');
 const { v4: uuidv4 } = require('uuid');
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
 
 class TelegramChannelFetcher extends Tool {
   name = 'telegram';
@@ -62,8 +59,13 @@ class TelegramChannelFetcher extends Tool {
       );
     }
 
-    // Session file path for persistence
-    this.sessionPath = path.join(__dirname, '..', '..', '..', '..', 'data', 'telegram.session');
+    // Validate session string is provided
+    if (!this.override && !getEnvironmentVariable('TELEGRAM_SESSION_STRING')) {
+      throw new Error(
+        'Missing TELEGRAM_SESSION_STRING environment variable. Please add your Telegram session string to the .env file.',
+      );
+    }
+
     this.client = null;
   }
 
@@ -73,12 +75,15 @@ class TelegramChannelFetcher extends Tool {
     }
 
     try {
-      // Load existing session if available
-      let session = new StringSession('');
-      if (fs.existsSync(this.sessionPath)) {
-        const sessionString = fs.readFileSync(this.sessionPath, 'utf8');
-        session = new StringSession(sessionString);
+      // Load session from environment variable
+      const sessionString = getEnvironmentVariable('TELEGRAM_SESSION_STRING') || '';
+      
+      if (!sessionString) {
+        throw new Error('TELEGRAM_SESSION_STRING environment variable is required. Please add your Telegram session string to the .env file.');
       }
+      
+      const session = new StringSession(sessionString);
+      console.log('Using Telegram session from environment variable');
 
       this.client = new TelegramClient(session, parseInt(this.apiId), this.apiHash, {
         connectionRetries: 5,
@@ -99,13 +104,7 @@ class TelegramChannelFetcher extends Tool {
         },
       });
 
-      // Save session for future use
-      const sessionString = this.client.session.save();
-      const sessionDir = path.dirname(this.sessionPath);
-      if (!fs.existsSync(sessionDir)) {
-        fs.mkdirSync(sessionDir, { recursive: true });
-      }
-      fs.writeFileSync(this.sessionPath, sessionString);
+      // Session is already loaded from environment variable, no need to save
 
       return this.client;
     } catch (error) {
