@@ -67,6 +67,9 @@ class TelegramChannelFetcher extends Tool {
     }
 
     this.client = null;
+    
+    // Rate limiting: track request history per user for burst allowance
+    this.requestHistory = {};
   }
 
   async initializeClient() {
@@ -142,17 +145,75 @@ class TelegramChannelFetcher extends Tool {
 
     const { channel_name, limit, offset_date, min_date, max_date, include_images = false } = validationResult.data;
     
+    // Parse date filters first for validation
+    const offsetDate = offset_date ? Math.floor(this.parseDate(offset_date).getTime() / 1000) : undefined;
+    const minDate = min_date ? this.parseDate(min_date) : null;
+    const maxDate = max_date ? this.parseDate(max_date) : null;
+    
     // Smart pagination logic: when date filtering is used, fetch all messages in range
     const isDateFiltered = min_date || max_date || offset_date;
     const effectiveLimit = limit || (isDateFiltered ? 500 : 10);
 
+    // 🛡️ ROBUSTNESS VALIDATIONS - Prevent system overload
+    
+    // 1. Image download limits - prevent memory/bandwidth exhaustion
+    if (include_images && effectiveLimit > 20) {
+      throw new Error('Image downloads are limited to 20 messages maximum. Reduce your limit or set include_images=false for larger requests.');
+    }
+    
+    // 2. Date range validation - prevent massive historical requests
+    if (minDate && maxDate) {
+      const daysDiff = Math.ceil((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysDiff > 30 && effectiveLimit > 100) {
+        throw new Error(`Date range spans ${daysDiff} days with ${effectiveLimit} message limit. For date ranges over 30 days, limit must be ≤ 100 messages to prevent system overload.`);
+      }
+      if (daysDiff > 90) {
+        throw new Error(`Date range spans ${daysDiff} days, maximum allowed is 90 days. Please use a shorter date range.`);
+      }
+    }
+    
+    // 3. Large request warnings - educate users about efficiency
+    if (effectiveLimit > 200 && !isDateFiltered) {
+      throw new Error('Large requests (>200 messages) require date filtering (min_date/max_date) to prevent retrieving excessive data. Please add date filters.');
+    }
+    
+    // 4. Reasonable limits enforcement
+    if (effectiveLimit > 500) {
+      throw new Error('Maximum limit is 500 messages per request to maintain system performance.');
+    }
+    
+    // 5. Rate limiting with burst allowance - allow 5 rapid calls, then enforce limits
+    const userId = this.userId || 'default';
+    const now = Date.now();
+    const burstWindow = 10000; // 10 second window
+    const burstLimit = 5; // Allow 5 calls in burst window
+    const cooldownAfterBurst = include_images ? 15000 : 5000; // Cooldown after burst exhausted
+    
+    // Initialize user history if not exists
+    if (!this.requestHistory[userId]) {
+      this.requestHistory[userId] = [];
+    }
+    
+    // Clean old requests outside the burst window
+    const userHistory = this.requestHistory[userId];
+    this.requestHistory[userId] = userHistory.filter(timestamp => now - timestamp < burstWindow);
+    
+    // Check if user has exceeded burst limit
+    if (this.requestHistory[userId].length >= burstLimit) {
+      const oldestInWindow = Math.min(...this.requestHistory[userId]);
+      const timeSinceOldest = now - oldestInWindow;
+      
+      if (timeSinceOldest < burstWindow) {
+        const remainingTime = Math.ceil((burstWindow - timeSinceOldest) / 1000);
+        throw new Error(`Rate limit: You've made ${burstLimit} requests in 10 seconds. Please wait ${remainingTime} seconds before making another request.`);
+      }
+    }
+    
+    // Add current request to history
+    this.requestHistory[userId].push(now);
+
     try {
       const client = await this.initializeClient();
-
-      // Parse date filters and convert to Unix timestamps for GramJS
-      const offsetDate = offset_date ? Math.floor(this.parseDate(offset_date).getTime() / 1000) : undefined;
-      const minDate = min_date ? this.parseDate(min_date) : null;
-      const maxDate = max_date ? this.parseDate(max_date) : null;
 
       // Validate date range
       if (offsetDate && minDate && new Date(offsetDate * 1000) <= minDate) {
@@ -165,30 +226,61 @@ class TelegramChannelFetcher extends Tool {
       // If max_date is provided but no offset_date, use max_date as offset_date for GramJS
       const finalOffsetDate = offsetDate || (maxDate ? Math.floor(maxDate.getTime() / 1000) : undefined);
 
-      // Get the channel entity
+      // Get the channel entity with retry logic
       let channel;
-      try {
-        // Try to get channel by username or ID
-        if (channel_name.startsWith('-100')) {
-          // Channel ID format
-          channel = await client.getEntity(parseInt(channel_name));
-        } else {
-          // Username format (add @ if not present)
-          const username = channel_name.startsWith('@') ? channel_name : `@${channel_name}`;
-          channel = await client.getEntity(username);
+      const maxRetries = 2;
+      let lastError;
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          console.log(`🔍 Attempting to find channel: ${channel_name} (attempt ${attempt}/${maxRetries})`);
+          
+          // Try to get channel by username or ID
+          if (channel_name.startsWith('-100')) {
+            // Channel ID format
+            channel = await client.getEntity(parseInt(channel_name));
+          } else {
+            // Username format (add @ if not present)
+            const username = channel_name.startsWith('@') ? channel_name : `@${channel_name}`;
+            channel = await client.getEntity(username);
+          }
+          
+          console.log(`✅ Successfully found channel: ${channel.title} (@${channel.username})`);
+          break; // Success, exit retry loop
+          
+        } catch (error) {
+          lastError = error;
+          console.log(`❌ Attempt ${attempt} failed for channel ${channel_name}: ${error.message}`);
+          
+          if (attempt < maxRetries) {
+            console.log(`⏳ Retrying in 1 second...`);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+          }
         }
-      } catch (error) {
-        throw new Error(`Channel not found or not accessible: ${channel_name}. Make sure it's a public channel.`);
+      }
+      
+      if (!channel) {
+        throw new Error(`Channel "${channel_name}" not found or not accessible after ${maxRetries} attempts. Make sure it's a public channel and the name is correct. Last error: ${lastError?.message}`);
       }
 
-      // Fetch messages with filters
+      // Fetch messages with filters and timeout protection  
       const messages = [];
+      const startTime = Date.now();
+      const timeoutMs = include_images ? 120000 : 60000; // 2min for images, 1min for text
+      
+      console.log(`📡 Fetching up to ${effectiveLimit} messages from ${channel_name} ${include_images ? '(with images)' : '(text only)'}`);
       
       for await (const message of client.iterMessages(channel, {
         limit: effectiveLimit,
         offsetDate: finalOffsetDate,
         reverse: false, // Get newest first
       })) {
+        // Timeout protection
+        if (Date.now() - startTime > timeoutMs) {
+          console.log(`⏰ Request timeout after ${timeoutMs/1000}s, returning ${messages.length} messages`);
+          break;
+        }
+        
         // Convert message datetime to Date object for comparison
         const messageDateTime = message.date instanceof Date ? message.date : new Date(message.date * 1000);
         
@@ -335,6 +427,21 @@ class TelegramChannelFetcher extends Tool {
         messages.push(messageData);
       }
 
+      const endTime = Date.now();
+      const processingTime = Math.round((endTime - startTime) / 1000);
+      
+      // Generate warnings if limits were hit
+      const warnings = [];
+      if (messages.length >= effectiveLimit) {
+        warnings.push(`Reached message limit of ${effectiveLimit}. Use date filtering for more targeted results.`);
+      }
+      if (include_images && messages.filter(m => m.media?.image_url).length > 0) {
+        warnings.push(`Image downloads were processed. This increases processing time and bandwidth usage.`);
+      }
+      if (processingTime > 30) {
+        warnings.push(`Request took ${processingTime}s to process. Consider reducing the limit or date range for faster responses.`);
+      }
+
       const result = {
         channel: {
           id: channel.id,
@@ -344,6 +451,8 @@ class TelegramChannelFetcher extends Tool {
         },
         messages: messages,
         total_fetched: messages.length,
+        processing_time_seconds: processingTime,
+        warnings: warnings.length > 0 ? warnings : undefined,
         filters_applied: {
           limit: effectiveLimit,
           offset_date: offset_date || null,
@@ -355,11 +464,24 @@ class TelegramChannelFetcher extends Tool {
       };
 
 
+      // Log usage for monitoring
+      console.log(`✅ Telegram fetch completed: ${messages.length} messages from ${channel_name} in ${processingTime}s ${include_images ? '(with images)' : ''}`);
+      
       return JSON.stringify(result, null, 2);
 
     } catch (error) {
-      console.error('Telegram fetch error:', error);
-      throw new Error(`Failed to fetch messages: ${error.message}`);
+      console.error('❌ Telegram fetch error:', error.message);
+      
+      // Don't expose internal errors to users, provide helpful guidance instead
+      if (error.message.includes('timeout')) {
+        throw new Error('Request timed out. Try reducing the message limit or date range for faster processing.');
+      } else if (error.message.includes('not found')) {
+        throw new Error(`Channel "${channel_name}" not found or not accessible. Make sure it's a public channel and the name is correct.`);
+      } else if (error.message.includes('Rate limit')) {
+        throw error; // Pass through rate limit errors as-is
+      } else {
+        throw new Error(`Failed to fetch messages from ${channel_name}. Please try again or contact support if the issue persists.`);
+      }
     }
   }
 
