@@ -206,5 +206,23 @@
         "description": "Provide your Flux API key from your user profile."
       }
     ]
+  },
+  {
+    "name": "Telegram",
+    "pluginKey": "telegram",
+    "description": "Fetch messages from public Telegram channels with optional date filtering. Useful for monitoring news, updates, and content from public channels.",
+    "icon": "https://telegram.org/img/website_icon.svg",
+    "authConfig": [
+      {
+        "authField": "TELEGRAM_API_ID",
+        "label": "Telegram API ID",
+        "description": "Your Telegram API ID. Get this from <a href='https://my.telegram.org' target='_blank'>my.telegram.org</a> by creating a new application."
+      },
+      {
+        "authField": "TELEGRAM_API_HASH",
+        "label": "Telegram API Hash",
+        "description": "Your Telegram API Hash. Get this from <a href='https://my.telegram.org' target='_blank'>my.telegram.org</a> along with your API ID."
+      }
+    ]
   }
 ]
