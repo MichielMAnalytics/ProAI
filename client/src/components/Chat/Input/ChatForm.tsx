@@ -505,8 +505,12 @@ const ChatForm = memo(
     const agentData = useMemo(() => {
       if (!conversation || !endpoint) return { name: '', icon: null };
       
+      // Check if this is actually an agent conversation by agent_id presence
+      const hasAgentId = Boolean(conversation?.agent_id);
+      const hasAssistantId = Boolean(conversation?.assistant_id);
+      
       const { entity, isAgent, isAssistant } = getEntity({
-        endpoint,
+        endpoint: hasAgentId ? 'agents' : hasAssistantId ? 'assistants' : endpoint,
         agentsMap,
         assistantMap,
         agent_id: conversation?.agent_id,
@@ -515,9 +519,9 @@ const ChatForm = memo(
       
       if (entity?.name) {
         // For agents, try to get avatar; for assistants, try iconURL
-        const iconURL = isAgent 
+        const iconURL = (isAgent || hasAgentId)
           ? (entity as any).avatar?.filepath 
-          : isAssistant 
+          : (isAssistant || hasAssistantId)
             ? conversation?.iconURL 
             : undefined;
         
@@ -527,14 +531,14 @@ const ChatForm = memo(
         };
       }
       
-      if (isAgent) {
+      if (isAgent || hasAgentId) {
         return { 
           name: localize('com_ui_agent'),
           icon: null
         };
       }
       
-      if (isAssistant) {
+      if (isAssistant || hasAssistantId) {
         return { 
           name: localize('com_ui_assistant'),
           icon: conversation?.iconURL || null
@@ -808,9 +812,19 @@ const ChatForm = memo(
                 </div>
                 <BadgeRow
                   showEphemeralBadges={
-                    !isAgentsEndpoint(endpoint) &&
-                    !isAssistantsEndpoint(endpoint) &&
                     (() => {
+                      const isAgentEndpoint = isAgentsEndpoint(endpoint);
+                      const isAssistantEndpoint = isAssistantsEndpoint(endpoint);
+                      
+                      // Also check if this is an agent conversation by agent_id presence
+                      const hasAgentId = Boolean(conversation?.agent_id);
+                      const hasAssistantId = Boolean(conversation?.assistant_id);
+                      
+                      // Don't show ephemeral badges for agents or assistants
+                      if (isAgentEndpoint || isAssistantEndpoint || hasAgentId || hasAssistantId) {
+                        return false;
+                      }
+                      
                       // For custom endpoints, use conversation.endpoint instead of the generic 'custom'
                       const actualEndpoint = conversation?.endpointType === EModelEndpoint.custom 
                         ? conversation?.endpoint 
