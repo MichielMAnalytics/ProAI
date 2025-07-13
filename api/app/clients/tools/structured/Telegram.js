@@ -8,10 +8,10 @@ const { v4: uuidv4 } = require('uuid');
 
 class TelegramChannelFetcher extends Tool {
   name = 'telegram';
-  description = 'Fetch messages from public Telegram channels. Use this tool to retrieve recent messages from specified public channels with optional date filtering.';
+  description = 'Fetch messages from PUBLIC Telegram channels ONLY. This tool strictly supports public broadcast channels with usernames (like @cointelegraph). Private chats, private groups, and private channels are blocked for privacy and security reasons. Use this tool to retrieve recent messages from specified public channels with optional date filtering.';
   
   schema = z.object({
-    channel_name: z.string().min(1).describe('The channel username (without @) or channel ID to fetch messages from. For example: "channelname" or "1234567890"'),
+    channel_name: z.string().min(1).describe('PUBLIC channel username (without @) or channel ID. Only public broadcast channels with usernames are supported (like "cointelegraph", "bitcoin"). Private chats, groups, and channels are blocked.'),
     limit: z
       .number()
       .int()
@@ -146,9 +146,35 @@ class TelegramChannelFetcher extends Tool {
     const { channel_name, limit, offset_date, min_date, max_date, include_images = false } = validationResult.data;
     
     // Parse date filters first for validation
+    console.log(`📅 Date inputs: min_date="${min_date}", max_date="${max_date}", offset_date="${offset_date}"`);
+    
     const offsetDate = offset_date ? Math.floor(this.parseDate(offset_date).getTime() / 1000) : undefined;
-    const minDate = min_date ? this.parseDate(min_date) : null;
-    const maxDate = max_date ? this.parseDate(max_date) : null;
+    
+    // For same-day queries, handle dates properly as full day boundaries
+    let minDate = null;
+    let maxDate = null;
+    
+    if (min_date) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(min_date)) {
+        // Start of day in local timezone
+        const [year, month, day] = min_date.split('-').map(Number);
+        minDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+      } else {
+        minDate = this.parseDate(min_date);
+      }
+    }
+    
+    if (max_date) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(max_date)) {
+        // End of day in local timezone  
+        const [year, month, day] = max_date.split('-').map(Number);
+        maxDate = new Date(year, month - 1, day, 23, 59, 59, 999);
+      } else {
+        maxDate = this.parseDate(max_date);
+      }
+    }
+    
+    console.log(`📅 Parsed dates: minDate=${minDate}, maxDate=${maxDate}, offsetDate=${offsetDate ? new Date(offsetDate * 1000) : undefined}`);
     
     // Smart pagination logic: when date filtering is used, fetch all messages in range
     const isDateFiltered = min_date || max_date || offset_date;
@@ -219,12 +245,32 @@ class TelegramChannelFetcher extends Tool {
       if (offsetDate && minDate && new Date(offsetDate * 1000) <= minDate) {
         throw new Error('offset_date must be after min_date');
       }
-      if (minDate && maxDate && minDate >= maxDate) {
-        throw new Error('min_date must be before max_date');
+      if (minDate && maxDate && minDate > maxDate) {
+        console.log(`❌ Date validation failed: minDate (${minDate}) > maxDate (${maxDate})`);
+        console.log(`   minDate.getTime() = ${minDate.getTime()}, maxDate.getTime() = ${maxDate.getTime()}`);
+        throw new Error('min_date must not be after max_date');
       }
       
       // If max_date is provided but no offset_date, use max_date as offset_date for GramJS
-      const finalOffsetDate = offsetDate || (maxDate ? Math.floor(maxDate.getTime() / 1000) : undefined);
+      // IMPORTANT: offsetDate in Telegram means "fetch messages BEFORE this date"
+      let finalOffsetDate = offsetDate;
+      if (!offsetDate && maxDate) {
+        // For same-day queries, we need to fetch messages before the NEXT day
+        if (minDate && minDate.toDateString() === maxDate.toDateString()) {
+          const nextDay = new Date(maxDate);
+          nextDay.setDate(nextDay.getDate() + 1); // Add one day
+          nextDay.setHours(0, 0, 0, 0); // Set to midnight of next day
+          finalOffsetDate = Math.floor(nextDay.getTime() / 1000);
+          console.log(`📅 Same-day query detected, fetching messages before: ${nextDay}`);
+        } else {
+          // For date ranges, use the day after max_date to include all messages on max_date
+          const dayAfterMax = new Date(maxDate);
+          dayAfterMax.setDate(dayAfterMax.getDate() + 1);
+          dayAfterMax.setHours(0, 0, 0, 0);
+          finalOffsetDate = Math.floor(dayAfterMax.getTime() / 1000);
+          console.log(`📅 Date range query, fetching messages before: ${dayAfterMax}`);
+        }
+      }
 
       // Get the channel entity with retry logic
       let channel;
@@ -245,7 +291,25 @@ class TelegramChannelFetcher extends Tool {
             channel = await client.getEntity(username);
           }
           
-          console.log(`✅ Successfully found channel: ${channel.title} (@${channel.username})`);
+          // 🛡️ SECURITY CHECK: Only allow public channels, block private chats
+          if (channel.className === 'User') {
+            throw new Error(`Access denied: "${channel_name}" is a private user chat. This tool only supports public channels for privacy and security reasons.`);
+          }
+          
+          if (channel.className === 'Chat' && !channel.broadcast) {
+            throw new Error(`Access denied: "${channel_name}" is a private group chat. This tool only supports public channels for privacy and security reasons.`);
+          }
+          
+          if (channel.className === 'Channel' && !channel.broadcast) {
+            throw new Error(`Access denied: "${channel_name}" is a private channel. This tool only supports public broadcast channels.`);
+          }
+          
+          // Additional check for megagroups that aren't public
+          if (channel.megagroup && !channel.username) {
+            throw new Error(`Access denied: "${channel_name}" is a private megagroup. This tool only supports public channels with usernames.`);
+          }
+          
+          console.log(`✅ Successfully found PUBLIC channel: ${channel.title} (@${channel.username}) [${channel.className}]`);
           break; // Success, exit retry loop
           
         } catch (error) {
@@ -286,11 +350,13 @@ class TelegramChannelFetcher extends Tool {
         
         // Apply min_date filter manually since GramJS doesn't have this built-in
         if (minDate && messageDateTime < minDate) {
+          console.log(`⏹️ Stopping: message date ${messageDateTime} is before min_date ${minDate}`);
           break; // Stop when we reach messages older than min_date
         }
         
         // Apply max_date filter manually (only needed when offset_date wasn't used)
         if (maxDate && messageDateTime > maxDate) {
+          console.log(`⏭️ Skipping: message date ${messageDateTime} is after max_date ${maxDate}`);
           continue; // Skip messages newer than max_date
         }
 
