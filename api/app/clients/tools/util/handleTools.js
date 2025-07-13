@@ -27,6 +27,7 @@ const {
   createOpenAIImageTools,
   SchedulerTool,
   WorkflowTool,
+  TelegramChannelFetcher,
 } = require('../');
 const { primeFiles: primeCodeFiles } = require('~/server/services/Files/Code/process');
 const { createFileSearchTool, primeFiles: primeSearchFiles } = require('./fileSearch');
@@ -161,6 +162,7 @@ const loadTools = async ({
     'azure-ai-search': StructuredACS,
     traversaal_search: TraversaalSearch,
     tavily_search_results_json: TavilySearchResults,
+    telegram: TelegramChannelFetcher,
   };
 
   const customConstructors = {
@@ -448,6 +450,7 @@ const loadTools = async ({
     flux: imageGenOptions,
     dalle: imageGenOptions,
     'stable-diffusion': imageGenOptions,
+    telegram: imageGenOptions,
     serpapi: { location: 'Austin,Texas,United States', hl: 'en', gl: 'us' },
   };
 

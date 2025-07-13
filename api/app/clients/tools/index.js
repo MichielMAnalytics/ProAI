@@ -14,6 +14,7 @@ const createOpenAIImageTools = require('./structured/OpenAIImageTools');
 const TavilySearchResults = require('./structured/TavilySearchResults');
 const SchedulerTool = require('./structured/Scheduler');
 const WorkflowTool = require('./structured/Workflow');
+const TelegramChannelFetcher = require('./structured/Telegram');
 
 /** @type {Record<string, TPlugin | undefined>} */
 const manifestToolMap = {};
@@ -46,4 +47,5 @@ module.exports = {
   createOpenAIImageTools,
   SchedulerTool,
   WorkflowTool,
+  TelegramChannelFetcher,
 };
