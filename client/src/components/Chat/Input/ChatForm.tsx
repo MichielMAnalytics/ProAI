@@ -541,11 +541,16 @@ const ChatForm = memo(
         };
       }
       
-      // For regular endpoints, get icon from mapped endpoints
-      if (endpoint) {
-        const mappedEndpoint = mappedEndpoints?.find(e => e.value === endpoint);
+      // For custom endpoints, use conversation.endpoint to get the actual endpoint name
+      const actualEndpoint = conversation?.endpointType === EModelEndpoint.custom 
+        ? conversation?.endpoint 
+        : endpoint;
+      
+      // Get display name and icon from mapped endpoints
+      if (actualEndpoint) {
+        const mappedEndpoint = mappedEndpoints?.find(e => e.value === actualEndpoint);
         return { 
-          name: endpoint.charAt(0).toUpperCase() + endpoint.slice(1),
+          name: mappedEndpoint?.label || actualEndpoint.charAt(0).toUpperCase() + actualEndpoint.slice(1),
           icon: mappedEndpoint?.icon || null
         };
       }
@@ -805,7 +810,13 @@ const ChatForm = memo(
                   showEphemeralBadges={
                     !isAgentsEndpoint(endpoint) &&
                     !isAssistantsEndpoint(endpoint) &&
-                    Boolean(endpoint && startupConfig?.endpoints?.[endpoint]?.tools !== false)
+                    (() => {
+                      // For custom endpoints, use conversation.endpoint instead of the generic 'custom'
+                      const actualEndpoint = conversation?.endpointType === EModelEndpoint.custom 
+                        ? conversation?.endpoint 
+                        : endpoint;
+                      return Boolean(actualEndpoint && startupConfig?.endpoints?.[actualEndpoint]?.tools !== false);
+                    })()
                   }
                   conversationId={conversationId}
                   onChange={setBadges}

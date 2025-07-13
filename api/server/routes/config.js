@@ -47,6 +47,22 @@ router.get('/', async function (req, res) {
       }
     });
 
+    // Include custom endpoints configuration with tools parameter
+    const { getCustomConfig } = require('~/server/services/Config');
+    const customConfig = await getCustomConfig();
+    if (customConfig?.endpoints?.custom && Array.isArray(customConfig.endpoints.custom)) {
+      customConfig.endpoints.custom.forEach((endpoint) => {
+        if (endpoint.name && endpoint.baseURL && endpoint.apiKey && endpoint.models) {
+          const normalizedName = endpoint.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          endpoints[normalizedName] = {
+            tools: endpoint.tools,
+            modelDisplayLabel: endpoint.modelDisplayLabel,
+            iconURL: endpoint.iconURL
+          };
+        }
+      });
+    }
+
     /** @type {TStartupConfig} */
     const payload = {
       appTitle: process.env.APP_TITLE || 'Eve AI',
