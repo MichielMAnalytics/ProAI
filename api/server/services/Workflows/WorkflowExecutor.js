@@ -596,6 +596,61 @@ class WorkflowExecutor {
       // Clean up tracking with timeout cleanup
       this.cleanupExecution(executionId);
 
+      // Handle WorkflowStepFailureError specially
+      if (error.isWorkflowStepFailure) {
+        logger.warn(`[WorkflowExecutor] Workflow cancelled due to step failure: ${workflowId}`, error);
+
+        // Create user-friendly error message for workflow step failures
+        let errorOutput = `Workflow cancelled: ${error.reason}`;
+        if (executionContext && stepMessages && stepMessages.length > 0) {
+          const partialSummary = getBufferString(stepMessages);
+          errorOutput = `${errorOutput}\n\nSteps completed before cancellation:\n${partialSummary}`;
+        }
+
+        // Update execution status as cancelled due to step failure
+        const errorEndTime = new Date();
+        const errorStartTime = executionContext?.execution?.startTime || new Date();
+        const errorUpdateData = {
+          status: 'cancelled_step_failure',
+          end_time: errorEndTime,
+          duration: errorEndTime.getTime() - errorStartTime.getTime(),
+          error: error.message,
+          output: errorOutput,
+        };
+
+        try {
+          const currentExecution = await getSchedulerExecutionById(executionId, execution.user);
+          if (currentExecution) {
+            const currentVersion = currentExecution.version || 1;
+            const updatedExecution = await optimisticUpdateSchedulerExecution(
+              executionId, 
+              execution.user, 
+              currentVersion, 
+              errorUpdateData
+            );
+            
+            if (!updatedExecution) {
+              logger.warn(`[WorkflowExecutor] Cancellation update conflict for ${executionId}, using fallback`);
+              await updateSchedulerExecution(executionId, execution.user, errorUpdateData);
+            }
+          } else {
+            await updateSchedulerExecution(executionId, execution.user, errorUpdateData);
+          }
+        } catch (updateError) {
+          logger.error(`[WorkflowExecutor] Error during optimistic cancellation update: ${updateError.message}`);
+          await updateSchedulerExecution(executionId, execution.user, errorUpdateData);
+        }
+
+        return {
+          success: false,
+          error: error.message,
+          result: null,
+          cancelled: true,
+          reason: error.reason,
+        };
+      }
+
+      // Handle regular workflow execution errors
       logger.error(`[WorkflowExecutor] Workflow execution failed: ${workflowId}`, error);
 
       // Create error summary with any partial results
@@ -726,13 +781,31 @@ class WorkflowExecutor {
       }
 
       // Execute the current step (each step gets a fresh agent)
-      const stepResult = await executeStep(
-        workflow,
-        execution,
-        step,
-        stepInput,
-        executionData.abortController?.signal,
-      );
+      let stepResult;
+      try {
+        stepResult = await executeStep(
+          workflow,
+          execution,
+          step,
+          stepInput,
+          executionData.abortController?.signal,
+        );
+      } catch (error) {
+        // Check if this is a WorkflowStepFailureError that should cancel the entire workflow
+        if (error.isWorkflowStepFailure) {
+          logger.warn(`[WorkflowExecutor] Workflow cancelled due to step failure: ${error.message}`);
+          // Re-throw to cancel the entire workflow execution
+          throw error;
+        }
+        
+        // For other errors, create a failed step result and continue normal flow
+        stepResult = {
+          success: false,
+          error: error.message,
+          result: null,
+          stepId: step.id,
+        };
+      }
 
       // Add step result to messages array for next step and capture meaningful output
       let meaningfulOutput = '';

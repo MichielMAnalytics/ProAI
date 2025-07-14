@@ -16,6 +16,19 @@ const {
 } = require('./utils');
 
 /**
+ * Custom error for workflow step failures due to missing integrations or tools
+ */
+class WorkflowStepFailureError extends Error {
+  constructor(reason, stepName) {
+    super(`Workflow step "${stepName}" failed: ${reason}`);
+    this.name = 'WorkflowStepFailureError';
+    this.stepName = stepName;
+    this.reason = reason;
+    this.isWorkflowStepFailure = true;
+  }
+}
+
+/**
  * Create enhanced prompt with AgentChain-style context passing for background execution
  * @param {Object} step - Workflow step
  * @param {Object} context - Execution context  
@@ -45,8 +58,16 @@ function createEnhancedPromptWithContext(step, context, stepMessages) {
     logger.info(`[WorkflowAgentExecutor] Added ${stepMessages.length} previous step messages as context`);
   }
 
-  // Final instruction with automated execution guidance
-  prompt += `IMPORTANT: You are running in an automated workflow environment. NEVER ask the user for input, confirmation, or clarification. Work autonomously with the provided information and execute your step objective using the context from previous steps.`;
+  // Critical failure handling instructions
+  prompt += `CRITICAL FAILURE HANDLING: If you cannot complete this step because:
+- A required application is not connected (Gmail, Google Drive, Slack, Pipedream, etc.)
+- Required integrations are missing or not configured  
+- Essential tools are unavailable
+
+You MUST respond with this EXACT format:
+"WORKFLOW_STEP_FAILED: Cannot complete step '${step.name}' because [specific_reason]. Required: [missing_application]. Please connect the required application in the Integrations panel and restart the workflow."
+
+IMPORTANT: You are running in an automated workflow environment. NEVER ask the user for input, confirmation, or clarification. Work autonomously with the provided information and execute your step objective using the context from previous steps.`;
 
   return prompt;
 }
@@ -118,6 +139,16 @@ async function executeStepWithAgent(step, stepMessages, context, userId, abortSi
 
     // Extract response text from agent response
     const responseText = extractResponseText(response);
+
+    // Check for workflow step failure pattern (ensure responseText is a string)
+    if (responseText && typeof responseText === 'string') {
+      const failureMatch = responseText.match(/WORKFLOW_STEP_FAILED:\s*(.+)/);
+      if (failureMatch) {
+        const failureReason = failureMatch[1].trim();
+        logger.warn(`[WorkflowAgentExecutor] Workflow step failure detected in step "${step.name}": ${failureReason}`);
+        throw new WorkflowStepFailureError(failureReason, step.name);
+      }
+    }
 
     // Extract actual tool calls from the client's content parts instead of available tools
     const actualToolCalls = [];

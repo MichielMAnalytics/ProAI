@@ -141,6 +141,45 @@ async function executeStep(workflow, execution, step, context, abortSignal) {
       responseMessageId: result.responseMessageId,
     };
   } catch (error) {
+    // Check if this is a WorkflowStepFailureError - a special case where the agent
+    // determined it cannot complete the step due to missing integrations
+    if (error.isWorkflowStepFailure) {
+      logger.warn(`[WorkflowStepExecutor] Workflow step failure detected: ${error.message}`);
+      
+      // Update step execution with workflow failure
+      await updateSchedulerExecution(execution.id, execution.user, {
+        currentStepId: step.id,
+        error: error.message,
+        status: 'cancelled_step_failure',
+      });
+
+      // Send notification about workflow cancellation due to step failure
+      try {
+        await SchedulerService.sendWorkflowStatusUpdate({
+          userId: execution.user,
+          workflowName: workflow.name,
+          workflowId: workflow.id,
+          notificationType: 'workflow_cancelled',
+          details: `Workflow cancelled: ${error.reason}`,
+          stepData: {
+            stepId: step.id,
+            stepName: step.name,
+            stepType: step.type,
+            status: 'cancelled_step_failure',
+            error: error.message,
+          },
+        });
+      } catch (notificationError) {
+        logger.warn(
+          `[WorkflowStepExecutor] Failed to send workflow cancellation notification: ${notificationError.message}`,
+        );
+      }
+
+      // Re-throw the error to stop workflow execution
+      throw error;
+    }
+
+    // Handle regular step failures
     logger.error(`[WorkflowStepExecutor] Step failed: ${step.name} (agent_id: ${step.agent_id || 'ephemeral'})`, error);
 
     // Update step execution with failure
