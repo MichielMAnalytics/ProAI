@@ -102,7 +102,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
 
   const getStatusColor = (isActive: boolean, isDraft: boolean) => {
     if (isActive) {
-      return 'bg-green-100 text-green-700'; // Active workflows are always green
+      return 'bg-green-100 text-green-700 relative'; // Active workflows are always green
     }
     if (isDraft) {
       return 'bg-orange-100 text-orange-700'; // Inactive drafts are orange
@@ -169,6 +169,9 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
                 workflow.isDraft,
               )}`}
             >
+              {workflow.isActive && (
+                <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></span>
+              )}
               {getStatusText(workflow.isActive, workflow.isDraft)}
             </span>
           </div>

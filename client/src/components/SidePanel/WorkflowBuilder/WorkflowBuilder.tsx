@@ -27,7 +27,7 @@ import type { OptionWithIcon } from '~/common';
 import ControlCombobox from '~/components/ui/ControlCombobox';
 import { HoverCard, HoverCardPortal, HoverCardContent, HoverCardTrigger } from '~/components/ui';
 import MessageIcon from '~/components/Share/MessageIcon';
-import { CircleHelpIcon } from '~/components/svg';
+import { CircleHelpIcon, Spinner } from '~/components/svg';
 import { useAgentsMapContext } from '~/Providers';
 import { useLocalize } from '~/hooks';
 import { ESide } from '~/common';
@@ -152,7 +152,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
   const [currentRunningStepId, setCurrentRunningStepId] = useState<string | null>(null);
   const [completedStepIds, setCompletedStepIds] = useState<Set<string>>(new Set());
   const [testingWorkflows, setTestingWorkflows] = useRecoilState(store.testingWorkflows);
-  const [currentWorkflowId, setCurrentWorkflowId] = useState<string | undefined>(initialWorkflowId);
+  const currentWorkflowId = initialWorkflowId;
 
   // Workflow mutations
   const toggleMutation = useToggleWorkflowMutation();
@@ -183,12 +183,9 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
     },
   );
 
-  // Update current workflow ID when prop changes (for workflow switching)
-  useEffect(() => {
-    if (initialWorkflowId !== currentWorkflowId) {
-      setCurrentWorkflowId(initialWorkflowId);
-    }
-  }, [initialWorkflowId, currentWorkflowId]);
+
+  // Check if we should show loading state for existing workflows
+  const isLoadingExistingWorkflow = currentWorkflowId && !currentWorkflowData;
 
   // Load existing workflow data into form when editing
   useEffect(() => {
@@ -651,9 +648,6 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
 
         const result = await createMutation.mutateAsync(workflowData);
         
-        // Update the current workflow ID so the component knows about the newly created workflow
-        setCurrentWorkflowId(result.id);
-        
         showToast({
           message: `Workflow "${result.name}" created successfully!`,
           severity: NotificationSeverity.SUCCESS,
@@ -681,6 +675,19 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
     }
   }, [triggerType, scheduleType, scheduleTime, scheduleDays, scheduleDate]);
 
+  // Show loading spinner while fetching workflow data
+  if (isLoadingExistingWorkflow) {
+    return (
+      <div className="fixed inset-0 z-50 flex h-full w-full items-center justify-center bg-black/20 backdrop-blur-sm sm:relative sm:inset-auto sm:z-auto sm:h-full sm:w-full sm:bg-transparent sm:backdrop-blur-none">
+        <div className="flex h-full w-full flex-col overflow-hidden border-0 border-border-medium bg-surface-primary text-xl text-text-primary shadow-xl transition-all duration-300 ease-in-out sm:border">
+          <div className="flex items-center justify-center gap-2 py-4 flex-1">
+            <Spinner className="text-text-primary" />
+            <span className="animate-pulse text-text-primary">Loading workflow...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex h-full w-full items-center justify-center bg-black/20 backdrop-blur-sm sm:relative sm:inset-auto sm:z-auto sm:h-full sm:w-full sm:bg-transparent sm:backdrop-blur-none">
@@ -757,6 +764,9 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                       isDraft || false,
                     )}`}
                   >
+                    {isWorkflowActive && (
+                      <span className="mr-2 h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                    )}
                     {getStatusText(isWorkflowActive || false, isDraft || false)}
                   </span>
                 )}

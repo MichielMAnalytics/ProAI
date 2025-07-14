@@ -72,10 +72,10 @@ const WorkflowsTable: React.FC<WorkflowsTableProps> = ({ workflows }) => {
               // Navigate to the new conversation with the workflow agent
               navigateToConvo(newConversation);
               
-              // Then open the workflow builder
-              setTimeout(() => openWorkflowBuilder(), 100);
+              // Then open the workflow builder for a new workflow (undefined = new workflow)
+              setTimeout(() => openWorkflowBuilder(undefined), 100);
             }}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-blue-500/60 bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm transition-all hover:border-blue-500 hover:from-blue-600 hover:to-blue-700 hover:shadow-md"
+            className="btn btn-primary btn-icon"
           >
             <Plus className="h-4 w-4" />
           </button>
