@@ -32,6 +32,7 @@ class WorkflowService {
       const workflowId = workflowData.id || `workflow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       // Create scheduler task data with new simplified structure
+      const triggerType = workflowData.trigger?.type || 'manual';
       const schedulerTaskData = {
         id: workflowId,
         name: workflowData.name,
@@ -46,8 +47,8 @@ class WorkflowService {
         ai_model: workflowData.ai_model,
         agent_id: workflowData.agent_id,
         trigger: {
-          type: workflowData.trigger?.type || 'manual',
-          config: workflowData.trigger?.type === 'manual' 
+          type: triggerType,
+          config: triggerType === 'manual' 
             ? {} 
             : {
                 ...workflowData.trigger?.config,
@@ -66,6 +67,25 @@ class WorkflowService {
         },
         version: workflowData.version || 1,
       };
+
+      // Calculate next_run for scheduled workflows if they're active
+      if (workflowData.isActive && triggerType === 'schedule') {
+        const { calculateNextRun } = require('~/server/services/Scheduler/utils/cronUtils');
+        const cronExpression = workflowData.trigger?.config?.schedule || '0 9 * * *';
+        
+        const nextRun = calculateNextRun(cronExpression);
+        if (nextRun) {
+          schedulerTaskData.next_run = nextRun;
+          logger.info(`[WorkflowService] Calculated next_run for new scheduled workflow ${workflowId}: ${nextRun.toISOString()}`);
+        } else {
+          logger.warn(`[WorkflowService] Failed to calculate next_run for new workflow ${workflowId} with cron: ${cronExpression}`);
+          // Don't create workflow if we can't calculate next run for scheduled workflows
+          throw new Error(`Invalid cron expression: ${cronExpression}`);
+        }
+      } else {
+        // For manual workflows or inactive workflows, explicitly set next_run to null
+        schedulerTaskData.next_run = null;
+      }
 
       // Create scheduler task
       const createdTask = await createSchedulerTask(schedulerTaskData);
@@ -158,6 +178,27 @@ class WorkflowService {
                 schedule: updateData.trigger.config?.schedule || '0 9 * * *'
               }
         };
+
+        // Recalculate next_run if trigger changed and workflow is enabled
+        if (currentTask.enabled) {
+          if (updateData.trigger.type === 'schedule') {
+            const { calculateNextRun } = require('~/server/services/Scheduler/utils/cronUtils');
+            const cronExpression = updateData.trigger.config?.schedule || '0 9 * * *';
+            
+            const nextRun = calculateNextRun(cronExpression);
+            if (nextRun) {
+              schedulerUpdateData.next_run = nextRun;
+              logger.info(`[WorkflowService] Recalculated next_run for updated scheduled workflow ${workflowId}: ${nextRun.toISOString()}`);
+            } else {
+              logger.warn(`[WorkflowService] Failed to calculate next_run for updated workflow ${workflowId} with cron: ${cronExpression}`);
+              throw new Error(`Invalid cron expression: ${cronExpression}`);
+            }
+          } else {
+            // For manual workflows, clear next_run
+            schedulerUpdateData.next_run = null;
+            logger.info(`[WorkflowService] Cleared next_run for updated manual workflow ${workflowId}`);
+          }
+        }
       }
 
       // Update metadata with simplified structure
@@ -230,6 +271,48 @@ class WorkflowService {
         enabled: isActive,
         status: isActive ? 'pending' : 'disabled',
       };
+
+      // If activating a workflow, calculate next_run time for scheduled workflows
+      if (isActive) {
+        // First get the current task to check its trigger and schedule
+        const { getSchedulerTaskById } = require('~/models/SchedulerTask');
+        const currentTask = await getSchedulerTaskById(workflowId, userId);
+        
+        if (currentTask && currentTask.trigger) {
+          const triggerType = currentTask.trigger.type;
+          
+          // Handle scheduled workflows
+          if (triggerType === 'schedule') {
+            const { calculateNextRun } = require('~/server/services/Scheduler/utils/cronUtils');
+            
+            // Support both legacy 'schedule' field and new 'trigger.config.schedule' field
+            const cronExpression = currentTask.trigger.config?.schedule || currentTask.schedule;
+            
+            if (cronExpression) {
+              const nextRun = calculateNextRun(cronExpression);
+              if (nextRun) {
+                updateData.next_run = nextRun;
+                logger.info(`[WorkflowService] Calculated next_run for scheduled workflow ${workflowId}: ${nextRun.toISOString()}`);
+              } else {
+                logger.warn(`[WorkflowService] Failed to calculate next_run for workflow ${workflowId} with cron: ${cronExpression}`);
+                // If we can't calculate next run, don't activate the workflow
+                throw new Error(`Invalid cron expression: ${cronExpression}`);
+              }
+            } else {
+              logger.warn(`[WorkflowService] No cron expression found for scheduled workflow ${workflowId}`);
+              throw new Error('Scheduled workflow is missing cron expression');
+            }
+          } else {
+            // For manual workflows, explicitly set next_run to null to prevent immediate execution
+            updateData.next_run = null;
+            logger.info(`[WorkflowService] Setting next_run to null for manual workflow ${workflowId}`);
+          }
+        }
+      } else {
+        // When deactivating, clear next_run to prevent future executions
+        updateData.next_run = null;
+        logger.info(`[WorkflowService] Clearing next_run for deactivated workflow ${workflowId}`);
+      }
 
       const updatedTask = await updateSchedulerTask(workflowId, userId, updateData);
       if (!updatedTask) {

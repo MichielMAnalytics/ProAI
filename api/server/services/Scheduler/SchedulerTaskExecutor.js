@@ -517,8 +517,8 @@ class SchedulerTaskExecutor {
       );
       await updateSchedulerTask(task.id, task.user, updateData);
     } else {
-      // Check if this is a manual workflow (no recurring schedule)
-      if (!task.schedule || task.trigger?.type === 'manual') {
+      // Check if this is a manual workflow or scheduled workflow
+      if (task.trigger?.type === 'manual') {
         // For manual workflows, mark as completed and disable to prevent re-execution
         const updateData = {
           status: 'completed',
@@ -530,9 +530,10 @@ class SchedulerTaskExecutor {
           `[SchedulerTaskExecutor] Manual workflow ${task.id} completed successfully - disabling to prevent re-execution`,
         );
         await updateSchedulerTask(task.id, task.user, updateData);
-      } else {
-        // For recurring tasks, calculate next run time
-        const cronTime = calculateNextRun(task.schedule);
+      } else if (task.trigger?.type === 'schedule' && task.trigger?.config?.schedule) {
+        // For scheduled workflows, calculate next run time
+        const cronExpression = task.trigger.config.schedule;
+        const cronTime = calculateNextRun(cronExpression);
         if (cronTime) {
           const updateData = {
             status: 'pending',
