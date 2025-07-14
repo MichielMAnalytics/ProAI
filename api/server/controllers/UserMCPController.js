@@ -320,6 +320,11 @@ const connectMCPServer = async (req, res) => {
         MCPInitializer.updateAppLevelCaches(req.app, userId, serverName, result.connectedTools, []);
       }
 
+      // Clear WorkflowExecutor MCP cache for this user so workflow tests get fresh tools
+      const WorkflowExecutor = require('~/server/services/Workflows/WorkflowExecutor');
+      const workflowExecutor = WorkflowExecutor.getInstance();
+      workflowExecutor.clearMCPCacheForUser(userId);
+
       res.json({
         success: true,
         message: `Successfully connected to MCP server '${serverName}'`,
@@ -426,6 +431,11 @@ const disconnectMCPServer = async (req, res) => {
         );
         // Don't fail the disconnect operation if cleanup fails
       }
+
+      // Clear WorkflowExecutor MCP cache for this user so workflow tests get fresh tools
+      const WorkflowExecutor = require('~/server/services/Workflows/WorkflowExecutor');
+      const workflowExecutor = WorkflowExecutor.getInstance();
+      workflowExecutor.clearMCPCacheForUser(userId);
 
       res.json({
         success: true,

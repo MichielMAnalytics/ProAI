@@ -183,6 +183,13 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
     },
   );
 
+  // Update current workflow ID when prop changes (for workflow switching)
+  useEffect(() => {
+    if (initialWorkflowId !== currentWorkflowId) {
+      setCurrentWorkflowId(initialWorkflowId);
+    }
+  }, [initialWorkflowId, currentWorkflowId]);
+
   // Load existing workflow data into form when editing
   useEffect(() => {
     if (currentWorkflowData && currentWorkflowId) {
@@ -697,27 +704,32 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
             <h2 className="text-base font-semibold text-text-primary sm:text-lg">Workflow Builder</h2>
           </div>
 
-          {/* Right: Dashboard and back buttons */}
-          <div className="flex items-center gap-1">
-            {showDashboard && (
+          {/* Right: Builder/Runs toggle */}
+          <div className="flex items-center">
+            <div className="flex rounded-md border border-border-medium bg-surface-secondary p-0.5">
               <button
                 onClick={() => setShowDashboard(false)}
-                className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary sm:h-8 sm:w-8"
-                title="Back to Workflow Builder"
+                disabled={isTesting}
+                className={`px-2 py-1 text-xs font-medium rounded transition-colors sm:px-3 sm:text-sm ${
+                  !showDashboard
+                    ? 'bg-surface-primary text-text-primary shadow-sm'
+                    : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
+                } ${isTesting ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                <Settings className="h-4 w-4" />
+                Builder
               </button>
-            )}
-            <button
-              onClick={() => setShowDashboard(!showDashboard)}
-              disabled={isTesting}
-              className={`flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary sm:h-8 sm:w-8 ${
-                isTesting ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-              title="Execution Dashboard"
-            >
-              <BarChart3 className="h-4 w-4" />
-            </button>
+              <button
+                onClick={() => setShowDashboard(true)}
+                disabled={isTesting || !currentWorkflowId}
+                className={`px-2 py-1 text-xs font-medium rounded transition-colors sm:px-3 sm:text-sm ${
+                  showDashboard
+                    ? 'bg-surface-primary text-text-primary shadow-sm'
+                    : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
+                } ${isTesting || !currentWorkflowId ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                Runs
+              </button>
+            </div>
           </div>
         </div>
 
@@ -799,7 +811,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                         value={scheduleType}
                         onChange={(e) => setScheduleType(e.target.value as 'daily' | 'weekly' | 'monthly' | 'custom')}
                         disabled={isTesting}
-                        className={`w-full rounded-md border border-border-heavy p-2 text-sm focus:border-blue-500 focus:outline-none ${
+                        className={`w-full rounded-md border border-border-heavy bg-surface-primary text-text-primary p-2 text-sm focus:border-blue-500 focus:outline-none ${
                           isTesting ? 'opacity-50 cursor-not-allowed' : ''
                         }`}
                       >
@@ -821,7 +833,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                           value={scheduleTime}
                           onChange={(e) => setScheduleTime(e.target.value)}
                           disabled={isTesting}
-                          className={`w-full rounded-md border border-border-heavy p-2 text-sm focus:border-blue-500 focus:outline-none ${
+                          className={`w-full rounded-md border border-border-heavy bg-surface-primary text-text-primary p-2 text-sm focus:border-blue-500 focus:outline-none ${
                             isTesting ? 'opacity-50 cursor-not-allowed' : ''
                           }`}
                         />
@@ -874,7 +886,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                           value={scheduleDate}
                           onChange={(e) => setScheduleDate(parseInt(e.target.value))}
                           disabled={isTesting}
-                          className={`w-full rounded-md border border-border-heavy p-2 text-sm focus:border-blue-500 focus:outline-none ${
+                          className={`w-full rounded-md border border-border-heavy bg-surface-primary text-text-primary p-2 text-sm focus:border-blue-500 focus:outline-none ${
                             isTesting ? 'opacity-50 cursor-not-allowed' : ''
                           }`}
                         >
@@ -898,7 +910,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                           value={scheduleConfig}
                           onChange={(e) => setScheduleConfig(e.target.value)}
                           disabled={isTesting}
-                          className={`w-full rounded-md border border-border-heavy p-2 text-sm focus:border-blue-500 focus:outline-none ${
+                          className={`w-full rounded-md border border-border-heavy bg-surface-primary text-text-primary p-2 text-sm focus:border-blue-500 focus:outline-none ${
                             isTesting ? 'opacity-50 cursor-not-allowed' : ''
                           }`}
                           placeholder="0 9 * * * (Every day at 9 AM)"
@@ -960,7 +972,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                               value={step.name}
                               onChange={(e) => updateStep(step.id, { name: e.target.value })}
                               disabled={isTesting}
-                              className={`border-none bg-transparent text-sm font-medium text-text-primary focus:outline-none ${
+                              className={`w-full border-none bg-transparent text-sm font-medium text-text-primary focus:outline-none ${
                                 isTesting ? 'opacity-50 cursor-not-allowed' : ''
                               }`}
                               placeholder="Step name"
@@ -1066,7 +1078,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                             value={step.task}
                             onChange={(e) => updateStep(step.id, { task: e.target.value })}
                             disabled={isTesting}
-                            className={`w-full resize-none rounded-md border border-border-heavy p-2 text-sm focus:border-blue-500 focus:outline-none ${
+                            className={`w-full resize-none rounded-md border border-border-heavy bg-surface-primary text-text-primary p-2 text-sm focus:border-blue-500 focus:outline-none ${
                               isTesting ? 'opacity-50 cursor-not-allowed' : ''
                             }`}
                             placeholder="Describe the task for this agent..."
@@ -1242,20 +1254,26 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                 side="top"
               >
                 <button
-                  className={`flex h-8 w-8 items-center justify-center rounded-md shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-9 ${
+                  className={`flex items-center justify-center gap-1 rounded-md px-2 py-1 text-xs font-medium shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm ${
                     !currentWorkflowId
                       ? 'border border-gray-300 bg-gray-100 text-gray-400'
                       : isWorkflowTesting
-                        ? 'border border-red-500/60 bg-gradient-to-r from-red-500 to-red-600 hover:border-red-500 hover:from-red-600 hover:to-red-700'
-                        : 'border border-brand-blue/60 bg-gradient-to-r from-brand-blue to-indigo-600 hover:border-brand-blue hover:from-indigo-600 hover:to-blue-700'
+                        ? 'border border-red-500/60 bg-gradient-to-r from-red-500 to-red-600 text-white hover:border-red-500 hover:from-red-600 hover:to-red-700'
+                        : 'border border-brand-blue/60 bg-gradient-to-r from-brand-blue to-indigo-600 text-white hover:border-brand-blue hover:from-indigo-600 hover:to-blue-700'
                   }`}
                   onClick={handleTestWorkflow}
                   disabled={!currentWorkflowId || (!isWorkflowTesting ? testMutation.isLoading : stopMutation.isLoading)}
                 >
                   {isWorkflowTesting ? (
-                    <Square className="h-3 w-3 text-white sm:h-4 sm:w-4" />
+                    <>
+                      <Square className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <span>Stop</span>
+                    </>
                   ) : (
-                    <TestTube className={`h-3 w-3 sm:h-4 sm:w-4 ${!currentWorkflowId ? 'text-gray-400' : 'text-white'}`} />
+                    <>
+                      <TestTube className={`h-3 w-3 sm:h-4 sm:w-4 ${!currentWorkflowId ? 'text-gray-400' : 'text-white'}`} />
+                      <span>Test</span>
+                    </>
                   )}
                 </button>
               </TooltipAnchor>
@@ -1272,7 +1290,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                 side="top"
               >
                 <button
-                  className={`flex h-8 w-8 items-center justify-center rounded-md shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-9 ${
+                  className={`flex items-center justify-center gap-1 rounded-md px-2 py-1 text-xs font-medium shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm ${
                     !currentWorkflowId
                       ? 'border border-gray-300 bg-gray-100 text-gray-400'
                       : isWorkflowActive
@@ -1283,11 +1301,20 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                   disabled={!currentWorkflowId || toggleMutation.isLoading || isWorkflowTesting || isTesting}
                 >
                   {toggleMutation.isLoading ? (
-                    <RefreshCw className="h-3 w-3 animate-spin text-white sm:h-4 sm:w-4" />
+                    <>
+                      <RefreshCw className="h-3 w-3 animate-spin sm:h-4 sm:w-4" />
+                      <span>Saving...</span>
+                    </>
                   ) : isWorkflowActive ? (
-                    <Pause className="h-3 w-3 text-white sm:h-4 sm:w-4" />
+                    <>
+                      <Pause className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <span>Pause</span>
+                    </>
                   ) : (
-                    <Play className={`h-3 w-3 sm:h-4 sm:w-4 ${!currentWorkflowId ? 'text-gray-400' : 'text-white'}`} />
+                    <>
+                      <Play className={`h-3 w-3 sm:h-4 sm:w-4 ${!currentWorkflowId ? 'text-gray-400' : 'text-white'}`} />
+                      <span>Activate</span>
+                    </>
                   )}
                 </button>
               </TooltipAnchor>
@@ -1298,7 +1325,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                 side="top"
               >
                 <button
-                  className={`flex h-8 w-8 items-center justify-center rounded-md shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-9 ${
+                  className={`flex items-center justify-center gap-1 rounded-md px-2 py-1 text-xs font-medium shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm ${
                     !currentWorkflowId
                       ? 'border border-gray-300 bg-gray-100 text-gray-400'
                       : 'border border-red-500/60 bg-gradient-to-r from-red-500 to-red-600 text-white hover:border-red-500 hover:from-red-600 hover:to-red-700'
@@ -1307,6 +1334,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                   disabled={!currentWorkflowId || deleteMutation.isLoading || isWorkflowTesting || isTesting}
                 >
                   <Trash2 className={`h-3 w-3 sm:h-4 sm:w-4 ${!currentWorkflowId ? 'text-gray-400' : 'text-white'}`} />
+                  <span>Delete</span>
                 </button>
               </TooltipAnchor>
             </div>

@@ -190,7 +190,7 @@ function ControlCombobox({
                   className={cn(
                     'flex w-full items-center px-3 text-sm',
                     disabled 
-                      ? 'cursor-not-allowed text-text-secondary/50 opacity-60' 
+                      ? 'cursor-not-allowed text-text-secondary opacity-75' 
                       : 'cursor-pointer text-text-primary hover:bg-surface-tertiary data-[active-item]:bg-surface-tertiary',
                   )}
                   render={<Ariakit.SelectItem value={disabled ? undefined : value} />}
@@ -201,7 +201,7 @@ function ControlCombobox({
                   <span className="flex-grow truncate text-left">
                     {label}
                     {disabled && (
-                      <span className="ml-2 text-xs font-medium text-text-secondary/70">
+                      <span className="ml-2 text-xs font-medium text-text-secondary">
                         Coming Soon
                       </span>
                     )}

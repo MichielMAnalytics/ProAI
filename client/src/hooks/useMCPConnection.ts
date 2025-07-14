@@ -41,6 +41,11 @@ export function useMCPConnection({
       // Force immediate refetch
       queryClient.refetchQueries({ queryKey: ['tools'] });
 
+      // Invalidate agents cache to ensure agent tools are updated
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
+      // Force immediate refetch
+      queryClient.refetchQueries({ queryKey: ['agents'] });
+
       onConnectionSuccess?.();
     },
     onError: (error) => {
@@ -59,6 +64,11 @@ export function useMCPConnection({
       queryClient.invalidateQueries({ queryKey: ['tools'] });
       // Force immediate refetch
       queryClient.refetchQueries({ queryKey: ['tools'] });
+
+      // Invalidate agents cache to ensure agent tools are updated
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
+      // Force immediate refetch
+      queryClient.refetchQueries({ queryKey: ['agents'] });
 
       onDisconnectionSuccess?.();
     },
