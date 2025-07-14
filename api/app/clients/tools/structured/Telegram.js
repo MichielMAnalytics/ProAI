@@ -6,9 +6,191 @@ const { StringSession } = require('telegram/sessions');
 const { FileContext } = require('librechat-data-provider');
 const { v4: uuidv4 } = require('uuid');
 
+// Session pool manager to handle multiple concurrent users
+class TelegramSessionPool {
+  static clients = new Map(); // sessionKey -> { client, isConnecting, lastUsed }
+  static currentIndex = 0;
+  static sessionKeys = [];
+  static lastReuseLog = 0; // Track when we last logged reuse to reduce noise
+
+  static initialize() {
+    // Discover available session strings
+    this.sessionKeys = [];
+    for (let i = 1; i <= 10; i++) {
+      const sessionKey = `TELEGRAM_SESSION_STRING_${i}`;
+      const sessionString = getEnvironmentVariable(sessionKey);
+      if (sessionString) {
+        this.sessionKeys.push(sessionKey);
+        console.log(`📱 Found session pool entry: ${sessionKey}`);
+      }
+    }
+
+    // Fallback to main session if no pool exists
+    if (this.sessionKeys.length === 0) {
+      const mainSession = getEnvironmentVariable('TELEGRAM_SESSION_STRING');
+      if (mainSession) {
+        this.sessionKeys.push('TELEGRAM_SESSION_STRING');
+        console.log(`📱 Using single session (no pool configured)`);
+      }
+    }
+
+    if (this.sessionKeys.length === 0) {
+      throw new Error('No Telegram session strings found. Please configure TELEGRAM_SESSION_STRING or TELEGRAM_SESSION_STRING_1, _2, etc.');
+    }
+
+    console.log(`🏊 Telegram session pool initialized with ${this.sessionKeys.length} session(s)`);
+  }
+
+  static async getClient() {
+    if (this.sessionKeys.length === 0) {
+      this.initialize();
+    }
+
+    // PHASE 1: Try to reuse any existing connected client first (most efficient)
+    for (const [sessionKey, clientInfo] of this.clients.entries()) {
+      if (clientInfo && clientInfo.client && clientInfo.client.connected) {
+        clientInfo.lastUsed = Date.now();
+        // Only log on first reuse or after 30 seconds of silence
+        const now = Date.now();
+        if (!this.lastReuseLog || now - this.lastReuseLog > 30000) {
+          console.log(`♻️ Using session: ${sessionKey}`);
+          this.lastReuseLog = now;
+        }
+        return clientInfo.client;
+      }
+    }
+
+    // PHASE 2: Wait for any connecting sessions to complete (avoid duplicate connections)
+    for (const [sessionKey, clientInfo] of this.clients.entries()) {
+      if (clientInfo && clientInfo.isConnecting) {
+        console.log(`⏳ Found connecting session ${sessionKey}, waiting for completion...`);
+        
+        // Wait up to 8 seconds for the connection to complete
+        const maxWaitTime = 8000;
+        const checkInterval = 200;
+        let waitTime = 0;
+        
+        while (waitTime < maxWaitTime) {
+          await new Promise(resolve => setTimeout(resolve, checkInterval));
+          waitTime += checkInterval;
+          
+          const updatedClientInfo = this.clients.get(sessionKey);
+          if (updatedClientInfo && updatedClientInfo.client && updatedClientInfo.client.connected) {
+            updatedClientInfo.lastUsed = Date.now();
+            console.log(`✅ Session ready: ${sessionKey}`);
+            return updatedClientInfo.client;
+          }
+          
+          if (!updatedClientInfo || !updatedClientInfo.isConnecting) {
+            // Connection failed or was cleaned up
+            console.log(`❌ Connection failed for ${sessionKey}, trying next option`);
+            break;
+          }
+        }
+      }
+    }
+
+    // PHASE 3: Create new connection using round-robin (only when no connected clients available)
+    for (let attempt = 0; attempt < this.sessionKeys.length; attempt++) {
+      const sessionKey = this.sessionKeys[this.currentIndex];
+      this.currentIndex = (this.currentIndex + 1) % this.sessionKeys.length;
+
+      try {
+        const clientInfo = this.clients.get(sessionKey);
+        
+        // Skip if this session is already connecting (avoid race conditions)
+        if (clientInfo && clientInfo.isConnecting) {
+          console.log(`⏭️ Skipping ${sessionKey} (already connecting), trying next...`);
+          continue;
+        }
+
+        // Create new client
+        console.log(`🔌 Connecting new session: ${sessionKey}`);
+        const client = await this._createClient(sessionKey);
+        
+        this.clients.set(sessionKey, {
+          client,
+          isConnecting: false,
+          lastUsed: Date.now()
+        });
+
+        return client;
+
+      } catch (error) {
+        console.log(`❌ Failed to create client for ${sessionKey}: ${error.message}`);
+        // Continue to next session in pool
+      }
+    }
+
+    throw new Error('All Telegram sessions in pool failed to connect');
+  }
+
+  static async _createClient(sessionKey) {
+    // Mark as connecting
+    this.clients.set(sessionKey, { client: null, isConnecting: true, lastUsed: Date.now() });
+
+    try {
+      const sessionString = getEnvironmentVariable(sessionKey);
+      if (!sessionString) {
+        throw new Error(`Session string not found: ${sessionKey}`);
+      }
+
+      const apiId = getEnvironmentVariable('TELEGRAM_API_ID');
+      const apiHash = getEnvironmentVariable('TELEGRAM_API_HASH');
+      
+      if (!apiId || !apiHash) {
+        throw new Error('TELEGRAM_API_ID and TELEGRAM_API_HASH environment variables are required.');
+      }
+
+      const session = new StringSession(sessionString);
+      const client = new TelegramClient(session, parseInt(apiId), apiHash, {
+        connectionRetries: 3,
+        floodSleepThreshold: 60,
+      });
+
+      await client.start({
+        phoneNumber: () => {
+          throw new Error('Interactive authentication not supported.');
+        },
+        password: () => {
+          throw new Error('Interactive authentication not supported.');
+        },
+        phoneCode: () => {
+          throw new Error('Interactive authentication not supported.');
+        },
+        onError: (err) => {
+          console.error(`Telegram auth error for ${sessionKey}:`, err);
+        },
+      });
+
+      console.log(`✅ Session connected: ${sessionKey}`);
+      return client;
+
+    } catch (error) {
+      // Remove failed connection attempt
+      this.clients.delete(sessionKey);
+      throw error;
+    }
+  }
+
+  static async cleanup() {
+    console.log('🧹 Cleaning up Telegram session pool...');
+    for (const [sessionKey, clientInfo] of this.clients.entries()) {
+      if (clientInfo.client) {
+        try {
+          await clientInfo.client.disconnect();
+        } catch (error) {
+          console.log(`Warning: Failed to disconnect ${sessionKey}:`, error.message);
+        }
+      }
+    }
+    this.clients.clear();
+  }
+}
+
 class TelegramChannelFetcher extends Tool {
   name = 'telegram';
-  description = 'Fetch messages from PUBLIC Telegram channels ONLY. This tool strictly supports public broadcast channels with usernames (like @cointelegraph). Private chats, private groups, and private channels are blocked for privacy and security reasons. Use this tool to retrieve recent messages from specified public channels with optional date filtering.';
+  description = 'Fetch messages from PUBLIC Telegram channels ONLY. This tool strictly supports public broadcast channels with usernames (like @cointelegraph). Private chats, private groups, and private channels are blocked for privacy and security reasons. IMPORTANT: For analysis queries like "most interesting", "top posts", "important news", or "best articles", DO NOT set a limit - let the tool fetch ALL messages in the date range automatically (up to 500). Only set explicit limits for basic "recent messages" queries. The tool returns complete message data including engagement statistics for intelligent filtering and analysis.';
   
   schema = z.object({
     channel_name: z.string().min(1).describe('PUBLIC channel username (without @) or channel ID. Only public broadcast channels with usernames are supported (like "cointelegraph", "bitcoin"). Private chats, groups, and channels are blocked.'),
@@ -18,7 +200,7 @@ class TelegramChannelFetcher extends Tool {
       .min(1)
       .max(500)
       .optional()
-      .describe('Maximum number of messages to fetch. When date filtering is used, defaults to 500 (all messages in range). For recent messages without date filtering, defaults to 10. Maximum 500.'),
+      .describe('Maximum number of messages to fetch. IMPORTANT: For content analysis queries (most interesting, top posts, etc.), DO NOT specify this parameter - let the tool auto-fetch all messages in the date range (up to 500). Only specify for simple "recent messages" queries. Defaults: 500 with date filters, 10 without.'),
     offset_date: z
       .string()
       .optional()
@@ -66,54 +248,39 @@ class TelegramChannelFetcher extends Tool {
       );
     }
 
-    this.client = null;
-    
     // Rate limiting: track request history per user for burst allowance
     this.requestHistory = {};
   }
 
   async initializeClient() {
-    if (this.client) {
-      return this.client;
-    }
-
-    try {
-      // Load session from environment variable
-      const sessionString = getEnvironmentVariable('TELEGRAM_SESSION_STRING') || '';
-      
-      if (!sessionString) {
-        throw new Error('TELEGRAM_SESSION_STRING environment variable is required. Please add your Telegram session string to the .env file.');
+    let lastError;
+    const maxRetries = 3;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // Use session pool to get a client
+        const client = await TelegramSessionPool.getClient();
+        return client;
+      } catch (error) {
+        lastError = error;
+        console.error(`Client initialization attempt ${attempt}/${maxRetries} failed:`, error.message);
+        
+        // Check if it's an auth-related error that might be resolved with a different session
+        if (error.message.includes('AUTH_KEY_DUPLICATED') || 
+            error.message.includes('AUTH_KEY_UNREGISTERED') ||
+            error.message.includes('SESSION_PASSWORD_NEEDED')) {
+          console.log(`🔄 Auth error detected, will try different session on next attempt...`);
+          // Small delay before retry
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        
+        // For non-auth errors, don't retry
+        break;
       }
-      
-      const session = new StringSession(sessionString);
-      console.log('Using Telegram session from environment variable');
-
-      this.client = new TelegramClient(session, parseInt(this.apiId), this.apiHash, {
-        connectionRetries: 5,
-      });
-
-      await this.client.start({
-        phoneNumber: () => {
-          throw new Error('Interactive authentication not supported. Please provide a valid session file.');
-        },
-        password: () => {
-          throw new Error('Interactive authentication not supported. Please provide a valid session file.');
-        },
-        phoneCode: () => {
-          throw new Error('Interactive authentication not supported. Please provide a valid session file.');
-        },
-        onError: (err) => {
-          console.error('Telegram auth error:', err);
-        },
-      });
-
-      // Session is already loaded from environment variable, no need to save
-
-      return this.client;
-    } catch (error) {
-      console.error('Failed to initialize Telegram client:', error);
-      throw new Error(`Failed to initialize Telegram client: ${error.message}. Note: You need to authenticate this client once manually to create a session file.`);
     }
+    
+    throw new Error(`Failed to initialize Telegram client after ${maxRetries} attempts: ${lastError.message}`);
   }
 
   parseDate(dateString) {
@@ -145,9 +312,6 @@ class TelegramChannelFetcher extends Tool {
 
     const { channel_name, limit, offset_date, min_date, max_date, include_images = false } = validationResult.data;
     
-    // Parse date filters first for validation
-    console.log(`📅 Date inputs: min_date="${min_date}", max_date="${max_date}", offset_date="${offset_date}"`);
-    
     const offsetDate = offset_date ? Math.floor(this.parseDate(offset_date).getTime() / 1000) : undefined;
     
     // For same-day queries, handle dates properly as full day boundaries
@@ -174,11 +338,9 @@ class TelegramChannelFetcher extends Tool {
       }
     }
     
-    console.log(`📅 Parsed dates: minDate=${minDate}, maxDate=${maxDate}, offsetDate=${offsetDate ? new Date(offsetDate * 1000) : undefined}`);
-    
-    // Smart pagination logic: when date filtering is used, fetch all messages in range
+    // Smart pagination logic: when date filtering is used, fetch comprehensive data
     const isDateFiltered = min_date || max_date || offset_date;
-    const effectiveLimit = limit || (isDateFiltered ? 500 : 10);
+    const effectiveLimit = limit || (isDateFiltered ? 2000 : 10);
 
     // 🛡️ ROBUSTNESS VALIDATIONS - Prevent system overload
     
@@ -190,12 +352,10 @@ class TelegramChannelFetcher extends Tool {
     // 2. Date range validation - prevent massive historical requests
     if (minDate && maxDate) {
       const daysDiff = Math.ceil((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
-      if (daysDiff > 30 && effectiveLimit > 100) {
-        throw new Error(`Date range spans ${daysDiff} days with ${effectiveLimit} message limit. For date ranges over 30 days, limit must be ≤ 100 messages to prevent system overload.`);
-      }
       if (daysDiff > 90) {
         throw new Error(`Date range spans ${daysDiff} days, maximum allowed is 90 days. Please use a shorter date range.`);
       }
+      // No message limit restrictions for date ranges - let users get comprehensive data
     }
     
     // 3. Large request warnings - educate users about efficiency
@@ -204,8 +364,8 @@ class TelegramChannelFetcher extends Tool {
     }
     
     // 4. Reasonable limits enforcement
-    if (effectiveLimit > 500) {
-      throw new Error('Maximum limit is 500 messages per request to maintain system performance.');
+    if (effectiveLimit > 2500) {
+      throw new Error('Maximum limit is 2500 messages per request to maintain system performance.');
     }
     
     // 5. Rate limiting with burst allowance - allow 5 rapid calls, then enforce limits
@@ -213,8 +373,6 @@ class TelegramChannelFetcher extends Tool {
     const now = Date.now();
     const burstWindow = 10000; // 10 second window
     const burstLimit = 5; // Allow 5 calls in burst window
-    const cooldownAfterBurst = include_images ? 15000 : 5000; // Cooldown after burst exhausted
-    
     // Initialize user history if not exists
     if (!this.requestHistory[userId]) {
       this.requestHistory[userId] = [];
@@ -261,14 +419,12 @@ class TelegramChannelFetcher extends Tool {
           nextDay.setDate(nextDay.getDate() + 1); // Add one day
           nextDay.setHours(0, 0, 0, 0); // Set to midnight of next day
           finalOffsetDate = Math.floor(nextDay.getTime() / 1000);
-          console.log(`📅 Same-day query detected, fetching messages before: ${nextDay}`);
         } else {
           // For date ranges, use the day after max_date to include all messages on max_date
           const dayAfterMax = new Date(maxDate);
           dayAfterMax.setDate(dayAfterMax.getDate() + 1);
           dayAfterMax.setHours(0, 0, 0, 0);
           finalOffsetDate = Math.floor(dayAfterMax.getTime() / 1000);
-          console.log(`📅 Date range query, fetching messages before: ${dayAfterMax}`);
         }
       }
 
@@ -279,8 +435,6 @@ class TelegramChannelFetcher extends Tool {
       
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          console.log(`🔍 Attempting to find channel: ${channel_name} (attempt ${attempt}/${maxRetries})`);
-          
           // Try to get channel by username or ID
           if (channel_name.startsWith('-100')) {
             // Channel ID format
@@ -309,15 +463,11 @@ class TelegramChannelFetcher extends Tool {
             throw new Error(`Access denied: "${channel_name}" is a private megagroup. This tool only supports public channels with usernames.`);
           }
           
-          console.log(`✅ Successfully found PUBLIC channel: ${channel.title} (@${channel.username}) [${channel.className}]`);
           break; // Success, exit retry loop
           
         } catch (error) {
           lastError = error;
-          console.log(`❌ Attempt ${attempt} failed for channel ${channel_name}: ${error.message}`);
-          
           if (attempt < maxRetries) {
-            console.log(`⏳ Retrying in 1 second...`);
             await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
           }
         }
@@ -327,47 +477,64 @@ class TelegramChannelFetcher extends Tool {
         throw new Error(`Channel "${channel_name}" not found or not accessible after ${maxRetries} attempts. Make sure it's a public channel and the name is correct. Last error: ${lastError?.message}`);
       }
 
-      // Fetch messages with filters and timeout protection  
+      // Fetch messages with automatic continuation when limit is reached
       const messages = [];
       const startTime = Date.now();
       const timeoutMs = include_images ? 120000 : 60000; // 2min for images, 1min for text
+      let currentOffsetDate = finalOffsetDate;
+      let totalFetched = 0;
+      let batchCount = 0;
+      const maxBatches = 5; // Prevent infinite loops, max 2500 messages total
       
-      console.log(`📡 Fetching up to ${effectiveLimit} messages from ${channel_name} ${include_images ? '(with images)' : '(text only)'}`);
-      
-      for await (const message of client.iterMessages(channel, {
-        limit: effectiveLimit,
-        offsetDate: finalOffsetDate,
-        reverse: false, // Get newest first
-      })) {
-        // Timeout protection
-        if (Date.now() - startTime > timeoutMs) {
-          console.log(`⏰ Request timeout after ${timeoutMs/1000}s, returning ${messages.length} messages`);
-          break;
+      while (totalFetched < effectiveLimit && batchCount < maxBatches) {
+        batchCount++;
+        const remainingLimit = effectiveLimit - totalFetched;
+        const batchLimit = Math.min(remainingLimit, 500); // Fetch up to 500 per batch
+        
+        if (batchCount > 1) {
+          console.log(`📡 Batch ${batchCount}: fetching ${batchLimit} more messages from ${channel_name}${currentOffsetDate ? ` (from ${new Date(currentOffsetDate * 1000).toISOString().split('T')[0]})` : ''}`);
         }
         
-        // Convert message datetime to Date object for comparison
-        const messageDateTime = message.date instanceof Date ? message.date : new Date(message.date * 1000);
+        let batchMessages = [];
+        let batchHitMinDate = false;
+        let oldestMessageDate = null;
         
-        // Apply min_date filter manually since GramJS doesn't have this built-in
-        if (minDate && messageDateTime < minDate) {
-          console.log(`⏹️ Stopping: message date ${messageDateTime} is before min_date ${minDate}`);
-          break; // Stop when we reach messages older than min_date
-        }
-        
-        // Apply max_date filter manually (only needed when offset_date wasn't used)
-        if (maxDate && messageDateTime > maxDate) {
-          console.log(`⏭️ Skipping: message date ${messageDateTime} is after max_date ${maxDate}`);
-          continue; // Skip messages newer than max_date
-        }
+        for await (const message of client.iterMessages(channel, {
+          limit: batchLimit,
+          offsetDate: currentOffsetDate,
+          reverse: false, // Get newest first
+        })) {
+          // Timeout protection
+          if (Date.now() - startTime > timeoutMs) {
+            console.log(`⏰ Request timeout after ${timeoutMs/1000}s, returning ${messages.length} messages`);
+            break;
+          }
+          
+          // Convert message datetime to Date object for comparison
+          const messageDateTime = message.date instanceof Date ? message.date : new Date(message.date * 1000);
+          
+          // Apply min_date filter manually since GramJS doesn't have this built-in
+          if (minDate && messageDateTime < minDate) {
+            batchHitMinDate = true;
+            break; // Stop when we reach messages older than min_date
+          }
+          
+          // Apply max_date filter manually (only needed when offset_date wasn't used)
+          if (maxDate && messageDateTime > maxDate) {
+            continue; // Skip messages newer than max_date
+          }
 
-        // Skip deleted or empty messages
-        if (!message.message && !message.media) {
-          continue;
-        }
+          // Skip deleted or empty messages
+          if (!message.message && !message.media) {
+            continue;
+          }
 
-        // Extract entities (links, mentions, cashtags, etc.)
-        const entities = [];
-        if (message.entities) {
+          // Track oldest message date for next batch offset
+          oldestMessageDate = messageDateTime;
+
+          // Extract entities (links, mentions, cashtags, etc.)
+          const entities = [];
+          if (message.entities) {
           for (const entity of message.entities) {
             const entityData = {
               type: entity.className.replace('MessageEntity', '').toLowerCase(),
@@ -452,7 +619,6 @@ class TelegramChannelFetcher extends Tool {
                   mediaInfo.image_file_id = result.file_id;
                   mediaInfo.image_size = imageBuffer.length;
                   mediaInfo.image_format = 'jpeg'; // Telegram photos are usually JPEG
-                  console.log(`Downloaded and saved image for message ${message.id}, size: ${imageBuffer.length} bytes, path: ${result.filepath}`);
                 }
               } catch (downloadError) {
                 console.error(`Failed to download image for message ${message.id}:`, downloadError);
@@ -467,14 +633,21 @@ class TelegramChannelFetcher extends Tool {
           }
         }
 
+        // Calculate engagement score for intelligent filtering
+        const views = message.views || 0;
+        const forwards = message.forwards || 0;
+        const replies = message.replies ? message.replies.replies : 0;
+        const engagementScore = views + (forwards * 10) + (replies * 25); // Weight replies/forwards higher
+
         const messageData = {
           id: message.id,
           text: message.message || '',
           date: dateString,
           sender_id: message.senderId,
-          views: message.views || 0,
-          forwards: message.forwards || 0,
-          replies: message.replies ? message.replies.replies : 0,
+          views: views,
+          forwards: forwards,
+          replies: replies,
+          engagement_score: engagementScore,
           is_reply: !!message.replyTo,
           entities: entities.length > 0 ? entities : undefined,
           media: mediaInfo,
@@ -490,7 +663,25 @@ class TelegramChannelFetcher extends Tool {
           };
         }
 
-        messages.push(messageData);
+          batchMessages.push(messageData);
+        }
+        
+        // Add batch messages to main collection
+        messages.push(...batchMessages);
+        totalFetched += batchMessages.length;
+        
+        // Stop if we hit min_date boundary or got less than requested (end of channel)
+        if (batchHitMinDate || batchMessages.length < batchLimit) {
+          break;
+        }
+        
+        // Prepare offset for next batch using oldest message date
+        if (oldestMessageDate) {
+          // Add 1 second to avoid fetching the same message again
+          currentOffsetDate = Math.floor(oldestMessageDate.getTime() / 1000) - 1;
+        } else {
+          break; // No more messages to fetch
+        }
       }
 
       const endTime = Date.now();
@@ -500,6 +691,9 @@ class TelegramChannelFetcher extends Tool {
       const warnings = [];
       if (messages.length >= effectiveLimit) {
         warnings.push(`Reached message limit of ${effectiveLimit}. Use date filtering for more targeted results.`);
+      }
+      if (batchCount >= maxBatches) {
+        warnings.push(`Reached maximum batch limit (${maxBatches} batches). Some messages may not be included.`);
       }
       if (include_images && messages.filter(m => m.media?.image_url).length > 0) {
         warnings.push(`Image downloads were processed. This increases processing time and bandwidth usage.`);
@@ -530,8 +724,7 @@ class TelegramChannelFetcher extends Tool {
       };
 
 
-      // Log usage for monitoring
-      console.log(`✅ Telegram fetch completed: ${messages.length} messages from ${channel_name} in ${processingTime}s ${include_images ? '(with images)' : ''}`);
+      console.log(`✅ ${channel_name}: ${messages.length} messages (${processingTime}s)${batchCount > 1 ? ` [${batchCount} batches]` : ''}`);
       
       return JSON.stringify(result, null, 2);
 
@@ -552,11 +745,22 @@ class TelegramChannelFetcher extends Tool {
   }
 
   async disconnect() {
-    if (this.client) {
-      await this.client.disconnect();
-      this.client = null;
-    }
+    // Clients are managed by the pool, no individual disconnect needed
+    // Use TelegramSessionPool.cleanup() for full cleanup if needed
   }
 }
+
+// Cleanup session pool on process exit
+process.on('SIGINT', async () => {
+  console.log('🛑 Shutting down Telegram session pool...');
+  await TelegramSessionPool.cleanup();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('🛑 Shutting down Telegram session pool...');
+  await TelegramSessionPool.cleanup();
+  process.exit(0);
+});
 
 module.exports = TelegramChannelFetcher;

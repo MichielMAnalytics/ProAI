@@ -226,7 +226,7 @@
       {
         "authField": "TELEGRAM_SESSION_STRING",
         "label": "Telegram Session String",
-        "description": "Your Telegram session string from a previously authenticated session. This is required for the tool to access Telegram's API without interactive authentication."
+        "description": "Your Telegram session string from a previously authenticated session. For high-traffic environments, you can configure multiple sessions (TELEGRAM_SESSION_STRING_1, _2, _3, etc.) for load balancing and better concurrency handling."
       }
     ]
   }
