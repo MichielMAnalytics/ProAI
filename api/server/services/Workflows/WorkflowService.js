@@ -2,6 +2,7 @@ const { logger } = require('~/config');
 const {
   createSchedulerTask,
   deleteSchedulerTask,
+  softDeleteSchedulerTask,
   getSchedulerTasksByUser,
   getSchedulerTaskById,
   updateSchedulerTask,
@@ -237,23 +238,48 @@ class WorkflowService {
   }
 
   /**
-   * Delete workflow
+   * Delete workflow (soft delete - marks as deleted instead of removing)
    * @param {string} workflowId - Workflow ID
    * @param {string} userId - User ID
    * @returns {Promise<boolean>} Success status
    */
   async deleteWorkflow(workflowId, userId) {
     try {
+      const result = await softDeleteSchedulerTask(workflowId, userId);
+      
+      if (result) {
+        logger.info(`[WorkflowService] Workflow ${workflowId} soft deleted for user ${userId}`);
+        await this.notifyWorkflowEvent(userId, 'deleted', { id: workflowId, name: result.name });
+        return true;
+      }
+      
+      logger.warn(`[WorkflowService] Workflow ${workflowId} not found or already deleted for user ${userId}`);
+      return false;
+    } catch (error) {
+      logger.error(`[WorkflowService] Error deleting workflow:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Permanently delete workflow (hard delete - removes from database)
+   * @param {string} workflowId - Workflow ID
+   * @param {string} userId - User ID
+   * @returns {Promise<boolean>} Success status
+   */
+  async permanentlyDeleteWorkflow(workflowId, userId) {
+    try {
       const result = await deleteSchedulerTask(workflowId, userId);
       
       if (result.deletedCount > 0) {
-        await this.notifyWorkflowEvent(userId, 'deleted', { id: workflowId });
+        logger.info(`[WorkflowService] Workflow ${workflowId} permanently deleted for user ${userId}`);
+        await this.notifyWorkflowEvent(userId, 'permanently_deleted', { id: workflowId });
         return true;
       }
       
       return false;
     } catch (error) {
-      logger.error(`[WorkflowService] Error deleting workflow:`, error);
+      logger.error(`[WorkflowService] Error permanently deleting workflow:`, error);
       throw error;
     }
   }

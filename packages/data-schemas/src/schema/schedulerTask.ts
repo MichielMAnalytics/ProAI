@@ -17,6 +17,9 @@ export interface ISchedulerTask extends Document {
   ai_model?: string;
   agent_id?: string;
   version?: number;
+  deleted: boolean;
+  deleted_at?: Date;
+  deleted_by?: Types.ObjectId;
   trigger?: {
     type: 'manual' | 'schedule' | 'webhook' | 'email' | 'event';
     config: {
@@ -132,6 +135,18 @@ const schedulerTaskSchema: Schema<ISchedulerTask> = new Schema(
       type: Number,
       default: 1,
     },
+    deleted: {
+      type: Boolean,
+      required: true,
+      default: false,
+    },
+    deleted_at: {
+      type: Date,
+    },
+    deleted_by: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
   },
   {
     timestamps: true,
@@ -146,5 +161,6 @@ schedulerTaskSchema.index({ next_run: 1 });
 schedulerTaskSchema.index({ user: 1, enabled: 1 });
 schedulerTaskSchema.index({ user: 1, endpoint: 1 });
 schedulerTaskSchema.index({ user: 1, agent_id: 1 });
+schedulerTaskSchema.index({ user: 1, deleted: 1 }); // For efficient soft delete queries
 
 export default schedulerTaskSchema;
