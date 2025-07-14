@@ -27,7 +27,7 @@ export interface IWorkflowExecutionStep {
 export interface IWorkflowExecutionContext {
   isTest?: boolean;
   trigger?: {
-    type: 'manual' | 'schedule' | 'webhook' | 'email' | 'event';
+    type: 'manual' | 'schedule' | 'webhook' | 'email' | 'event' | 'test';
     source?: string;
     scheduledTime?: Date;
     parameters?: Record<string, any>;
@@ -134,7 +134,7 @@ const workflowExecutionContextSchema = new Schema({
   trigger: {
     type: {
       type: String,
-      enum: ['manual', 'schedule', 'webhook', 'email', 'event'],
+      enum: ['manual', 'schedule', 'webhook', 'email', 'event', 'test'],
     },
     source: { type: String },
     scheduledTime: { type: Date },

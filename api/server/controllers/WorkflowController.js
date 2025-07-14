@@ -381,7 +381,7 @@ const deactivateWorkflow = async (req, res) => {
 };
 
 /**
- * Test execute a workflow
+ * Test execute a workflow using the same execution path as real manual workflows
  * @route POST /workflows/:workflowId/test
  * @param {string} workflowId - The workflow ID
  * @returns {object} Execution result
@@ -392,23 +392,50 @@ const testWorkflow = async (req, res) => {
     const { workflowId } = req.params;
     const { context = {} } = req.body;
 
-    // Include memory configuration and other app.locals in context
-    const enhancedContext = {
-      ...context,
-      memoryConfig: req.app?.locals?.memory || {},
-      agentsConfig: req.app?.locals?.agents || {},
-    };
+    logger.info(`[WorkflowController] Testing workflow "${workflowId}" using SchedulerTaskExecutor (same as manual execution)`);
 
-    const workflowService = new WorkflowService();
-    const result = await workflowService.executeWorkflow(workflowId, userId, enhancedContext, true);
-
-    res.json({
-      success: true,
-      message: 'Workflow test execution completed',
-      result,
-    });
+    try {
+      // Use SchedulerTaskExecutor to execute the workflow (same as manual workflow execution)
+      const SchedulerTaskExecutor = require('~/server/services/Scheduler/SchedulerTaskExecutor');
+      const taskExecutor = new SchedulerTaskExecutor();
+      
+      // Get the scheduler task for this workflow
+      const { getSchedulerTaskById } = require('~/models/SchedulerTask');
+      const schedulerTask = await getSchedulerTaskById(workflowId, userId);
+      
+      if (!schedulerTask) {
+        throw new Error('Scheduler task not found for workflow - workflow may not be properly configured');
+      }
+      
+      // Execute using the same method as real manual workflows but with test flag
+      const executionResult = await taskExecutor.executeTask(schedulerTask, { isTest: true });
+      
+      res.json({
+        success: true,
+        message: 'Workflow test execution completed',
+        result: executionResult,
+        execution: {
+          executed: true,
+          isTest: true,
+          result: executionResult,
+        },
+      });
+    } catch (executionError) {
+      logger.error(`[WorkflowController] Error testing workflow "${workflowId}":`, executionError);
+      
+      res.status(500).json({
+        success: false,
+        message: 'Workflow test execution failed',
+        error: executionError.message,
+        execution: {
+          executed: false,
+          isTest: true,
+          error: executionError.message,
+        },
+      });
+    }
   } catch (error) {
-    logger.error('[WorkflowController] Error testing workflow:', error);
+    logger.error('[WorkflowController] Error in testWorkflow controller:', error);
     res.status(500).json({
       success: false,
       error: error.message,

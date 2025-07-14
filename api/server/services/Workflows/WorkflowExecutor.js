@@ -280,18 +280,6 @@ class WorkflowExecutor {
     };
   }
 
-  /**
-   * Clear MCP cache for a specific user (called when MCP connections change)
-   * @param {string} userId - User ID to clear cache for
-   */
-  clearMCPCacheForUser(userId) {
-    if (this.mcpInitialized.has(userId)) {
-      this.mcpInitialized.delete(userId);
-      logger.info(`[WorkflowExecutor] Cleared MCP cache for user ${userId} due to connection change`);
-      return true;
-    }
-    return false;
-  }
 
   /**
    * Force cleanup of all memory caches (emergency cleanup)
