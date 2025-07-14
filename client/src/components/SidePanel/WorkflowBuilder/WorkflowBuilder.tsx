@@ -1254,12 +1254,12 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                 side="top"
               >
                 <button
-                  className={`flex items-center justify-center gap-1 rounded-md px-2 py-1 text-xs font-medium shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm ${
+                  className={`flex items-center justify-center gap-1 rounded-md px-3 py-2 text-sm font-medium shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:gap-2 sm:px-4 sm:py-2 sm:text-base ${
                     !currentWorkflowId
                       ? 'border border-gray-300 bg-gray-100 text-gray-400'
                       : isWorkflowTesting
                         ? 'border border-red-500/60 bg-gradient-to-r from-red-500 to-red-600 text-white hover:border-red-500 hover:from-red-600 hover:to-red-700'
-                        : 'border border-brand-blue/60 bg-gradient-to-r from-brand-blue to-indigo-600 text-white hover:border-brand-blue hover:from-indigo-600 hover:to-blue-700'
+                        : 'border border-blue-500/60 bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:border-blue-500 hover:from-blue-600 hover:to-blue-700'
                   }`}
                   onClick={handleTestWorkflow}
                   disabled={!currentWorkflowId || (!isWorkflowTesting ? testMutation.isLoading : stopMutation.isLoading)}
@@ -1290,7 +1290,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                 side="top"
               >
                 <button
-                  className={`flex items-center justify-center gap-1 rounded-md px-2 py-1 text-xs font-medium shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm ${
+                  className={`flex items-center justify-center gap-1 rounded-md px-3 py-2 text-sm font-medium shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:gap-2 sm:px-4 sm:py-2 sm:text-base ${
                     !currentWorkflowId
                       ? 'border border-gray-300 bg-gray-100 text-gray-400'
                       : isWorkflowActive
@@ -1325,7 +1325,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                 side="top"
               >
                 <button
-                  className={`flex items-center justify-center gap-1 rounded-md px-2 py-1 text-xs font-medium shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm ${
+                  className={`flex items-center justify-center gap-1 rounded-md px-3 py-2 text-sm font-medium shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:gap-2 sm:px-4 sm:py-2 sm:text-base ${
                     !currentWorkflowId
                       ? 'border border-gray-300 bg-gray-100 text-gray-400'
                       : 'border border-red-500/60 bg-gradient-to-r from-red-500 to-red-600 text-white hover:border-red-500 hover:from-red-600 hover:to-red-700'
@@ -1344,7 +1344,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
               <button
                 onClick={handleSave}
                 disabled={isSaving || !workflowName || steps.length === 0 || isTesting}
-                className="flex flex-1 items-center justify-center gap-1 rounded-md bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300 sm:gap-2 sm:px-4 sm:py-2"
+                className="btn btn-primary flex flex-1 items-center justify-center gap-1 text-sm sm:gap-2 sm:text-base"
               >
                 <Save size={14} />
                 {isSaving ? 'Saving...' : 'Save Workflow'}
