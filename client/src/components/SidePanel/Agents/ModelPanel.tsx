@@ -97,14 +97,12 @@ export default function ModelPanel({
         <div className="absolute left-4 top-4">
           <button
             type="button"
-            className="btn btn-neutral relative h-8 w-8 p-1"
+            className="inline-flex size-8 items-center justify-center rounded-lg border border-border-light bg-transparent text-text-primary transition-all ease-in-out hover:bg-surface-tertiary"
             onClick={() => {
               setActivePanel(Panel.builder);
             }}
           >
-            <div className="model-panel-content flex w-full items-center justify-center gap-2">
-              <ChevronLeft size={16} />
-            </div>
+            <ChevronLeft size={16} aria-label="Back to Agent Builder" />
           </button>
         </div>
 
