@@ -78,7 +78,7 @@ const WorkflowsTable: React.FC<WorkflowsTableProps> = ({ workflows }) => {
         </Table>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-end">
         <div className="flex items-center gap-2" role="navigation" aria-label="Pagination">
           <Button
             variant="outline"
