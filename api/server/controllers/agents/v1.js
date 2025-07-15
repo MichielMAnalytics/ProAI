@@ -57,6 +57,7 @@ const injectSpecialVariables = (instructions = '') => {
   // Check if sections already exist to avoid duplication
   const hasVariablesSection = instructions.includes('--- Available Variables ---') && instructions.includes('--- End Variables ---');
   const hasWorkflowSection = instructions.includes('--- Workflow Capabilities ---') && instructions.includes('--- End Workflow Capabilities ---');
+  const hasConnectionSection = instructions.includes('--- App Connection Instructions ---') && instructions.includes('--- End App Connection Instructions ---');
   
   let result = instructions;
   
@@ -98,6 +99,15 @@ const injectSpecialVariables = (instructions = '') => {
     logger.info(`[injectSpecialVariables] Workflow capabilities section already exists, skipping injection`);
   }
   */
+  
+  // Only add app connection instructions section if it doesn't exist
+  if (!hasConnectionSection) {
+    const connectionInstructions = `\n\n--- App Connection Instructions ---\nIf you need to use a tool or integration that requires a connection to an external app (like Gmail, Google Drive, Slack, etc.) and you encounter authentication or connection errors, inform the user that they can:\n\n1. Click on the app icons shown at the bottom of the chat input field to connect the required app\n2. Go to 'Apps' in the top right corner of the interface to manage their app connections\n3. Connect the necessary integrations to enable the tool's functionality\n\nThis guidance applies when you receive errors about missing connections, authentication failures, or when tools require external app access.\n--- End App Connection Instructions ---`;
+    result += connectionInstructions;
+    logger.info(`[injectSpecialVariables] Added app connection instructions section`);
+  } else {
+    logger.info(`[injectSpecialVariables] App connection instructions section already exists, skipping injection`);
+  }
   
   return result;
 };

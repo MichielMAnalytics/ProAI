@@ -28,6 +28,7 @@ export default function useTextarea({
   setIsScrollable,
   disabled = false,
   isMcpChecking = false,
+  isEnhancing = false,
   shouldShowBadge = false,
   onRemoveBadge,
 }: {
@@ -36,6 +37,7 @@ export default function useTextarea({
   setIsScrollable: React.Dispatch<React.SetStateAction<boolean>>;
   disabled?: boolean;
   isMcpChecking?: boolean;
+  isEnhancing?: boolean;
   shouldShowBadge?: boolean;
   onRemoveBadge?: () => void;
 }) {
@@ -63,8 +65,8 @@ export default function useTextarea({
   const entityName = entity?.name ?? '';
 
   const isNotAppendable =
-    (((latestMessage?.unfinished ?? false) && !isSubmitting) || (latestMessage?.error ?? false)) &&
-    !isAssistant;
+    ((((latestMessage?.unfinished ?? false) && !isSubmitting) || (latestMessage?.error ?? false)) &&
+    !isAssistant) || isEnhancing;
 
   useEffect(() => {
     const prompt = activePrompt ?? '';
@@ -82,6 +84,10 @@ export default function useTextarea({
     }
 
     const getPlaceholderText = () => {
+      if (isEnhancing) {
+        return localize('com_ui_enhancing');
+      }
+
       if (isMcpChecking) {
         return localize('com_ui_checking_connections');
       }
@@ -154,6 +160,7 @@ export default function useTextarea({
     latestMessage,
     isNotAppendable,
     isMcpChecking,
+    isEnhancing,
     shouldShowBadge,
   ]);
 

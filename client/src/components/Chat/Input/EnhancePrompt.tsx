@@ -12,6 +12,7 @@ interface EnhancePromptProps {
   disabled?: boolean;
   className?: string;
   hasText?: boolean;
+  onEnhancingChange?: (isEnhancing: boolean) => void;
 }
 
 export default function EnhancePrompt({
@@ -20,6 +21,7 @@ export default function EnhancePrompt({
   disabled = false,
   className,
   hasText = false,
+  onEnhancingChange,
 }: EnhancePromptProps) {
   const localize = useLocalize();
   const [isEnhancing, setIsEnhancing] = useState(false);
@@ -76,6 +78,7 @@ export default function EnhancePrompt({
     }
 
     setIsEnhancing(true);
+    onEnhancingChange?.(true);
     try {
       const response = await dataService.enhanceMessage(currentText);
       if (response.enhancedMessage) {
@@ -96,6 +99,7 @@ export default function EnhancePrompt({
       console.error('Failed to enhance message:', error);
     } finally {
       setIsEnhancing(false);
+      onEnhancingChange?.(false);
     }
   };
 

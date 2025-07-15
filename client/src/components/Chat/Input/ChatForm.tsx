@@ -426,6 +426,7 @@ const ChatForm = memo(
     const [backupBadges, setBackupBadges] = useState<Pick<BadgeItem, 'id'>[]>([]);
     const [isBadgeHidden, setIsBadgeHidden] = useState(false);
     const [badgeWidth, setBadgeWidth] = useState(0);
+    const [isEnhancing, setIsEnhancing] = useState(false);
     const badgeRef = useRef<HTMLDivElement>(null);
 
     const SpeechToText = useRecoilValue(store.speechToText);
@@ -619,6 +620,7 @@ const ChatForm = memo(
       setIsScrollable,
       disabled: disableInputs,
       isMcpChecking: isMcpChecking,
+      isEnhancing: isEnhancing,
       shouldShowBadge,
       onRemoveBadge: handleRemoveBadge,
     });
@@ -854,6 +856,7 @@ const ChatForm = memo(
                     methods={methods}
                     disabled={disableInputs || isNotAppendable || !textValue?.trim()}
                     hasText={!!textValue?.trim()}
+                    onEnhancingChange={setIsEnhancing}
                   />
                 </div>
                 <div className={`${isRTL ? 'ml-1 sm:ml-2' : 'mr-2 sm:mr-2'}`}>
