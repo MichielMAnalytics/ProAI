@@ -315,9 +315,9 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
   const handleToggleWorkflow = async () => {
     if (!currentWorkflowId) return;
 
-    // Auto-save workflow before toggling
+    // Auto-save workflow before toggling (silently)
     try {
-      await handleSave();
+      await handleSave(false);
     } catch (error) {
       // If save fails, don't proceed with toggle
       return;
@@ -407,9 +407,9 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
       return;
     }
 
-    // Auto-save workflow before testing
+    // Auto-save workflow before testing (silently)
     try {
-      await handleSave();
+      await handleSave(false);
     } catch (error) {
       // If save fails, don't proceed with test
       return;
@@ -585,7 +585,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
     return 'pending';
   };
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (showNotification = true) => {
     setIsSaving(true);
     try {
       if (currentWorkflowId) {
@@ -612,10 +612,12 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
 
         const result = await updateMutation.mutateAsync({ workflowId: currentWorkflowId, data: updateData });
         
-        showToast({
-          message: `Workflow "${result.name}" updated successfully!`,
-          severity: NotificationSeverity.SUCCESS,
-        });
+        if (showNotification) {
+          showToast({
+            message: `Workflow "${result.name}" updated successfully!`,
+            severity: NotificationSeverity.SUCCESS,
+          });
+        }
         
         // Refresh the workflow data to show the new version
         refetchWorkflow();
@@ -648,10 +650,12 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
 
         const result = await createMutation.mutateAsync(workflowData);
         
-        showToast({
-          message: `Workflow "${result.name}" created successfully!`,
-          severity: NotificationSeverity.SUCCESS,
-        });
+        if (showNotification) {
+          showToast({
+            message: `Workflow "${result.name}" created successfully!`,
+            severity: NotificationSeverity.SUCCESS,
+          });
+        }
       }
       
       // Don't close the workflow builder - keep it open for continued editing
@@ -1352,7 +1356,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
             {/* Right side: Save button */}
             <div className="flex flex-1 gap-2">
               <button
-                onClick={handleSave}
+                onClick={() => handleSave()}
                 disabled={isSaving || !workflowName || steps.length === 0 || isTesting}
                 className="btn btn-primary flex flex-1 items-center justify-center gap-1 text-sm sm:gap-2 sm:text-base"
               >
