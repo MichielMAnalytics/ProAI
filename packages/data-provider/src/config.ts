@@ -581,6 +581,8 @@ export const intefaceSchema = z
             fileSearch: z.boolean().optional().default(true),
             // Hide the scheduler capability section
             scheduler: z.boolean().optional().default(true),
+            // Hide the workflows capability section
+            workflows: z.boolean().optional().default(true),
           })
           .optional(),
       })

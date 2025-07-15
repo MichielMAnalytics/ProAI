@@ -74,6 +74,7 @@ export default function AgentConfig({
     artifacts: true,
     fileSearch: true,
     scheduler: true,
+    workflows: true,
   };
 
   const toolsEnabled = useMemo(
@@ -328,7 +329,7 @@ export default function AgentConfig({
               {/* Scheduler */}
               {capabilityItemsConfig.scheduler !== false && schedulerEnabled && <Scheduler />}
               {/* Workflows */}
-              {workflowsEnabled && <Workflows />}
+              {capabilityItemsConfig.workflows !== false && workflowsEnabled && <Workflows />}
             </div>
           )}
         {/* Agent Tools & Actions */}
