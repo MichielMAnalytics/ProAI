@@ -9,6 +9,7 @@ import { useAuthContext } from '~/hooks/AuthContext';
 import { useToastContext } from '~/Providers';
 import { NotificationSeverity } from '~/common';
 import useNewConvo from '~/hooks/useNewConvo';
+import { useWorkflowBuilder } from '~/hooks/useWorkflowBuilder';
 import store from '~/store';
 
 // this to be set somewhere else
@@ -21,6 +22,7 @@ export default function useChatHelpers(index = 0, paramId?: string) {
   const { isAuthenticated, token } = useAuthContext();
   const { showToast } = useToastContext();
   const { data: startupConfig } = useGetStartupConfig();
+  const { openWorkflowBuilder } = useWorkflowBuilder();
 
   // Track seen scheduler messages to avoid duplicate notifications
   const seenSchedulerMessages = useRef(new Set<string>());
@@ -613,13 +615,20 @@ export default function useChatHelpers(index = 0, paramId?: string) {
             updateWorkflowArtifacts(data.workflowId, data.workflowData);
           }
 
-          // Auto-open workflow artifact when a workflow is created
-          if (data.notificationType === 'created' && data.workflowData) {
-            console.log(
-              '[SchedulerSSE] 🎯 Auto-opening workflow artifact for created workflow:',
-              data.workflowData,
-            );
-            autoOpenWorkflowArtifact(data.workflowData);
+          // Handle special notification types that require immediate action
+          if (data.notificationType === 'open_workflow_builder') {
+            console.log('[SchedulerSSE] 🎯 Opening workflow builder via notification');
+            openWorkflowBuilder();
+          } else if (data.notificationType === 'open_workflow_builder_edit') {
+            console.log('[SchedulerSSE] 🎯 Opening workflow builder for editing via notification');
+            const createdWorkflowId = data.workflowData?.createdWorkflowId;
+            if (createdWorkflowId) {
+              console.log('[SchedulerSSE] 🎯 Opening workflow builder to edit workflow:', createdWorkflowId);
+              openWorkflowBuilder(createdWorkflowId);
+            } else {
+              console.warn('[SchedulerSSE] ⚠️ No workflow ID provided for editing');
+              openWorkflowBuilder();
+            }
           }
 
           // Dispatch custom event for workflow notifications that other components can listen to
@@ -641,6 +650,8 @@ export default function useChatHelpers(index = 0, paramId?: string) {
               step_started: '🔄 Step started',
               step_completed: '✅ Step completed',
               step_failed: '❌ Step failed',
+              open_workflow_builder: '🛠️ Opening workflow builder',
+              open_workflow_builder_edit: '✏️ Opening workflow for editing',
             };
 
             const message = workflowStatusMessages[data.notificationType] || '🔄 Workflow updated';
@@ -653,6 +664,8 @@ export default function useChatHelpers(index = 0, paramId?: string) {
               'deleted',
               'execution_completed',
               'execution_failed',
+              'open_workflow_builder',
+              'open_workflow_builder_edit',
             ];
             if (showToastFor.includes(data.notificationType)) {
               // Play notification sound for workflow events

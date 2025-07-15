@@ -1,16 +1,17 @@
 import React from 'react';
-import { Play, Pause, Trash2, Eye } from 'lucide-react';
-import { useSetRecoilState, useRecoilValue } from 'recoil';
-import type { TUserWorkflow } from 'librechat-data-provider';
-import { EModelEndpoint } from 'librechat-data-provider';
+import { Trash2, Eye } from 'lucide-react';
+import type { TUserWorkflow, TConversation } from 'librechat-data-provider';
 import { Button, TableCell, TableRow } from '~/components/ui';
-import { useDeleteWorkflowMutation, useToggleWorkflowMutation } from '~/data-provider';
+import { useDeleteWorkflowMutation } from '~/data-provider';
 import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
 import { useNavigateToConvo } from '~/hooks';
-import store from '~/store';
 import { useTimezone } from '~/hooks/useTimezone';
 import { TooltipAnchor } from '~/components/ui/Tooltip';
+import { useLocalize } from '~/hooks';
+import { useWorkflowBuilder } from '~/hooks/useWorkflowBuilder';
+import { useQueryClient } from '@tanstack/react-query';
+import { QueryKeys, dataService } from 'librechat-data-provider';
 
 interface WorkflowsTableRowProps {
   workflow: TUserWorkflow;
@@ -18,44 +19,24 @@ interface WorkflowsTableRowProps {
 
 const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
   const { showToast } = useToastContext();
+  const localize = useLocalize();
+  const { openWorkflowBuilder, closeWorkflowBuilder, workflowId: currentOpenWorkflowId } = useWorkflowBuilder();
   const { formatDateTime, getTimezoneAbbr } = useTimezone();
   const { navigateToConvo } = useNavigateToConvo();
-  const toggleMutation = useToggleWorkflowMutation();
+  const queryClient = useQueryClient();
+
+  // Workflow mutations
   const deleteMutation = useDeleteWorkflowMutation();
 
-  // Artifact state management
-  const setArtifacts = useSetRecoilState(store.artifactsState);
-  const setCurrentArtifactId = useSetRecoilState(store.currentArtifactId);
-  const setArtifactsVisible = useSetRecoilState(store.artifactsVisibility);
-
-  // Check if this workflow is currently being tested
-  const testingWorkflows = useRecoilValue(store.testingWorkflows);
-  const isWorkflowTesting = testingWorkflows.has(workflow.id);
-
-  const handleToggle = () => {
-    toggleMutation.mutate(
-      { workflowId: workflow.id, isActive: !workflow.isActive },
-      {
-        onSuccess: () => {
-          showToast({
-            message: `Workflow ${workflow.isActive ? 'deactivated' : 'activated'} successfully`,
-            severity: NotificationSeverity.SUCCESS,
-          });
-        },
-        onError: (error: unknown) => {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          showToast({
-            message: `Failed to ${workflow.isActive ? 'deactivate' : 'activate'} workflow: ${errorMessage}`,
-            severity: NotificationSeverity.ERROR,
-          });
-        },
-      },
-    );
-  };
 
   const handleDelete = () => {
     deleteMutation.mutate(workflow.id, {
       onSuccess: () => {
+        // If this workflow is currently open in the builder, close it
+        if (currentOpenWorkflowId === workflow.id) {
+          closeWorkflowBuilder();
+        }
+        
         showToast({
           message: 'Workflow deleted successfully',
           severity: NotificationSeverity.SUCCESS,
@@ -71,168 +52,32 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
     });
   };
 
-  const handleView = () => {
-    try {
-      console.log('Opening workflow visualization for:', workflow);
-      console.log('Workflow conversation_id:', workflow.conversation_id);
-      console.log('Workflow fields:', Object.keys(workflow));
-
-      // Create workflow artifact with proper positioning
-      const artifactId = `workflow-${workflow.id}`;
-
-      // Generate positions for steps that don't have them
-      const nodesWithPositions = workflow.steps.map((step, index) => {
-        // If step doesn't have position, create a default layout
-        const defaultPosition = step.position || {
-          x: 100 + (index % 3) * 200, // Arrange in columns
-          y: 150 + Math.floor(index / 3) * 100, // Arrange in rows
-        };
-
-        return {
-          id: step.id,
-          type: step.type,
-          position: defaultPosition,
-          data: {
-            label: step.name,
-            config: step.config,
-            status: 'pending', // Default status for viewing
-          },
-        };
-      });
-
-      // Generate edges more carefully
-      const edges: Array<{
-        id: string;
-        source: string;
-        target: string;
-        type: 'success' | 'failure';
-      }> = [];
-      workflow.steps.forEach((step) => {
-        if (step.onSuccess) {
-          // Check if target step exists
-          const targetExists = workflow.steps.some((s) => s.id === step.onSuccess);
-          if (targetExists) {
-            edges.push({
-              id: `${step.id}-success-${step.onSuccess}`,
-              source: step.id,
-              target: step.onSuccess,
-              type: 'success',
-            });
-          }
+  const handleView = async () => {
+    console.log('Opening workflow in builder for:', workflow);
+    
+    // If the workflow has an associated conversation, navigate to it
+    if (workflow.conversation_id) {
+      try {
+        console.log('Fetching conversation:', workflow.conversation_id);
+        // Fetch the conversation data
+        const conversation = await queryClient.fetchQuery<TConversation>(
+          [QueryKeys.conversation, workflow.conversation_id],
+          () => dataService.getConversationById(workflow.conversation_id as string)
+        );
+        
+        if (conversation) {
+          console.log('Navigating to workflow conversation:', conversation);
+          // Navigate to the conversation first
+          navigateToConvo(conversation);
         }
-        if (step.onFailure) {
-          // Check if target step exists
-          const targetExists = workflow.steps.some((s) => s.id === step.onFailure);
-          if (targetExists) {
-            edges.push({
-              id: `${step.id}-failure-${step.onFailure}`,
-              source: step.id,
-              target: step.onFailure,
-              type: 'failure',
-            });
-          }
-        }
-      });
-
-      const workflowData = {
-        workflow: {
-          id: workflow.id,
-          name: workflow.name,
-          description: workflow.description,
-          trigger: workflow.trigger,
-          steps: workflow.steps,
-        },
-        nodes: nodesWithPositions,
-        edges: edges,
-        trigger: workflow.trigger,
-      };
-
-      console.log('Generated workflow data:', workflowData);
-
-      const workflowArtifact = {
-        id: artifactId,
-        identifier: artifactId,
-        title: `Workflow: ${workflow.name}`,
-        type: 'application/vnd.workflow',
-        content: JSON.stringify(workflowData, null, 2),
-        messageId: workflow.parent_message_id || `workflow-view-${Date.now()}`,
-        index: 0,
-        lastUpdateTime: Date.now(),
-      };
-
-      console.log('Creating artifact:', workflowArtifact);
-
-      // Check if we have conversation info for navigation
-      if (workflow.conversation_id) {
-        // Navigate to the conversation where the workflow was created
-        const targetConversation = {
-          conversationId: workflow.conversation_id,
-          title: `Workflow: ${workflow.name}`,
-          endpoint: (workflow.endpoint as EModelEndpoint) || null,
-          model: workflow.ai_model || null,
-          createdAt: workflow.createdAt
-            ? typeof workflow.createdAt === 'object' && '$date' in workflow.createdAt
-              ? workflow.createdAt.$date
-              : workflow.createdAt.toString()
-            : new Date().toISOString(),
-          updatedAt: workflow.updatedAt
-            ? typeof workflow.updatedAt === 'object' && '$date' in workflow.updatedAt
-              ? workflow.updatedAt.$date
-              : workflow.updatedAt.toString()
-            : new Date().toISOString(),
-          // Include other necessary fields
-        };
-
-        // Set up artifacts after navigation using a slight delay to ensure navigation completes
-        const setupArtifacts = () => {
-          // Set the artifact in state
-          setArtifacts((prev) => ({
-            ...prev,
-            [artifactId]: workflowArtifact,
-          }));
-
-          // Set as current artifact and show artifacts panel
-          setCurrentArtifactId(artifactId);
-          setArtifactsVisible(true);
-        };
-
-        // Navigate to conversation first, then set up artifacts
-        navigateToConvo(targetConversation);
-
-        // Use setTimeout to ensure navigation completes before setting artifacts
-        setTimeout(setupArtifacts, 100);
-
-        showToast({
-          message: 'Opening workflow visualization',
-          severity: NotificationSeverity.SUCCESS,
-        });
-      } else {
-        // Fallback: Just show the artifact in the current conversation
-        console.log('No conversation_id found, showing artifact in current conversation');
-
-        // Set the artifact in state
-        setArtifacts((prev) => ({
-          ...prev,
-          [artifactId]: workflowArtifact,
-        }));
-
-        // Set as current artifact and show artifacts panel
-        setCurrentArtifactId(artifactId);
-        setArtifactsVisible(true);
-
-        showToast({
-          message: 'Workflow visualization opened (no source conversation found)',
-          severity: NotificationSeverity.SUCCESS,
-        });
+      } catch (error: unknown) {
+        console.error('Error fetching conversation:', error);
+        // If we can't fetch the conversation, just open the workflow builder
       }
-    } catch (error) {
-      console.error('Failed to open workflow visualization:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      showToast({
-        message: `Failed to open workflow visualization: ${errorMessage}`,
-        severity: NotificationSeverity.ERROR,
-      });
     }
+    
+    // Open the workflow builder with this specific workflow ID for editing
+    openWorkflowBuilder(workflow.id);
   };
 
   const formatDate = (dateInput?: string | Date | { $date: string }) => {
@@ -257,7 +102,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
 
   const getStatusColor = (isActive: boolean, isDraft: boolean) => {
     if (isActive) {
-      return 'bg-green-100 text-green-700'; // Active workflows are always green
+      return 'bg-green-100 text-green-700 relative'; // Active workflows are always green
     }
     if (isDraft) {
       return 'bg-orange-100 text-orange-700'; // Inactive drafts are orange
@@ -284,7 +129,6 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
     }).length;
   };
 
-  const description = workflow.description || 'No description';
 
   return (
     <TableRow className="border-b border-border-light hover:bg-surface-hover">
@@ -299,31 +143,11 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
               <Eye className="h-3 w-3" />
             </button>
           </TooltipAnchor>
-          <TooltipAnchor
-            description={workflow.isActive ? 'Deactivate workflow' : 'Activate workflow'}
-            side="top"
-          >
-            <button
-              onClick={handleToggle}
-              className={`flex h-6 w-6 items-center justify-center rounded-lg shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 ${
-                workflow.isActive
-                  ? 'border border-amber-500/60 bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:border-amber-500 hover:from-amber-600 hover:to-orange-700'
-                  : 'border border-green-500/60 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:border-green-500 hover:from-green-600 hover:to-emerald-700'
-              }`}
-              disabled={toggleMutation.isLoading || isWorkflowTesting}
-            >
-              {workflow.isActive ? (
-                <Pause className="h-3 w-3 text-white" />
-              ) : (
-                <Play className="h-3 w-3 text-white" />
-              )}
-            </button>
-          </TooltipAnchor>
           <TooltipAnchor description="Delete workflow" side="top">
             <button
               onClick={handleDelete}
               className="flex h-6 w-6 items-center justify-center rounded-lg border border-red-500/60 bg-gradient-to-r from-red-500 to-red-600 text-white shadow-sm transition-all hover:border-red-500 hover:from-red-600 hover:to-red-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={deleteMutation.isLoading || isWorkflowTesting}
+              disabled={deleteMutation.isLoading}
             >
               <Trash2 className="h-3 w-3 text-white" />
             </button>
@@ -345,22 +169,13 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
                 workflow.isDraft,
               )}`}
             >
+              {workflow.isActive && (
+                <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></span>
+              )}
               {getStatusText(workflow.isActive, workflow.isDraft)}
             </span>
-            {/* Show testing indicator */}
-            {isWorkflowTesting && (
-              <span className="inline-flex flex-shrink-0 animate-pulse items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                testing
-              </span>
-            )}
           </div>
 
-          {/* Description with tooltip */}
-          <div className="mb-1 min-w-0 text-xs text-text-secondary">
-            <TooltipAnchor description={description} side="top">
-              <span className="block cursor-help truncate">{description}</span>
-            </TooltipAnchor>
-          </div>
 
           {/* Additional details - only visible when sidebar is wider */}
           <div className="hidden min-w-0 space-y-1 lg:block">

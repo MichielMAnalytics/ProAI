@@ -84,6 +84,36 @@ async function updateSchedulerExecution(id, userId, updateData) {
 }
 
 /**
+ * Update a scheduler execution with optimistic locking
+ * @param {string} id - The execution ID (not MongoDB _id)
+ * @param {string} userId - The user's ObjectId
+ * @param {number} expectedVersion - The expected version for optimistic locking
+ * @param {Partial<ISchedulerExecution>} updateData - The data to update
+ * @returns {Promise<ISchedulerExecution|null>} The updated execution document or null if not found/version mismatch
+ */
+async function optimisticUpdateSchedulerExecution(id, userId, expectedVersion, updateData) {
+  try {
+    const updatedExecution = await SchedulerExecution.findOneAndUpdate(
+      { 
+        id, 
+        user: userId, 
+        version: expectedVersion 
+      },
+      { 
+        ...updateData, 
+        version: expectedVersion + 1,
+        updatedAt: new Date() 
+      },
+      { new: true },
+    ).lean();
+    
+    return updatedExecution;
+  } catch (error) {
+    throw new Error(`Error optimistically updating scheduler execution: ${error.message}`);
+  }
+}
+
+/**
  * Delete scheduler executions by task ID
  * @param {string} taskId - The task ID
  * @param {string} userId - The user's ObjectId
@@ -167,6 +197,7 @@ module.exports = {
   getSchedulerExecutionsByTask,
   getSchedulerExecutionsByUser,
   updateSchedulerExecution,
+  optimisticUpdateSchedulerExecution,
   deleteSchedulerExecutionsByTask,
   deleteSchedulerExecutionsByUser,
   getRunningSchedulerExecutions,

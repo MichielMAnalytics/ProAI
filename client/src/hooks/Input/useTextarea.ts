@@ -218,7 +218,11 @@ export default function useTextarea({
         return;
       }
 
-      if ((isNonShiftEnter || isCtrlEnter) && !isComposingInput && (!isMobileDevice || isCtrlEnter)) {
+      if (
+        (isNonShiftEnter || isCtrlEnter) &&
+        !isComposingInput &&
+        (!isMobileDevice || isCtrlEnter)
+      ) {
         const globalAudio = document.getElementById(globalAudioId) as HTMLAudioElement | undefined;
         if (globalAudio) {
           console.log('Unmuting global audio');

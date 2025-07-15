@@ -186,40 +186,42 @@ const AppService = async (app) => {
       const { getLogStores } = require('~/cache');
       const { CacheKeys } = require('librechat-data-provider');
       const { findToken, updateToken, createToken } = require('~/models');
-      
+
       const mcpManager = getMCPManager();
       const flowsCache = getLogStores(CacheKeys.FLOWS);
       const flowManager = getFlowStateManager(flowsCache);
-      
-      logger.info(`[AppService] Initializing ${Object.keys(mcpConfig).length} global MCP servers: ${Object.keys(mcpConfig).join(', ')}`);
-      
+
+      logger.info(
+        `[AppService] Initializing ${Object.keys(mcpConfig).length} global MCP servers: ${Object.keys(mcpConfig).join(', ')}`,
+      );
+
       await mcpManager.initializeMCP({
         mcpServers: mcpConfig,
         flowManager,
         tokenMethods: { findToken, updateToken, createToken },
         processMCPEnv,
       });
-      
+
       // Register global MCP tools using enhanced structure (single source of truth)
       const globalConnections = mcpManager.getAllConnections();
       let globalToolCount = 0;
-      
+
       for (const [serverName, connection] of globalConnections.entries()) {
         try {
           if (await connection.isConnected()) {
             const tools = await connection.fetchTools();
             logger.info(`[AppService] Global MCP server '${serverName}' has ${tools.length} tools`);
-            
+
             for (const tool of tools) {
               const toolName = tool.name;
-              
+
               // Create MCP metadata for this global tool
               const mcpMetadata = ToolMetadataUtils.createMCPMetadata({
                 serverName,
                 isGlobal: true,
                 originalToolName: tool.name,
               });
-              
+
               // Create enhanced tool with embedded metadata
               const enhancedTool = ToolMetadataUtils.createEnhancedTool(
                 toolName,
@@ -227,22 +229,29 @@ const AppService = async (app) => {
                   description: tool.description,
                   parameters: tool.inputSchema,
                 },
-                mcpMetadata
+                mcpMetadata,
               );
-              
+
               // Add to availableTools with embedded metadata (single source of truth)
               app.locals.availableTools[toolName] = enhancedTool;
-              
+
               globalToolCount++;
-              logger.debug(`[AppService] Registered global MCP tool '${toolName}' from server '${serverName}'`);
+              logger.debug(
+                `[AppService] Registered global MCP tool '${toolName}' from server '${serverName}'`,
+              );
             }
           }
         } catch (error) {
-          logger.error(`[AppService] Failed to register tools from global MCP server '${serverName}':`, error);
+          logger.error(
+            `[AppService] Failed to register tools from global MCP server '${serverName}':`,
+            error,
+          );
         }
       }
-      
-      logger.info(`[AppService] Global MCP servers initialized successfully with ${globalToolCount} tools registered`);
+
+      logger.info(
+        `[AppService] Global MCP servers initialized successfully with ${globalToolCount} tools registered`,
+      );
     } catch (error) {
       logger.error(`[AppService] Failed to initialize global MCP servers:`, error);
     }

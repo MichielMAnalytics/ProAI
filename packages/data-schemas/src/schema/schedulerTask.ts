@@ -3,8 +3,7 @@ import mongoose, { Schema, Document, Types } from 'mongoose';
 export interface ISchedulerTask extends Document {
   id: string;
   name: string;
-  schedule: string;
-  prompt: string;
+  schedule?: string; // Optional for backward compatibility
   enabled: boolean;
   do_only_once: boolean;
   type: 'task' | 'workflow';
@@ -17,14 +16,38 @@ export interface ISchedulerTask extends Document {
   endpoint?: string;
   ai_model?: string;
   agent_id?: string;
+  version?: number;
+  deleted: boolean;
+  deleted_at?: Date;
+  deleted_by?: Types.ObjectId;
+  trigger?: {
+    type: 'manual' | 'schedule' | 'webhook' | 'email' | 'event';
+    config: {
+      schedule?: string;
+      webhookUrl?: string;
+      emailAddress?: string;
+      eventType?: string;
+      parameters?: Record<string, unknown>;
+    };
+  };
   metadata?: {
-    type?: 'task' | 'workflow';
     workflowId?: string;
-    workflowVersion?: number;
-    trigger?: any;
-    steps?: any[];
-    description?: string;
+    steps?: Array<{
+      id: string;
+      name: string;
+      type: 'mcp_agent_action';
+      agentId: string;
+      task: string;
+      config: {
+        instruction: string;
+        agent_id: string;
+      };
+      onSuccess?: string;
+      onFailure?: string;
+    }>;
     isDraft?: boolean;
+    created_from_agent?: boolean;
+    dedicatedConversationId?: string;
     [key: string]: any;
   };
   createdAt?: Date;
@@ -44,11 +67,18 @@ const schedulerTaskSchema: Schema<ISchedulerTask> = new Schema(
     },
     schedule: {
       type: String,
-      required: true,
+      required: false, // Optional for backward compatibility
     },
-    prompt: {
-      type: String,
-      required: true,
+    trigger: {
+      type: {
+        type: String,
+        enum: ['manual', 'schedule', 'webhook', 'email', 'event'],
+        required: true,
+      },
+      config: {
+        type: Schema.Types.Mixed,
+        default: {},
+      },
     },
     enabled: {
       type: Boolean,
@@ -99,9 +129,23 @@ const schedulerTaskSchema: Schema<ISchedulerTask> = new Schema(
     },
     metadata: {
       type: Schema.Types.Mixed,
-      default: function () {
-        return { type: this.type || 'task' };
-      },
+      default: {},
+    },
+    version: {
+      type: Number,
+      default: 1,
+    },
+    deleted: {
+      type: Boolean,
+      required: true,
+      default: false,
+    },
+    deleted_at: {
+      type: Date,
+    },
+    deleted_by: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
     },
   },
   {
@@ -117,5 +161,6 @@ schedulerTaskSchema.index({ next_run: 1 });
 schedulerTaskSchema.index({ user: 1, enabled: 1 });
 schedulerTaskSchema.index({ user: 1, endpoint: 1 });
 schedulerTaskSchema.index({ user: 1, agent_id: 1 });
+schedulerTaskSchema.index({ user: 1, deleted: 1 }); // For efficient soft delete queries
 
 export default schedulerTaskSchema;

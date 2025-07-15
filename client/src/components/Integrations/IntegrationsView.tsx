@@ -344,10 +344,10 @@ export default function IntegrationsView() {
         (integration.appCategories &&
           Array.isArray(integration.appCategories) &&
           integration.appCategories.includes(selectedCategory));
-      
+
       // Filter out apps with 0 actions
       const hasActions = integration.actionCount === undefined || integration.actionCount > 0;
-      
+
       return matchesCategory && integration.isActive && hasActions;
     });
 

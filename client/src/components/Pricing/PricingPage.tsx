@@ -42,19 +42,19 @@ const PricingPage = () => {
   }, [checkoutStatus, navigate]);
 
   const tierOptions = [
-    { 
-      tier: 'pro', 
-      name: 'Eve Pro', 
+    {
+      tier: 'pro',
+      name: 'Eve Pro',
       monthlyPrice: 29,
       yearlyPrice: 290, // ~17% discount
-      yearlyOriginalPrice: 348 // 29 * 12
+      yearlyOriginalPrice: 348, // 29 * 12
     },
-    { 
-      tier: 'max', 
-      name: 'Eve Max', 
+    {
+      tier: 'max',
+      name: 'Eve Max',
       monthlyPrice: 99,
       yearlyPrice: 990, // ~17% discount
-      yearlyOriginalPrice: 1188 // 99 * 12
+      yearlyOriginalPrice: 1188, // 99 * 12
     },
   ];
 
@@ -475,19 +475,26 @@ const PricingPage = () => {
           <p className="mx-auto max-w-2xl text-lg" style={{ color: 'var(--text-secondary)' }}>
             Start for free. Upgrade to get the capacity that exactly matches your team's needs.
           </p>
-          
+
           {/* Billing Frequency Toggle */}
           <div className="mt-6 flex items-center justify-center">
-            <div className="flex items-center rounded-lg p-1" style={{ backgroundColor: 'var(--surface-secondary)', border: '1px solid var(--border-light)' }}>
+            <div
+              className="flex items-center rounded-lg p-1"
+              style={{
+                backgroundColor: 'var(--surface-secondary)',
+                border: '1px solid var(--border-light)',
+              }}
+            >
               <button
                 onClick={() => setBillingFrequency('monthly')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
                   billingFrequency === 'monthly'
                     ? 'bg-blue-600 text-white'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
                 style={{
-                  backgroundColor: billingFrequency === 'monthly' ? 'var(--brand-blue)' : 'transparent',
+                  backgroundColor:
+                    billingFrequency === 'monthly' ? 'var(--brand-blue)' : 'transparent',
                   color: billingFrequency === 'monthly' ? 'white' : 'var(--text-secondary)',
                 }}
               >
@@ -495,18 +502,19 @@ const PricingPage = () => {
               </button>
               <button
                 onClick={() => setBillingFrequency('yearly')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
                   billingFrequency === 'yearly'
                     ? 'bg-blue-600 text-white'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
                 style={{
-                  backgroundColor: billingFrequency === 'yearly' ? 'var(--brand-blue)' : 'transparent',
+                  backgroundColor:
+                    billingFrequency === 'yearly' ? 'var(--brand-blue)' : 'transparent',
                   color: billingFrequency === 'yearly' ? 'white' : 'var(--text-secondary)',
                 }}
               >
                 <span>Yearly</span>
-                <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                <span className="ml-2 rounded-full bg-green-100 px-2 py-1 text-xs text-green-800">
                   Save 17%
                 </span>
               </button>
@@ -643,7 +651,10 @@ const PricingPage = () => {
             {/* Price Section - Fixed Height */}
             <div className={`mb-4 ${billingFrequency === 'yearly' ? 'h-28' : 'h-20'}`}>
               <div className="mb-2 text-4xl font-bold" style={{ color: 'var(--text-primary)' }}>
-                €{billingFrequency === 'yearly' ? tierOptions[0].yearlyPrice : tierOptions[0].monthlyPrice}
+                €
+                {billingFrequency === 'yearly'
+                  ? tierOptions[0].yearlyPrice
+                  : tierOptions[0].monthlyPrice}
                 <span className="text-lg font-normal" style={{ color: 'var(--text-secondary)' }}>
                   /{billingFrequency === 'yearly' ? 'year' : 'month'}
                 </span>
@@ -659,7 +670,9 @@ const PricingPage = () => {
                 </div>
               )}
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                {billingFrequency === 'yearly' ? 'Best value for growing teams' : 'For more projects and usage'}
+                {billingFrequency === 'yearly'
+                  ? 'Best value for growing teams'
+                  : 'For more projects and usage'}
               </p>
             </div>
 
@@ -754,7 +767,10 @@ const PricingPage = () => {
             {/* Price Section - Fixed Height */}
             <div className={`mb-4 ${billingFrequency === 'yearly' ? 'h-28' : 'h-20'}`}>
               <div className="mb-2 text-4xl font-bold" style={{ color: 'var(--text-primary)' }}>
-                €{billingFrequency === 'yearly' ? tierOptions[1].yearlyPrice : tierOptions[1].monthlyPrice}
+                €
+                {billingFrequency === 'yearly'
+                  ? tierOptions[1].yearlyPrice
+                  : tierOptions[1].monthlyPrice}
                 <span className="text-lg font-normal" style={{ color: 'var(--text-secondary)' }}>
                   /{billingFrequency === 'yearly' ? 'year' : 'month'}
                 </span>
@@ -770,7 +786,9 @@ const PricingPage = () => {
                 </div>
               )}
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                {billingFrequency === 'yearly' ? 'Maximum value for power users' : 'Get the most out of Eve'}
+                {billingFrequency === 'yearly'
+                  ? 'Maximum value for power users'
+                  : 'Get the most out of Eve'}
               </p>
             </div>
 

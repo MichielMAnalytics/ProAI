@@ -1,6 +1,5 @@
 const { logger } = require('~/config');
 const { updateSchedulerExecution } = require('~/models/SchedulerExecution');
-const { createTaskPromptForStep } = require('./PromptBuilder');
 const { executeStepWithAgent } = require('./AgentExecutor');
 const { getFullStepResult } = require('./utils');
 
@@ -9,10 +8,12 @@ const { getFullStepResult } = require('./utils');
  * @param {Object} step - The action step
  * @param {Object} context - Execution context
  * @param {string} userId - User ID for the execution
+ * @param {Array} stepMessages - Previous step messages for context
+ * @param {AbortSignal} abortSignal - Abort signal
  * @returns {Promise<Object>} Step result
  */
-async function executeMCPAgentActionStep(step, context, userId, abortSignal) {
-  logger.info(`[WorkflowStepExecutor] Executing MCP agent action step: "${step.name}"`);
+async function executeMCPAgentActionStep(step, context, userId, stepMessages, abortSignal) {
+  logger.info(`[WorkflowStepExecutor] Executing MCP agent action step: "${step.name}" (agent_id: ${step.agent_id || 'ephemeral'})`);
 
   // Check if execution has been cancelled
   if (abortSignal?.aborted) {
@@ -30,16 +31,12 @@ async function executeMCPAgentActionStep(step, context, userId, abortSignal) {
     `[WorkflowStepExecutor] Using fresh agent with ${context.mcp.toolCount} MCP tools for step "${step.name}"`,
   );
 
-  // Create a task prompt based on the step
-  const taskPrompt = createTaskPromptForStep(step, context);
-
-  // Execute using fresh agent with MCP tools
-  const result = await executeStepWithAgent(step, taskPrompt, context, userId, abortSignal);
+  // Execute using fresh agent with enhanced context (stepMessages array)
+  const result = await executeStepWithAgent(step, stepMessages, context, userId, abortSignal);
 
   return {
     type: 'mcp_agent_action',
     stepName: step.name,
-    prompt: taskPrompt,
     ...result,
   };
 }
@@ -105,8 +102,9 @@ async function executeStep(workflow, execution, step, context, abortSignal) {
       throw new Error('Execution was cancelled by user');
     }
 
-    // Execute the MCP agent action step
-    const result = await executeMCPAgentActionStep(step, context, execution.user, abortSignal);
+    // Execute the MCP agent action step with stepMessages context
+    const stepMessages = context.stepMessages || [];
+    const result = await executeMCPAgentActionStep(step, context, execution.user, stepMessages, abortSignal);
 
     // Update step execution with success
     await updateSchedulerExecution(execution.id, execution.user, {
@@ -135,7 +133,7 @@ async function executeStep(workflow, execution, step, context, abortSignal) {
       );
     }
 
-    logger.info(`[WorkflowStepExecutor] Step completed: ${step.name}`);
+    logger.info(`[WorkflowStepExecutor] Step completed: ${step.name} (agent_id: ${step.agent_id || 'ephemeral'})`);
     return {
       success: true,
       result: result,
@@ -143,7 +141,46 @@ async function executeStep(workflow, execution, step, context, abortSignal) {
       responseMessageId: result.responseMessageId,
     };
   } catch (error) {
-    logger.error(`[WorkflowStepExecutor] Step failed: ${step.name}`, error);
+    // Check if this is a WorkflowStepFailureError - a special case where the agent
+    // determined it cannot complete the step due to missing integrations
+    if (error.isWorkflowStepFailure) {
+      logger.warn(`[WorkflowStepExecutor] Workflow step failure detected: ${error.message}`);
+      
+      // Update step execution with workflow failure
+      await updateSchedulerExecution(execution.id, execution.user, {
+        currentStepId: step.id,
+        error: error.message,
+        status: 'cancelled_step_failure',
+      });
+
+      // Send notification about workflow cancellation due to step failure
+      try {
+        await SchedulerService.sendWorkflowStatusUpdate({
+          userId: execution.user,
+          workflowName: workflow.name,
+          workflowId: workflow.id,
+          notificationType: 'workflow_cancelled',
+          details: `Workflow cancelled: ${error.reason}`,
+          stepData: {
+            stepId: step.id,
+            stepName: step.name,
+            stepType: step.type,
+            status: 'cancelled_step_failure',
+            error: error.message,
+          },
+        });
+      } catch (notificationError) {
+        logger.warn(
+          `[WorkflowStepExecutor] Failed to send workflow cancellation notification: ${notificationError.message}`,
+        );
+      }
+
+      // Re-throw the error to stop workflow execution
+      throw error;
+    }
+
+    // Handle regular step failures
+    logger.error(`[WorkflowStepExecutor] Step failed: ${step.name} (agent_id: ${step.agent_id || 'ephemeral'})`, error);
 
     // Update step execution with failure
     await updateSchedulerExecution(execution.id, execution.user, {

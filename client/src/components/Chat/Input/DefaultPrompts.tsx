@@ -17,7 +17,6 @@ export default function DefaultPrompts({
   onPromptSelect,
   isCompact = false,
 }: DefaultPromptsProps) {
-
   // Check if there's any submission happening
   const isSubmitting = useRecoilValue(store.isSubmitting);
 
@@ -68,30 +67,30 @@ export default function DefaultPrompts({
     // Regular expression to match URLs
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const parts = text.split(urlRegex);
-    
+
     const abbreviateUrl = (url: string) => {
       try {
         const urlObj = new URL(url);
         const domain = urlObj.hostname.replace('www.', '');
         const path = urlObj.pathname;
-        
+
         // If URL is short enough, show it as is
         if (url.length <= 30) {
           return url;
         }
-        
+
         // Show domain + truncated path
         if (path.length > 15) {
           return `${domain}${path.substring(0, 12)}...`;
         }
-        
+
         return `${domain}${path}`;
       } catch {
         // Fallback for invalid URLs
         return url.length > 30 ? `${url.substring(0, 27)}...` : url;
       }
     };
-    
+
     return parts.map((part, index) => {
       if (urlRegex.test(part)) {
         return (

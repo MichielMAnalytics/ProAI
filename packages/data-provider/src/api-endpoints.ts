@@ -330,6 +330,8 @@ export const workflowAction = (workflowId: string, action: string) =>
 export const workflowExecutions = (workflowId: string) => `/api/workflows/${workflowId}/executions`;
 export const workflowExecution = (workflowId: string, executionId: string) =>
   `/api/workflows/${workflowId}/executions/${executionId}`;
+export const workflowLatestExecution = (workflowId: string) =>
+  `/api/workflows/${workflowId}/latest-execution`;
 export const workflowTest = (workflowId: string) => `/api/workflows/${workflowId}/test`;
 export const workflowStatus = () => '/api/workflows/status';
 

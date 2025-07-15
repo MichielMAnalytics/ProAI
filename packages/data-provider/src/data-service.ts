@@ -1004,6 +1004,12 @@ export function getWorkflowExecution(
     .then((response: any) => response.execution);
 }
 
+export function getLatestWorkflowExecution(workflowId: string): Promise<t.TWorkflowExecution> {
+  return request
+    .get(endpoints.workflowLatestExecution(workflowId))
+    .then((response: any) => response.execution);
+}
+
 /* Memories */
 export const getMemories = (): Promise<q.MemoriesResponse> => {
   return request.get(endpoints.memories());

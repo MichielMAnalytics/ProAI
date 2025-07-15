@@ -1,1 +1,2 @@
-localStorage.removeItem('timezone'); console.log('Timezone localStorage cleared');
+localStorage.removeItem('timezone');
+console.log('Timezone localStorage cleared');

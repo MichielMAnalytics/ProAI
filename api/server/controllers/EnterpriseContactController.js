@@ -38,7 +38,7 @@ const createEnterpriseContactController = async (req, res) => {
       if (!firstName || !lastName || !workEmail) {
         return res.status(400).json({
           error:
-          'Missing required fields: firstName, lastName, and workEmail are required for enterprise contacts',
+            'Missing required fields: firstName, lastName, and workEmail are required for enterprise contacts',
         });
       }
     } else if (feedbackType === 'general') {

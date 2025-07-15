@@ -5,7 +5,7 @@ export interface IEnterpriseContact extends Document {
   contactId: string;
   // Contact type
   feedbackType: 'enterprise' | 'general';
-  
+
   // Step 1: Contact details
   firstName?: string;
   lastName?: string;
@@ -27,7 +27,7 @@ export interface IEnterpriseContact extends Document {
   // General feedback fields
   userId?: string;
   conversationId?: string;
-  
+
   // System fields
   status: 'new' | 'contacted' | 'qualified' | 'closed';
   contactedAt?: Date;
@@ -51,21 +51,21 @@ const enterpriseContactSchema = new Schema<IEnterpriseContact>(
     // Step 1: Contact details
     firstName: {
       type: String,
-      required: function(this: IEnterpriseContact) {
+      required: function (this: IEnterpriseContact) {
         return this.feedbackType === 'enterprise';
       },
       trim: true,
     },
     lastName: {
       type: String,
-      required: function(this: IEnterpriseContact) {
+      required: function (this: IEnterpriseContact) {
         return this.feedbackType === 'enterprise';
       },
       trim: true,
     },
     workEmail: {
       type: String,
-      required: function(this: IEnterpriseContact) {
+      required: function (this: IEnterpriseContact) {
         return this.feedbackType === 'enterprise';
       },
       trim: true,

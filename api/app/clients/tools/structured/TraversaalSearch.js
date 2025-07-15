@@ -38,7 +38,6 @@ class TraversaalSearch extends Tool {
     return apiKey;
   }
 
-  // eslint-disable-next-line no-unused-vars
   async _call({ query }, _runManager) {
     const body = {
       query: [query],

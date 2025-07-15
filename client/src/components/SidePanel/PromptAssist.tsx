@@ -71,21 +71,22 @@ export default function PromptAssist({ className, fieldName = 'instructions' }: 
   };
 
   return (
-    <TooltipAnchor
-      description={localize('com_ui_prompt_assist_tooltip')}
-      side="top"
-    >
+    <TooltipAnchor description={localize('com_ui_prompt_assist_tooltip')} side="top">
       <button
         type="button"
         onClick={handleEnhancePrompt}
         disabled={isLoading}
         className={cn(
-          'flex items-center gap-1 rounded-md border border-border-medium bg-surface-secondary px-2 py-1 text-xs text-text-primary transition-colors duration-200 hover:bg-surface-tertiary disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap',
+          'flex items-center gap-1 whitespace-nowrap rounded-md border border-border-medium bg-surface-secondary px-2 py-1 text-xs text-text-primary transition-colors duration-200 hover:bg-surface-tertiary disabled:cursor-not-allowed disabled:opacity-50',
           className,
         )}
         aria-label={localize('com_ui_prompt_assist')}
       >
-        {isLoading ? <Spinner className="h-3 w-3" /> : <Sparkles className="h-3 w-3 text-yellow-500 [&>*]:fill-current" />}
+        {isLoading ? (
+          <Spinner className="h-3 w-3" />
+        ) : (
+          <Sparkles className="h-3 w-3 text-yellow-500 [&>*]:fill-current" />
+        )}
         Assist
       </button>
     </TooltipAnchor>

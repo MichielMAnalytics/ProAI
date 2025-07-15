@@ -3,8 +3,10 @@ const { EModelEndpoint, Constants } = require('librechat-data-provider');
 const {
   createSchedulerExecution,
   updateSchedulerExecution,
+  optimisticUpdateSchedulerExecution,
+  getSchedulerExecutionById,
 } = require('~/models/SchedulerExecution');
-const { updateSchedulerTask } = require('~/models/SchedulerTask');
+const { updateSchedulerTask, atomicUpdateTaskStatus } = require('~/models/SchedulerTask');
 const { User } = require('~/db/models');
 const { replaceSpecialVars } = require('librechat-data-provider');
 const { calculateNextRun } = require('./utils/cronUtils');
@@ -81,14 +83,16 @@ class SchedulerTaskExecutor {
    * - This ensures both correct model/endpoint AND access to MCP tools
    *
    * @param {Object} task - The scheduler task to execute
+   * @param {Object} executionContext - Optional execution context for test mode or custom trigger info
    * @returns {Promise<Object>} Execution result
    */
-  async executeTask(task) {
+  async executeTask(task, executionContext = {}) {
     const executionId = `exec_${task.id}_${Date.now()}`;
     const startTime = new Date();
+    const isTest = executionContext.isTest || false;
 
     logger.info(
-      `[SchedulerTaskExecutor] Starting execution: ${executionId} for task ${task.id} (${task.name})`,
+      `[SchedulerTaskExecutor] Starting ${isTest ? 'TEST ' : ''}execution: ${executionId} for task ${task.id} (${task.name})`,
     );
 
     // Fetch user for context replacement
@@ -119,6 +123,10 @@ class SchedulerTaskExecutor {
       };
     }
 
+    // Determine trigger type based on execution context
+    const triggerType = isTest ? 'test' : (executionContext.triggerType || 'schedule');
+    const triggerSource = isTest ? 'workflow_test' : (executionContext.triggerSource || 'scheduler');
+
     // Create execution record
     const execution = await createSchedulerExecution({
       id: executionId,
@@ -127,30 +135,63 @@ class SchedulerTaskExecutor {
       status: 'running',
       start_time: startTime,
       context: {
-        task_name: task.name,
-        prompt: task.prompt.substring(0, 500), // Truncate for storage
-        endpoint: task.endpoint,
-        ai_model: task.ai_model,
-        agent_id: task.agent_id,
+        trigger: {
+          type: triggerType,
+          source: triggerSource,
+          scheduledTime: startTime,
+          isTest: isTest,
+        },
+        workflow: task.type === 'workflow' ? {
+          id: task.id,
+          name: task.name,
+          totalSteps: task.metadata?.steps?.length || 0,
+        } : undefined,
+        isTest: isTest, // Add test flag at top level for easy access
+        ...executionContext, // Merge any additional context
       },
+      steps: task.type === 'workflow' ? (task.metadata?.steps || []).map(step => ({
+        ...step,
+        status: 'pending',
+        retryCount: 0,
+        toolsUsed: [],
+        mcpToolsCount: 0,
+      })) : [],
+      progress: task.type === 'workflow' ? {
+        completedSteps: 0,
+        totalSteps: task.metadata?.steps?.length || 0,
+        percentage: 0,
+      } : undefined,
     });
 
     try {
-      // Update task status to running (atomic update to prevent race conditions)
-      const updatedTask = await updateSchedulerTask(task.id, task.user, {
-        status: 'running',
-        last_run: startTime,
-      });
+      // Skip atomic status update for test executions - tests should not modify task state
+      if (!isTest) {
+        // Atomically update task status to running (prevents race conditions)
+        const updatedTask = await atomicUpdateTaskStatus(
+          task.id, 
+          task.user, 
+          'pending',  // Expected current status
+          'running',  // New status
+          { last_run: startTime }
+        );
 
-      // Verify the update succeeded and task wasn't modified by another process
-      if (!updatedTask) {
-        throw new Error('Failed to update task status to running - task may have been deleted');
+        // Verify the update succeeded - if null, another process already picked up this task
+        if (!updatedTask) {
+          logger.info(`[SchedulerTaskExecutor] Task ${task.id} was already picked up by another process, skipping`);
+          return {
+            success: false,
+            error: 'Task already running in another process',
+            skipped: true,
+          };
+        }
+
+        logger.debug(`[SchedulerTaskExecutor] Task ${task.id} status atomically updated to running`);
+
+        // Use the updated task for the rest of the execution
+        task = updatedTask;
+      } else {
+        logger.debug(`[SchedulerTaskExecutor] Skipping task status update for test execution`);
       }
-
-      logger.debug(`[SchedulerTaskExecutor] Task ${task.id} status updated to running`);
-
-      // Use the updated task for the rest of the execution
-      task = updatedTask;
 
       // Send notification that task has started
       await this.notificationManager.sendTaskStartedNotification(task);
@@ -162,7 +203,7 @@ class SchedulerTaskExecutor {
         logger.info(
           `[SchedulerTaskExecutor] Detected workflow task ${task.id}, executing workflow`,
         );
-        result = await this.executeWorkflowTask(task, executionId);
+        result = await this.executeWorkflowTask(task, executionId, execution);
       } else {
         // All scheduler tasks now use ephemeral agent execution to ensure MCP tools access
         logger.info(
@@ -174,19 +215,53 @@ class SchedulerTaskExecutor {
       const endTime = new Date();
       const duration = endTime - startTime;
 
-      // Update execution record with success
-      await updateSchedulerExecution(executionId, task.user, {
+      // Update execution record with success using optimistic locking
+      const successUpdateData = {
         status: 'completed',
         end_time: endTime,
         duration,
         result: typeof result === 'string' ? result : JSON.stringify(result),
-      });
+      };
+      
+      try {
+        const currentExecution = await getSchedulerExecutionById(executionId, task.user);
+        if (currentExecution) {
+          const currentVersion = currentExecution.version || 1;
+          const updatedExecution = await optimisticUpdateSchedulerExecution(
+            executionId, 
+            task.user, 
+            currentVersion, 
+            successUpdateData
+          );
+          
+          if (!updatedExecution) {
+            logger.warn(`[SchedulerTaskExecutor] Success update conflict for ${executionId}, using fallback`);
+            await updateSchedulerExecution(executionId, task.user, successUpdateData);
+          }
+        } else {
+          await updateSchedulerExecution(executionId, task.user, successUpdateData);
+        }
+      } catch (updateError) {
+        logger.error(`[SchedulerTaskExecutor] Error during optimistic success update: ${updateError.message}`);
+        await updateSchedulerExecution(executionId, task.user, successUpdateData);
+      }
 
-      // Update task status and schedule next run if recurring
-      await this.updateTaskAfterSuccess(task, endTime);
+      // Update task status and schedule next run if recurring (skip for test executions)
+      if (!isTest) {
+        await this.updateTaskAfterSuccess(task, endTime);
+      } else {
+        logger.debug(`[SchedulerTaskExecutor] Skipping task status update after success for test execution`);
+      }
 
-      // Send all success notifications
-      await this.notificationManager.sendSuccessNotifications(task, result, duration);
+      // Send all success notifications (don't let notification failures fail the execution)
+      try {
+        await this.notificationManager.sendSuccessNotifications(task, result, duration);
+      } catch (notificationError) {
+        logger.warn(
+          `[SchedulerTaskExecutor] Task ${task.id} completed successfully but notification failed: ${notificationError.message}`,
+        );
+        // Don't throw - the task itself was successful
+      }
 
       logger.info(
         `[SchedulerTaskExecutor] Task ${task.id} completed successfully in ${duration}ms`,
@@ -204,22 +279,56 @@ class SchedulerTaskExecutor {
 
       logger.error(`[SchedulerTaskExecutor] Task execution failed: ${task.id} -`, error.message);
 
-      // Update execution record with failure
-      await updateSchedulerExecution(executionId, task.user, {
+      // Update execution record with failure using optimistic locking
+      const failureUpdateData = {
         status: 'failed',
         end_time: endTime,
         duration,
         error: error.message,
-      });
+      };
+      
+      try {
+        const currentExecution = await getSchedulerExecutionById(executionId, task.user);
+        if (currentExecution) {
+          const currentVersion = currentExecution.version || 1;
+          const updatedExecution = await optimisticUpdateSchedulerExecution(
+            executionId, 
+            task.user, 
+            currentVersion, 
+            failureUpdateData
+          );
+          
+          if (!updatedExecution) {
+            logger.warn(`[SchedulerTaskExecutor] Failure update conflict for ${executionId}, using fallback`);
+            await updateSchedulerExecution(executionId, task.user, failureUpdateData);
+          }
+        } else {
+          await updateSchedulerExecution(executionId, task.user, failureUpdateData);
+        }
+      } catch (updateError) {
+        logger.error(`[SchedulerTaskExecutor] Error during optimistic failure update: ${updateError.message}`);
+        await updateSchedulerExecution(executionId, task.user, failureUpdateData);
+      }
 
-      // Update task status
-      await updateSchedulerTask(task.id, task.user, {
-        status: 'failed',
-        last_run: endTime,
-      });
+      // Update task status (skip for test executions)
+      if (!isTest) {
+        await updateSchedulerTask(task.id, task.user, {
+          status: 'failed',
+          last_run: endTime,
+        });
+      } else {
+        logger.debug(`[SchedulerTaskExecutor] Skipping task status update after failure for test execution`);
+      }
 
-      // Send all failure notifications
-      await this.notificationManager.sendFailureNotifications(task, error, duration);
+      // Send all failure notifications (don't let notification failures mask the original error)
+      try {
+        await this.notificationManager.sendFailureNotifications(task, error, duration);
+      } catch (notificationError) {
+        logger.warn(
+          `[SchedulerTaskExecutor] Task ${task.id} failed and notification also failed: ${notificationError.message}`,
+        );
+        // Don't throw the notification error - preserve the original task error
+      }
 
       throw error;
     }
@@ -277,8 +386,8 @@ class SchedulerTaskExecutor {
         );
       }
 
-      // Replace special variables in the prompt
-      const prompt = replaceSpecialVars({ text: task.prompt, user });
+      // Replace special variables in the prompt (for non-workflow tasks)
+      const prompt = task.prompt ? replaceSpecialVars({ text: task.prompt, user }) : task.name;
 
       // Set up ephemeral agent configuration with MCP tools
       const setupResult = await this.agentHandler.createEphemeralAgentSetup(task, user);
@@ -355,7 +464,7 @@ class SchedulerTaskExecutor {
         onProgress: (data) => {
           logger.debug(
             `[SchedulerTaskExecutor] Agent progress for task ${task.id}:`,
-            data?.text?.substring(0, 100),
+            data?.text ? data.text.substring(0, 100) : 'No text content',
           );
         },
       });
@@ -369,7 +478,7 @@ class SchedulerTaskExecutor {
       // Extract response text from agent response
       const result = this.extractResponseText(response);
       logger.info(
-        `[SchedulerTaskExecutor] Extracted result for task ${task.id}: ${result?.substring(0, 200)}...`,
+        `[SchedulerTaskExecutor] Extracted result for task ${task.id}: ${result ? result.substring(0, 200) : 'No result'}...`,
       );
 
       return result;
@@ -430,31 +539,47 @@ class SchedulerTaskExecutor {
       );
       await updateSchedulerTask(task.id, task.user, updateData);
     } else {
-      // For recurring tasks, calculate next run time
-      const cronTime = calculateNextRun(task.schedule);
-      if (cronTime) {
+      // Check if this is a manual workflow or scheduled workflow
+      if (task.trigger?.type === 'manual') {
+        // For manual workflows, mark as completed and disable to prevent re-execution
         const updateData = {
-          status: 'pending',
+          status: 'completed',
           last_run: endTime,
-          next_run: cronTime,
+          enabled: false, // Disable manual workflows after execution
         };
 
         logger.info(
-          `[SchedulerTaskExecutor] Scheduling next run for recurring task ${task.id} at ${cronTime.toISOString()}`,
+          `[SchedulerTaskExecutor] Manual workflow ${task.id} completed successfully - disabling to prevent re-execution`,
         );
         await updateSchedulerTask(task.id, task.user, updateData);
-      } else {
-        // Disable if we can't calculate next run
-        const updateData = {
-          status: 'failed',
-          last_run: endTime,
-          enabled: false,
-        };
+      } else if (task.trigger?.type === 'schedule' && task.trigger?.config?.schedule) {
+        // For scheduled workflows, calculate next run time
+        const cronExpression = task.trigger.config.schedule;
+        const cronTime = calculateNextRun(cronExpression);
+        if (cronTime) {
+          const updateData = {
+            status: 'pending',
+            last_run: endTime,
+            next_run: cronTime,
+          };
 
-        logger.warn(
-          `[SchedulerTaskExecutor] Unable to calculate next run for task ${task.id}, disabling`,
-        );
-        await updateSchedulerTask(task.id, task.user, updateData);
+          logger.info(
+            `[SchedulerTaskExecutor] Scheduling next run for recurring task ${task.id} at ${cronTime.toISOString()}`,
+          );
+          await updateSchedulerTask(task.id, task.user, updateData);
+        } else {
+          // Disable if we can't calculate next run
+          const updateData = {
+            status: 'failed',
+            last_run: endTime,
+            enabled: false,
+          };
+
+          logger.warn(
+            `[SchedulerTaskExecutor] Unable to calculate next run for task ${task.id}, disabling`,
+          );
+          await updateSchedulerTask(task.id, task.user, updateData);
+        }
       }
     }
   }
@@ -465,7 +590,7 @@ class SchedulerTaskExecutor {
    * @returns {boolean} True if this is a workflow task
    */
   isWorkflowTask(task) {
-    return task.prompt && task.prompt.startsWith('WORKFLOW_EXECUTION:');
+    return task.type === 'workflow';
   }
 
   /**
@@ -474,32 +599,33 @@ class SchedulerTaskExecutor {
    * @param {string} executionId - The scheduler execution ID
    * @returns {Promise<string>} Execution result
    */
-  async executeWorkflowTask(task, executionId) {
+  async executeWorkflowTask(task, executionId, execution) {
     try {
-      // Parse workflow information from the task prompt
-      const workflowInfo = this.parseWorkflowInfo(task.prompt);
+      // Modern workflow tasks have the workflow ID as the task ID and metadata structure
+      const workflowId = task.id;
+      const workflowName = task.name;
 
-      if (!workflowInfo) {
-        throw new Error('Invalid workflow task format');
+      if (!workflowId) {
+        throw new Error('Invalid workflow task format - missing workflow ID');
       }
 
+      const isTest = execution.context.isTest || false;
       logger.info(
-        `[SchedulerTaskExecutor] Executing workflow ${workflowInfo.workflowId} (${workflowInfo.workflowName})`,
+        `[SchedulerTaskExecutor] Executing ${isTest ? 'TEST ' : ''}workflow ${workflowId} (${workflowName})`,
       );
 
       // Get workflow data from task metadata
-      if (!task.metadata || task.metadata.type !== 'workflow') {
-        throw new Error('Task is not a workflow or missing workflow metadata');
+      if (!task.metadata || !task.metadata.steps) {
+        throw new Error('Task is not a workflow or missing workflow steps');
       }
 
       // Create workflow object from task metadata
       const workflow = {
-        id: task.metadata.workflowId,
-        name: workflowInfo.workflowName,
-        description: task.metadata.description,
-        trigger: task.metadata.trigger,
+        id: workflowId,
+        name: workflowName,
+        trigger: task.trigger,
         steps: task.metadata.steps,
-        isDraft: task.metadata.isDraft,
+        isDraft: task.metadata.isDraft || false,
         isActive: task.enabled,
         user: task.user,
         conversation_id: task.conversation_id,
@@ -510,17 +636,14 @@ class SchedulerTaskExecutor {
         metadata: task.metadata, // Include full metadata for access to dedicatedConversationId
       };
 
-      // Create execution context for scheduler-triggered execution
+      // Create execution context using the execution record's context (includes test flag)
+      // Include memory and agents config like the test execution does
+      const config = await getCustomConfig();
       const context = {
-        trigger: {
-          type: 'schedule',
-          source: 'scheduler',
-          data: {
-            schedulerTaskId: task.id,
-            schedulerExecutionId: executionId,
-            schedule: task.schedule,
-          },
-        },
+        trigger: execution.context.trigger, // Use trigger from execution record (includes isTest flag)
+        isTest: execution.context.isTest || false, // Pass test flag through
+        memoryConfig: config?.memory || {},
+        agentsConfig: config?.endpoints?.agents || {},
       };
 
       // Use WorkflowExecutor singleton to maintain execution state
@@ -536,12 +659,12 @@ class SchedulerTaskExecutor {
 
       if (workflowResult.success) {
         logger.info(
-          `[SchedulerTaskExecutor] Workflow ${workflowInfo.workflowId} executed successfully`,
+          `[SchedulerTaskExecutor] Workflow ${workflowId} executed successfully`,
         );
-        return `Workflow "${workflowInfo.workflowName}" executed successfully. ${workflowResult.result?.summary || ''}`;
+        return `Workflow "${workflowName}" executed successfully. ${workflowResult.result?.summary || ''}`;
       } else {
         logger.error(
-          `[SchedulerTaskExecutor] Workflow ${workflowInfo.workflowId} execution failed:`,
+          `[SchedulerTaskExecutor] Workflow ${workflowId} execution failed:`,
           workflowResult.error,
         );
         throw new Error(`Workflow execution failed: ${workflowResult.error}`);

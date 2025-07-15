@@ -97,13 +97,13 @@ export default function ModelPanel({
         <div className="absolute left-4 top-4">
           <button
             type="button"
-            className="btn btn-neutral relative"
+            className="btn btn-neutral relative h-8 w-8 p-1"
             onClick={() => {
               setActivePanel(Panel.builder);
             }}
           >
             <div className="model-panel-content flex w-full items-center justify-center gap-2">
-              <ChevronLeft />
+              <ChevronLeft size={16} />
             </div>
           </button>
         </div>

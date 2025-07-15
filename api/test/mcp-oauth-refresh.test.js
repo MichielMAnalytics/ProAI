@@ -32,7 +32,7 @@ describe('MCP OAuth Token Refresh', () => {
 
     // Mock PipedreamConnect
     PipedreamConnect = require('../server/services/Pipedream/PipedreamConnect');
-    
+
     // MCPConnection import commented out due to TypeScript parsing issues in Jest
     // const { MCPConnection: MockMCPConnection } = require('../../packages/api/src/mcp/connection');
     // MCPConnection = MockMCPConnection;
@@ -47,7 +47,7 @@ describe('MCP OAuth Token Refresh', () => {
         data: {
           access_token: 'new-fresh-token-123',
           expires_in: 3600,
-        }
+        },
       };
       axios.post.mockResolvedValue(mockTokenResponse);
 
@@ -63,7 +63,7 @@ describe('MCP OAuth Token Refresh', () => {
           client_id: 'test-client-id',
           client_secret: 'test-client-secret',
         }),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
@@ -73,7 +73,7 @@ describe('MCP OAuth Token Refresh', () => {
         data: {
           access_token: 'cached-token-456',
           expires_in: 3600,
-        }
+        },
       };
       axios.post.mockResolvedValue(mockTokenResponse);
 
@@ -96,7 +96,7 @@ describe('MCP OAuth Token Refresh', () => {
           data: {
             access_token: 'retry-success-token',
             expires_in: 3600,
-          }
+          },
         });
 
       const token = await PipedreamConnect.getOAuthAccessToken();
@@ -110,14 +110,12 @@ describe('MCP OAuth Token Refresh', () => {
         data: {
           access_token: 'concurrent-token',
           expires_in: 3600,
-        }
+        },
       };
-      
+
       // Add delay to simulate slow network
-      axios.post.mockImplementation(() => 
-        new Promise(resolve => 
-          setTimeout(() => resolve(mockTokenResponse), 100)
-        )
+      axios.post.mockImplementation(
+        () => new Promise((resolve) => setTimeout(() => resolve(mockTokenResponse), 100)),
       );
 
       PipedreamConnect.clearTokenCache();
@@ -134,7 +132,7 @@ describe('MCP OAuth Token Refresh', () => {
       // Should only make one HTTP request despite multiple calls
       expect(axios.post).toHaveBeenCalledTimes(1);
       // All tokens should be the same
-      expect(tokens.every(token => token === 'concurrent-token')).toBe(true);
+      expect(tokens.every((token) => token === 'concurrent-token')).toBe(true);
     });
   });
 
@@ -172,7 +170,7 @@ describe('MCP OAuth Token Refresh', () => {
 
       // Should NOT have cleared cache
       expect(PipedreamConnect.clearTokenCache).not.toHaveBeenCalled();
-      
+
       // Should NOT have requested token (MCPConnection will handle this)
       expect(PipedreamConnect.getOAuthAccessToken).not.toHaveBeenCalled();
 
@@ -198,7 +196,7 @@ describe('MCP OAuth Token Refresh', () => {
         type: 'streamable-http',
         url: 'https://remote.mcp.pipedream.net/user-123/gmail',
         headers: {
-          'Authorization': 'Bearer old-expired-token',
+          Authorization: 'Bearer old-expired-token',
         },
       };
       mockConnection.needsTransportRecreation = false;
@@ -219,12 +217,20 @@ describe('MCP OAuth Token Refresh', () => {
       ];
 
       // Test the authentication error detection logic
-      authErrorMessages.forEach(errorMessage => {
-        const isAuthError = errorMessage.includes('"code":-32603') && errorMessage.includes('Internal server error') ||
-          ['HTTP 401', 'HTTP 403', 'HTTP 500', 'Unauthorized', 'Forbidden', 'Authentication failed', 'Invalid token'].some(pattern =>
-            errorMessage.toLowerCase().includes(pattern.toLowerCase())
-          );
-        
+      authErrorMessages.forEach((errorMessage) => {
+        const isAuthError =
+          (errorMessage.includes('"code":-32603') &&
+            errorMessage.includes('Internal server error')) ||
+          [
+            'HTTP 401',
+            'HTTP 403',
+            'HTTP 500',
+            'Unauthorized',
+            'Forbidden',
+            'Authentication failed',
+            'Invalid token',
+          ].some((pattern) => errorMessage.toLowerCase().includes(pattern.toLowerCase()));
+
         expect(isAuthError).toBe(true, `Should detect auth error in: ${errorMessage}`);
       });
     });
@@ -236,7 +242,7 @@ describe('MCP OAuth Token Refresh', () => {
       PipedreamConnect.getOAuthAccessToken.mockResolvedValue('fresh-token-after-error');
 
       // Simulate the refresh token logic
-      const refreshResult = await (async function() {
+      const refreshResult = await (async function () {
         if (mockConnection.options.type !== 'streamable-http' || !mockConnection.options.headers) {
           return false;
         }
@@ -261,7 +267,9 @@ describe('MCP OAuth Token Refresh', () => {
       expect(refreshResult).toBe(true);
       expect(PipedreamConnect.clearTokenCache).toHaveBeenCalled();
       expect(PipedreamConnect.getOAuthAccessToken).toHaveBeenCalled();
-      expect(mockConnection.options.headers['Authorization']).toBe('Bearer fresh-token-after-error');
+      expect(mockConnection.options.headers['Authorization']).toBe(
+        'Bearer fresh-token-after-error',
+      );
       expect(mockConnection.needsTransportRecreation).toBe(true);
     });
 
@@ -270,7 +278,7 @@ describe('MCP OAuth Token Refresh', () => {
       mockConnection.options.url = 'https://example.com/mcp';
 
       // Simulate the refresh token logic
-      const refreshResult = await (async function() {
+      const refreshResult = await (async function () {
         if (mockConnection.options.type !== 'streamable-http' || !mockConnection.options.headers) {
           return false;
         }
@@ -302,7 +310,7 @@ describe('MCP OAuth Token Refresh', () => {
         data: {
           access_token: freshToken,
           expires_in: 3600,
-        }
+        },
       });
 
       PipedreamConnect.isEnabled.mockReturnValue(true);
@@ -323,11 +331,13 @@ describe('MCP OAuth Token Refresh', () => {
 
       // Simulate authentication error detection and token refresh
       const simulateAuthError = async () => {
-        const errorMessage = 'Error POSTing to endpoint (HTTP 500): {"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal server error"},"id":null}';
-        
+        const errorMessage =
+          'Error POSTing to endpoint (HTTP 500): {"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal server error"},"id":null}';
+
         // Detect auth error
-        const isAuthError = errorMessage.includes('"code":-32603') && errorMessage.includes('Internal server error');
-        
+        const isAuthError =
+          errorMessage.includes('"code":-32603') && errorMessage.includes('Internal server error');
+
         if (isAuthError) {
           tokenRefreshAttempted = true;
           // Token refresh would happen here

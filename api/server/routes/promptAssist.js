@@ -15,7 +15,7 @@ const router = express.Router();
 router.post('/', requireJwtAuth, async (req, res) => {
   try {
     const { title, description, instructions, availableVariables } = req.body;
-    
+
     // Strip auto-injected sections from instructions before processing
     const cleanInstructions = stripAutoInjectedSections(instructions);
 

@@ -27,7 +27,6 @@ export const getArtifactsMode = ({
 const artifactFilename = {
   'application/vnd.mermaid': 'App.tsx',
   'application/vnd.react': 'App.tsx',
-  'application/vnd.workflow': 'App.tsx',
   'text/html': 'index.html',
   'application/vnd.code-html': 'index.html',
   default: 'index.html',
@@ -45,7 +44,6 @@ const artifactTemplate: Record<
   'text/html': 'static',
   'application/vnd.react': 'react-ts',
   'application/vnd.mermaid': 'react-ts',
-  'application/vnd.workflow': 'react-ts',
   'application/vnd.code-html': 'static',
   default: 'static',
   // 'css': 'css',
@@ -61,8 +59,6 @@ export function getFileExtension(language?: string): string {
       return 'tsx';
     case 'application/vnd.mermaid':
       return 'mermaid';
-    case 'application/vnd.workflow':
-      return 'tsx';
     case 'text/html':
       return 'html';
     // case 'jsx':
@@ -132,19 +128,6 @@ const standardDependencies = {
   vaul: '^0.9.1',
 };
 
-const workflowDependencies = Object.assign(
-  {
-    reactflow: '^11.11.4',
-    '@reactflow/core': '^11.11.4',
-    '@reactflow/background': '^11.3.14',
-    '@reactflow/controls': '^11.2.14',
-    '@reactflow/minimap': '^11.7.14',
-    '@reactflow/node-resizer': '^2.2.14',
-    '@reactflow/node-toolbar': '^1.3.14',
-  },
-  standardDependencies,
-);
-
 const mermaidDependencies = Object.assign(
   {
     mermaid: '^11.4.1',
@@ -156,7 +139,6 @@ const mermaidDependencies = Object.assign(
 const dependenciesMap: Record<keyof typeof artifactFilename, object> = {
   'application/vnd.mermaid': mermaidDependencies,
   'application/vnd.react': standardDependencies,
-  'application/vnd.workflow': workflowDependencies,
   'text/html': standardDependencies,
   'application/vnd.code-html': standardDependencies,
   default: standardDependencies,

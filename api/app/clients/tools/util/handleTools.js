@@ -460,8 +460,8 @@ const loadTools = async ({
 
   // Get MCP tools count from enhanced structure
   const { ToolMetadataUtils } = require('librechat-data-provider');
-  const mcpToolsCount = Object.entries(appTools).filter(([toolName, toolDef]) => 
-    ToolMetadataUtils.isMCPTool(toolDef)
+  const mcpToolsCount = Object.entries(appTools).filter(([toolName, toolDef]) =>
+    ToolMetadataUtils.isMCPTool(toolDef),
   ).length;
 
   // logger.info(`[loadTools] Loading ${tools.length} tools for user ${user}`);
@@ -554,19 +554,19 @@ Current Date & Time: ${replaceSpecialVars({ text: '{{iso_datetime}}' })}
         if (ToolMetadataUtils.isMCPTool(toolDef)) {
           const serverName = ToolMetadataUtils.getServerName(toolDef);
           const appSlug = ToolMetadataUtils.getAppSlug(toolDef);
-          
+
           if (serverName) {
             const { getMCPManager } = require('~/config');
             const mcpManager = getMCPManager();
-            
+
             if (mcpManager) {
               // Get server instructions for this specific server
               const serverInstructions = mcpManager.getInstructions([serverName]);
-              
+
               if (serverInstructions[serverName]) {
                 // Create a unique key for this server's instructions in toolContextMap
                 const instructionKey = `mcp_server_${serverName}_instructions`;
-                
+
                 // Only add if not already present (avoid duplicates for multiple tools from same server)
                 if (!toolContextMap[instructionKey]) {
                   toolContextMap[instructionKey] = `# MCP Server Instructions for ${serverName}
@@ -574,8 +574,10 @@ Current Date & Time: ${replaceSpecialVars({ text: '{{iso_datetime}}' })}
 ${serverInstructions[serverName]}
 
 Please follow these instructions when using tools from the ${serverName} MCP server.`;
-                  
-                  logger.info(`[loadTools] Added server instructions for MCP server: ${serverName}`);
+
+                  logger.info(
+                    `[loadTools] Added server instructions for MCP server: ${serverName}`,
+                  );
                 }
               }
             }
@@ -622,7 +624,7 @@ Please follow these instructions when using tools from the ${serverName} MCP ser
     // Handle mixed tool format: strings for structured tools, objects for MCP tools
     const tool = typeof toolItem === 'string' ? toolItem : toolItem?.tool;
     if (!tool) continue;
-    
+
     const validTool = requestedTools[tool];
     if (validTool) {
       toolPromises.push(

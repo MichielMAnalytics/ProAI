@@ -855,21 +855,11 @@ export type TSchedulerExecution = {
 export type TWorkflowStep = {
   id: string;
   name: string;
-  type: 'action' | 'condition' | 'delay' | 'mcp_tool';
-  config: {
-    toolName?: string;
-    parameters?: Record<string, unknown>;
-    condition?: string;
-    delayMs?: number;
-    pipedreamAction?: {
-      componentId: string;
-      appSlug: string;
-      config: Record<string, unknown>;
-    };
-  };
+  type: 'mcp_agent_action';
+  instruction: string;
+  agent_id: string;
   onSuccess?: string; // Next step ID
   onFailure?: string; // Next step ID
-  position: { x: number; y: number };
 };
 
 export type TWorkflowTrigger = {
@@ -886,7 +876,6 @@ export type TWorkflowTrigger = {
 export type TUserWorkflow = {
   id: string;
   name: string;
-  description?: string;
   trigger: TWorkflowTrigger;
   steps: TWorkflowStep[];
   isActive: boolean;

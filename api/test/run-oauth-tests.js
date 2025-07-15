@@ -2,7 +2,7 @@
 
 /**
  * Run OAuth Token Refresh Tests
- * 
+ *
  * This script runs the OAuth token refresh tests and provides a summary.
  */
 
@@ -16,13 +16,13 @@ const testCommands = [
   {
     name: 'Jest Test Suite',
     command: 'npm test -- mcp-oauth-refresh.test.js',
-    description: 'Unit tests for OAuth token refresh mechanism'
+    description: 'Unit tests for OAuth token refresh mechanism',
   },
   {
     name: 'Token Simulation Tests',
     command: 'node api/test/simulate-token-expiration.js',
-    description: 'Integration tests simulating various token scenarios'
-  }
+    description: 'Integration tests simulating various token scenarios',
+  },
 ];
 
 let passedTests = 0;
@@ -32,17 +32,16 @@ for (const test of testCommands) {
   console.log(`\n📋 Running: ${test.name}`);
   console.log(`📝 Description: ${test.description}`);
   console.log(`💻 Command: ${test.command}\n`);
-  
+
   try {
-    const output = execSync(test.command, { 
+    const output = execSync(test.command, {
       cwd: path.resolve(__dirname, '../..'),
       encoding: 'utf8',
-      stdio: 'inherit'
+      stdio: 'inherit',
     });
-    
+
     console.log(`✅ ${test.name} passed\n`);
     passedTests++;
-    
   } catch (error) {
     console.error(`❌ ${test.name} failed:`);
     console.error(error.message);

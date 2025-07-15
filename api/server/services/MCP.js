@@ -52,9 +52,9 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
   // Get MCP metadata from the enhanced tool structure (single source of truth)
   const enhancedTool = req.app.locals.availableTools[toolKey];
   const mcpMetadata = enhancedTool?._mcp;
-  
+
   logger.debug(`[MCP] Tool has MCP metadata: ${!!mcpMetadata}`);
-  
+
   if (!mcpMetadata) {
     logger.error(`[MCP] Tool ${toolKey} is not an MCP tool (no _mcp metadata)`);
     return null;
@@ -114,7 +114,7 @@ async function createMCPTool({ req, toolKey, provider: _provider }) {
       const { getLogStores } = require('~/cache');
       const { CacheKeys } = require('librechat-data-provider');
       const { findToken, updateToken, createToken } = require('~/models');
-      
+
       const flowsCache = getLogStores(CacheKeys.FLOWS);
       const flowManager = getFlowStateManager(flowsCache);
       const tokenMethods = { findToken, updateToken, createToken };

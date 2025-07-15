@@ -621,6 +621,124 @@ export class MCPManager {
     }
   }
 
+  /**
+   * Get user connection optimized for background execution (workflows, cron jobs)
+   * 
+   * This method uses system credentials as the primary strategy instead of attempting
+   * user-specific OAuth flows that cannot complete in non-interactive contexts.
+   */
+  public async getUserConnectionForBackground({
+    user,
+    serverName,
+    useSystemCredentials = true,
+  }: {
+    user: { id: string };
+    serverName: string;
+    useSystemCredentials?: boolean;
+  }): Promise<MCPConnection | null> {
+    const userId = user.id;
+    const logPrefix = `[MCP][User: ${userId}][${serverName}]`;
+
+    logger.debug(`${logPrefix} Getting background connection with system credentials`);
+
+    // Update user activity timestamp for cleanup management
+    this.userLastActivity.set(userId, Date.now());
+
+    // Check for existing user connection first
+    const existingUserMap = this.userConnections.get(userId);
+    const existingConnection = existingUserMap?.get(serverName);
+
+    if (existingConnection) {
+      // Check if connection is still valid
+      if (await existingConnection.isConnected()) {
+        logger.debug(`${logPrefix} Reusing existing background connection`);
+        return existingConnection;
+      } else {
+        // Connection is stale, remove it
+        logger.debug(`${logPrefix} Existing connection is stale, removing`);
+        this.removeUserConnection(userId, serverName);
+      }
+    }
+
+    // Get server configuration (check user-specific config first, then global)
+    const config = this.userConfigs.get(userId)?.[serverName] || this.mcpConfigs[serverName];
+    if (!config) {
+      logger.error(`${logPrefix} No configuration found for server ${serverName}`);
+      return null;
+    }
+
+    logger.info(`${logPrefix} Establishing new background connection`);
+
+    let connection: MCPConnection | null = null;
+
+    try {
+      // For background execution, create connection with system credential strategy
+      // Skip user token loading and OAuth flows - use system credentials directly
+      connection = new MCPConnection(serverName, config, userId, null);
+
+      // Set up system credential OAuth handling for background execution
+      connection.on('oauthRequired', async () => {
+        logger.info(`${logPrefix} OAuth required in background - using system credentials`);
+        
+        // Directly use system credentials for Pipedream servers
+        if (serverName.includes('pipedream')) {
+          try {
+            const PipedreamConnect = require('../../../api/server/services/Pipedream/PipedreamConnect');
+            if (PipedreamConnect.isEnabled()) {
+              const systemToken = await PipedreamConnect.getSystemOAuthToken();
+              if (systemToken && 'headers' in config && config.headers) {
+                config.headers['Authorization'] = `Bearer ${systemToken}`;
+                connection?.emit('oauthHandled');
+                logger.info(`${logPrefix} System credential applied for background execution`);
+                return;
+              }
+            }
+          } catch (error) {
+            logger.error(`${logPrefix} Failed to get system credentials:`, error);
+          }
+        }
+        
+        // If system credentials fail, emit oauthFailed
+        connection?.emit('oauthFailed', new Error('Background OAuth failed - no system credentials available'));
+      });
+
+      const connectTimeout = config.initTimeout ?? 30000;
+      const connectionTimeout = new Promise<void>((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`Background connection timeout after ${connectTimeout}ms`)),
+          connectTimeout,
+        ),
+      );
+
+      await Promise.race([connection.connect(), connectionTimeout]);
+
+      if (!(await connection.isConnected())) {
+        throw new Error('Background connection failed to establish');
+      }
+
+      // Store the new connection
+      if (!this.userConnections.has(userId)) {
+        this.userConnections.set(userId, new Map());
+      }
+      this.userConnections.get(userId)!.set(serverName, connection);
+
+      logger.info(`${logPrefix} Background connection successfully established`);
+      return connection;
+    } catch (error) {
+      logger.error(`${logPrefix} Background connection failed:`, error);
+      
+      if (connection) {
+        try {
+          await connection.disconnect();
+        } catch (disconnectError) {
+          logger.warn(`${logPrefix} Failed to disconnect failed background connection:`, disconnectError);
+        }
+      }
+      
+      return null;
+    }
+  }
+
   /** Removes a specific user connection entry */
   private removeUserConnection(userId: string, serverName: string): void {
     // Remove connection object
@@ -698,7 +816,7 @@ export class MCPManager {
     if (userConfigs && userConfigs[serverName]) {
       delete userConfigs[serverName];
       logger.debug(`[MCP][User: ${userId}] Removed server config for: ${serverName}`);
-      
+
       // Clean up empty user config objects
       if (Object.keys(userConfigs).length === 0) {
         this.userConfigs.delete(userId);
@@ -770,8 +888,10 @@ export class MCPManager {
     flowManager?: FlowStateManager<MCPOAuthTokens | null>,
   ): Promise<void> {
     const hasFlowManager = !!flowManager;
-    logger.debug(`[MCP] mapAvailableTools called with flowManager: ${hasFlowManager} for ${this.connections.size} global servers`);
-    
+    logger.debug(
+      `[MCP] mapAvailableTools called with flowManager: ${hasFlowManager} for ${this.connections.size} global servers`,
+    );
+
     for (const [serverName, connection] of this.connections.entries()) {
       try {
         /** Attempt to ensure connection is active, with reconnection if needed */
@@ -780,20 +900,28 @@ export class MCPManager {
           logger.debug(`[MCP][${serverName}] Checking connection with reconnection support`);
           isActive = await this.isConnectionActive({ serverName, connection, flowManager });
           if (isActive) {
-            logger.info(`[MCP][${serverName}] Global server connection is active (reconnection enabled)`);
+            logger.info(
+              `[MCP][${serverName}] Global server connection is active (reconnection enabled)`,
+            );
           }
         } else {
           // Fallback: Just check connection status without reconnection capability
           isActive = await connection.isConnected();
           if (!isActive) {
-            logger.warn(`[MCP][${serverName}] Global server disconnected and no flowManager provided for reconnection. Skipping tool mapping.`);
+            logger.warn(
+              `[MCP][${serverName}] Global server disconnected and no flowManager provided for reconnection. Skipping tool mapping.`,
+            );
           } else {
-            logger.debug(`[MCP][${serverName}] Global server connection is active (no reconnection capability)`);
+            logger.debug(
+              `[MCP][${serverName}] Global server connection is active (no reconnection capability)`,
+            );
           }
         }
-        
+
         if (!isActive) {
-          logger.warn(`[MCP][${serverName}] Global server connection not available. Skipping tool mapping.`);
+          logger.warn(
+            `[MCP][${serverName}] Global server connection not available. Skipping tool mapping.`,
+          );
           continue;
         }
 
@@ -825,22 +953,26 @@ export class MCPManager {
       flowManager?: FlowStateManager<MCPOAuthTokens | null>;
       serverToolsCallback?: (serverName: string, tools: t.LCManifestTool[]) => Promise<void>;
       getServerTools?: (serverName: string) => Promise<t.LCManifestTool[] | undefined>;
-    } = {}
+    } = {},
   ): Promise<t.LCToolManifest> {
     const { flowManager, serverToolsCallback, getServerTools } = options;
     const mcpTools: t.LCManifestTool[] = [...baseManifest];
-    
-    logger.info(`[MCP] loadManifestTools called with flowManager: ${!!flowManager} for ${this.connections.size} global servers`);
+
+    logger.info(
+      `[MCP] loadManifestTools called with flowManager: ${!!flowManager} for ${this.connections.size} global servers`,
+    );
 
     for (const [serverName, connection] of this.connections.entries()) {
       try {
         /** Attempt to ensure connection is active, with reconnection if needed */
-        const isActive = flowManager ? await this.isConnectionActive({
-          serverName,
-          connection,
-          flowManager,
-          skipReconnect: false, // Enable reconnection for global servers during manifest loading
-        }) : await connection.isConnected();
+        const isActive = flowManager
+          ? await this.isConnectionActive({
+              serverName,
+              connection,
+              flowManager,
+              skipReconnect: false, // Enable reconnection for global servers during manifest loading
+            })
+          : await connection.isConnected();
         if (!isActive) {
           logger.warn(
             `[MCP][${serverName}] Connection not available for ${serverName} manifest tools.`,
@@ -892,25 +1024,28 @@ export class MCPManager {
   /**
    * Load manifest tools for a specific user from their user-specific connections
    */
-  public async loadUserManifestTools(userId: string, baseManifest: t.LCManifestTool[] = []): Promise<t.LCManifestTool[]> {
+  public async loadUserManifestTools(
+    userId: string,
+    baseManifest: t.LCManifestTool[] = [],
+  ): Promise<t.LCManifestTool[]> {
     const mcpTools: t.LCManifestTool[] = [...baseManifest];
     const userConnections = this.userConnections.get(userId);
-    
+
     if (!userConnections) {
       logger.debug(`[MCP][User: ${userId}] No user connections found for manifest`);
       return mcpTools;
     }
-    
+
     for (const [serverName, connection] of userConnections.entries()) {
       try {
         if (!(await connection.isConnected())) {
           logger.debug(`[MCP][User: ${userId}][${serverName}] Connection not active for manifest`);
           continue;
         }
-        
+
         const tools = await connection.fetchTools();
         const serverTools: t.LCManifestTool[] = [];
-        
+
         for (const tool of tools) {
           const pluginKey = `${tool.name}${CONSTANTS.mcp_delimiter}${serverName}`;
           const manifestTool: t.LCManifestTool = {
@@ -921,23 +1056,28 @@ export class MCPManager {
             serverName: serverName, // Add serverName for frontend grouping
             isGlobal: false, // User-specific tools are not global
           };
-          
+
           // Check if user server config has chatMenu setting
           const userConfig = this.userConfigs.get(userId)?.[serverName];
           if (userConfig?.chatMenu === false) {
             manifestTool.chatMenu = false;
           }
-          
+
           mcpTools.push(manifestTool);
           serverTools.push(manifestTool);
         }
-        
-        logger.debug(`[MCP][User: ${userId}][${serverName}] Added ${serverTools.length} tools to manifest`);
+
+        logger.debug(
+          `[MCP][User: ${userId}][${serverName}] Added ${serverTools.length} tools to manifest`,
+        );
       } catch (error) {
-        logger.error(`[MCP][User: ${userId}][${serverName}] Error fetching tools for manifest:`, error);
+        logger.error(
+          `[MCP][User: ${userId}][${serverName}] Error fetching tools for manifest:`,
+          error,
+        );
       }
     }
-    
+
     return mcpTools;
   }
 
@@ -1110,7 +1250,6 @@ export class MCPManager {
 
     return instructions;
   }
-
 
   /**
    * Format MCP server instructions for injection into context

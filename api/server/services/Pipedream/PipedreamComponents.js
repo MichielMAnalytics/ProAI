@@ -247,11 +247,11 @@ class PipedreamComponents {
               );
             });
 
-              logger.debug(
-                `PipedreamComponents: SDK returned ${actions.length} actions for ${appIdentifier}`,
-              );
-              return actions;
-            }
+            logger.debug(
+              `PipedreamComponents: SDK returned ${actions.length} actions for ${appIdentifier}`,
+            );
+            return actions;
+          }
         } catch (sdkError) {
           logger.warn(`PipedreamComponents: SDK error for ${appIdentifier}:`, sdkError.message);
         }
@@ -669,7 +669,7 @@ class PipedreamComponents {
 
   /**
    * Get component counts for an app without fetching full component data
-   * 
+   *
    * @param {string} appIdentifier - App slug or ID
    * @returns {Promise<Object>} Object with actionCount and triggerCount
    */
@@ -682,31 +682,38 @@ class PipedreamComponents {
 
     try {
       // Check cache first
-      const cached = await AppComponents.find({ 
-        appSlug: appIdentifier, 
-        isActive: true 
+      const cached = await AppComponents.find({
+        appSlug: appIdentifier,
+        isActive: true,
       }).lean();
 
       if (cached && cached.length > 0) {
-        const actionCount = cached.filter(c => c.componentType === 'action').length;
-        const triggerCount = cached.filter(c => c.componentType === 'trigger').length;
-        
-        logger.debug(`PipedreamComponents: Found cached counts for ${appIdentifier}: ${actionCount} actions, ${triggerCount} triggers`);
+        const actionCount = cached.filter((c) => c.componentType === 'action').length;
+        const triggerCount = cached.filter((c) => c.componentType === 'trigger').length;
+
+        logger.debug(
+          `PipedreamComponents: Found cached counts for ${appIdentifier}: ${actionCount} actions, ${triggerCount} triggers`,
+        );
         return { actionCount, triggerCount };
       }
 
       // If no cache, fetch from API
       const actions = await this.fetchActionsFromAPI(appIdentifier);
-      
+
       // Cache the components if we got any
       if (actions.length > 0) {
         await this.cacheComponents(appIdentifier, actions, 'action');
       }
 
-      logger.debug(`PipedreamComponents: API counts for ${appIdentifier}: ${actions.length} actions, 0 triggers`);
+      logger.debug(
+        `PipedreamComponents: API counts for ${appIdentifier}: ${actions.length} actions, 0 triggers`,
+      );
       return { actionCount: actions.length, triggerCount: 0 };
     } catch (error) {
-      logger.error(`PipedreamComponents: Error getting counts for ${appIdentifier}:`, error.message);
+      logger.error(
+        `PipedreamComponents: Error getting counts for ${appIdentifier}:`,
+        error.message,
+      );
       return { actionCount: 0, triggerCount: 0 };
     }
   }

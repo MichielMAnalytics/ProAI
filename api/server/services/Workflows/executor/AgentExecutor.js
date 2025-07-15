@@ -1,6 +1,7 @@
 const { logger } = require('~/config');
-const { Constants } = require('librechat-data-provider');
+const { Constants, EModelEndpoint } = require('librechat-data-provider');
 const { loadAgent } = require('~/models/Agent');
+const { HumanMessage, SystemMessage, getBufferString } = require('@langchain/core/messages');
 const {
   createMinimalMockResponse,
   updateRequestForEphemeralAgent,
@@ -11,18 +12,78 @@ const {
   createMockRequestForWorkflow,
   extractMCPServerNames,
   extractResponseText,
+  loadWorkflowMemory,
 } = require('./utils');
 
 /**
- * Execute a step using a fresh agent with MCP tools
+ * Custom error for workflow step failures due to missing integrations or tools
+ */
+class WorkflowStepFailureError extends Error {
+  constructor(reason, stepName) {
+    super(`Workflow step "${stepName}" failed: ${reason}`);
+    this.name = 'WorkflowStepFailureError';
+    this.stepName = stepName;
+    this.reason = reason;
+    this.isWorkflowStepFailure = true;
+  }
+}
+
+/**
+ * Create enhanced prompt with AgentChain-style context passing for background execution
  * @param {Object} step - Workflow step
- * @param {string} prompt - Task prompt
+ * @param {Object} context - Execution context  
+ * @param {Array} stepMessages - Previous step messages (HumanMessage objects)
+ * @returns {string} Enhanced prompt with proper context
+ */
+function createEnhancedPromptWithContext(step, context, stepMessages) {
+  let prompt = '';
+
+  // Step instruction (primary objective)
+  if (step.instruction) {
+    prompt += `STEP OBJECTIVE: ${step.instruction}\n\n`;
+  }
+
+  // Workflow context
+  const workflowContext = context.workflow?.name;
+  if (workflowContext) {
+    prompt += `WORKFLOW GOAL: ${workflowContext}\n\n`;
+  }
+
+  // Previous step context (AgentChain pattern - this is the key improvement!)
+  if (stepMessages && stepMessages.length > 0) {
+    // Convert messages to buffer string like AgentChain does
+    const bufferString = getBufferString(stepMessages);
+    prompt += `PREVIOUS STEPS CONTEXT:\n${bufferString}\n\n`;
+    
+    logger.info(`[WorkflowAgentExecutor] Added ${stepMessages.length} previous step messages as context`);
+  }
+
+  // Critical failure handling instructions
+  prompt += `CRITICAL FAILURE HANDLING: If you cannot complete this step because:
+- A required application is not connected (Gmail, Google Drive, Slack, Pipedream, etc.)
+- Required integrations are missing or not configured  
+- Essential tools are unavailable
+
+You MUST respond with this EXACT format:
+"WORKFLOW_STEP_FAILED: Cannot complete step '${step.name}' because [specific_reason]. Required: [missing_application]. Please connect the required application in the Integrations panel and restart the workflow."
+
+IMPORTANT: You are running in an automated workflow environment. NEVER ask the user for input, confirmation, or clarification. Work autonomously with the provided information and execute your step objective using the context from previous steps.`;
+
+  return prompt;
+}
+
+/**
+ * Execute a step using a fresh agent with MCP tools (AgentChain pattern)
+ * @param {Object} step - Workflow step
+ * @param {Array} stepMessages - Previous step messages for context
  * @param {Object} context - Execution context
  * @param {string} userId - User ID
+ * @param {AbortSignal} abortSignal - Abort signal
  * @returns {Promise<Object>} Execution result
  */
-async function executeStepWithAgent(step, prompt, context, userId, abortSignal) {
-  logger.info(`[WorkflowAgentExecutor] Executing step "${step.name}" with fresh agent`);
+async function executeStepWithAgent(step, stepMessages, context, userId, abortSignal) {
+  logger.info(`[WorkflowAgentExecutor] Executing step "${step.name}" with fresh agent (agent_id: ${step.agent_id || 'ephemeral'})`);
+  logger.info(`[WorkflowAgentExecutor] Using step instruction: "${step.instruction || 'no instruction set'}"`);
 
   // Check if execution has been cancelled
   if (abortSignal?.aborted) {
@@ -49,8 +110,11 @@ async function executeStepWithAgent(step, prompt, context, userId, abortSignal) 
       throw new Error('Execution was cancelled by user');
     }
 
-    // Execute the step using the fresh agent
-    const response = await client.sendMessage(prompt, {
+    // Create enhanced prompt with AgentChain-style context (key improvement!)
+    const enhancedPrompt = createEnhancedPromptWithContext(step, context, stepMessages);
+
+    // Execute the step using the fresh agent with enhanced context
+    const response = await client.sendMessage(enhancedPrompt, {
       user: userId,
       conversationId: context.workflow?.conversationId,
       parentMessageId: context.workflow?.parentMessageId,
@@ -62,7 +126,7 @@ async function executeStepWithAgent(step, prompt, context, userId, abortSignal) 
         }
         logger.debug(
           `[WorkflowAgentExecutor] Agent progress for step "${step.name}":`,
-          data?.text?.substring(0, 100),
+          data?.text ? data.text.substring(0, 100) : 'No text content',
         );
       },
     });
@@ -71,25 +135,43 @@ async function executeStepWithAgent(step, prompt, context, userId, abortSignal) 
       throw new Error('No response received from agent');
     }
 
-    logger.info(`[WorkflowAgentExecutor] Agent execution completed for step "${step.name}"`);
+    logger.info(`[WorkflowAgentExecutor] Agent execution completed for step "${step.name}" (agent_id: ${step.agent_id || 'ephemeral'})`);
 
     // Extract response text from agent response
     const responseText = extractResponseText(response);
+
+    // Check for workflow step failure pattern (ensure responseText is a string)
+    if (responseText && typeof responseText === 'string') {
+      const failureMatch = responseText.match(/WORKFLOW_STEP_FAILED:\s*(.+)/);
+      if (failureMatch) {
+        const failureReason = failureMatch[1].trim();
+        logger.warn(`[WorkflowAgentExecutor] Workflow step failure detected in step "${step.name}": ${failureReason}`);
+        throw new WorkflowStepFailureError(failureReason, step.name);
+      }
+    }
+
+    // Extract actual tool calls from the client's content parts instead of available tools
+    const actualToolCalls = [];
+    
+    // If the client has contentParts with tool calls, extract them
+    if (client && client.contentParts && Array.isArray(client.contentParts)) {
+      const { ContentTypes } = require('librechat-data-provider');
+      
+      for (const part of client.contentParts) {
+        if (part.type === ContentTypes.TOOL_CALL && part.tool_call) {
+          actualToolCalls.push(part.tool_call.function?.name || part.tool_call.name || 'unknown_tool');
+        }
+      }
+    }
 
     return {
       status: 'success',
       message: `Successfully executed step "${step.name}" with fresh agent using ${endpointName}/${configuredModel}`,
       agentResponse: responseText,
-      toolsUsed: agent.tools || [],
-      mcpToolsCount:
-        agent.tools?.filter((tool) => {
-          // Handle enhanced tool format (objects with MCP metadata)
-          if (typeof tool === 'object' && tool.tool) {
-            return tool.tool.includes(Constants.mcp_delimiter);
-          }
-          // Handle regular tool format (strings)
-          return typeof tool === 'string' && tool.includes(Constants.mcp_delimiter);
-        }).length || 0,
+      toolsUsed: actualToolCalls, // Only actual tool calls, not available tools
+      mcpToolsCount: actualToolCalls.filter(toolName => 
+        toolName.includes(Constants.mcp_delimiter)
+      ).length,
       modelUsed: configuredModel,
       endpointUsed: endpointName,
       timestamp: new Date().toISOString(),
@@ -121,23 +203,50 @@ async function createFreshAgent(workflow, step, context) {
   const config = await getConfiguredModelAndEndpoint(workflow);
   const { model: configuredModel, endpoint: configuredEndpoint, endpointName } = config;
 
-  // Determine which agent to load
-  const agentIdToLoad =
-    workflow.endpoint === 'agents' && workflow.agent_id
-      ? workflow.agent_id
-      : Constants.EPHEMERAL_AGENT_ID;
+  // Determine which agent to load - use step-specific agent_id
+  const agentIdToLoad = step.agent_id || Constants.EPHEMERAL_AGENT_ID;
 
   logger.info(
-    `[WorkflowAgentExecutor] Determined agent for fresh agent creation: ${agentIdToLoad}`,
+    `[WorkflowAgentExecutor] Using step-specific agent for step "${step.name}": ${agentIdToLoad}`,
   );
 
-  // Create mock request for agent initialization
+  // Load memory for this workflow execution
+  let memoryContent;
+  try {
+    // Create a minimal request object for memory loading with proper app.locals
+    const memoryReq = {
+      user: user,
+      app: {
+        locals: {
+          memory: context.memoryConfig || {},
+          // Add any other app.locals that might be needed for memory loading
+          [EModelEndpoint.agents]: context.agentsConfig || {},
+        },
+      },
+    };
+    
+    memoryContent = await loadWorkflowMemory(
+      user, 
+      conversationId, 
+      parentMessageId, 
+      memoryReq
+    );
+    
+    if (memoryContent) {
+      logger.info(`[WorkflowAgentExecutor] Loaded memory for workflow step "${step.name}"`);
+    }
+  } catch (error) {
+    logger.warn(`[WorkflowAgentExecutor] Failed to load memory for step "${step.name}":`, error);
+  }
+
+  // Create mock request for agent initialization with memory
   const mockReq = createMockRequestForWorkflow(
     context,
     user,
-    step.config.instruction || `Executing step: ${step.name}`,
+    step.instruction || `Executing step: ${step.name}`,
     configuredModel,
     configuredEndpoint,
+    memoryContent,
   );
 
   // If we are using an ephemeral agent, we need to set up its config
@@ -156,7 +265,7 @@ async function createFreshAgent(workflow, step, context) {
     updateRequestForEphemeralAgent(
       mockReq,
       {
-        prompt: step.config.instruction || `Executing step: ${step.name}`,
+        prompt: step.instruction || `Executing step: ${step.name}`,
         user: userId,
         conversation_id: conversationId,
         parent_message_id: parentMessageId,
@@ -179,21 +288,9 @@ async function createFreshAgent(workflow, step, context) {
     throw new Error('Failed to load agent for fresh agent creation');
   }
 
-  // Filter out the workflows tool to prevent recursive workflow creation during execution
-  if (agent.tools && Array.isArray(agent.tools)) {
-    const originalToolCount = agent.tools.length;
-    agent.tools = agent.tools.filter((tool) => tool !== 'workflows');
-    const filteredToolCount = agent.tools.length;
-
-    if (originalToolCount > filteredToolCount) {
-      logger.info(
-        `[WorkflowAgentExecutor] Filtered out 'workflows' tool to prevent recursive workflow creation (${originalToolCount} -> ${filteredToolCount} tools)`,
-      );
-    }
-  }
 
   logger.info(
-    `[WorkflowAgentExecutor] Loaded fresh agent with ${
+    `[WorkflowAgentExecutor] Loaded fresh agent (agent_id: ${agentIdToLoad}) with ${
       agent.tools?.length || 0
     } tools using ${endpointName}/${configuredModel}`,
   );
@@ -226,7 +323,7 @@ async function createFreshAgent(workflow, step, context) {
   client.skipSaveConvo = true;
 
   logger.info(
-    `[WorkflowAgentExecutor] AgentClient initialized successfully for step "${step.name}" (conversation saving disabled)`,
+    `[WorkflowAgentExecutor] AgentClient initialized successfully for step "${step.name}" (agent_id: ${agentIdToLoad}) (conversation saving disabled)`,
   );
 
   return {

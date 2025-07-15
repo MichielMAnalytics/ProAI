@@ -5,14 +5,17 @@ import type { ExtendedFile } from '~/common';
 import { useDeleteFilesMutation } from '~/data-provider';
 import DragDropWrapper from '~/components/Chat/Input/Files/DragDropWrapper';
 import Artifacts from '~/components/Artifacts/Artifacts';
+import WorkflowBuilder from '~/components/SidePanel/WorkflowBuilder/WorkflowBuilder';
 import { SidePanelGroup } from '~/components/SidePanel';
 import { useSetFilesToDelete } from '~/hooks';
+import { useWorkflowBuilder } from '~/hooks/useWorkflowBuilder';
 import { EditorProvider } from '~/Providers';
 import store from '~/store';
 
 export default function Presentation({ children }: { children: React.ReactNode }) {
   const artifacts = useRecoilValue(store.artifactsState);
   const artifactsVisibility = useRecoilValue(store.artifactsVisibility);
+  const { isOpen: isWorkflowBuilderOpen, workflowId, closeWorkflowBuilder } = useWorkflowBuilder();
 
   const setFilesToDelete = useSetFilesToDelete();
 
@@ -68,6 +71,12 @@ export default function Presentation({ children }: { children: React.ReactNode }
             <EditorProvider>
               <Artifacts />
             </EditorProvider>
+          ) : isWorkflowBuilderOpen ? (
+            <WorkflowBuilder 
+              key={workflowId || 'new-workflow'} 
+              onClose={closeWorkflowBuilder} 
+              workflowId={workflowId} 
+            />
           ) : null
         }
       >

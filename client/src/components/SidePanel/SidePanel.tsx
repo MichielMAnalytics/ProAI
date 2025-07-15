@@ -11,12 +11,12 @@ import { cn, getEndpointField } from '~/utils';
 import { useChatContext } from '~/Providers';
 import Nav from './Nav';
 
-const defaultMinSize = 20;
+const defaultMinSize = 15;
 
 const SidePanel = ({
   defaultSize,
   panelRef,
-  navCollapsedSize = 3,
+  navCollapsedSize = 2,
   hasArtifacts,
   minSize,
   setMinSize,
@@ -134,15 +134,15 @@ const SidePanel = ({
           className={cn(
             'fixed top-1/2',
             (isCollapsed && (minSize === 0 || collapsedSize === 0)) || fullCollapse
-              ? 'mr-9'
-              : 'mr-16',
+              ? 'mr-2'
+              : 'mr-4',
           )}
           translateX={false}
           side="right"
         />
       </div>
       {(!isCollapsed || minSize > 0) && !isSmallScreen && !fullCollapse && (
-        <ResizableHandleAlt withHandle className="bg-transparent text-text-primary" />
+        <ResizableHandleAlt withHandle className="bg-transparent text-transparent opacity-0" />
       )}
       <ResizablePanel
         tagName="nav"

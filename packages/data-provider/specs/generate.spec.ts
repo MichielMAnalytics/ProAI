@@ -1,4 +1,3 @@
-/* eslint-disable jest/no-conditional-expect */
 import { ZodError, z } from 'zod';
 import { generateDynamicSchema, validateSettingDefinitions, OptionTypes } from '../src/generate';
 import type { SettingsConfiguration } from '../src/generate';
