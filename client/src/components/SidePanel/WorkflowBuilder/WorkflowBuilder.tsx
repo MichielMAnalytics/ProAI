@@ -29,7 +29,7 @@ import { HoverCard, HoverCardPortal, HoverCardContent, HoverCardTrigger } from '
 import MessageIcon from '~/components/Share/MessageIcon';
 import { CircleHelpIcon, Spinner } from '~/components/svg';
 import { useAgentsMapContext } from '~/Providers';
-import { useLocalize } from '~/hooks';
+import { useLocalize, useMediaQuery } from '~/hooks';
 import { ESide } from '~/common';
 import {
   useDeleteWorkflowMutation,
@@ -129,6 +129,8 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
   const localize = useLocalize();
   const agentsMap = useAgentsMapContext() || {};
   const { showToast } = useToastContext();
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const [hideSidePanel, setHideSidePanel] = useRecoilState(store.hideSidePanel);
   const [workflowName, setWorkflowName] = useState('New Workflow');
   const [triggerType, setTriggerType] = useState<
     'manual' | 'schedule' | 'webhook' | 'email' | 'event'
@@ -153,6 +155,23 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
   const [completedStepIds, setCompletedStepIds] = useState<Set<string>>(new Set());
   const [testingWorkflows, setTestingWorkflows] = useRecoilState(store.testingWorkflows);
   const currentWorkflowId = initialWorkflowId;
+
+  // Store the original sidebar state when component mounts
+  const [originalHideSidePanel] = useState(hideSidePanel);
+
+  // Hide sidebar on mobile when WorkflowBuilder opens
+  useEffect(() => {
+    if (isMobile) {
+      setHideSidePanel(true);
+    }
+
+    // Restore original sidebar state when component unmounts
+    return () => {
+      if (isMobile) {
+        setHideSidePanel(originalHideSidePanel);
+      }
+    };
+  }, [isMobile, setHideSidePanel, originalHideSidePanel]);
 
   // Workflow mutations
   const toggleMutation = useToggleWorkflowMutation();
@@ -1007,9 +1026,6 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                                     }
                                     agent={agentsMap[step.agentId]}
                                   />
-                                  <span className="text-sm text-text-secondary truncate">
-                                    {getAgentDetails(step.agentId)?.name}
-                                  </span>
                                 </>
                               )}
                             </div>
@@ -1253,9 +1269,9 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
 
         {/* Footer Actions */}
         <div className="flex-shrink-0 border-t border-border-medium bg-surface-primary-alt p-2 sm:p-3">
-          <div className="flex gap-2">
-            {/* Left side: Workflow management buttons */}
-            <div className="flex items-center gap-1 sm:gap-2">
+          <div className="flex flex-col gap-2">
+            {/* Top Row - Test and Toggle */}
+            <div className="flex gap-2">
               {/* Test/Stop Button */}
               <TooltipAnchor
                 description={
@@ -1266,9 +1282,10 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                       : 'Test workflow'
                 }
                 side="top"
+                className="flex-1"
               >
                 <button
-                  className={`flex items-center justify-center gap-1 rounded-md px-3 py-2 text-sm font-medium shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:gap-2 sm:px-4 sm:py-2 sm:text-base ${
+                  className={`btn w-full flex items-center justify-center gap-1 text-sm font-medium h-9 px-2 ${
                     !currentWorkflowId
                       ? 'border border-gray-300 bg-gray-100 text-gray-400'
                       : isWorkflowTesting
@@ -1280,7 +1297,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                 >
                   {isWorkflowTesting ? (
                     <>
-                      <Square className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <Square className="h-4 w-4" />
                       <span>Stop</span>
                     </>
                   ) : (
@@ -1302,9 +1319,10 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                       : 'Activate workflow'
                 }
                 side="top"
+                className="flex-1"
               >
                 <button
-                  className={`flex items-center justify-center gap-1 rounded-md px-3 py-2 text-sm font-medium shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:gap-2 sm:px-4 sm:py-2 sm:text-base ${
+                  className={`btn w-full flex items-center justify-center gap-1 text-sm font-medium h-9 px-2 ${
                     !currentWorkflowId
                       ? 'border border-gray-300 bg-gray-100 text-gray-400'
                       : isWorkflowActive
@@ -1321,7 +1339,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                     </>
                   ) : isWorkflowActive ? (
                     <>
-                      <Pause className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <Pause className="h-4 w-4" />
                       <span>Pause</span>
                     </>
                   ) : (
@@ -1332,14 +1350,18 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                   )}
                 </button>
               </TooltipAnchor>
+            </div>
 
+            {/* Bottom Row - Delete and Save */}
+            <div className="flex gap-2">
               {/* Delete Button */}
               <TooltipAnchor
                 description={!currentWorkflowId ? 'Save workflow first to delete' : 'Delete workflow'}
                 side="top"
+                className="flex-1"
               >
                 <button
-                  className={`flex items-center justify-center gap-1 rounded-md px-3 py-2 text-sm font-medium shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:gap-2 sm:px-4 sm:py-2 sm:text-base ${
+                  className={`btn w-full flex items-center justify-center gap-1 text-sm font-medium h-9 px-2 ${
                     !currentWorkflowId
                       ? 'border border-gray-300 bg-gray-100 text-gray-400'
                       : 'border border-red-500/60 bg-gradient-to-r from-red-500 to-red-600 text-white hover:border-red-500 hover:from-red-600 hover:to-red-700'
@@ -1351,18 +1373,18 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                   <span>Delete</span>
                 </button>
               </TooltipAnchor>
-            </div>
 
-            {/* Right side: Save button */}
-            <div className="flex flex-1 gap-2">
-              <button
-                onClick={() => handleSave()}
-                disabled={isSaving || !workflowName || steps.length === 0 || isTesting}
-                className="btn btn-primary flex flex-1 items-center justify-center gap-1 text-sm sm:gap-2 sm:text-base"
-              >
-                <Save size={14} />
-                {isSaving ? 'Saving...' : 'Save Workflow'}
-              </button>
+              {/* Save button */}
+              <div className="flex-1">
+                <button
+                  onClick={() => handleSave()}
+                  disabled={isSaving || !workflowName || steps.length === 0 || isTesting}
+                  className="btn btn-primary w-full flex items-center justify-center gap-1 text-sm font-medium h-9 px-2"
+                >
+                  <Save size={16} />
+                  <span>{isSaving ? 'Saving...' : 'Save'}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

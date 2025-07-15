@@ -11,12 +11,12 @@ import { cn, getEndpointField } from '~/utils';
 import { useChatContext } from '~/Providers';
 import Nav from './Nav';
 
-const defaultMinSize = 20;
+const defaultMinSize = 15;
 
 const SidePanel = ({
   defaultSize,
   panelRef,
-  navCollapsedSize = 3,
+  navCollapsedSize = 2,
   hasArtifacts,
   minSize,
   setMinSize,

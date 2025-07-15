@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Clock,
   CheckCircle,
@@ -16,9 +16,10 @@ import type { TSchedulerExecution } from 'librechat-data-provider';
 
 interface ExecutionDashboardProps {
   workflowId: string;
+  refetchTrigger?: number;
 }
 
-const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) => {
+const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId, refetchTrigger }) => {
   // Transform workflowId to match scheduler task_id format
   const taskId = workflowId ? `workflow_${workflowId.replace('workflow_', '')}` : '';
 
@@ -37,6 +38,11 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId }) =
   const [expandedExecutions, setExpandedExecutions] = useState<Set<string>>(new Set());
   // Track expanded step outputs
   const [expandedStepOutputs, setExpandedStepOutputs] = useState<Set<string>>(new Set());
+
+  // Refetch executions when component mounts to get latest data
+  useEffect(() => {
+    refetch();
+  }, []); // Empty dependency array means this only runs once on mount
 
   const toggleExecutionExpansion = (executionId: string) => {
     const newExpanded = new Set(expandedExecutions);

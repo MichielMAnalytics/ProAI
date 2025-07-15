@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo, memo } from 'react';
 import throttle from 'lodash/throttle';
 import { useRecoilValue } from 'recoil';
 import { getConfigDefaults } from 'librechat-data-provider';
+import type { TInterfaceConfig } from 'librechat-data-provider';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { ResizableHandleAlt, ResizablePanel, ResizablePanelGroup } from '~/components/ui/Resizable';
 import { useGetStartupConfig } from '~/data-provider';
@@ -26,13 +27,13 @@ const SidePanelGroup = ({
   defaultLayout = [97, 3],
   defaultCollapsed = false,
   fullPanelCollapse = false,
-  navCollapsedSize = 3,
+  navCollapsedSize = 2,
   artifacts,
   children,
 }: SidePanelProps) => {
   const { data: startupConfig } = useGetStartupConfig();
   const interfaceConfig = useMemo(
-    () => startupConfig?.interface ?? defaultInterface,
+    () => (startupConfig?.interface ?? defaultInterface) as TInterfaceConfig,
     [startupConfig],
   );
 
