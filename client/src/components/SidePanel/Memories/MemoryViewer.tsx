@@ -252,10 +252,16 @@ export default function MemoryViewer() {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
       <div role="region" aria-label={localize('com_ui_memories')} className="mt-2 space-y-2">
-        {/* Memory Toggle Display */}
-        {hasOptOutAccess && (
-          <div className="flex items-center justify-end rounded-lg">
-            {/* Memory Toggle */}
+        <div className="flex items-center gap-4">
+          <Input
+            placeholder={localize('com_ui_memories_filter')}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label={localize('com_ui_memories_filter')}
+            className="flex-1"
+          />
+          {/* Memory Toggle */}
+          {hasOptOutAccess && (
             <div className="flex items-center gap-2 text-xs">
               <span>{localize('com_ui_use_memory')}</span>
               <Switch
@@ -265,15 +271,7 @@ export default function MemoryViewer() {
                 disabled={updateMemoryPreferencesMutation.isLoading}
               />
             </div>
-          </div>
-        )}
-        <div className="flex items-center gap-4">
-          <Input
-            placeholder={localize('com_ui_memories_filter')}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label={localize('com_ui_memories_filter')}
-          />
+          )}
         </div>
         <div className="rounded-lg border border-border-light bg-transparent shadow-sm transition-colors">
           <Table className="w-full table-fixed">
