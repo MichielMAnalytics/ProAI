@@ -189,7 +189,7 @@ export const defaultAgentFormValues = {
   [Tools.execute_code]: false,
   [Tools.file_search]: false,
   [Tools.web_search]: true,
-  [Tools.workflows]: true,
+  [Tools.workflows]: false,
   [Tools.scheduler]: true,
 };
 
