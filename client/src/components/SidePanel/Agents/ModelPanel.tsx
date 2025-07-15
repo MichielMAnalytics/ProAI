@@ -1,5 +1,5 @@
-import React, { useMemo, useEffect } from 'react';
-import { ChevronLeft, RotateCcw } from 'lucide-react';
+import React, { useMemo, useEffect, useState } from 'react';
+import { ChevronLeft, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
 import { useFormContext, useWatch, Controller } from 'react-hook-form';
 import {
   alternateName,
@@ -24,6 +24,7 @@ export default function ModelPanel({
   models: modelsData,
 }: AgentModelPanelProps) {
   const localize = useLocalize();
+  const [showAdvancedParams, setShowAdvancedParams] = useState(false);
 
   const { control, setValue } = useFormContext<AgentForm>();
 
@@ -91,9 +92,9 @@ export default function ModelPanel({
   };
 
   return (
-    <div className="mx-1 mb-1 flex h-full min-h-[50vh] w-full flex-col gap-2 text-sm">
+    <div className="mx-1 mb-1 flex h-full w-full flex-col justify-between gap-2 text-sm">
       <div className="model-panel relative flex flex-col items-center px-16 py-4 text-center">
-        <div className="absolute left-0 top-4">
+        <div className="absolute left-4 top-4">
           <button
             type="button"
             className="btn btn-neutral relative"
@@ -211,9 +212,24 @@ export default function ModelPanel({
           />
         </div>
       </div>
+      
+      {/* Advanced Parameters Toggle */}
+      {parameters && parameters.length > 0 && (
+        <div className="px-2 mb-4">
+          <button
+            type="button"
+            onClick={() => setShowAdvancedParams(!showAdvancedParams)}
+            className="btn btn-neutral flex w-full items-center justify-center gap-2 px-4 py-2 text-sm"
+          >
+            {showAdvancedParams ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {localize('com_ui_advanced_params')}
+          </button>
+        </div>
+      )}
+      
       {/* Model Parameters */}
-      {parameters && (
-        <div className="h-auto max-w-full overflow-x-hidden p-2">
+      {parameters && showAdvancedParams && (
+        <div className="h-auto max-w-full overflow-x-hidden p-2 mt-2">
           <div className="grid grid-cols-2 gap-4">
             {/* This is the parent element containing all settings */}
             {/* Below is an example of an applied dynamic setting, each be contained by a div with the column span specified */}
@@ -243,14 +259,18 @@ export default function ModelPanel({
         </div>
       )}
       {/* Reset Parameters Button */}
-      <button
-        type="button"
-        onClick={handleResetParameters}
-        className="btn btn-neutral my-1 flex w-full items-center justify-center gap-2 px-4 py-2 text-sm"
-      >
-        <RotateCcw className="h-4 w-4" aria-hidden="true" />
-        {localize('com_ui_reset_var', { 0: localize('com_ui_model_parameters') })}
-      </button>
+      {showAdvancedParams && (
+        <div className="px-2 mt-2">
+          <button
+            type="button"
+            onClick={handleResetParameters}
+            className="btn btn-neutral flex w-full items-center justify-center gap-2 px-4 py-2 text-sm"
+          >
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            {localize('com_ui_reset_var', { 0: localize('com_ui_model_parameters') })}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
