@@ -125,6 +125,16 @@ export default function useSideNavLinks({
       });
     }
 
+    if (interfaceConfig.workflows === true && hasAccessToWorkflows) {
+      links.push({
+        title: 'com_ui_workflows',
+        label: '',
+        icon: Workflow,
+        id: 'workflows',
+        Component: WorkflowsPanel,
+      });
+    }
+
     if (hasAccessToMemories && hasAccessToReadMemories) {
       links.push({
         title: 'com_ui_memories',
@@ -177,16 +187,6 @@ export default function useSideNavLinks({
         icon: Calendar,
         id: 'schedules',
         Component: SchedulesPanel,
-      });
-    }
-
-    if (interfaceConfig.workflows === true && hasAccessToWorkflows) {
-      links.push({
-        title: 'com_ui_workflows',
-        label: '',
-        icon: Workflow,
-        id: 'workflows',
-        Component: WorkflowsPanel,
       });
     }
 
