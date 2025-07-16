@@ -75,7 +75,14 @@ export default function Nav({ links, isCollapsed, resize, defaultActive }: NavPr
                               }}
                             >
                               <link.icon className="mr-2 h-4 w-4" />
-                              {localize(link.title)}
+                              <div className="flex items-center">
+                                {localize(link.title)}
+                                {link.title === 'com_ui_workflows' && (
+                                  <div className="ml-2 rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white shadow-sm">
+                                    Beta
+                                  </div>
+                                )}
+                              </div>
                               {link.label != null && link.label && (
                                 <span
                                   className={cn(
