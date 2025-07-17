@@ -422,16 +422,16 @@ class WorkflowService {
           throw new Error(`Failed to deploy trigger: ${deploymentResult.error}`);
         }
       } else {
-        // Pause trigger when deactivating
-        logger.info(`[WorkflowService] Pausing trigger for workflow ${workflowTask.id}`);
+        // Delete trigger when deactivating
+        logger.info(`[WorkflowService] Deleting trigger for workflow ${workflowTask.id}`);
         
-        const pauseResult = await PipedreamComponents.pauseTrigger(userId, workflowTask.id, true);
+        const deleteResult = await PipedreamComponents.deleteTrigger(userId, workflowTask.id);
         
-        if (pauseResult.success) {
-          logger.info(`[WorkflowService] Successfully paused trigger for workflow ${workflowTask.id}`);
+        if (deleteResult.success) {
+          logger.info(`[WorkflowService] Successfully deleted trigger for workflow ${workflowTask.id}`);
         } else {
-          logger.warn(`[WorkflowService] Failed to pause trigger for workflow ${workflowTask.id}: ${pauseResult.error}`);
-          // Don't throw error for pause failures - workflow can still be deactivated
+          logger.warn(`[WorkflowService] Failed to delete trigger for workflow ${workflowTask.id}: ${deleteResult.error}`);
+          // Don't throw error for delete failures - workflow can still be deactivated
         }
       }
     } catch (error) {

@@ -6,7 +6,7 @@
  * This script inspects deployed triggers from LibreChat's trigger deployment system
  * and provides detailed information about their status, configuration, and events.
  * 
- * Usage: node api/test/trigger-inspector.js [userId]
+ * Usage: node api/test/trigger-inspector.js [userId] [--delete-all]
  */
 
 const path = require('path');
@@ -337,6 +337,71 @@ function getHealthEmoji(health) {
 }
 
 /**
+ * Delete all triggers for a user
+ */
+async function deleteAllTriggers(userId) {
+  console.log('🗑️ DELETING ALL TRIGGERS');
+  console.log('========================');
+  
+  try {
+    // Get all triggers from Pipedream
+    const triggers = await fetchUserTriggers(userId);
+    
+    if (triggers.length === 0) {
+      console.log('✓ No triggers found to delete');
+      return;
+    }
+    
+    console.log(`⚠️  Found ${triggers.length} triggers to delete`);
+    
+    // Delete each trigger
+    const deleteResults = [];
+    for (const trigger of triggers) {
+      console.log(`\n🗑️ Deleting trigger: ${trigger.name} (${trigger.id})`);
+      
+      try {
+        await client.deleteTrigger({
+          id: trigger.id,
+          externalUserId: userId
+        });
+        
+        console.log(`✅ Successfully deleted trigger ${trigger.id}`);
+        deleteResults.push({ id: trigger.id, success: true });
+        
+      } catch (error) {
+        console.error(`❌ Failed to delete trigger ${trigger.id}:`, error.message);
+        deleteResults.push({ id: trigger.id, success: false, error: error.message });
+      }
+    }
+    
+    // Clean up database records
+    console.log('\n🧹 Cleaning up database records...');
+    const dbDeleteResult = await TriggerDeployment.deleteMany({ userId });
+    console.log(`✅ Deleted ${dbDeleteResult.deletedCount} database records`);
+    
+    // Summary
+    const successful = deleteResults.filter(r => r.success).length;
+    const failed = deleteResults.filter(r => !r.success).length;
+    
+    console.log('\n=== DELETE SUMMARY ===');
+    console.log(`✅ Successfully deleted: ${successful}`);
+    console.log(`❌ Failed to delete: ${failed}`);
+    console.log(`🧹 Database records deleted: ${dbDeleteResult.deletedCount}`);
+    
+    if (failed > 0) {
+      console.log('\n❌ Failed deletions:');
+      deleteResults.filter(r => !r.success).forEach(r => {
+        console.log(`   - ${r.id}: ${r.error}`);
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Fatal error during deletion:', error.message);
+    throw error;
+  }
+}
+
+/**
  * Main inspection function
  */
 async function inspectAllTriggers() {
@@ -344,9 +409,10 @@ async function inspectAllTriggers() {
   console.log('===============================');
   
   const userId = process.argv[2];
+  const deleteFlag = process.argv[3];
   
   if (!userId) {
-    console.error('❌ Please provide a user ID: node trigger-inspector.js <userId>');
+    console.error('❌ Please provide a user ID: node trigger-inspector.js <userId> [--delete-all]');
     process.exit(1);
   }
   
@@ -360,6 +426,13 @@ async function inspectAllTriggers() {
     console.log('📁 Connecting to MongoDB...');
     await connectDB();
     console.log('✓ Connected to database');
+    
+    // Check if delete-all flag is provided
+    if (deleteFlag === '--delete-all') {
+      await deleteAllTriggers(userId);
+      return;
+    }
+    
     // 1. Compare database with Pipedream
     await compareDatabaseWithPipedream(userId);
     
@@ -402,5 +475,6 @@ module.exports = {
   inspectAllTriggers,
   inspectTrigger,
   testTriggerHealth,
-  fetchUserTriggers
+  fetchUserTriggers,
+  deleteAllTriggers
 };
