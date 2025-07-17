@@ -8,7 +8,6 @@ import {
   User,
   Clock,
   Zap,
-  Settings,
   Save,
   Trash2,
   Play,
@@ -25,16 +24,18 @@ import {
   Mail,
   FileText,
   Activity,
+  Info,
 } from 'lucide-react';
 import { EModelEndpoint } from 'librechat-data-provider';
 import type { TMessage } from 'librechat-data-provider';
 import type { OptionWithIcon } from '~/common';
 import ControlCombobox from '~/components/ui/ControlCombobox';
 import { HoverCard, HoverCardPortal, HoverCardContent, HoverCardTrigger } from '~/components/ui';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '~/components/ui';
 import MessageIcon from '~/components/Share/MessageIcon';
 import { CircleHelpIcon, Spinner } from '~/components/svg';
 import { useAgentsMapContext } from '~/Providers';
-import { useLocalize, useMediaQuery } from '~/hooks';
+import { useLocalize, useMediaQuery, useAuthContext } from '~/hooks';
 import { ESide } from '~/common';
 import {
   useDeleteWorkflowMutation,
@@ -140,10 +141,7 @@ const parseCronExpression = (cron: string): { type: string; time: string; days: 
 const BASIC_TRIGGER_OPTIONS = [
   { value: 'manual', label: 'Manual', icon: <User size={16} />, disabled: false },
   { value: 'schedule', label: 'Schedule', icon: <Calendar size={16} />, disabled: false },
-  { value: 'webhook', label: 'Webhook', icon: <Zap size={16} />, disabled: true },
-  { value: 'email', label: 'Email', icon: <Mail size={16} />, disabled: true },
-  { value: 'event', label: 'Event', icon: <Clock size={16} />, disabled: true },
-  { value: 'app', label: 'App (Coming Soon)', icon: <Activity size={16} />, disabled: true },
+  { value: 'app', label: 'App', icon: <Activity size={16} />, disabled: false },
 ];
 
 // Category icons for triggers
@@ -180,6 +178,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
   const [triggerSearchTerm, setTriggerSearchTerm] = useState('');
   const [showTriggerDetails, setShowTriggerDetails] = useState(false);
   const [triggerParameters, setTriggerParameters] = useState<Record<string, unknown>>({});
+  const [showRequestTriggerModal, setShowRequestTriggerModal] = useState(false);
   
   const [steps, setSteps] = useState<WorkflowStep[]>([]);
   const [newStepAgentId, setNewStepAgentId] = useState('');
@@ -414,11 +413,22 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
 
   // Create trigger options with clean basic options
   const triggerOptions = useMemo(() => {
-    return BASIC_TRIGGER_OPTIONS.map((option) => ({
-      ...option,
-      icon: option.icon,
-    }));
-  }, []);
+    return BASIC_TRIGGER_OPTIONS.map((option) => {
+      if (option.value === 'app' && triggerType === 'app' && selectedAppSlug) {
+        // When an app is selected, show a deselect option
+        return {
+          ...option,
+          label: 'App',
+          value: 'deselect-app',
+          icon: option.icon,
+        };
+      }
+      return {
+        ...option,
+        icon: option.icon,
+      };
+    });
+  }, [triggerType, selectedAppSlug]);
 
   // Filter app triggers based on search
   const filteredAppTriggers = useMemo(() => {
@@ -459,12 +469,22 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
 
   // Handle trigger type selection
   const handleTriggerTypeChange = (value: string) => {
-    setTriggerType(value as any);
-    if (value !== 'app') {
-      // Clear app-specific state when switching away from app triggers
+    if (value === 'deselect-app') {
+      // Handle app deselection - stay in app mode but clear selected app
       setSelectedAppSlug('');
       setSelectedTrigger(null);
       setTriggerParameters({});
+      // Don't change trigger type, keep it as 'app'
+    } else {
+      // Always set the trigger type first
+      setTriggerType(value as any);
+      
+      if (value !== 'app') {
+        // Clear app-specific state when switching away from app triggers
+        setSelectedAppSlug('');
+        setSelectedTrigger(null);
+        setTriggerParameters({});
+      }
     }
   };
 
@@ -873,9 +893,10 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex h-full w-full items-center justify-center bg-black/20 backdrop-blur-sm sm:relative sm:inset-auto sm:z-auto sm:h-full sm:w-full sm:bg-transparent sm:backdrop-blur-none">
-      {/* Main Container - Full width on mobile, full height on desktop */}
-      <div className="flex h-full w-full flex-col overflow-hidden border-0 border-border-medium bg-surface-primary text-xl text-text-primary shadow-xl transition-all duration-300 ease-in-out sm:border">
+    <>
+      <div className="fixed inset-0 z-50 flex h-full w-full items-center justify-center bg-black/20 backdrop-blur-sm sm:relative sm:inset-auto sm:z-auto sm:h-full sm:w-full sm:bg-transparent sm:backdrop-blur-none">
+        {/* Main Container - Full width on mobile, full height on desktop */}
+        <div className="flex h-full w-full flex-col overflow-hidden border-0 border-border-medium bg-surface-primary text-xl text-text-primary shadow-xl transition-all duration-300 ease-in-out sm:border">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border-medium bg-surface-primary-alt p-2 sm:p-3">
           {/* Left: Close button */}
@@ -1124,23 +1145,36 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                           ariaLabel="Select app"
                           selectedValue={selectedAppSlug}
                           setValue={(appSlug) => {
-                            setSelectedAppSlug(appSlug);
-                            setSelectedTrigger(null); // Clear selected trigger when app changes
-                            setTriggerParameters({}); // Clear trigger parameters when app changes
+                            if (appSlug === 'request-other-app') {
+                              setShowRequestTriggerModal(true);
+                            } else {
+                              setSelectedAppSlug(appSlug);
+                              setSelectedTrigger(null); // Clear selected trigger when app changes
+                              setTriggerParameters({}); // Clear trigger parameters when app changes
+                            }
                           }}
                           selectPlaceholder="Select app"
                           searchPlaceholder="Search apps"
-                          items={availableIntegrations
-                            .filter(integration => integration.isActive && integration.appSlug === 'gmail')
-                            .map(integration => ({
-                              label: integration.appName,
-                              value: integration.appSlug,
-                              icon: integration.appIcon ? (
-                                <img src={integration.appIcon} alt={integration.appName} className="w-4 h-4" />
-                              ) : (
-                                <Activity size={16} />
-                              ),
-                            }))}
+                          items={[
+                            // Available integrations
+                            ...availableIntegrations
+                              .filter(integration => integration.isActive && integration.appSlug === 'gmail')
+                              .map(integration => ({
+                                label: integration.appName,
+                                value: integration.appSlug,
+                                icon: integration.appIcon ? (
+                                  <img src={integration.appIcon} alt={integration.appName} className="w-4 h-4" />
+                                ) : (
+                                  <Activity size={16} />
+                                ),
+                              })),
+                            // Request other app trigger option
+                            {
+                              label: 'Request Other App Trigger',
+                              value: 'request-other-app',
+                              icon: <PlusCircle size={16} />,
+                            }
+                          ]}
                           displayValue=""
                           SelectIcon={<Search size={16} className="text-text-secondary" />}
                           className="h-8 w-full border-border-heavy text-sm sm:h-10"
@@ -1149,37 +1183,6 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        {/* Selected App Header */}
-                        <div className="flex items-center justify-between p-3 bg-surface-secondary rounded-lg border border-border-light">
-                          <div className="flex items-center gap-2">
-                            {(() => {
-                              const integration = availableIntegrations.find(i => i.appSlug === selectedAppSlug);
-                              return (
-                                <>
-                                  {integration?.appIcon ? (
-                                    <img src={integration.appIcon} alt={integration.appName} className="w-5 h-5" />
-                                  ) : (
-                                    <Activity size={20} />
-                                  )}
-                                  <span className="font-medium text-text-primary">{integration?.appName}</span>
-                                </>
-                              );
-                            })()}
-                          </div>
-                          <button
-                            onClick={() => {
-                              setSelectedAppSlug('');
-                              setSelectedTrigger(null);
-                              setTriggerParameters({});
-                            }}
-                            disabled={isTesting}
-                            className="text-text-secondary hover:text-text-primary p-1 rounded"
-                            title="Change app"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-
                         {/* Trigger Selection */}
                         <div>
                           <label className="block text-sm font-medium text-text-primary mb-2">
@@ -1204,84 +1207,103 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                               icon: TRIGGER_CATEGORY_ICONS[trigger.category || 'other'] || <Activity size={16} />,
                             }))}
                             displayValue={selectedTrigger?.name || ''}
-                            SelectIcon={selectedTrigger?.configurable_props && <Settings size={16} className="text-text-secondary" />}
+                            SelectIcon={selectedTrigger && (
+                              <HoverCard>
+                                <HoverCardTrigger asChild>
+                                  <button 
+                                    type="button" 
+                                    className="text-text-secondary hover:text-text-primary"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Info size={14} />
+                                  </button>
+                                </HoverCardTrigger>
+                                <HoverCardPortal>
+                                  <HoverCardContent className="w-80 p-4">
+                                    <div className="space-y-3">
+                                      <h4 className="text-sm font-semibold text-text-primary">{selectedTrigger.name}</h4>
+                                      <p className="text-sm text-text-secondary">{selectedTrigger.description || 'No description available'}</p>
+                                      
+                                      {/* Show trigger category */}
+                                      {selectedTrigger.category && (
+                                        <div className="text-xs text-text-secondary">
+                                          <span className="font-medium">Category:</span> {selectedTrigger.category}
+                                        </div>
+                                      )}
+                                      
+                                      {/* Generic configurable properties */}
+                                      {selectedTrigger.configurable_props && selectedTrigger.configurable_props.length > 0 && (
+                                        <div className="text-xs text-text-secondary">
+                                          <p className="font-medium">Configurable properties:</p>
+                                          <ul className="list-disc list-inside mt-1">
+                                            {selectedTrigger.configurable_props.map((prop: any, index: number) => (
+                                              <li key={index}>{prop.name} ({prop.type})</li>
+                                            ))}
+                                          </ul>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </HoverCardContent>
+                                </HoverCardPortal>
+                              </HoverCard>
+                            )}
                             className="h-8 w-full border-border-heavy text-sm sm:h-10"
                             disabled={isTesting}
                           />
                         </div>
 
-                        {/* Trigger Details */}
-                        {selectedTrigger && (
-                          <div className="space-y-3">
-                            <h4 className="text-sm font-semibold text-text-primary">Trigger Details</h4>
-                            <p className="text-sm text-text-secondary">{selectedTrigger.description || 'No description available'}</p>
-                            
-                            {/* Gmail-specific configuration */}
-                            {selectedAppSlug === 'gmail' && selectedTrigger.key === 'new_email_received' && (
-                              <div className="space-y-3 p-3 bg-surface-secondary rounded-lg border border-border-light">
-                                <h5 className="text-sm font-medium text-text-primary">Configure Email Filter</h5>
-                                <div>
-                                  <label className="block text-sm font-medium text-text-primary mb-2">
-                                    Filter by sender email (optional)
-                                  </label>
-                                  <input
-                                    type="email"
-                                    value={triggerParameters.fromEmail as string || ''}
-                                    onChange={(e) => setTriggerParameters(prev => ({ ...prev, fromEmail: e.target.value }))}
-                                    disabled={isTesting}
-                                    className={`w-full rounded-md border border-border-heavy bg-surface-primary text-text-primary p-2 text-sm focus:border-blue-500 focus:outline-none ${
-                                      isTesting ? 'opacity-50 cursor-not-allowed' : ''
-                                    }`}
-                                    placeholder="example@domain.com"
-                                  />
-                                  <p className="text-xs text-text-secondary mt-1">
-                                    Only trigger when emails are received from this address. Leave empty to trigger on all emails.
-                                  </p>
-                                </div>
-                                <div>
-                                  <label className="block text-sm font-medium text-text-primary mb-2">
-                                    Subject contains (optional)
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={triggerParameters.subjectFilter as string || ''}
-                                    onChange={(e) => setTriggerParameters(prev => ({ ...prev, subjectFilter: e.target.value }))}
-                                    disabled={isTesting}
-                                    className={`w-full rounded-md border border-border-heavy bg-surface-primary text-text-primary p-2 text-sm focus:border-blue-500 focus:outline-none ${
-                                      isTesting ? 'opacity-50 cursor-not-allowed' : ''
-                                    }`}
-                                    placeholder="Order confirmation"
-                                  />
-                                  <p className="text-xs text-text-secondary mt-1">
-                                    Only trigger when the email subject contains this text.
-                                  </p>
-                                </div>
-                                <div>
-                                  <label className="flex items-center space-x-2">
-                                    <input
-                                      type="checkbox"
-                                      checked={triggerParameters.markAsRead as boolean || false}
-                                      onChange={(e) => setTriggerParameters(prev => ({ ...prev, markAsRead: e.target.checked }))}
-                                      disabled={isTesting}
-                                      className="rounded border-border-heavy"
-                                    />
-                                    <span className="text-sm text-text-primary">Mark emails as read after processing</span>
-                                  </label>
-                                </div>
-                              </div>
-                            )}
-                            
-                            {/* Generic configurable properties for other triggers */}
-                            {selectedTrigger.configurable_props && selectedTrigger.configurable_props.length > 0 && !(selectedAppSlug === 'gmail' && selectedTrigger.key === 'new_email_received') && (
-                              <div className="mt-2">
-                                <h5 className="text-xs font-medium text-text-secondary">Configurable Properties:</h5>
-                                <ul className="list-disc list-inside text-xs text-text-secondary">
-                                  {selectedTrigger.configurable_props.map((prop: any, index: number) => (
-                                    <li key={index}>{prop.name}: {prop.type}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
+                        {/* Gmail-specific configuration */}
+                        {selectedAppSlug === 'gmail' && selectedTrigger?.key === 'new_email_received' && (
+                          <div className="space-y-3 p-3 bg-surface-secondary rounded-lg border border-border-light">
+                            <h5 className="text-sm font-medium text-text-primary">Configure Email Filter</h5>
+                            <div>
+                              <label className="block text-sm font-medium text-text-primary mb-2">
+                                Filter by sender email (optional)
+                              </label>
+                              <input
+                                type="email"
+                                value={triggerParameters.fromEmail as string || ''}
+                                onChange={(e) => setTriggerParameters(prev => ({ ...prev, fromEmail: e.target.value }))}
+                                disabled={isTesting}
+                                className={`w-full rounded-md border border-border-heavy bg-surface-primary text-text-primary p-2 text-sm focus:border-blue-500 focus:outline-none ${
+                                  isTesting ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
+                                placeholder="example@domain.com"
+                              />
+                              <p className="text-xs text-text-secondary mt-1">
+                                Only trigger when emails are received from this address. Leave empty to trigger on all emails.
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-text-primary mb-2">
+                                Subject contains (optional)
+                              </label>
+                              <input
+                                type="text"
+                                value={triggerParameters.subjectFilter as string || ''}
+                                onChange={(e) => setTriggerParameters(prev => ({ ...prev, subjectFilter: e.target.value }))}
+                                disabled={isTesting}
+                                className={`w-full rounded-md border border-border-heavy bg-surface-primary text-text-primary p-2 text-sm focus:border-blue-500 focus:outline-none ${
+                                  isTesting ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
+                                placeholder="Order confirmation"
+                              />
+                              <p className="text-xs text-text-secondary mt-1">
+                                Only trigger when the email subject contains this text.
+                              </p>
+                            </div>
+                            <div>
+                              <label className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  checked={triggerParameters.markAsRead as boolean || false}
+                                  onChange={(e) => setTriggerParameters(prev => ({ ...prev, markAsRead: e.target.checked }))}
+                                  disabled={isTesting}
+                                  className="rounded border-border-heavy"
+                                />
+                                <span className="text-sm text-text-primary">Mark emails as read after processing</span>
+                              </label>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1722,7 +1744,131 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
         </div>
       </div>
     </div>
+      
+      {/* Request Other App Trigger Modal */}
+      <RequestTriggerModal
+        open={showRequestTriggerModal}
+        onOpenChange={setShowRequestTriggerModal}
+      />
+    </>
   );
 };
+
+// Request Trigger Modal Component
+function RequestTriggerModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { user } = useAuthContext();
+  const { showToast } = useToastContext();
+  const [appName, setAppName] = useState('');
+  const [description, setDescription] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!appName.trim()) {
+      showToast({
+        message: 'Please enter the app name',
+        status: 'error',
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch('/api/enterprise-contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          feedbackType: 'general',
+          additionalInfo: `App Trigger Request\n\nApp: ${appName}\n\nDescription: ${description}`,
+          userId: user?.id,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to submit request');
+      }
+
+      showToast({
+        message: 'Thank you for your request! We will review it and get back to you.',
+        status: 'success',
+      });
+
+      setAppName('');
+      setDescription('');
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error submitting request:', error);
+      showToast({
+        message: error instanceof Error ? error.message : 'Failed to submit request',
+        status: 'error',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (!isSubmitting) {
+      setAppName('');
+      setDescription('');
+      onOpenChange(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader className="px-6 pt-6">
+          <DialogTitle>Request App Trigger</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 px-6 pb-6">
+          <div>
+            <label htmlFor="app-name" className="mb-2 block text-sm font-medium text-text-primary">
+              App Name *
+            </label>
+            <input
+              id="app-name"
+              type="text"
+              value={appName}
+              onChange={(e) => setAppName(e.target.value)}
+              placeholder="e.g., Slack, Notion, GitHub"
+              className="w-full rounded-md border border-border-medium bg-surface-primary px-3 py-2 text-text-primary placeholder-text-secondary focus:border-border-heavy focus:outline-none focus:ring-1 focus:ring-border-heavy"
+              disabled={isSubmitting}
+            />
+          </div>
+          <div>
+            <label htmlFor="description" className="mb-2 block text-sm font-medium text-text-primary">
+              Description (optional)
+            </label>
+            <textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Tell us what trigger you need and how you'd like to use it..."
+              rows={4}
+              className="w-full resize-none rounded-md border border-border-medium bg-surface-primary px-3 py-2 text-text-primary placeholder-text-secondary focus:border-border-heavy focus:outline-none focus:ring-1 focus:ring-border-heavy"
+              disabled={isSubmitting}
+            />
+          </div>
+          <div className="flex justify-center pt-4">
+            <button
+              type="submit"
+              disabled={isSubmitting || !appName.trim()}
+              className="btn btn-primary"
+            >
+              {isSubmitting ? 'Submitting...' : 'Submit Request'}
+            </button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default WorkflowBuilder;
