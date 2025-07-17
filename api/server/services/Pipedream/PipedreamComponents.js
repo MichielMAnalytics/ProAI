@@ -684,12 +684,20 @@ class PipedreamComponents {
         [appSlug]: {
           authProvisionId: userIntegration.credentials.authProvisionId
         },
-        // Configure for real-time webhook mode for instant email processing
-        triggerType: "webhook",
+        // Use polling mode (default) - much simpler than webhook mode
+        // triggerType: "polling", // This is the default, so we don't need to specify it
+        
+        // Configure polling frequency - check every 2 minutes for near real-time
+        timer: {
+          intervalSeconds: 120  // 2 minutes - good balance between responsiveness and API limits
+        },
+        
         // Enhanced payload processing for LLMs
         withTextPayload: true,
+        
         // Default to INBOX monitoring
         labels: ["INBOX"],
+        
         // Include user-configured parameters (can override defaults)
         ...configuredProps
       };
@@ -701,13 +709,6 @@ class PipedreamComponents {
         webhookUrl: webhookUrl,
       };
 
-      console.log('=== DEPLOYMENT DEBUG ===');
-      console.log('deploymentProps:', deploymentProps);
-      console.log('deploymentPayload:', deploymentPayload);
-      console.log('componentId:', componentId);
-      console.log('userId:', userId);
-      console.log('appSlug:', appSlug, 'triggerKey:', triggerKey);
-      console.log('========================');
       
       logger.info(`PipedreamComponents: Component ID being used: ${componentId}`);
       logger.info(`PipedreamComponents: External user ID: ${userId}`);
@@ -718,11 +719,6 @@ class PipedreamComponents {
       let deploymentResult;
       try {
         deploymentResult = await client.deployTrigger(deploymentPayload);
-        console.log('=== DEPLOYMENT RESULT ===');
-        console.log('deploymentResult:', deploymentResult);
-        console.log('type:', typeof deploymentResult);
-        console.log('keys:', deploymentResult ? Object.keys(deploymentResult) : 'N/A');
-        console.log('========================');
         logger.info(`PipedreamComponents: Deployment result received`);
       } catch (deployError) {
         logger.error(`PipedreamComponents: Deployment API call failed:`, {
@@ -750,9 +746,6 @@ class PipedreamComponents {
         throw new Error('Pipedream deployment returned invalid response - missing deployment ID');
       }
       
-      console.log('=== DEPLOYMENT SUCCESS ===');
-      console.log('Extracted deployment ID:', deploymentId);
-      console.log('=========================');
 
       // Store trigger deployment info in database
       await this.storeTriggerDeployment({

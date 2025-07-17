@@ -67,7 +67,27 @@ class SchedulerExecutionService {
    */
   async getReadyTasks() {
     try {
-      return await getReadySchedulerTasks();
+      const allReadyTasks = await getReadySchedulerTasks();
+      
+      // Filter out app-triggered workflows - they should only be executed via webhooks
+      const filteredTasks = allReadyTasks.filter(task => {
+        const triggerType = task.trigger?.type;
+        
+        // Skip app-triggered workflows
+        if (triggerType === 'app') {
+          logger.debug(`[SchedulerExecutionService] Skipping app-triggered workflow: ${task.id} (${task.name})`);
+          return false;
+        }
+        
+        // Allow manual and schedule triggered workflows
+        return true;
+      });
+      
+      if (filteredTasks.length !== allReadyTasks.length) {
+        logger.info(`[SchedulerExecutionService] Filtered ${allReadyTasks.length - filteredTasks.length} app-triggered workflows from execution`);
+      }
+      
+      return filteredTasks;
     } catch (error) {
       logger.error('[SchedulerExecutionService] Error fetching ready tasks:', error);
       return [];
