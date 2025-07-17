@@ -684,6 +684,10 @@ class PipedreamComponents {
         [appSlug]: {
           authProvisionId: userIntegration.credentials.authProvisionId
         },
+        // Configure timer to only process new emails (not historical)
+        timer: {
+          intervalSeconds: 900  // Check every 15 minutes for new emails only
+        },
         // Include user-configured parameters
         ...configuredProps
       };
