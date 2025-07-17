@@ -128,6 +128,7 @@ const startServer = async () => {
   app.use('/api/tags', routes.tags);
   app.use('/api/scheduler', routes.scheduler);
   app.use('/api/workflows', routes.workflows);
+  app.use('/api/webhooks', routes.webhooks);
   app.use('/api/enterprise-contact', routes.enterpriseContact);
   app.use('/api/stripe', routes.stripe);
   app.use('/api/prompt-assist', routes.promptAssist);

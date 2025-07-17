@@ -703,6 +703,125 @@ class SchedulerTaskExecutor {
       return null;
     }
   }
+
+  /**
+   * Execute workflow from webhook trigger
+   * @param {Object} options - Webhook execution options
+   * @param {string} options.workflowId - Workflow ID
+   * @param {string} options.triggerKey - Trigger key
+   * @param {Object} options.triggerEvent - Event data from webhook
+   * @param {string} options.userId - User ID
+   * @param {string} options.deploymentId - Deployment ID
+   * @returns {Promise<Object>} Execution result
+   */
+  async executeWorkflowFromWebhook(options) {
+    const { workflowId, triggerKey, triggerEvent, userId, deploymentId } = options;
+    
+    logger.info(`[SchedulerTaskExecutor] Executing workflow ${workflowId} from webhook trigger ${triggerKey}`);
+
+    try {
+      // Get the workflow task from scheduler
+      const { getSchedulerTaskById } = require('~/models/SchedulerTask');
+      const workflowTask = await getSchedulerTaskById(workflowId, userId);
+      
+      if (!workflowTask) {
+        throw new Error(`Workflow ${workflowId} not found`);
+      }
+
+      if (workflowTask.type !== 'workflow') {
+        throw new Error(`Task ${workflowId} is not a workflow`);
+      }
+
+      if (!workflowTask.enabled) {
+        throw new Error(`Workflow ${workflowId} is not enabled`);
+      }
+
+      // Create execution record
+      const executionId = `exec_${workflowId}_${Date.now()}`;
+      const execution = await createSchedulerExecution({
+        id: executionId,
+        task_id: workflowId,
+        user: userId,
+        status: 'running',
+        start_time: new Date(),
+        context: {
+          triggerType: 'webhook',
+          triggerKey,
+          triggerEvent,
+          deploymentId,
+          workflowName: workflowTask.name,
+        },
+      });
+
+      // Execute the workflow using the WorkflowExecutor
+      const WorkflowExecutor = require('~/server/services/Workflows/WorkflowExecutor');
+      const workflowExecutor = WorkflowExecutor.getInstance();
+
+      // Convert scheduler task to workflow format
+      const WorkflowService = require('~/server/services/Workflows/WorkflowService');
+      const workflowService = new WorkflowService();
+      const workflow = workflowService.schedulerTaskToWorkflow(workflowTask);
+
+      // Create execution context with trigger event data (include memory config like cron execution)
+      const config = await getCustomConfig();
+      const executionContext = {
+        trigger: {
+          type: 'webhook',
+          key: triggerKey,
+          event: triggerEvent,
+          deploymentId,
+        },
+        isTest: false,
+        memoryConfig: config?.memory || {},
+        agentsConfig: config?.endpoints?.agents || {},
+      };
+
+      // Load full user object for workflow execution (required for memory loading)
+      const user = await User.findById(userId).lean();
+      if (!user) {
+        throw new Error(`User ${userId} not found`);
+      }
+
+      // Execute the workflow (user parameter expects user ID string, not user object)
+      const result = await workflowExecutor.executeWorkflow(
+        workflow,
+        { id: executionId, user: user._id.toString() },
+        executionContext
+      );
+
+      // Update execution record with success
+      await updateSchedulerExecution(executionId, userId, {
+        status: 'completed',
+        end_time: new Date(),
+        result: result.success ? 'success' : 'failed',
+        output: result.output || JSON.stringify(result),
+        error: result.error || null,
+      });
+
+      logger.info(`[SchedulerTaskExecutor] Webhook execution completed for workflow ${workflowId}`);
+      
+      return {
+        success: true,
+        executionId,
+        workflowId,
+        result: result.output || result,
+      };
+
+    } catch (error) {
+      logger.error(`[SchedulerTaskExecutor] Webhook execution failed for workflow ${workflowId}:`, error);
+      
+      // Update execution record with failure
+      const executionId = `exec_${workflowId}_${Date.now()}`;
+      await updateSchedulerExecution(executionId, userId, {
+        status: 'failed',
+        end_time: new Date(),
+        result: 'failed',
+        error: error.message,
+      });
+
+      throw error;
+    }
+  }
 }
 
 module.exports = SchedulerTaskExecutor;

@@ -854,7 +854,14 @@ export function getAppDetails(appSlug: string): Promise<t.TAppDetails> {
 }
 
 export function getAppComponents(appSlug: string, type?: string): Promise<t.TAppComponents> {
-  return request.get(endpoints.appComponents(appSlug, type));
+  return request.get(endpoints.appComponents(appSlug, type)).then((response: any) => {
+    // Handle wrapped response format from API
+    if (response && response.data && typeof response.data === 'object') {
+      return response.data;
+    }
+    // Fallback to direct response if not wrapped
+    return response;
+  });
 }
 
 export function configureComponent(

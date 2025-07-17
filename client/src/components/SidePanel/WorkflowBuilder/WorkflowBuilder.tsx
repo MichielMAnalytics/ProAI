@@ -20,6 +20,11 @@ import {
   ChevronRight,
   ChevronUp,
   BarChart3,
+  Search,
+  Webhook,
+  Mail,
+  FileText,
+  Activity,
 } from 'lucide-react';
 import { EModelEndpoint } from 'librechat-data-provider';
 import type { TMessage } from 'librechat-data-provider';
@@ -40,6 +45,8 @@ import {
   useCreateWorkflowMutation,
   useUpdateWorkflowMutation,
   useLatestWorkflowExecutionQuery,
+  useAvailableIntegrationsQuery,
+  useAppTriggersQuery,
 } from '~/data-provider';
 import { NotificationSeverity } from '~/common';
 import { useToastContext } from '~/Providers';
@@ -58,14 +65,27 @@ interface WorkflowStep {
 }
 
 interface WorkflowTrigger {
-  type: 'manual' | 'schedule' | 'webhook' | 'email' | 'event';
+  type: 'manual' | 'schedule' | 'webhook' | 'email' | 'event' | 'app';
   config: {
     schedule?: string;
     webhookUrl?: string;
     emailAddress?: string;
     eventType?: string;
+    appSlug?: string;
+    triggerKey?: string;
+    triggerConfig?: Record<string, unknown>;
     parameters?: Record<string, unknown>;
   };
+}
+
+interface AppTrigger {
+  key: string;
+  name: string;
+  description?: string;
+  version: string;
+  type?: 'action' | 'trigger';
+  configurable_props?: Array<any>;
+  category?: string;
 }
 
 interface WorkflowBuilderProps {
@@ -117,13 +137,26 @@ const parseCronExpression = (cron: string): { type: string; time: string; days: 
   }
 };
 
-const TRIGGER_OPTIONS = [
+const BASIC_TRIGGER_OPTIONS = [
   { value: 'manual', label: 'Manual', icon: <User size={16} />, disabled: false },
   { value: 'schedule', label: 'Schedule', icon: <Calendar size={16} />, disabled: false },
   { value: 'webhook', label: 'Webhook', icon: <Zap size={16} />, disabled: true },
-  { value: 'email', label: 'Email', icon: <Settings size={16} />, disabled: true },
+  { value: 'email', label: 'Email', icon: <Mail size={16} />, disabled: true },
   { value: 'event', label: 'Event', icon: <Clock size={16} />, disabled: true },
+  { value: 'app', label: 'App (Coming Soon)', icon: <Activity size={16} />, disabled: true },
 ];
+
+// Category icons for triggers
+const TRIGGER_CATEGORY_ICONS: Record<string, React.ReactNode> = {
+  webhook: <Webhook size={16} />,
+  schedule: <Calendar size={16} />,
+  email: <Mail size={16} />,
+  new_item: <PlusCircle size={16} />,
+  item_updated: <RefreshCw size={16} />,
+  item_deleted: <Trash2 size={16} />,
+  file: <FileText size={16} />,
+  other: <Activity size={16} />,
+};
 
 const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: initialWorkflowId }) => {
   const localize = useLocalize();
@@ -133,13 +166,21 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
   const [hideSidePanel, setHideSidePanel] = useRecoilState(store.hideSidePanel);
   const [workflowName, setWorkflowName] = useState('New Workflow');
   const [triggerType, setTriggerType] = useState<
-    'manual' | 'schedule' | 'webhook' | 'email' | 'event'
+    'manual' | 'schedule' | 'webhook' | 'email' | 'event' | 'app'
   >('manual');
   const [scheduleConfig, setScheduleConfig] = useState('');
   const [scheduleType, setScheduleType] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('daily');
   const [scheduleTime, setScheduleTime] = useState('09:00');
   const [scheduleDays, setScheduleDays] = useState<number[]>([1]); // 1 = Monday
   const [scheduleDate, setScheduleDate] = useState(1); // Day of month
+  
+  // App trigger states
+  const [selectedAppSlug, setSelectedAppSlug] = useState<string>('');
+  const [selectedTrigger, setSelectedTrigger] = useState<AppTrigger | null>(null);
+  const [triggerSearchTerm, setTriggerSearchTerm] = useState('');
+  const [showTriggerDetails, setShowTriggerDetails] = useState(false);
+  const [triggerParameters, setTriggerParameters] = useState<Record<string, unknown>>({});
+  
   const [steps, setSteps] = useState<WorkflowStep[]>([]);
   const [newStepAgentId, setNewStepAgentId] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -159,15 +200,38 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
   // Store the original sidebar state when component mounts
   const [originalHideSidePanel] = useState(hideSidePanel);
 
+  // Fetch available integrations for app triggers
+  const { data: availableIntegrations = [], isLoading: isLoadingIntegrations } = useAvailableIntegrationsQuery();
+
+  // Fetch triggers for selected app
+  const { 
+    data: appTriggersData, 
+    isLoading: isLoadingTriggers,
+    error: triggersError,
+    isFetching: isFetchingTriggers
+  } = useAppTriggersQuery(selectedAppSlug, {
+    enabled: !!selectedAppSlug && triggerType === 'app',
+  });
+  
+  // Debug the query state
+  console.log('🔍 Query Debug - selectedAppSlug:', selectedAppSlug);
+  console.log('🔍 Query Debug - triggerType:', triggerType);
+  console.log('🔍 Query Debug - Query enabled:', !!selectedAppSlug && triggerType === 'app');
+  console.log('🔍 Query Debug - isLoading:', isLoadingTriggers);
+  console.log('🔍 Query Debug - isFetching:', isFetchingTriggers);
+  console.log('🔍 Query Debug - error:', triggersError);
+  console.log('🔍 Query Debug - data:', appTriggersData);
+
   // Hide sidebar on mobile when WorkflowBuilder opens
   useEffect(() => {
-    if (isMobile) {
+    // Only hide on very small mobile screens to avoid issues with desktop users
+    if (isMobile && window.innerWidth <= 640) {
       setHideSidePanel(true);
     }
 
     // Restore original sidebar state when component unmounts
     return () => {
-      if (isMobile) {
+      if (isMobile && window.innerWidth <= 640) {
         setHideSidePanel(originalHideSidePanel);
       }
     };
@@ -202,7 +266,6 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
     },
   );
 
-
   // Check if we should show loading state for existing workflows
   const isLoadingExistingWorkflow = currentWorkflowId && !currentWorkflowData;
 
@@ -217,6 +280,13 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
       
       const existingSchedule = currentWorkflowData.trigger?.config?.schedule || '';
       setScheduleConfig(existingSchedule);
+      
+      // Load app trigger data if it's an app trigger
+      if (currentWorkflowData.trigger?.type === 'app') {
+        setSelectedAppSlug(currentWorkflowData.trigger?.config?.appSlug || '');
+        setTriggerParameters(currentWorkflowData.trigger?.config?.parameters || {});
+        // selectedTrigger will be set when appTriggersData is loaded
+      }
       
       // Parse existing cron expression to user-friendly format
       if (existingSchedule && currentWorkflowData.trigger?.type === 'schedule') {
@@ -246,6 +316,18 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
       }
     }
   }, [currentWorkflowData, currentWorkflowId]);
+
+  // Set selected trigger when app triggers data is loaded
+  useEffect(() => {
+    if (appTriggersData?.triggers && currentWorkflowData?.trigger?.config?.triggerKey) {
+      const trigger = appTriggersData.triggers.find(
+        (t: AppTrigger) => t.key === currentWorkflowData.trigger.config.triggerKey
+      );
+      if (trigger) {
+        setSelectedTrigger(trigger as AppTrigger);
+      }
+    }
+  }, [appTriggersData, currentWorkflowData]);
 
   // Use the current workflow data if available, fallback to default values
   const isWorkflowActive = currentWorkflowData?.isActive ?? false;
@@ -328,6 +410,84 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
     if (isActive) return 'active';
     if (isDraft) return 'draft';
     return 'inactive';
+  };
+
+  // Create trigger options with clean basic options
+  const triggerOptions = useMemo(() => {
+    return BASIC_TRIGGER_OPTIONS.map((option) => ({
+      ...option,
+      icon: option.icon,
+    }));
+  }, []);
+
+  // Filter app triggers based on search
+  const filteredAppTriggers = useMemo(() => {
+    console.log('🔍 Debug - Raw appTriggersData:', appTriggersData);
+    console.log('🔍 Debug - appTriggersData.triggers:', appTriggersData?.triggers);
+    console.log('🔍 Debug - Array.isArray(appTriggersData?.triggers):', Array.isArray(appTriggersData?.triggers));
+    
+    if (!appTriggersData?.triggers) {
+      console.log('🔍 Debug - No triggers data, returning empty array');
+      return [];
+    }
+    
+    const triggers = appTriggersData.triggers as AppTrigger[];
+    console.log('🔍 Debug - Mapped triggers:', triggers);
+    console.log('🔍 Debug - Trigger count:', triggers.length);
+    
+    if (!triggerSearchTerm) return triggers;
+    
+    return triggers.filter(trigger =>
+      trigger.name.toLowerCase().includes(triggerSearchTerm.toLowerCase()) ||
+      (trigger.description && trigger.description.toLowerCase().includes(triggerSearchTerm.toLowerCase())) ||
+      (trigger.category && trigger.category.toLowerCase().includes(triggerSearchTerm.toLowerCase()))
+    );
+  }, [appTriggersData, triggerSearchTerm, selectedAppSlug, triggerType]);
+
+  // Group triggers by category
+  const triggersByCategory = useMemo(() => {
+    const grouped: Record<string, AppTrigger[]> = {};
+    filteredAppTriggers.forEach(trigger => {
+      const category = trigger.category || 'other';
+      if (!grouped[category]) {
+        grouped[category] = [];
+      }
+      grouped[category].push(trigger);
+    });
+    return grouped;
+  }, [filteredAppTriggers]);
+
+  // Handle trigger type selection
+  const handleTriggerTypeChange = (value: string) => {
+    setTriggerType(value as any);
+    if (value !== 'app') {
+      // Clear app-specific state when switching away from app triggers
+      setSelectedAppSlug('');
+      setSelectedTrigger(null);
+      setTriggerParameters({});
+    }
+  };
+
+  // Get display value for trigger selector
+  const getTriggerDisplayValue = () => {
+    if (triggerType === 'app' && selectedAppSlug) {
+      const integration = availableIntegrations.find(i => i.appSlug === selectedAppSlug);
+      return integration ? integration.appName : 'App';
+    }
+    return triggerOptions.find((t) => t.value === triggerType)?.label || '';
+  };
+
+  // Get icon for trigger selector
+  const getTriggerIcon = () => {
+    if (triggerType === 'app' && selectedAppSlug) {
+      const integration = availableIntegrations.find(i => i.appSlug === selectedAppSlug);
+      return integration?.appIcon ? (
+        <img src={integration.appIcon} alt={integration.appName} className="w-4 h-4" />
+      ) : (
+        <Activity size={16} />
+      );
+    }
+    return triggerOptions.find((t) => t.value === triggerType)?.icon;
   };
 
   // Workflow management handlers
@@ -505,16 +665,6 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
 
   const getAgentDetails = useCallback((id: string) => agentsMap[id], [agentsMap]);
 
-  const triggerOptions = useMemo(
-    () =>
-      TRIGGER_OPTIONS.map((option) => ({
-        ...option,
-        icon: option.icon,
-      })),
-    [],
-  );
-
-
   const removeStep = useCallback((stepId: string) => {
     setSteps((prev) => {
       const filteredSteps = prev.filter((step) => step.id !== stepId);
@@ -617,6 +767,11 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
               schedule: scheduleType === 'custom' 
                 ? (scheduleConfig || '0 9 * * *') 
                 : generateCronExpression(scheduleType, scheduleTime, scheduleDays, scheduleDate)
+            } : triggerType === 'app' ? {
+              appSlug: selectedAppSlug,
+              triggerKey: selectedTrigger?.key,
+              triggerConfig: selectedTrigger?.configurable_props,
+              parameters: triggerParameters,
             } : {},
           },
           steps: steps.map((step) => ({
@@ -653,6 +808,11 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
               schedule: scheduleType === 'custom' 
                 ? (scheduleConfig || '0 9 * * *') 
                 : generateCronExpression(scheduleType, scheduleTime, scheduleDays, scheduleDate)
+            } : triggerType === 'app' ? {
+              appSlug: selectedAppSlug,
+              triggerKey: selectedTrigger?.key,
+              triggerConfig: selectedTrigger?.configurable_props,
+              parameters: triggerParameters,
             } : {},
           },
           steps: steps.map((step) => ({
@@ -688,7 +848,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
     } finally {
       setIsSaving(false);
     }
-  }, [currentWorkflowId, workflowName, triggerType, scheduleConfig, scheduleType, scheduleTime, scheduleDays, scheduleDate, steps, createMutation, updateMutation, showToast, refetchWorkflow]);
+  }, [currentWorkflowId, workflowName, triggerType, scheduleConfig, scheduleType, scheduleTime, scheduleDays, scheduleDate, steps, createMutation, updateMutation, showToast, refetchWorkflow, selectedAppSlug, selectedTrigger]);
 
   // Update scheduleConfig when user-friendly schedule options change
   useEffect(() => {
@@ -816,18 +976,12 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                   isCollapsed={false}
                   ariaLabel="Select trigger type"
                   selectedValue={triggerType}
-                  setValue={(value) => {
-                    // Prevent selecting disabled trigger types
-                    const selectedOption = TRIGGER_OPTIONS.find(option => option.value === value);
-                    if (selectedOption && !selectedOption.disabled) {
-                      setTriggerType(value as any);
-                    }
-                  }}
+                  setValue={handleTriggerTypeChange}
                   selectPlaceholder="Select trigger type"
                   searchPlaceholder="Search trigger types"
                   items={triggerOptions}
-                  displayValue={triggerOptions.find((t) => t.value === triggerType)?.label || ''}
-                  SelectIcon={triggerOptions.find((t) => t.value === triggerType)?.icon}
+                  displayValue={getTriggerDisplayValue()}
+                  SelectIcon={getTriggerIcon()}
                   className={`h-8 w-full border-border-heavy text-sm sm:h-10 ${
                     isTesting ? 'opacity-50 pointer-events-none' : ''
                   }`}
@@ -954,6 +1108,184 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                       </div>
                     )}
 
+                  </div>
+                )}
+
+                {/* App Trigger Selection */}
+                {triggerType === 'app' && (
+                  <div className="space-y-3">
+                    {!selectedAppSlug ? (
+                      <div>
+                        <label className="block text-sm font-medium text-text-primary mb-2">
+                          Select App
+                        </label>
+                        <ControlCombobox
+                          isCollapsed={false}
+                          ariaLabel="Select app"
+                          selectedValue={selectedAppSlug}
+                          setValue={(appSlug) => {
+                            setSelectedAppSlug(appSlug);
+                            setSelectedTrigger(null); // Clear selected trigger when app changes
+                            setTriggerParameters({}); // Clear trigger parameters when app changes
+                          }}
+                          selectPlaceholder="Select app"
+                          searchPlaceholder="Search apps"
+                          items={availableIntegrations
+                            .filter(integration => integration.isActive && integration.appSlug === 'gmail')
+                            .map(integration => ({
+                              label: integration.appName,
+                              value: integration.appSlug,
+                              icon: integration.appIcon ? (
+                                <img src={integration.appIcon} alt={integration.appName} className="w-4 h-4" />
+                              ) : (
+                                <Activity size={16} />
+                              ),
+                            }))}
+                          displayValue=""
+                          SelectIcon={<Search size={16} className="text-text-secondary" />}
+                          className="h-8 w-full border-border-heavy text-sm sm:h-10"
+                          disabled={isTesting}
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* Selected App Header */}
+                        <div className="flex items-center justify-between p-3 bg-surface-secondary rounded-lg border border-border-light">
+                          <div className="flex items-center gap-2">
+                            {(() => {
+                              const integration = availableIntegrations.find(i => i.appSlug === selectedAppSlug);
+                              return (
+                                <>
+                                  {integration?.appIcon ? (
+                                    <img src={integration.appIcon} alt={integration.appName} className="w-5 h-5" />
+                                  ) : (
+                                    <Activity size={20} />
+                                  )}
+                                  <span className="font-medium text-text-primary">{integration?.appName}</span>
+                                </>
+                              );
+                            })()}
+                          </div>
+                          <button
+                            onClick={() => {
+                              setSelectedAppSlug('');
+                              setSelectedTrigger(null);
+                              setTriggerParameters({});
+                            }}
+                            disabled={isTesting}
+                            className="text-text-secondary hover:text-text-primary p-1 rounded"
+                            title="Change app"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+
+                        {/* Trigger Selection */}
+                        <div>
+                          <label className="block text-sm font-medium text-text-primary mb-2">
+                            Select Trigger
+                          </label>
+                          <ControlCombobox
+                            isCollapsed={false}
+                            ariaLabel="Select trigger"
+                            selectedValue={selectedTrigger?.key || ''}
+                            setValue={(triggerKey) => {
+                              const trigger = appTriggersData?.triggers?.find(t => t.key === triggerKey);
+                              if (trigger) {
+                                setSelectedTrigger(trigger);
+                                setTriggerParameters({}); // Clear parameters when trigger changes
+                              }
+                            }}
+                            selectPlaceholder="Select trigger"
+                            searchPlaceholder="Search triggers"
+                            items={filteredAppTriggers.map(trigger => ({
+                              label: trigger.name,
+                              value: trigger.key,
+                              icon: TRIGGER_CATEGORY_ICONS[trigger.category || 'other'] || <Activity size={16} />,
+                            }))}
+                            displayValue={selectedTrigger?.name || ''}
+                            SelectIcon={selectedTrigger?.configurable_props && <Settings size={16} className="text-text-secondary" />}
+                            className="h-8 w-full border-border-heavy text-sm sm:h-10"
+                            disabled={isTesting}
+                          />
+                        </div>
+
+                        {/* Trigger Details */}
+                        {selectedTrigger && (
+                          <div className="space-y-3">
+                            <h4 className="text-sm font-semibold text-text-primary">Trigger Details</h4>
+                            <p className="text-sm text-text-secondary">{selectedTrigger.description || 'No description available'}</p>
+                            
+                            {/* Gmail-specific configuration */}
+                            {selectedAppSlug === 'gmail' && selectedTrigger.key === 'new_email_received' && (
+                              <div className="space-y-3 p-3 bg-surface-secondary rounded-lg border border-border-light">
+                                <h5 className="text-sm font-medium text-text-primary">Configure Email Filter</h5>
+                                <div>
+                                  <label className="block text-sm font-medium text-text-primary mb-2">
+                                    Filter by sender email (optional)
+                                  </label>
+                                  <input
+                                    type="email"
+                                    value={triggerParameters.fromEmail as string || ''}
+                                    onChange={(e) => setTriggerParameters(prev => ({ ...prev, fromEmail: e.target.value }))}
+                                    disabled={isTesting}
+                                    className={`w-full rounded-md border border-border-heavy bg-surface-primary text-text-primary p-2 text-sm focus:border-blue-500 focus:outline-none ${
+                                      isTesting ? 'opacity-50 cursor-not-allowed' : ''
+                                    }`}
+                                    placeholder="example@domain.com"
+                                  />
+                                  <p className="text-xs text-text-secondary mt-1">
+                                    Only trigger when emails are received from this address. Leave empty to trigger on all emails.
+                                  </p>
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-text-primary mb-2">
+                                    Subject contains (optional)
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={triggerParameters.subjectFilter as string || ''}
+                                    onChange={(e) => setTriggerParameters(prev => ({ ...prev, subjectFilter: e.target.value }))}
+                                    disabled={isTesting}
+                                    className={`w-full rounded-md border border-border-heavy bg-surface-primary text-text-primary p-2 text-sm focus:border-blue-500 focus:outline-none ${
+                                      isTesting ? 'opacity-50 cursor-not-allowed' : ''
+                                    }`}
+                                    placeholder="Order confirmation"
+                                  />
+                                  <p className="text-xs text-text-secondary mt-1">
+                                    Only trigger when the email subject contains this text.
+                                  </p>
+                                </div>
+                                <div>
+                                  <label className="flex items-center space-x-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={triggerParameters.markAsRead as boolean || false}
+                                      onChange={(e) => setTriggerParameters(prev => ({ ...prev, markAsRead: e.target.checked }))}
+                                      disabled={isTesting}
+                                      className="rounded border-border-heavy"
+                                    />
+                                    <span className="text-sm text-text-primary">Mark emails as read after processing</span>
+                                  </label>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Generic configurable properties for other triggers */}
+                            {selectedTrigger.configurable_props && selectedTrigger.configurable_props.length > 0 && !(selectedAppSlug === 'gmail' && selectedTrigger.key === 'new_email_received') && (
+                              <div className="mt-2">
+                                <h5 className="text-xs font-medium text-text-secondary">Configurable Properties:</h5>
+                                <ul className="list-disc list-inside text-xs text-text-secondary">
+                                  {selectedTrigger.configurable_props.map((prop: any, index: number) => (
+                                    <li key={index}>{prop.name}: {prop.type}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
                 </div>

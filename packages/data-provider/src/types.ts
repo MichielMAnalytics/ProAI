@@ -863,12 +863,15 @@ export type TWorkflowStep = {
 };
 
 export type TWorkflowTrigger = {
-  type: 'manual' | 'schedule' | 'webhook' | 'email' | 'event';
+  type: 'manual' | 'schedule' | 'webhook' | 'email' | 'event' | 'app';
   config: {
     schedule?: string; // Cron expression
     webhookUrl?: string;
     emailAddress?: string;
     eventType?: string;
+    appSlug?: string; // For app triggers
+    triggerKey?: string; // For app triggers
+    triggerConfig?: any; // For app triggers configuration
     parameters?: Record<string, unknown>;
   };
 };

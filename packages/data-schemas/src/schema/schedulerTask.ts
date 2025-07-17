@@ -21,7 +21,7 @@ export interface ISchedulerTask extends Document {
   deleted_at?: Date;
   deleted_by?: Types.ObjectId;
   trigger?: {
-    type: 'manual' | 'schedule' | 'webhook' | 'email' | 'event';
+    type: 'manual' | 'schedule' | 'webhook' | 'email' | 'event' | 'app';
     config: {
       schedule?: string;
       webhookUrl?: string;
@@ -72,7 +72,7 @@ const schedulerTaskSchema: Schema<ISchedulerTask> = new Schema(
     trigger: {
       type: {
         type: String,
-        enum: ['manual', 'schedule', 'webhook', 'email', 'event'],
+        enum: ['manual', 'schedule', 'webhook', 'email', 'event', 'app'],
         required: true,
       },
       config: {

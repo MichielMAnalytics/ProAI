@@ -47,6 +47,17 @@ const {
 const UserIntegration = require('./UserIntegration');
 const AvailableIntegration = require('./AvailableIntegration');
 const AppComponents = require('./AppComponents');
+const {
+  TriggerDeployment,
+  createTriggerDeployment,
+  getTriggerDeploymentByWorkflow,
+  getTriggerDeploymentsByUser,
+  updateTriggerDeployment,
+  updateTriggerDeploymentStatus,
+  deleteTriggerDeployment,
+  deleteTriggerDeploymentsByUser,
+  getActiveTriggerDeployments,
+} = require('./TriggerDeployment');
 
 module.exports = {
   ...methods,
@@ -101,4 +112,15 @@ module.exports = {
   UserIntegration,
   AvailableIntegration,
   AppComponents,
+  
+  // Trigger deployment models
+  TriggerDeployment,
+  createTriggerDeployment,
+  getTriggerDeploymentByWorkflow,
+  getTriggerDeploymentsByUser,
+  updateTriggerDeployment,
+  updateTriggerDeploymentStatus,
+  deleteTriggerDeployment,
+  deleteTriggerDeploymentsByUser,
+  getActiveTriggerDeployments,
 };

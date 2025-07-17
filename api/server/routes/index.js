@@ -30,6 +30,7 @@ const user = require('./user');
 const ask = require('./ask');
 const scheduler = require('./scheduler');
 const workflows = require('./workflows');
+const webhooks = require('./webhooks');
 const enterpriseContact = require('./enterpriseContact');
 const stripe = require('./stripe');
 const promptAssist = require('./promptAssist');
@@ -67,6 +68,7 @@ module.exports = {
   staticRoute,
   scheduler,
   workflows,
+  webhooks,
   enterpriseContact,
   stripe,
   promptAssist,

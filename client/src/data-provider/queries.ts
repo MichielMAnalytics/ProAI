@@ -620,6 +620,25 @@ export const useAppDetailsQuery = (
   );
 };
 
+export const useAppTriggersQuery = (
+  appSlug: string,
+  config?: UseQueryOptions<t.TAppComponents>,
+): QueryObserverResult<t.TAppComponents> => {
+  return useQuery<t.TAppComponents>(
+    [QueryKeys.appComponents, appSlug, 'triggers'],
+    () => dataService.getAppComponents(appSlug, 'triggers'),
+    {
+      enabled: !!appSlug,
+      staleTime: 10 * 60 * 1000, // 10 minutes
+      cacheTime: 30 * 60 * 1000, // 30 minutes
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      ...config,
+    },
+  );
+};
+
 export const useAppComponentsQuery = (
   appSlug: string,
   type?: string,

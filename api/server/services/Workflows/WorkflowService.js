@@ -245,6 +245,22 @@ class WorkflowService {
    */
   async deleteWorkflow(workflowId, userId) {
     try {
+      // Get the workflow before deleting to check for triggers
+      const { getSchedulerTaskById } = require('~/models/SchedulerTask');
+      const workflowTask = await getSchedulerTaskById(workflowId, userId);
+      
+      // Clean up trigger deployment if it's an app-based trigger
+      if (workflowTask && workflowTask.trigger && workflowTask.trigger.type === 'app') {
+        try {
+          const PipedreamComponents = require('~/server/services/Pipedream/PipedreamComponents');
+          await PipedreamComponents.deleteTrigger(userId, workflowId);
+          logger.info(`[WorkflowService] Cleaned up trigger deployment for deleted workflow ${workflowId}`);
+        } catch (error) {
+          logger.warn(`[WorkflowService] Failed to clean up trigger deployment for workflow ${workflowId}:`, error.message);
+          // Continue with workflow deletion even if trigger cleanup fails
+        }
+      }
+
       const result = await softDeleteSchedulerTask(workflowId, userId);
       
       if (result) {
@@ -298,13 +314,22 @@ class WorkflowService {
         status: isActive ? 'pending' : 'disabled',
       };
 
+      // First get the current task to check its trigger and schedule
+      const { getSchedulerTaskById } = require('~/models/SchedulerTask');
+      const currentTask = await getSchedulerTaskById(workflowId, userId);
+      
+      if (!currentTask) {
+        throw new Error('Workflow not found');
+      }
+
+      // Handle trigger deployment for app-based triggers
+      if (currentTask.trigger && currentTask.trigger.type === 'app') {
+        await this.handleTriggerDeployment(currentTask, userId, isActive);
+      }
+
       // If activating a workflow, calculate next_run time for scheduled workflows
       if (isActive) {
-        // First get the current task to check its trigger and schedule
-        const { getSchedulerTaskById } = require('~/models/SchedulerTask');
-        const currentTask = await getSchedulerTaskById(workflowId, userId);
-        
-        if (currentTask && currentTask.trigger) {
+        if (currentTask.trigger) {
           const triggerType = currentTask.trigger.type;
           
           // Handle scheduled workflows
@@ -352,6 +377,114 @@ class WorkflowService {
     } catch (error) {
       logger.error(`[WorkflowService] Error toggling workflow:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Handle trigger deployment for app-based triggers
+   * @param {Object} workflowTask - Workflow task from database
+   * @param {string} userId - User ID
+   * @param {boolean} isActive - Whether to activate or deactivate
+   */
+  async handleTriggerDeployment(workflowTask, userId, isActive) {
+    try {
+      const PipedreamComponents = require('~/server/services/Pipedream/PipedreamComponents');
+      
+      if (isActive) {
+        // Deploy trigger when activating
+        logger.info(`[WorkflowService] Deploying trigger for workflow ${workflowTask.id}`);
+        
+        // Get the actual component ID from Pipedream triggers
+        const componentId = await this.getActualComponentId(
+          workflowTask.trigger.config.appSlug, 
+          workflowTask.trigger.config.triggerKey
+        );
+        
+        logger.info(`[WorkflowService] Found component ID: ${componentId} for ${workflowTask.trigger.config.appSlug}:${workflowTask.trigger.config.triggerKey}`);
+        
+        if (!componentId) {
+          throw new Error(`Component not found for ${workflowTask.trigger.config.appSlug}:${workflowTask.trigger.config.triggerKey}`);
+        }
+        
+        const deploymentOptions = {
+          componentId,
+          workflowId: workflowTask.id,
+          configuredProps: workflowTask.trigger.config.parameters || {},
+          appSlug: workflowTask.trigger.config.appSlug,
+          triggerKey: workflowTask.trigger.config.triggerKey,
+        };
+
+        const deploymentResult = await PipedreamComponents.deployTrigger(userId, deploymentOptions);
+        
+        if (deploymentResult.success) {
+          logger.info(`[WorkflowService] Successfully deployed trigger for workflow ${workflowTask.id}`);
+        } else {
+          throw new Error(`Failed to deploy trigger: ${deploymentResult.error}`);
+        }
+      } else {
+        // Pause trigger when deactivating
+        logger.info(`[WorkflowService] Pausing trigger for workflow ${workflowTask.id}`);
+        
+        const pauseResult = await PipedreamComponents.pauseTrigger(userId, workflowTask.id, true);
+        
+        if (pauseResult.success) {
+          logger.info(`[WorkflowService] Successfully paused trigger for workflow ${workflowTask.id}`);
+        } else {
+          logger.warn(`[WorkflowService] Failed to pause trigger for workflow ${workflowTask.id}: ${pauseResult.error}`);
+          // Don't throw error for pause failures - workflow can still be deactivated
+        }
+      }
+    } catch (error) {
+      logger.error(`[WorkflowService] Error handling trigger deployment:`, error);
+      throw new Error(`Trigger deployment failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get actual component ID from Pipedream triggers data
+   * @param {string} appSlug - App slug (e.g., 'gmail')
+   * @param {string} triggerKey - Trigger key (e.g., 'new_email_received')
+   * @returns {Promise<string|null>} Actual component ID or null if not found
+   */
+  async getActualComponentId(appSlug, triggerKey) {
+    try {
+      const PipedreamComponents = require('~/server/services/Pipedream/PipedreamComponents');
+      
+      logger.info(`[WorkflowService] Looking up component ID for ${appSlug}:${triggerKey}`);
+      
+      // Get triggers for the app
+      const appComponents = await PipedreamComponents.getAppComponents(appSlug, 'triggers');
+      
+      logger.info(`[WorkflowService] Found ${appComponents.triggers?.length || 0} triggers for ${appSlug}`);
+      
+      if (!appComponents.triggers || appComponents.triggers.length === 0) {
+        logger.warn(`[WorkflowService] No triggers found for app ${appSlug}`);
+        return null;
+      }
+      
+      // Log all available triggers for debugging
+      logger.info(`[WorkflowService] Available triggers for ${appSlug}:`, 
+        appComponents.triggers.map(t => ({ key: t.key, id: t.id, name: t.name }))
+      );
+      
+      // Find the trigger with matching key
+      const trigger = appComponents.triggers.find(t => t.key === triggerKey);
+      
+      if (!trigger) {
+        logger.warn(`[WorkflowService] Trigger ${triggerKey} not found for app ${appSlug}`);
+        logger.warn(`[WorkflowService] Available trigger keys:`, appComponents.triggers.map(t => t.key));
+        return null;
+      }
+      
+      // Return the actual component ID (could be trigger.id or trigger.key)
+      const componentId = trigger.id || trigger.key;
+      logger.info(`[WorkflowService] Found component ID ${componentId} for ${appSlug}:${triggerKey}`);
+      logger.debug(`[WorkflowService] Full trigger object:`, trigger);
+      
+      return componentId;
+    } catch (error) {
+      logger.error(`[WorkflowService] Error getting component ID for ${appSlug}:${triggerKey}:`, error);
+      return null;
     }
   }
 
