@@ -141,7 +141,7 @@ const parseCronExpression = (cron: string): { type: string; time: string; days: 
 const BASIC_TRIGGER_OPTIONS = [
   { value: 'manual', label: 'Manual', icon: <User size={16} />, disabled: false },
   { value: 'schedule', label: 'Schedule', icon: <Calendar size={16} />, disabled: false },
-  { value: 'app', label: 'App', icon: <Activity size={16} />, disabled: false },
+  { value: 'app', label: 'App (Coming Soon)', icon: <Activity size={16} />, disabled: true },
 ];
 
 // Category icons for triggers
