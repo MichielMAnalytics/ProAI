@@ -1657,7 +1657,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                   {toggleMutation.isLoading ? (
                     <>
                       <RefreshCw className="h-3 w-3 animate-spin sm:h-4 sm:w-4" />
-                      <span>Saving...</span>
+                      <span>Activating...</span>
                     </>
                   ) : isWorkflowActive ? (
                     <>
