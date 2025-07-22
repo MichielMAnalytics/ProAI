@@ -34,6 +34,5 @@ export interface IAgent extends Omit<Document, 'model'> {
   default_prompts?: string[];
   tool_resources?: unknown;
   projectIds?: Types.ObjectId[];
-  originalAgentId?: string;
   versions?: Omit<IAgent, 'versions'>[];
 }

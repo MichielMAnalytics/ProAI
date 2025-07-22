@@ -92,9 +92,6 @@ const agentSchema = new Schema<IAgent>(
       ref: 'Project',
       index: true,
     },
-    originalAgentId: {
-      type: String,
-    },
     versions: {
       type: [Schema.Types.Mixed],
       default: [],
