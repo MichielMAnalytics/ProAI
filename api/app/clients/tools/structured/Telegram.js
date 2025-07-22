@@ -25,17 +25,10 @@ class TelegramSessionPool {
       }
     }
 
-    // Fallback to main session if no pool exists
-    if (this.sessionKeys.length === 0) {
-      const mainSession = getEnvironmentVariable('TELEGRAM_SESSION_STRING');
-      if (mainSession) {
-        this.sessionKeys.push('TELEGRAM_SESSION_STRING');
-        console.log(`📱 Using single session (no pool configured)`);
-      }
-    }
+    // No fallback needed - using numbered session pool system only
 
     if (this.sessionKeys.length === 0) {
-      throw new Error('No Telegram session strings found. Please configure TELEGRAM_SESSION_STRING or TELEGRAM_SESSION_STRING_1, _2, etc.');
+      throw new Error('No Telegram session strings found. Please configure TELEGRAM_SESSION_STRING_1, _2, _3, _4, etc.');
     }
 
     console.log(`🏊 Telegram session pool initialized with ${this.sessionKeys.length} session(s)`);
@@ -50,10 +43,10 @@ class TelegramSessionPool {
     for (const [sessionKey, clientInfo] of this.clients.entries()) {
       if (clientInfo && clientInfo.client && clientInfo.client.connected) {
         clientInfo.lastUsed = Date.now();
-        // Only log on first reuse or after 30 seconds of silence
+        // Only log reuse occasionally to reduce noise
         const now = Date.now();
         if (!this.lastReuseLog || now - this.lastReuseLog > 30000) {
-          console.log(`♻️ Using session: ${sessionKey}`);
+          console.log(`♻️ Reusing session: ${sessionKey}`);
           this.lastReuseLog = now;
         }
         return clientInfo.client;
@@ -61,64 +54,107 @@ class TelegramSessionPool {
     }
 
     // PHASE 2: Wait for any connecting sessions to complete (avoid duplicate connections)
-    for (const [sessionKey, clientInfo] of this.clients.entries()) {
-      if (clientInfo && clientInfo.isConnecting) {
-        console.log(`⏳ Found connecting session ${sessionKey}, waiting for completion...`);
+    const connectingSessions = Array.from(this.clients.entries()).filter(([_, clientInfo]) => 
+      clientInfo && clientInfo.isConnecting
+    );
+    
+    if (connectingSessions.length > 0) {
+      // Wait up to 10 seconds for any connection to complete
+      const maxWaitTime = 10000;
+      const checkInterval = 100;
+      let waitTime = 0;
+      
+      while (waitTime < maxWaitTime) {
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+        waitTime += checkInterval;
         
-        // Wait up to 8 seconds for the connection to complete
-        const maxWaitTime = 8000;
-        const checkInterval = 200;
-        let waitTime = 0;
+        // Check if ANY session has connected successfully
+        for (const [sessionKey, clientInfo] of this.clients.entries()) {
+          if (clientInfo && clientInfo.client && clientInfo.client.connected) {
+            clientInfo.lastUsed = Date.now();
+            return clientInfo.client;
+          }
+        }
         
-        while (waitTime < maxWaitTime) {
-          await new Promise(resolve => setTimeout(resolve, checkInterval));
-          waitTime += checkInterval;
-          
-          const updatedClientInfo = this.clients.get(sessionKey);
-          if (updatedClientInfo && updatedClientInfo.client && updatedClientInfo.client.connected) {
-            updatedClientInfo.lastUsed = Date.now();
-            console.log(`✅ Session ready: ${sessionKey}`);
-            return updatedClientInfo.client;
-          }
-          
-          if (!updatedClientInfo || !updatedClientInfo.isConnecting) {
-            // Connection failed or was cleaned up
-            console.log(`❌ Connection failed for ${sessionKey}, trying next option`);
-            break;
-          }
+        // Check if all connecting sessions have finished (success or failure)
+        const stillConnecting = Array.from(this.clients.entries()).some(([_, clientInfo]) => 
+          clientInfo && clientInfo.isConnecting
+        );
+        
+        if (!stillConnecting) {
+          break;
         }
       }
     }
 
-    // PHASE 3: Create new connection using round-robin (only when no connected clients available)
-    for (let attempt = 0; attempt < this.sessionKeys.length; attempt++) {
+    // PHASE 3: Create new connection with proper locking to prevent AUTH_KEY_DUPLICATED
+    const maxAttempts = this.sessionKeys.length * 2;
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const sessionKey = this.sessionKeys[this.currentIndex];
       this.currentIndex = (this.currentIndex + 1) % this.sessionKeys.length;
 
       try {
         const clientInfo = this.clients.get(sessionKey);
         
-        // Skip if this session is already connecting (avoid race conditions)
-        if (clientInfo && clientInfo.isConnecting) {
-          console.log(`⏭️ Skipping ${sessionKey} (already connecting), trying next...`);
-          continue;
+        // Skip if this session is already connecting or recently failed
+        if (clientInfo && (clientInfo.isConnecting || clientInfo.failedAt)) {
+          // Clear old failures after 30 seconds
+          if (clientInfo.failedAt && Date.now() - clientInfo.failedAt > 30000) {
+            this.clients.delete(sessionKey);
+          } else {
+            continue;
+          }
         }
 
+        // Immediately mark as connecting to prevent race conditions
+        this.clients.set(sessionKey, {
+          client: null,
+          isConnecting: true,
+          lastUsed: Date.now(),
+          failedAt: null
+        });
+
         // Create new client
-        console.log(`🔌 Connecting new session: ${sessionKey}`);
+        console.log(`🔌 Connecting session: ${sessionKey}`);
         const client = await this._createClient(sessionKey);
         
+        // Update with successful connection
         this.clients.set(sessionKey, {
           client,
           isConnecting: false,
-          lastUsed: Date.now()
+          lastUsed: Date.now(),
+          failedAt: null
         });
 
+        // Small delay to ensure connection is fully established for reuse
+        await new Promise(resolve => setTimeout(resolve, 100));
         return client;
 
       } catch (error) {
         console.log(`❌ Failed to create client for ${sessionKey}: ${error.message}`);
-        // Continue to next session in pool
+        
+        // Mark as failed to prevent immediate retry
+        this.clients.set(sessionKey, {
+          client: null,
+          isConnecting: false,
+          lastUsed: Date.now(),
+          failedAt: Date.now()
+        });
+        
+        // For AUTH_KEY_DUPLICATED errors, add extra delay before trying next session
+        if (error.message.includes('AUTH_KEY_DUPLICATED')) {
+          console.log(`🔄 AUTH_KEY_DUPLICATED detected, waiting 2s before next attempt...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // After delay, check if another request has already succeeded
+          for (const [checkSessionKey, checkClientInfo] of this.clients.entries()) {
+            if (checkClientInfo && checkClientInfo.client && checkClientInfo.client.connected) {
+              checkClientInfo.lastUsed = Date.now();
+              return checkClientInfo.client;
+            }
+          }
+        }
       }
     }
 
@@ -126,9 +162,6 @@ class TelegramSessionPool {
   }
 
   static async _createClient(sessionKey) {
-    // Mark as connecting
-    this.clients.set(sessionKey, { client: null, isConnecting: true, lastUsed: Date.now() });
-
     try {
       const sessionString = getEnvironmentVariable(sessionKey);
       if (!sessionString) {
@@ -146,6 +179,8 @@ class TelegramSessionPool {
       const client = new TelegramClient(session, parseInt(apiId), apiHash, {
         connectionRetries: 3,
         floodSleepThreshold: 60,
+        autoReconnect: true,
+        maxConcurrentDownloads: 1,
       });
 
       await client.start({
@@ -167,8 +202,7 @@ class TelegramSessionPool {
       return client;
 
     } catch (error) {
-      // Remove failed connection attempt
-      this.clients.delete(sessionKey);
+      // Don't delete from clients here - let getClient handle failure tracking
       throw error;
     }
   }
@@ -241,11 +275,20 @@ class TelegramChannelFetcher extends Tool {
       );
     }
 
-    // Validate session string is provided
-    if (!this.override && !getEnvironmentVariable('TELEGRAM_SESSION_STRING')) {
-      throw new Error(
-        'Missing TELEGRAM_SESSION_STRING environment variable. Please add your Telegram session string to the .env file.',
-      );
+    // Validate at least one session string is provided
+    if (!this.override) {
+      let hasAnySession = false;
+      for (let i = 1; i <= 10; i++) {
+        if (getEnvironmentVariable(`TELEGRAM_SESSION_STRING_${i}`)) {
+          hasAnySession = true;
+          break;
+        }
+      }
+      if (!hasAnySession) {
+        throw new Error(
+          'Missing Telegram session strings. Please add TELEGRAM_SESSION_STRING_1, _2, etc. to your .env file.',
+        );
+      }
     }
 
     // Rate limiting: track request history per user for burst allowance

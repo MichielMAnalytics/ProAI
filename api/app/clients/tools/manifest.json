@@ -224,9 +224,9 @@
         "description": "Your Telegram API Hash. Get this from <a href='https://my.telegram.org' target='_blank'>my.telegram.org</a> along with your API ID."
       },
       {
-        "authField": "TELEGRAM_SESSION_STRING",
-        "label": "Telegram Session String",
-        "description": "Your Telegram session string from a previously authenticated session. For high-traffic environments, you can configure multiple sessions (TELEGRAM_SESSION_STRING_1, _2, _3, etc.) for load balancing and better concurrency handling."
+        "authField": "TELEGRAM_SESSION_STRING_1",
+        "label": "Telegram Session String 1",
+        "description": "Your first Telegram session string. Configure multiple sessions (TELEGRAM_SESSION_STRING_1, _2, _3, _4, etc.) for load balancing and better concurrency handling in high-traffic environments."
       }
     ]
   }
