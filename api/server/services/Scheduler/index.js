@@ -6,6 +6,7 @@ const SchedulerAgentHandler = require('./SchedulerAgentHandler');
 const SchedulerNotificationManager = require('./SchedulerNotificationManager');
 const SchedulerRetryManager = require('./SchedulerRetryManager');
 const SchedulerService = require('./SchedulerService');
+const schedulerManager = require('./SchedulerManager');
 const { NotificationManager, notificationManager } = require('./SchedulerService');
 
 // Utility modules
@@ -25,6 +26,9 @@ module.exports = {
   SchedulerNotificationManager,
   SchedulerRetryManager,
   SchedulerService,
+
+  // Service manager (singleton)
+  schedulerManager,
 
   // Notification system
   NotificationManager,

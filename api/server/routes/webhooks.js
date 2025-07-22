@@ -1,6 +1,6 @@
 const express = require('express');
 const { logger } = require('~/config');
-const { SchedulerTaskExecutor } = require('~/server/services/Scheduler');
+const { schedulerManager } = require('~/server/services/Scheduler');
 const { TriggerDeployment } = require('~/models');
 
 const router = express.Router();
@@ -96,17 +96,41 @@ router.post('/trigger/:workflowId/:triggerKey', async (req, res) => {
       return res.status(200).json({ message: 'Trigger is not active', status: deployment.status });
     }
 
-    // Execute the workflow via scheduler
-    const executor = new SchedulerTaskExecutor();
-    const result = await executor.executeWorkflowFromWebhook({
-      workflowId,
-      triggerKey,
-      triggerEvent: webhookPayload,
-      userId: deployment.userId,
-      deploymentId: deployment.deploymentId,
-    });
-
-    logger.info(`Webhook execution completed for workflow ${workflowId}:`, result);
+    // Execute the workflow via shared scheduler queue (ensures proper load management)
+    logger.info(`[Webhook] Adding workflow ${workflowId} to scheduler queue for controlled execution`);
+    
+    let result;
+    try {
+      result = await schedulerManager.addWebhookTask({
+        workflowId,
+        triggerKey,
+        triggerEvent: webhookPayload,
+        userId: deployment.userId,
+        deploymentId: deployment.deploymentId,
+      });
+      
+      logger.info(`[Webhook] Workflow ${workflowId} queued successfully:`, {
+        executionId: result?.executionId,
+        success: result?.success,
+      });
+    } catch (queueError) {
+      logger.error(`[Webhook] Failed to add workflow ${workflowId} to scheduler queue:`, queueError);
+      
+      // Fallback to direct execution if scheduler queue fails
+      logger.warn(`[Webhook] Falling back to direct execution for workflow ${workflowId}`);
+      const { SchedulerTaskExecutor } = require('~/server/services/Scheduler');
+      const executor = new SchedulerTaskExecutor();
+      
+      result = await executor.executeWorkflowFromWebhook({
+        workflowId,
+        triggerKey,
+        triggerEvent: webhookPayload,
+        userId: deployment.userId,
+        deploymentId: deployment.deploymentId,
+      });
+      
+      logger.info(`[Webhook] Direct execution completed for workflow ${workflowId}:`, result);
+    }
 
     // Return success response
     res.status(200).json({

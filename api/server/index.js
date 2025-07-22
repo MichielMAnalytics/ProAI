@@ -22,7 +22,7 @@ const AppService = require('./services/AppService');
 const staticCache = require('./utils/staticCache');
 const noIndex = require('./middleware/noIndex');
 const routes = require('./routes');
-const SchedulerExecutionService = require('./services/Scheduler/SchedulerExecutionService');
+const { schedulerManager } = require('./services/Scheduler');
 
 const { PORT, HOST, ALLOW_SOCIAL_LOGIN, DISABLE_COMPRESSION, TRUST_PROXY } = process.env ?? {};
 
@@ -156,13 +156,12 @@ const startServer = async () => {
       logger.info(`Server listening at http://${host == '0.0.0.0' ? 'localhost' : host}:${port}`);
     }
 
-    // Start the scheduler execution service
+    // Initialize the shared scheduler execution service
     try {
-      const schedulerService = new SchedulerExecutionService();
-      schedulerService.startScheduler();
-      logger.info('Scheduler execution service started');
+      await schedulerManager.initialize();
+      logger.info('Shared scheduler execution service started successfully');
     } catch (error) {
-      logger.error('Failed to start scheduler execution service:', error);
+      logger.error('Failed to start shared scheduler execution service:', error);
     }
   });
 };
