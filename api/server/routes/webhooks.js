@@ -68,6 +68,28 @@ router.post('/trigger/:workflowId/:triggerKey', async (req, res) => {
       return res.status(404).json({ error: 'Trigger deployment not found' });
     }
 
+    // Check sender email filtering (before other processing to save resources)
+    const senderFilter = deployment.configuredProps?.fromEmail;
+    if (senderFilter && senderFilter.trim()) {
+      const actualSender = emailDetails.from;
+      logger.info(`Sender filter configured: ${senderFilter}, actual sender: ${actualSender}`);
+      
+      if (actualSender !== senderFilter.trim()) {
+        logger.info(`Skipping email ${emailDetails.messageId} from ${actualSender} - not from allowed sender ${senderFilter}`);
+        return res.status(200).json({
+          success: true,
+          workflowId,
+          message: 'Sender not allowed',
+          configuredSender: senderFilter.trim(),
+          actualSender: actualSender
+        });
+      }
+      
+      logger.info(`Email ${emailDetails.messageId} from ${actualSender} matches sender filter - processing`);
+    } else {
+      logger.info(`No sender filter configured - processing email from ${emailDetails.from}`);
+    }
+
     // Check if trigger is active
     if (deployment.status !== 'deployed' && deployment.status !== 'active') {
       logger.warn(`Trigger for workflow ${workflowId} is not active (status: ${deployment.status})`);

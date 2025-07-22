@@ -1210,13 +1210,12 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                             SelectIcon={selectedTrigger && (
                               <HoverCard>
                                 <HoverCardTrigger asChild>
-                                  <button 
-                                    type="button" 
-                                    className="text-text-secondary hover:text-text-primary"
+                                  <div 
+                                    className="text-text-secondary hover:text-text-primary cursor-pointer"
                                     onClick={(e) => e.stopPropagation()}
                                   >
                                     <Info size={14} />
-                                  </button>
+                                  </div>
                                 </HoverCardTrigger>
                                 <HoverCardPortal>
                                   <HoverCardContent className="w-80 p-4">
@@ -1253,12 +1252,8 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                         </div>
 
                         {/* Gmail-specific configuration */}
-                        {selectedAppSlug === 'gmail' && selectedTrigger?.key === 'new_email_received' && (
+                        {selectedAppSlug === 'gmail' && selectedTrigger?.key === 'gmail-new-email-received' && (
                           <div className="space-y-3 p-3 bg-surface-secondary rounded-lg border border-border-light">
-                            <h5 className="text-sm font-medium text-text-primary">Configure Email Filter</h5>
-                            <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded border border-blue-200">
-                              <strong>Note:</strong> This trigger uses Pipedream's state management to track processed emails and avoid duplicates. It may initially process some recent emails when first activated.
-                            </div>
                             <div>
                               <label className="block text-sm font-medium text-text-primary mb-2">
                                 Filter by sender email (optional)
@@ -1276,36 +1271,6 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                               <p className="text-xs text-text-secondary mt-1">
                                 Only trigger when emails are received from this address. Leave empty to trigger on all emails.
                               </p>
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-text-primary mb-2">
-                                Subject contains (optional)
-                              </label>
-                              <input
-                                type="text"
-                                value={triggerParameters.subjectFilter as string || ''}
-                                onChange={(e) => setTriggerParameters(prev => ({ ...prev, subjectFilter: e.target.value }))}
-                                disabled={isTesting}
-                                className={`w-full rounded-md border border-border-heavy bg-surface-primary text-text-primary p-2 text-sm focus:border-blue-500 focus:outline-none ${
-                                  isTesting ? 'opacity-50 cursor-not-allowed' : ''
-                                }`}
-                                placeholder="Order confirmation"
-                              />
-                              <p className="text-xs text-text-secondary mt-1">
-                                Only trigger when the email subject contains this text.
-                              </p>
-                            </div>
-                            <div>
-                              <label className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  checked={triggerParameters.markAsRead as boolean || false}
-                                  onChange={(e) => setTriggerParameters(prev => ({ ...prev, markAsRead: e.target.checked }))}
-                                  disabled={isTesting}
-                                  className="rounded border-border-heavy"
-                                />
-                                <span className="text-sm text-text-primary">Mark emails as read after processing</span>
-                              </label>
                             </div>
                           </div>
                         )}
