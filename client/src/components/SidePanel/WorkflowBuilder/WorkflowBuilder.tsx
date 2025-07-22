@@ -141,7 +141,7 @@ const parseCronExpression = (cron: string): { type: string; time: string; days: 
 const BASIC_TRIGGER_OPTIONS = [
   { value: 'manual', label: 'Manual', icon: <User size={16} />, disabled: false },
   { value: 'schedule', label: 'Schedule', icon: <Calendar size={16} />, disabled: false },
-  { value: 'app', label: 'App (Coming Soon)', icon: <Activity size={16} />, disabled: true },
+  { value: 'app', label: 'App', icon: <Activity size={16} />, disabled: false },
 ];
 
 // Category icons for triggers
@@ -1256,6 +1256,9 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({ onClose, workflowId: 
                         {selectedAppSlug === 'gmail' && selectedTrigger?.key === 'new_email_received' && (
                           <div className="space-y-3 p-3 bg-surface-secondary rounded-lg border border-border-light">
                             <h5 className="text-sm font-medium text-text-primary">Configure Email Filter</h5>
+                            <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded border border-blue-200">
+                              <strong>Note:</strong> This trigger uses Pipedream's state management to track processed emails and avoid duplicates. It may initially process some recent emails when first activated.
+                            </div>
                             <div>
                               <label className="block text-sm font-medium text-text-primary mb-2">
                                 Filter by sender email (optional)

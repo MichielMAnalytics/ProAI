@@ -677,17 +677,24 @@ class PipedreamComponents {
       // Generate unique webhook URL for this trigger
       const webhookUrl = this.generateWebhookUrl(workflowId, triggerKey);
       
+      logger.info(`PipedreamComponents: Generated webhook URL: ${webhookUrl}`);
+      logger.info(`PipedreamComponents: Webhook URL components - baseUrl: ${process.env.WEBHOOK_BASE_URL || process.env.DOMAIN_SERVER || 'http://localhost:3080'}, workflowId: ${workflowId}, triggerKey: ${triggerKey}`);
       logger.debug(`PipedreamComponents: Deploying trigger ${componentId} with webhook URL: ${webhookUrl}`);
 
       // Prepare configured props according to Pipedream format
       const deploymentProps = {
-        [appSlug]: {
+        // Gmail app connection (required)
+        gmail: {
           authProvisionId: userIntegration.credentials.authProvisionId
         },
-        // Use polling mode (default) - much simpler than webhook mode
-        // triggerType: "polling", // This is the default, so we don't need to specify it
         
-        // Configure polling frequency - check every 2 minutes for near real-time
+        // Database prop for state maintenance - prevents duplicate triggers  
+        db: "$.service.db",
+        
+        // Use polling mode (explicit)
+        triggerType: "polling",
+        
+        // Configure polling frequency with proper timer format
         timer: {
           intervalSeconds: 120  // 2 minutes - good balance between responsiveness and API limits
         },
@@ -695,7 +702,7 @@ class PipedreamComponents {
         // Enhanced payload processing for LLMs
         withTextPayload: true,
         
-        // Default to INBOX monitoring
+        // Default to INBOX monitoring for incoming emails only
         labels: ["INBOX"],
         
         // Include user-configured parameters (can override defaults)
@@ -713,6 +720,7 @@ class PipedreamComponents {
       logger.info(`PipedreamComponents: Component ID being used: ${componentId}`);
       logger.info(`PipedreamComponents: External user ID: ${userId}`);
       logger.info(`PipedreamComponents: App slug: ${appSlug}, Trigger key: ${triggerKey}`);
+      logger.info(`PipedreamComponents: Full deployment payload:`, JSON.stringify(deploymentPayload, null, 2));
 
       // Deploy the trigger using Pipedream Connect API
       logger.info(`PipedreamComponents: Calling client.deployTrigger with payload...`);

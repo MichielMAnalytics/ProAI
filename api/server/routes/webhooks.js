@@ -18,7 +18,38 @@ router.post('/trigger/:workflowId/:triggerKey', async (req, res) => {
   const webhookPayload = req.body;
   
   logger.info(`Webhook received for workflow ${workflowId}, trigger ${triggerKey}`);
-  logger.debug(`Webhook payload:`, webhookPayload);
+  
+  // Extract email details for debugging
+  const emailDetails = {
+    messageId: webhookPayload?.messageId || webhookPayload?.id,
+    subject: webhookPayload?.parsedHeaders?.subject || webhookPayload?.subject,
+    from: webhookPayload?.parsedHeaders?.from?.email || webhookPayload?.from,
+    timestamp: webhookPayload?.parsedHeaders?.date || webhookPayload?.timestamp || webhookPayload?.date,
+    threadId: webhookPayload?.threadId,
+    internalDate: webhookPayload?.internalDate,
+  };
+  
+  logger.info(`Email details: ${JSON.stringify(emailDetails, null, 2)}`);
+  
+  // Filter out old emails (older than 10 minutes) to prevent processing existing emails
+  if (webhookPayload?.internalDate) {
+    const emailTimestamp = parseInt(webhookPayload.internalDate);
+    const currentTime = Date.now();
+    const tenMinutesAgo = currentTime - (10 * 60 * 1000); // 10 minutes in milliseconds
+    
+    if (emailTimestamp < tenMinutesAgo) {
+      logger.info(`Skipping old email ${emailDetails.messageId} from ${new Date(emailTimestamp).toISOString()} (older than 10 minutes)`);
+      return res.status(200).json({
+        success: true,
+        workflowId,
+        message: 'Skipped old email',
+        emailAge: Math.round((currentTime - emailTimestamp) / 60000) + ' minutes old'
+      });
+    }
+  }
+  
+  logger.info(`Webhook headers: ${JSON.stringify(req.headers, null, 2)}`);
+  logger.info(`Full webhook payload: ${JSON.stringify(webhookPayload, null, 2)}`);
 
   try {
     // Validate webhook signature (if configured)
@@ -87,6 +118,28 @@ router.get('/health', (req, res) => {
     status: 'healthy',
     service: 'webhook',
     timestamp: new Date().toISOString(),
+  });
+});
+
+/**
+ * Test webhook endpoint for debugging
+ * 
+ * @route GET /api/webhooks/test/:workflowId/:triggerKey  
+ * @param {string} workflowId - Workflow ID
+ * @param {string} triggerKey - Trigger key
+ * @description Test endpoint to verify webhook URL accessibility
+ */
+router.get('/test/:workflowId/:triggerKey', (req, res) => {
+  const { workflowId, triggerKey } = req.params;
+  logger.info(`Webhook test endpoint accessed for workflow ${workflowId}, trigger ${triggerKey}`);
+  logger.info(`Request URL: ${req.protocol}://${req.get('host')}${req.originalUrl}`);
+  
+  res.status(200).json({
+    message: 'Webhook test endpoint is accessible',
+    workflowId,
+    triggerKey,
+    timestamp: new Date().toISOString(),
+    requestUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
   });
 });
 
