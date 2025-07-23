@@ -29,12 +29,11 @@ const WorkflowsTable: React.FC<WorkflowsTableProps> = ({ workflows }) => {
   const [pageIndex, setPageIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const pageSize = 10;
-  
+
   const WORKFLOW_AGENT_ID = 'agent_mQT-2PApQWxqlveER8Myb';
 
   const filteredWorkflows = workflows.filter(
-    (workflow) =>
-      workflow.name && workflow.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    (workflow) => workflow.name && workflow.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const currentWorkflows = filteredWorkflows.slice(
@@ -68,10 +67,10 @@ const WorkflowsTable: React.FC<WorkflowsTableProps> = ({ workflows }) => {
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
               };
-              
+
               // Navigate to the new conversation with the workflow agent
               navigateToConvo(newConversation);
-              
+
               // Then open the workflow builder for a new workflow (undefined = new workflow)
               setTimeout(() => openWorkflowBuilder(undefined), 100);
             }}

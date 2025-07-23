@@ -1,6 +1,10 @@
 const { logger } = require('~/config');
 const { Constants } = require('librechat-data-provider');
-const { updateSchedulerExecution, optimisticUpdateSchedulerExecution, getSchedulerExecutionById } = require('~/models/SchedulerExecution');
+const {
+  updateSchedulerExecution,
+  optimisticUpdateSchedulerExecution,
+  getSchedulerExecutionById,
+} = require('~/models/SchedulerExecution');
 const { loadAgent } = require('~/models/Agent');
 const { User } = require('~/db/models');
 const { getBufferString } = require('@langchain/core/messages');
@@ -169,12 +173,12 @@ class WorkflowExecutor {
 
     this.runningExecutions = new Map(); // Track running executions
     this.mcpInitialized = new Map(); // Track MCP initialization per user
-    
+
     // Memory cleanup configuration
     this.EXECUTION_TIMEOUT_MS = parseInt(process.env.WORKFLOW_EXECUTION_TIMEOUT) || 30 * 60 * 1000; // 30 minutes
     this.MCP_CACHE_TIMEOUT_MS = parseInt(process.env.MCP_CACHE_TIMEOUT) || 60 * 60 * 1000; // 1 hour
     this.MAX_CONCURRENT_EXECUTIONS = parseInt(process.env.MAX_CONCURRENT_WORKFLOWS) || 50;
-    
+
     // Start memory cleanup interval
     this.startMemoryCleanup();
 
@@ -197,9 +201,12 @@ class WorkflowExecutor {
    */
   startMemoryCleanup() {
     // Clean up every 5 minutes
-    this.cleanupInterval = setInterval(() => {
-      this.performMemoryCleanup();
-    }, 5 * 60 * 1000);
+    this.cleanupInterval = setInterval(
+      () => {
+        this.performMemoryCleanup();
+      },
+      5 * 60 * 1000,
+    );
 
     logger.debug('[WorkflowExecutor] Memory cleanup interval started');
   }
@@ -216,23 +223,25 @@ class WorkflowExecutor {
     for (const [executionId, data] of this.runningExecutions.entries()) {
       const age = now - data.startTime.getTime();
       if (age > this.EXECUTION_TIMEOUT_MS) {
-        logger.warn(`[WorkflowExecutor] Force cleaning up expired execution: ${executionId} (age: ${Math.round(age / 60000)}min)`);
-        
+        logger.warn(
+          `[WorkflowExecutor] Force cleaning up expired execution: ${executionId} (age: ${Math.round(age / 60000)}min)`,
+        );
+
         // Signal abort if possible
         if (data.abortController) {
           data.abortController.abort('Execution timeout - force cleanup');
         }
-        
+
         this.runningExecutions.delete(executionId);
         cleanedExecutions++;
-        
+
         // Update execution status if possible
         try {
           updateSchedulerExecution(executionId, data.userId || 'unknown', {
             status: 'failed',
             end_time: new Date(),
             error: 'Execution timeout - force cleanup',
-          }).catch(err => logger.debug(`Failed to update execution status: ${err.message}`));
+          }).catch((err) => logger.debug(`Failed to update execution status: ${err.message}`));
         } catch (error) {
           // Ignore errors during cleanup
         }
@@ -246,10 +255,12 @@ class WorkflowExecutor {
         cacheEntry.timestamp = now;
         continue;
       }
-      
+
       const age = now - cacheEntry.timestamp;
       if (age > this.MCP_CACHE_TIMEOUT_MS) {
-        logger.debug(`[WorkflowExecutor] Cleaning up expired MCP cache for user: ${userId} (age: ${Math.round(age / 60000)}min)`);
+        logger.debug(
+          `[WorkflowExecutor] Cleaning up expired MCP cache for user: ${userId} (age: ${Math.round(age / 60000)}min)`,
+        );
         this.mcpInitialized.delete(userId);
         cleanedMcpCache++;
       }
@@ -257,7 +268,9 @@ class WorkflowExecutor {
 
     // Log cleanup stats if anything was cleaned
     if (cleanedExecutions > 0 || cleanedMcpCache > 0) {
-      logger.info(`[WorkflowExecutor] Memory cleanup completed: ${cleanedExecutions} executions, ${cleanedMcpCache} MCP cache entries`);
+      logger.info(
+        `[WorkflowExecutor] Memory cleanup completed: ${cleanedExecutions} executions, ${cleanedMcpCache} MCP cache entries`,
+      );
     }
 
     // Log current memory usage
@@ -280,29 +293,30 @@ class WorkflowExecutor {
     };
   }
 
-
   /**
    * Force cleanup of all memory caches (emergency cleanup)
    */
   forceCleanupAll() {
     logger.warn('[WorkflowExecutor] Force cleanup of all caches initiated');
-    
+
     // Abort all running executions
     for (const [executionId, data] of this.runningExecutions.entries()) {
       if (data.abortController) {
         data.abortController.abort('Force cleanup - system maintenance');
       }
     }
-    
+
     const stats = {
       executions: this.runningExecutions.size,
       mcpCache: this.mcpInitialized.size,
     };
-    
+
     this.runningExecutions.clear();
     this.mcpInitialized.clear();
-    
-    logger.warn(`[WorkflowExecutor] Force cleanup completed: ${stats.executions} executions, ${stats.mcpCache} MCP cache entries`);
+
+    logger.warn(
+      `[WorkflowExecutor] Force cleanup completed: ${stats.executions} executions, ${stats.mcpCache} MCP cache entries`,
+    );
     return stats;
   }
 
@@ -353,7 +367,10 @@ class WorkflowExecutor {
       );
       return result;
     } catch (error) {
-      logger.error(`[WorkflowExecutor] Failed to initialize background MCP for user ${userId}:`, error);
+      logger.error(
+        `[WorkflowExecutor] Failed to initialize background MCP for user ${userId}:`,
+        error,
+      );
 
       const errorResult = {
         success: false,
@@ -382,45 +399,66 @@ class WorkflowExecutor {
     const executionId = execution.id;
     const userId = execution.user;
     let executionContext = null; // Initialize here to ensure it's in scope for error handling
-    
+
     // Initialize step messages array with trigger context if user enabled it
     let stepMessages = [];
-    
+
     logger.info(`[WorkflowExecutor] === TRIGGER CONTEXT DEBUG START ===`);
     logger.info(`[WorkflowExecutor] Full context object:`, JSON.stringify(context, null, 2));
-    logger.info(`[WorkflowExecutor] Full workflow.trigger object:`, JSON.stringify(workflow.trigger, null, 2));
+    logger.info(
+      `[WorkflowExecutor] Full workflow.trigger object:`,
+      JSON.stringify(workflow.trigger, null, 2),
+    );
     logger.info(`[WorkflowExecutor] Checking trigger context conditions:`, {
       triggerType: context.trigger?.type,
       triggerKey: context.trigger?.key,
       passTriggerEnabled: workflow.trigger?.config?.parameters?.passTriggerToFirstStep,
       hasEvent: !!context.trigger?.event,
-      eventKeys: context.trigger?.event ? Object.keys(context.trigger.event) : null
+      eventKeys: context.trigger?.event ? Object.keys(context.trigger.event) : null,
     });
-    
-    if ((context.trigger?.type === 'webhook' || context.trigger?.type === 'polling') && 
-        workflow.trigger?.config?.parameters?.passTriggerToFirstStep === true) {
-      
-      logger.info(`[WorkflowExecutor] Trigger context conditions MET - proceeding to format trigger context`);
-      logger.info(`[WorkflowExecutor] Raw trigger event data:`, JSON.stringify(context.trigger.event, null, 2));
-      
-      const triggerContext = this.formatTriggerContext(
-        context.trigger.key, 
-        context.trigger.event
+
+    if (
+      (context.trigger?.type === 'webhook' || context.trigger?.type === 'polling') &&
+      workflow.trigger?.config?.parameters?.passTriggerToFirstStep === true
+    ) {
+      logger.info(
+        `[WorkflowExecutor] Trigger context conditions MET - proceeding to format trigger context`,
       );
-      
+      logger.info(
+        `[WorkflowExecutor] Raw trigger event data:`,
+        JSON.stringify(context.trigger.event, null, 2),
+      );
+
+      const triggerContext = this.formatTriggerContext(context.trigger.key, context.trigger.event);
+
       if (triggerContext) {
         stepMessages.push(new HumanMessage(`TRIGGER CONTEXT:\n${triggerContext}`));
-        logger.info(`[WorkflowExecutor] ✅ Successfully added ${context.trigger.key} trigger context to first step`);
-        logger.info(`[WorkflowExecutor] Trigger context content (first 500 chars): ${triggerContext.substring(0, 500)}...`);
-        logger.info(`[WorkflowExecutor] stepMessages array now has ${stepMessages.length} messages`);
+        logger.info(
+          `[WorkflowExecutor] ✅ Successfully added ${context.trigger.key} trigger context to first step`,
+        );
+        logger.info(
+          `[WorkflowExecutor] Trigger context content (first 500 chars): ${triggerContext.substring(0, 500)}...`,
+        );
+        logger.info(
+          `[WorkflowExecutor] stepMessages array now has ${stepMessages.length} messages`,
+        );
       } else {
-        logger.error(`[WorkflowExecutor] ❌ No trigger context generated for ${context.trigger.key}`);
-        logger.error(`[WorkflowExecutor] Event data that failed to format:`, JSON.stringify(context.trigger.event, null, 2));
+        logger.error(
+          `[WorkflowExecutor] ❌ No trigger context generated for ${context.trigger.key}`,
+        );
+        logger.error(
+          `[WorkflowExecutor] Event data that failed to format:`,
+          JSON.stringify(context.trigger.event, null, 2),
+        );
       }
     } else {
       logger.warn(`[WorkflowExecutor] ❌ Trigger context conditions NOT met:`);
-      logger.warn(`[WorkflowExecutor] - Trigger type: ${context.trigger?.type} (expected: 'webhook' or 'polling')`);
-      logger.warn(`[WorkflowExecutor] - passTriggerToFirstStep: ${workflow.trigger?.config?.parameters?.passTriggerToFirstStep} (expected: true)`);
+      logger.warn(
+        `[WorkflowExecutor] - Trigger type: ${context.trigger?.type} (expected: 'webhook' or 'polling')`,
+      );
+      logger.warn(
+        `[WorkflowExecutor] - passTriggerToFirstStep: ${workflow.trigger?.config?.parameters?.passTriggerToFirstStep} (expected: true)`,
+      );
     }
     logger.info(`[WorkflowExecutor] === TRIGGER CONTEXT DEBUG END ===`);
     logger.info(`[WorkflowExecutor] Final stepMessages array length: ${stepMessages.length}`);
@@ -446,7 +484,9 @@ class WorkflowExecutor {
 
       // Check concurrency limits before starting
       if (this.runningExecutions.size >= this.MAX_CONCURRENT_EXECUTIONS) {
-        throw new Error(`Maximum concurrent workflow executions reached (${this.MAX_CONCURRENT_EXECUTIONS}). Please wait for other workflows to complete.`);
+        throw new Error(
+          `Maximum concurrent workflow executions reached (${this.MAX_CONCURRENT_EXECUTIONS}). Please wait for other workflows to complete.`,
+        );
       }
 
       // Track this execution with enhanced data and timeout
@@ -543,17 +583,18 @@ class WorkflowExecutor {
           totalSteps: workflow.steps?.length || 0,
           percentage: 0,
         },
-        steps: workflow.steps?.map((step) => ({
-          id: step.id,
-          name: step.name,
-          type: step.type,
-          instruction: step.instruction,
-          agent_id: step.agent_id,
-          status: 'pending',
-          retryCount: 0,
-          toolsUsed: [],
-          mcpToolsCount: 0,
-        })) || [],
+        steps:
+          workflow.steps?.map((step) => ({
+            id: step.id,
+            name: step.name,
+            type: step.type,
+            instruction: step.instruction,
+            agent_id: step.agent_id,
+            status: 'pending',
+            retryCount: 0,
+            toolsUsed: [],
+            mcpToolsCount: 0,
+          })) || [],
         context: {
           isTest: context.isTest || false,
           trigger: {
@@ -627,7 +668,10 @@ class WorkflowExecutor {
 
       // Handle WorkflowStepFailureError specially
       if (error.isWorkflowStepFailure) {
-        logger.warn(`[WorkflowExecutor] Workflow cancelled due to step failure: ${workflowId}`, error);
+        logger.warn(
+          `[WorkflowExecutor] Workflow cancelled due to step failure: ${workflowId}`,
+          error,
+        );
 
         // Create user-friendly error message for workflow step failures
         let errorOutput = `Workflow cancelled: ${error.reason}`;
@@ -652,21 +696,25 @@ class WorkflowExecutor {
           if (currentExecution) {
             const currentVersion = currentExecution.version || 1;
             const updatedExecution = await optimisticUpdateSchedulerExecution(
-              executionId, 
-              execution.user, 
-              currentVersion, 
-              errorUpdateData
+              executionId,
+              execution.user,
+              currentVersion,
+              errorUpdateData,
             );
-            
+
             if (!updatedExecution) {
-              logger.warn(`[WorkflowExecutor] Cancellation update conflict for ${executionId}, using fallback`);
+              logger.warn(
+                `[WorkflowExecutor] Cancellation update conflict for ${executionId}, using fallback`,
+              );
               await updateSchedulerExecution(executionId, execution.user, errorUpdateData);
             }
           } else {
             await updateSchedulerExecution(executionId, execution.user, errorUpdateData);
           }
         } catch (updateError) {
-          logger.error(`[WorkflowExecutor] Error during optimistic cancellation update: ${updateError.message}`);
+          logger.error(
+            `[WorkflowExecutor] Error during optimistic cancellation update: ${updateError.message}`,
+          );
           await updateSchedulerExecution(executionId, execution.user, errorUpdateData);
         }
 
@@ -699,27 +747,31 @@ class WorkflowExecutor {
         error: error.message,
         output: errorOutput,
       };
-      
+
       try {
         const currentExecution = await getSchedulerExecutionById(executionId, execution.user);
         if (currentExecution) {
           const currentVersion = currentExecution.version || 1;
           const updatedExecution = await optimisticUpdateSchedulerExecution(
-            executionId, 
-            execution.user, 
-            currentVersion, 
-            errorUpdateData
+            executionId,
+            execution.user,
+            currentVersion,
+            errorUpdateData,
           );
-          
+
           if (!updatedExecution) {
-            logger.warn(`[WorkflowExecutor] Error update conflict for ${executionId}, using fallback`);
+            logger.warn(
+              `[WorkflowExecutor] Error update conflict for ${executionId}, using fallback`,
+            );
             await updateSchedulerExecution(executionId, execution.user, errorUpdateData);
           }
         } else {
           await updateSchedulerExecution(executionId, execution.user, errorUpdateData);
         }
       } catch (updateError) {
-        logger.error(`[WorkflowExecutor] Error during optimistic error update: ${updateError.message}`);
+        logger.error(
+          `[WorkflowExecutor] Error during optimistic error update: ${updateError.message}`,
+        );
         await updateSchedulerExecution(executionId, execution.user, errorUpdateData);
       }
 
@@ -741,7 +793,14 @@ class WorkflowExecutor {
    * @param {Array} stepMessages - Array to accumulate step outputs as messages
    * @returns {Promise<Object>} Execution result
    */
-  async executeStepChain(workflow, execution, currentStepId, context, executionRecord, stepMessages) {
+  async executeStepChain(
+    workflow,
+    execution,
+    currentStepId,
+    context,
+    executionRecord,
+    stepMessages,
+  ) {
     let currentStep = currentStepId;
     const executionResult = { success: true, error: null };
     const accumulatedStepResults = [];
@@ -768,7 +827,9 @@ class WorkflowExecutor {
         throw new Error(`Step not found: ${currentStep}`);
       }
 
-      logger.info(`[WorkflowExecutor] Executing step: ${step.name} (${step.type}) (agent_id: ${step.agent_id || 'ephemeral'})`);
+      logger.info(
+        `[WorkflowExecutor] Executing step: ${step.name} (${step.type}) (agent_id: ${step.agent_id || 'ephemeral'})`,
+      );
 
       // Update step status to running in execution record
       const stepRecord = executionRecord.steps.find((s) => s.id === step.id);
@@ -779,7 +840,7 @@ class WorkflowExecutor {
         // Update execution with current step status
         await updateSchedulerExecution(execution.id, execution.user, {
           currentStepId: step.id,
-          currentStepIndex: executionRecord.steps.findIndex(s => s.id === step.id),
+          currentStepIndex: executionRecord.steps.findIndex((s) => s.id === step.id),
           steps: executionRecord.steps,
         });
       }
@@ -800,14 +861,21 @@ class WorkflowExecutor {
 
         logger.info(`[WorkflowExecutor] === STEP INPUT DEBUG for step "${step.name}" ===`);
         logger.info(`[WorkflowExecutor] stepMessages array length: ${stepMessages.length}`);
-        logger.info(`[WorkflowExecutor] stepMessages contents:`, stepMessages.map(msg => ({
-          type: msg.constructor.name,
-          content: msg.content.substring(0, 300) + (msg.content.length > 300 ? '...' : '')
-        })));
-        logger.info(`[WorkflowExecutor] Buffer string being passed to agent (first 500 chars): ${bufferString.substring(0, 500)}...`);
-        logger.info(`[WorkflowExecutor] Full buffer string length: ${bufferString.length} characters`);
+        logger.info(
+          `[WorkflowExecutor] stepMessages contents:`,
+          stepMessages.map((msg) => ({
+            type: msg.constructor.name,
+            content: msg.content.substring(0, 300) + (msg.content.length > 300 ? '...' : ''),
+          })),
+        );
+        logger.info(
+          `[WorkflowExecutor] Buffer string being passed to agent (first 500 chars): ${bufferString.substring(0, 500)}...`,
+        );
+        logger.info(
+          `[WorkflowExecutor] Full buffer string length: ${bufferString.length} characters`,
+        );
         logger.info(`[WorkflowExecutor] === STEP INPUT DEBUG END ===`);
-        
+
         logger.debug(
           `[WorkflowExecutor] Passing accumulated output to step ${step.name}: ${bufferString.substring(0, 200)}...`,
         );
@@ -832,11 +900,13 @@ class WorkflowExecutor {
       } catch (error) {
         // Check if this is a WorkflowStepFailureError that should cancel the entire workflow
         if (error.isWorkflowStepFailure) {
-          logger.warn(`[WorkflowExecutor] Workflow cancelled due to step failure: ${error.message}`);
+          logger.warn(
+            `[WorkflowExecutor] Workflow cancelled due to step failure: ${error.message}`,
+          );
           // Re-throw to cancel the entire workflow execution
           throw error;
         }
-        
+
         // For other errors, create a failed step result and continue normal flow
         stepResult = {
           success: false,
@@ -884,7 +954,7 @@ class WorkflowExecutor {
       if (stepRecord) {
         stepRecord.status = stepResult.success ? 'completed' : 'failed';
         stepRecord.endTime = new Date();
-        
+
         // Calculate step duration
         if (stepRecord.startTime) {
           stepRecord.duration = stepRecord.endTime.getTime() - stepRecord.startTime.getTime();
@@ -909,13 +979,13 @@ class WorkflowExecutor {
           // Only track tools that were actually called, not just available
           // toolsUsed should be an array of strings (tool names)
           if (stepResult.result.toolsUsed && Array.isArray(stepResult.result.toolsUsed)) {
-            stepRecord.toolsUsed = stepResult.result.toolsUsed.map(tool => 
-              typeof tool === 'string' ? tool : tool.tool || tool.name || String(tool)
+            stepRecord.toolsUsed = stepResult.result.toolsUsed.map((tool) =>
+              typeof tool === 'string' ? tool : tool.tool || tool.name || String(tool),
             );
           } else {
             stepRecord.toolsUsed = [];
           }
-          
+
           stepRecord.mcpToolsCount = stepResult.result.mcpToolsCount || 0;
           stepRecord.modelUsed = stepResult.result.modelUsed;
           stepRecord.endpointUsed = stepResult.result.endpointUsed;
@@ -924,8 +994,12 @@ class WorkflowExecutor {
         }
 
         // Update progress
-        executionRecord.progress.completedSteps = executionRecord.steps.filter(s => s.status === 'completed').length;
-        executionRecord.progress.percentage = Math.round((executionRecord.progress.completedSteps / executionRecord.progress.totalSteps) * 100);
+        executionRecord.progress.completedSteps = executionRecord.steps.filter(
+          (s) => s.status === 'completed',
+        ).length;
+        executionRecord.progress.percentage = Math.round(
+          (executionRecord.progress.completedSteps / executionRecord.progress.totalSteps) * 100,
+        );
 
         // Update execution with step results
         await updateSchedulerExecution(execution.id, execution.user, {
@@ -974,7 +1048,7 @@ class WorkflowExecutor {
           currentStep = step.onSuccess;
         } else {
           // For sequential execution, find the next step in the workflow
-          const currentStepIndex = workflow.steps.findIndex(s => s.id === step.id);
+          const currentStepIndex = workflow.steps.findIndex((s) => s.id === step.id);
           if (currentStepIndex !== -1 && currentStepIndex + 1 < workflow.steps.length) {
             // Move to next step in sequence
             currentStep = workflow.steps[currentStepIndex + 1].id;
@@ -989,14 +1063,16 @@ class WorkflowExecutor {
         executionResult.success = false;
         executionResult.error =
           stepResult.error || `Step "${step.name}" failed without a specific error.`;
-        
+
         // If explicit onFailure is defined, use it
         if (step.onFailure) {
           currentStep = step.onFailure;
         } else {
           // No failure path defined, workflow fails and stops
           currentStep = null;
-          logger.info(`[WorkflowExecutor] Workflow failed at step "${step.name}" - no failure path defined`);
+          logger.info(
+            `[WorkflowExecutor] Workflow failed at step "${step.name}" - no failure path defined`,
+          );
           break;
         }
       }
@@ -1023,9 +1099,9 @@ class WorkflowExecutor {
         execution: {
           ...executionRecord.context.execution,
           totalDuration: endTime.getTime() - new Date(startTime).getTime(),
-          successfulSteps: executionRecord.steps.filter(s => s.status === 'completed').length,
-          failedSteps: executionRecord.steps.filter(s => s.status === 'failed').length,
-          skippedSteps: executionRecord.steps.filter(s => s.status === 'skipped').length,
+          successfulSteps: executionRecord.steps.filter((s) => s.status === 'completed').length,
+          failedSteps: executionRecord.steps.filter((s) => s.status === 'failed').length,
+          skippedSteps: executionRecord.steps.filter((s) => s.status === 'skipped').length,
         },
       },
     };
@@ -1033,34 +1109,42 @@ class WorkflowExecutor {
     // Use optimistic locking for final status update to prevent conflicts
     let updateAttempts = 0;
     const maxRetries = 3;
-    
+
     while (updateAttempts < maxRetries) {
       try {
         // Get current execution with version
         const currentExecution = await getSchedulerExecutionById(execution.id, execution.user);
         if (!currentExecution) {
-          logger.error(`[WorkflowExecutor] Execution not found during final update: ${execution.id}`);
+          logger.error(
+            `[WorkflowExecutor] Execution not found during final update: ${execution.id}`,
+          );
           break;
         }
-        
+
         const currentVersion = currentExecution.version || 1;
         const updatedExecution = await optimisticUpdateSchedulerExecution(
-          execution.id, 
-          execution.user, 
-          currentVersion, 
-          finalUpdateData
+          execution.id,
+          execution.user,
+          currentVersion,
+          finalUpdateData,
         );
-        
+
         if (updatedExecution) {
-          logger.debug(`[WorkflowExecutor] Final status update successful on attempt ${updateAttempts + 1}`);
+          logger.debug(
+            `[WorkflowExecutor] Final status update successful on attempt ${updateAttempts + 1}`,
+          );
           break;
         } else {
           updateAttempts++;
           if (updateAttempts < maxRetries) {
-            logger.warn(`[WorkflowExecutor] Final status update conflict, retrying... (${updateAttempts}/${maxRetries})`);
-            await new Promise(resolve => setTimeout(resolve, 50 * updateAttempts)); // Brief backoff
+            logger.warn(
+              `[WorkflowExecutor] Final status update conflict, retrying... (${updateAttempts}/${maxRetries})`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, 50 * updateAttempts)); // Brief backoff
           } else {
-            logger.error(`[WorkflowExecutor] Final status update failed after ${maxRetries} attempts - using fallback`);
+            logger.error(
+              `[WorkflowExecutor] Final status update failed after ${maxRetries} attempts - using fallback`,
+            );
             await updateSchedulerExecution(execution.id, execution.user, finalUpdateData);
           }
         }
@@ -1086,7 +1170,7 @@ class WorkflowExecutor {
       logger.info(`[WorkflowExecutor] Cancelling execution: ${executionId}`);
 
       const data = this.runningExecutions.get(executionId);
-      
+
       // Signal abort if possible
       if (data && data.abortController) {
         data.abortController.abort('Execution cancelled by user');
@@ -1101,18 +1185,20 @@ class WorkflowExecutor {
         if (currentExecution && currentExecution.status === 'running') {
           const currentVersion = currentExecution.version || 1;
           const updatedExecution = await optimisticUpdateSchedulerExecution(
-            executionId, 
-            userId, 
-            currentVersion, 
+            executionId,
+            userId,
+            currentVersion,
             {
               status: 'cancelled',
               end_time: new Date(),
               error: 'Execution cancelled by user',
-            }
+            },
           );
-          
+
           if (!updatedExecution) {
-            logger.warn(`[WorkflowExecutor] Cancellation update conflict for ${executionId}, using fallback`);
+            logger.warn(
+              `[WorkflowExecutor] Cancellation update conflict for ${executionId}, using fallback`,
+            );
             await updateSchedulerExecution(executionId, userId, {
               status: 'cancelled',
               end_time: new Date(),
@@ -1165,18 +1251,20 @@ class WorkflowExecutor {
           if (currentExecution && currentExecution.status === 'running') {
             const currentVersion = currentExecution.version || 1;
             const updatedExecution = await optimisticUpdateSchedulerExecution(
-              executionId, 
-              userId, 
-              currentVersion, 
+              executionId,
+              userId,
+              currentVersion,
               {
                 status: 'cancelled',
                 end_time: new Date(),
                 error: 'Execution stopped by user',
-              }
+              },
             );
-            
+
             if (!updatedExecution) {
-              logger.warn(`[WorkflowExecutor] Stop update conflict for ${executionId}, using fallback`);
+              logger.warn(
+                `[WorkflowExecutor] Stop update conflict for ${executionId}, using fallback`,
+              );
               await updateSchedulerExecution(executionId, userId, {
                 status: 'cancelled',
                 end_time: new Date(),
@@ -1229,10 +1317,10 @@ class WorkflowExecutor {
       if (data.timeoutHandle) {
         clearTimeout(data.timeoutHandle);
       }
-      
+
       // Remove from tracking
       this.runningExecutions.delete(executionId);
-      
+
       logger.debug(`[WorkflowExecutor] Cleaned up execution: ${executionId}`);
     }
   }
@@ -1246,10 +1334,10 @@ class WorkflowExecutor {
     const data = this.runningExecutions.get(executionId);
     if (data) {
       logger.warn(`[WorkflowExecutor] Force cleaning up execution: ${executionId}`);
-      
+
       // Clear timeout and remove tracking
       this.cleanupExecution(executionId);
-      
+
       // Update execution status
       try {
         await updateSchedulerExecution(executionId, userId, {
@@ -1258,7 +1346,9 @@ class WorkflowExecutor {
           error: 'Execution timeout - force cleanup',
         });
       } catch (error) {
-        logger.debug(`[WorkflowExecutor] Failed to update execution status during force cleanup: ${error.message}`);
+        logger.debug(
+          `[WorkflowExecutor] Failed to update execution status during force cleanup: ${error.message}`,
+        );
       }
     }
   }
@@ -1307,56 +1397,62 @@ class WorkflowExecutor {
   formatGmailTriggerContext(event) {
     logger.info(`[WorkflowExecutor] === GMAIL FORMATTER DEBUG START ===`);
     logger.info(`[WorkflowExecutor] Raw event data received:`, JSON.stringify(event, null, 2));
-    
+
     try {
       // Extract email details from Gmail webhook event
       const emailData = event?.data || event;
       logger.info(`[WorkflowExecutor] Extracted email data:`, JSON.stringify(emailData, null, 2));
       logger.info(`[WorkflowExecutor] Available email data keys:`, Object.keys(emailData));
-      
+
       let context = 'Gmail Email Received:\n';
-      
+
       if (emailData.subject) {
         context += `Subject: ${emailData.subject}\n`;
         logger.info(`[WorkflowExecutor] Found subject: ${emailData.subject}`);
       }
-      
+
       if (emailData.from) {
         context += `From: ${emailData.from}\n`;
         logger.info(`[WorkflowExecutor] Found from: ${emailData.from}`);
       }
-      
+
       if (emailData.to) {
         context += `To: ${emailData.to}\n`;
         logger.info(`[WorkflowExecutor] Found to: ${emailData.to}`);
       }
-      
+
       if (emailData.date) {
         context += `Date: ${emailData.date}\n`;
         logger.info(`[WorkflowExecutor] Found date: ${emailData.date}`);
       }
-      
+
       if (emailData.snippet || emailData.body || emailData.payload) {
-        const contentPreview = emailData.snippet || emailData.body?.substring(0, 300) || emailData.payload?.substring(0, 300) || '';
+        const contentPreview =
+          emailData.snippet ||
+          emailData.body?.substring(0, 300) ||
+          emailData.payload?.substring(0, 300) ||
+          '';
         context += `Content Preview: ${contentPreview}\n`;
-        logger.info(`[WorkflowExecutor] Found content preview (${contentPreview.length} chars): ${contentPreview.substring(0, 100)}...`);
+        logger.info(
+          `[WorkflowExecutor] Found content preview (${contentPreview.length} chars): ${contentPreview.substring(0, 100)}...`,
+        );
       }
-      
+
       // Check for message ID in different possible field names
       if (emailData.messageId || emailData.id) {
         const messageId = emailData.messageId || emailData.id;
         context += `Message ID: ${messageId}\n`;
         logger.info(`[WorkflowExecutor] Found messageId: ${messageId}`);
       }
-      
+
       if (emailData.threadId) {
         context += `Thread ID: ${emailData.threadId}\n`;
         logger.info(`[WorkflowExecutor] Found threadId: ${emailData.threadId}`);
       }
-      
+
       // Log any additional fields that might be useful
       const additionalFields = ['labelIds', 'historyId', 'internalDate', 'sizeEstimate'];
-      additionalFields.forEach(field => {
+      additionalFields.forEach((field) => {
         if (emailData[field]) {
           logger.info(`[WorkflowExecutor] Found additional field ${field}:`, emailData[field]);
           if (field === 'labelIds' && Array.isArray(emailData[field])) {
@@ -1366,7 +1462,9 @@ class WorkflowExecutor {
       });
 
       const finalContext = context.trim();
-      logger.info(`[WorkflowExecutor] Generated Gmail trigger context (${finalContext.length} chars): ${finalContext.substring(0, 300)}...`);
+      logger.info(
+        `[WorkflowExecutor] Generated Gmail trigger context (${finalContext.length} chars): ${finalContext.substring(0, 300)}...`,
+      );
       logger.info(`[WorkflowExecutor] === GMAIL FORMATTER DEBUG END ===`);
       return finalContext;
     } catch (error) {
@@ -1388,7 +1486,10 @@ class WorkflowExecutor {
       context += `Event Data:\n${JSON.stringify(event, null, 2)}`;
       return context;
     } catch (error) {
-      logger.warn(`[WorkflowExecutor] Error formatting generic trigger context for ${triggerKey}:`, error);
+      logger.warn(
+        `[WorkflowExecutor] Error formatting generic trigger context for ${triggerKey}:`,
+        error,
+      );
       return `Trigger: ${triggerKey}\nEvent: [Unable to format event data]`;
     }
   }
@@ -1399,16 +1500,16 @@ class WorkflowExecutor {
   static async destroyInstance() {
     if (WorkflowExecutor.instance) {
       const instance = WorkflowExecutor.instance;
-      
+
       // Stop cleanup interval
       instance.stopMemoryCleanup();
-      
+
       // Force cleanup all executions
       const stats = instance.forceCleanupAll();
-      
+
       // Clear singleton reference
       WorkflowExecutor.instance = null;
-      
+
       logger.info('[WorkflowExecutor] Singleton instance destroyed', stats);
     }
   }

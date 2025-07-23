@@ -13,7 +13,9 @@ const { getFullStepResult } = require('./utils');
  * @returns {Promise<Object>} Step result
  */
 async function executeMCPAgentActionStep(step, context, userId, stepMessages, abortSignal) {
-  logger.info(`[WorkflowStepExecutor] Executing MCP agent action step: "${step.name}" (agent_id: ${step.agent_id || 'ephemeral'})`);
+  logger.info(
+    `[WorkflowStepExecutor] Executing MCP agent action step: "${step.name}" (agent_id: ${step.agent_id || 'ephemeral'})`,
+  );
 
   // Check if execution has been cancelled
   if (abortSignal?.aborted) {
@@ -104,7 +106,13 @@ async function executeStep(workflow, execution, step, context, abortSignal) {
 
     // Execute the MCP agent action step with stepMessages context
     const stepMessages = context.stepMessages || [];
-    const result = await executeMCPAgentActionStep(step, context, execution.user, stepMessages, abortSignal);
+    const result = await executeMCPAgentActionStep(
+      step,
+      context,
+      execution.user,
+      stepMessages,
+      abortSignal,
+    );
 
     // Update step execution with success
     await updateSchedulerExecution(execution.id, execution.user, {
@@ -133,7 +141,9 @@ async function executeStep(workflow, execution, step, context, abortSignal) {
       );
     }
 
-    logger.info(`[WorkflowStepExecutor] Step completed: ${step.name} (agent_id: ${step.agent_id || 'ephemeral'})`);
+    logger.info(
+      `[WorkflowStepExecutor] Step completed: ${step.name} (agent_id: ${step.agent_id || 'ephemeral'})`,
+    );
     return {
       success: true,
       result: result,
@@ -145,7 +155,7 @@ async function executeStep(workflow, execution, step, context, abortSignal) {
     // determined it cannot complete the step due to missing integrations
     if (error.isWorkflowStepFailure) {
       logger.warn(`[WorkflowStepExecutor] Workflow step failure detected: ${error.message}`);
-      
+
       // Update step execution with workflow failure
       await updateSchedulerExecution(execution.id, execution.user, {
         currentStepId: step.id,
@@ -180,7 +190,10 @@ async function executeStep(workflow, execution, step, context, abortSignal) {
     }
 
     // Handle regular step failures
-    logger.error(`[WorkflowStepExecutor] Step failed: ${step.name} (agent_id: ${step.agent_id || 'ephemeral'})`, error);
+    logger.error(
+      `[WorkflowStepExecutor] Step failed: ${step.name} (agent_id: ${step.agent_id || 'ephemeral'})`,
+      error,
+    );
 
     // Update step execution with failure
     await updateSchedulerExecution(execution.id, execution.user, {

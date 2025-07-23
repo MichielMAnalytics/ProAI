@@ -189,8 +189,8 @@ function ControlCombobox({
                   disabled={disabled}
                   className={cn(
                     'flex w-full items-center px-3 text-sm',
-                    disabled 
-                      ? 'cursor-not-allowed text-text-secondary opacity-75' 
+                    disabled
+                      ? 'cursor-not-allowed text-text-secondary opacity-75'
                       : 'cursor-pointer text-text-primary hover:bg-surface-tertiary data-[active-item]:bg-surface-tertiary',
                   )}
                   render={<Ariakit.SelectItem value={disabled ? undefined : value} />}

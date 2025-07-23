@@ -368,7 +368,9 @@ const ExecutionDashboard: React.FC<ExecutionDashboardProps> = ({ workflowId, ref
                                       {step.error && (
                                         <div className="mt-1 rounded border border-red-200 bg-red-50 p-1.5 dark:border-red-700 dark:bg-red-900/20">
                                           <button
-                                            onClick={() => toggleStepOutputExpansion(`${step.id}-error`)}
+                                            onClick={() =>
+                                              toggleStepOutputExpansion(`${step.id}-error`)
+                                            }
                                             className="mb-0.5 flex w-full items-center justify-between text-xs font-medium text-red-600 transition-colors hover:text-red-500 dark:text-red-400 dark:hover:text-red-300"
                                           >
                                             <span>Error:</span>

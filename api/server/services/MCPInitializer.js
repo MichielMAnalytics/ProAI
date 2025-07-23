@@ -232,7 +232,7 @@ class MCPInitializer {
 
   /**
    * Ensure user MCP servers are ready for background execution (workflows, cron jobs)
-   * 
+   *
    * This method is optimized for non-interactive contexts where OAuth flows cannot be completed.
    * It uses system credentials as the primary strategy instead of attempting user-specific OAuth.
    *
@@ -259,10 +259,13 @@ class MCPInitializer {
       };
     }
 
-    logger.debug(`[MCPInitializer][${context}] Starting background MCP initialization for user ${userId}`, {
-      forceRefresh,
-      cacheSize: this.userInitializationCache.size,
-    });
+    logger.debug(
+      `[MCPInitializer][${context}] Starting background MCP initialization for user ${userId}`,
+      {
+        forceRefresh,
+        cacheSize: this.userInitializationCache.size,
+      },
+    );
 
     // Check for pending initialization to prevent concurrent attempts
     if (this.pendingInitializations.has(userId)) {
@@ -611,7 +614,7 @@ class MCPInitializer {
             }
             logger.error(
               `[MCPInitializer][${context}] Connection failed for server ${serverName} - connection not established or not connected`,
-              { serverName, userId, hasConnection: !!connection }
+              { serverName, userId, hasConnection: !!connection },
             );
             return { serverName, tools: [], success: false, error: 'Connection failed' };
           } catch (initError) {
@@ -622,7 +625,7 @@ class MCPInitializer {
                 stack: initError.stack,
                 serverName,
                 userId,
-              }
+              },
             );
             return { serverName, tools: [], success: false, error: initError.message };
           }
@@ -893,7 +896,7 @@ class MCPInitializer {
             }
             logger.error(
               `[MCPInitializer][${context}] Background connection failed for server ${serverName} - connection not established or not connected`,
-              { serverName, userId, hasConnection: !!connection }
+              { serverName, userId, hasConnection: !!connection },
             );
             return { serverName, tools: [], success: false, error: 'Background connection failed' };
           } catch (initError) {
@@ -904,7 +907,7 @@ class MCPInitializer {
                 stack: initError.stack,
                 serverName,
                 userId,
-              }
+              },
             );
             return { serverName, tools: [], success: false, error: initError.message };
           }
@@ -967,7 +970,9 @@ class MCPInitializer {
       // Handle global MCP servers (same as normal flow)
       let globalToolsRegistered = 0;
       if (globalServerCount > 0) {
-        logger.info(`[MCPInitializer][${context}] Global MCP servers available: ${globalServerCount}`);
+        logger.info(
+          `[MCPInitializer][${context}] Global MCP servers available: ${globalServerCount}`,
+        );
 
         // Global tools are already in availableTools from app initialization
         // Just count them and add to cache without verification

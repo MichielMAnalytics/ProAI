@@ -1,13 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRecoilState, useSetRecoilState } from 'recoil';
 import * as Tabs from '@radix-ui/react-tabs';
-import {
-  ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
-  RefreshCw,
-  X,
-} from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, RefreshCw, X } from 'lucide-react';
 import type { SandpackPreviewRef, CodeEditorRef } from '@codesandbox/sandpack-react';
 import useArtifacts from '~/hooks/Artifacts/useArtifacts';
 import DownloadArtifact from './DownloadArtifact';
@@ -17,8 +11,6 @@ import ArtifactTabs from './ArtifactTabs';
 import { CopyCodeButton } from './Code';
 import store from '~/store';
 import { TooltipAnchor } from '~/components/ui/Tooltip';
-
-
 
 export default function Artifacts() {
   const localize = useLocalize();
@@ -60,8 +52,6 @@ export default function Artifacts() {
     orderedArtifactIds,
   } = useArtifacts();
 
-
-
   if (currentArtifact === null || currentArtifact === undefined) {
     return null;
   }
@@ -70,8 +60,6 @@ export default function Artifacts() {
     setIsVisible(false);
     setTimeout(() => setArtifactsVisible(false), 300);
   };
-
-
 
   return (
     <Tabs.Root value={activeTab} onValueChange={setActiveTab} asChild>
@@ -98,29 +86,27 @@ export default function Artifacts() {
             {/* Center: Title */}
             <div className="flex-1 text-center">
               <h2 className="text-base font-semibold text-text-primary sm:text-lg">Artifacts</h2>
-              </div>
+            </div>
 
             {/* Right: Close button */}
-              <TooltipAnchor description="Close artifacts" side="bottom">
-                <button
-                  className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary sm:h-8 sm:w-8"
-                  onClick={closeArtifacts}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </TooltipAnchor>
+            <TooltipAnchor description="Close artifacts" side="bottom">
+              <button
+                className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary sm:h-8 sm:w-8"
+                onClick={closeArtifacts}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </TooltipAnchor>
           </div>
           {/* Content */}
           <div className="relative flex-1 overflow-hidden">
-              <ArtifactTabs
-                isMermaid={isMermaid}
-                artifact={currentArtifact}
-                isSubmitting={isSubmitting}
-                editorRef={editorRef as React.MutableRefObject<CodeEditorRef>}
-                previewRef={previewRef as React.MutableRefObject<SandpackPreviewRef>}
-              />
-
-
+            <ArtifactTabs
+              isMermaid={isMermaid}
+              artifact={currentArtifact}
+              isSubmitting={isSubmitting}
+              editorRef={editorRef as React.MutableRefObject<CodeEditorRef>}
+              previewRef={previewRef as React.MutableRefObject<SandpackPreviewRef>}
+            />
           </div>
           {/* Footer */}
           <div className="flex items-center justify-between border-t border-border-medium bg-surface-primary-alt p-2 text-sm text-text-secondary sm:p-3">

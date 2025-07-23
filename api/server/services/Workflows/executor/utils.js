@@ -2,7 +2,6 @@ const { EModelEndpoint } = require('librechat-data-provider');
 const { getCustomConfig } = require('~/server/services/Config/getCustomConfig');
 const { logger } = require('~/config');
 
-
 /**
  * Get full step result for passing data between workflow steps
  * @param {*} result - Step result
@@ -150,8 +149,6 @@ function findFirstStep(steps) {
   return unreferencedSteps.length > 0 ? unreferencedSteps[0] : steps[0];
 }
 
-
-
 /**
  * Create a serializable version of the execution context for database storage
  * Removes non-serializable objects like agents and clients
@@ -192,7 +189,6 @@ function createSerializableContext(context) {
   return serializable;
 }
 
-
 /**
  * Create mock request object for workflow execution
  * @param {Object} context - Execution context
@@ -222,12 +218,16 @@ function createMockRequestForWorkflow(context, user, prompt, model, endpoint, me
   );
 
   // Add workflow automation instruction to every prompt
-  let enhancedPrompt = prompt + '\n\nIMPORTANT: You are running in an automated workflow environment. NEVER ask the user for input, confirmation, or clarification. Work autonomously with the provided information.';
-  
+  let enhancedPrompt =
+    prompt +
+    '\n\nIMPORTANT: You are running in an automated workflow environment. NEVER ask the user for input, confirmation, or clarification. Work autonomously with the provided information.';
+
   // Add memory content if provided
   if (memoryContent) {
     const { memoryInstructions } = require('@librechat/api');
-    enhancedPrompt = enhancedPrompt + `${memoryInstructions}\n\n# Existing memory about the user:\n${memoryContent}`;
+    enhancedPrompt =
+      enhancedPrompt +
+      `${memoryInstructions}\n\n# Existing memory about the user:\n${memoryContent}`;
     logger.info(`[createMockRequestForWorkflow] Added memory content to workflow prompt`);
   }
 
@@ -312,13 +312,13 @@ function extractResponseText(response) {
  * Load memory for workflow execution
  * @param {Object} user - User object
  * @param {Object} conversationId - Conversation ID
- * @param {Object} messageId - Message ID  
+ * @param {Object} messageId - Message ID
  * @param {Object} req - Request object with app locals
  * @returns {Promise<string|undefined>} Memory content or undefined
  */
 async function loadWorkflowMemory(user, conversationId, messageId, req) {
   const { logger } = require('~/config');
-  
+
   try {
     // Check if user has memory enabled
     if (user.personalization?.memories === false) {
@@ -348,15 +348,13 @@ async function loadWorkflowMemory(user, conversationId, messageId, req) {
       req.body = {};
     }
 
-    // Load agent for memory processing  
+    // Load agent for memory processing
     const { EModelEndpoint, Constants } = require('librechat-data-provider');
     const { loadAgent } = require('~/models/Agent');
     const { initializeAgent } = require('~/server/services/Endpoints/agents/agent');
 
     let prelimAgent;
-    const allowedProviders = new Set(
-      req?.app?.locals?.[EModelEndpoint.agents]?.allowedProviders,
-    );
+    const allowedProviders = new Set(req?.app?.locals?.[EModelEndpoint.agents]?.allowedProviders);
 
     try {
       if (memoryConfig.agent?.id != null) {

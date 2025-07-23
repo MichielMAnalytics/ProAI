@@ -70,7 +70,7 @@ class SchedulerManager {
     const webhookTaskFunction = async () => {
       const { SchedulerTaskExecutor } = require('./');
       const taskExecutor = new SchedulerTaskExecutor();
-      
+
       return await taskExecutor.executeWorkflowFromWebhook({
         workflowId,
         triggerKey,

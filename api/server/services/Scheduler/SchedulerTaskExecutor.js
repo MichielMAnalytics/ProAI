@@ -124,8 +124,8 @@ class SchedulerTaskExecutor {
     }
 
     // Determine trigger type based on execution context
-    const triggerType = isTest ? 'test' : (executionContext.triggerType || 'schedule');
-    const triggerSource = isTest ? 'workflow_test' : (executionContext.triggerSource || 'scheduler');
+    const triggerType = isTest ? 'test' : executionContext.triggerType || 'schedule';
+    const triggerSource = isTest ? 'workflow_test' : executionContext.triggerSource || 'scheduler';
 
     // Create execution record
     const execution = await createSchedulerExecution({
@@ -141,26 +141,35 @@ class SchedulerTaskExecutor {
           scheduledTime: startTime,
           isTest: isTest,
         },
-        workflow: task.type === 'workflow' ? {
-          id: task.id,
-          name: task.name,
-          totalSteps: task.metadata?.steps?.length || 0,
-        } : undefined,
+        workflow:
+          task.type === 'workflow'
+            ? {
+                id: task.id,
+                name: task.name,
+                totalSteps: task.metadata?.steps?.length || 0,
+              }
+            : undefined,
         isTest: isTest, // Add test flag at top level for easy access
         ...executionContext, // Merge any additional context
       },
-      steps: task.type === 'workflow' ? (task.metadata?.steps || []).map(step => ({
-        ...step,
-        status: 'pending',
-        retryCount: 0,
-        toolsUsed: [],
-        mcpToolsCount: 0,
-      })) : [],
-      progress: task.type === 'workflow' ? {
-        completedSteps: 0,
-        totalSteps: task.metadata?.steps?.length || 0,
-        percentage: 0,
-      } : undefined,
+      steps:
+        task.type === 'workflow'
+          ? (task.metadata?.steps || []).map((step) => ({
+              ...step,
+              status: 'pending',
+              retryCount: 0,
+              toolsUsed: [],
+              mcpToolsCount: 0,
+            }))
+          : [],
+      progress:
+        task.type === 'workflow'
+          ? {
+              completedSteps: 0,
+              totalSteps: task.metadata?.steps?.length || 0,
+              percentage: 0,
+            }
+          : undefined,
     });
 
     try {
@@ -168,16 +177,18 @@ class SchedulerTaskExecutor {
       if (!isTest) {
         // Atomically update task status to running (prevents race conditions)
         const updatedTask = await atomicUpdateTaskStatus(
-          task.id, 
-          task.user, 
-          'pending',  // Expected current status
-          'running',  // New status
-          { last_run: startTime }
+          task.id,
+          task.user,
+          'pending', // Expected current status
+          'running', // New status
+          { last_run: startTime },
         );
 
         // Verify the update succeeded - if null, another process already picked up this task
         if (!updatedTask) {
-          logger.info(`[SchedulerTaskExecutor] Task ${task.id} was already picked up by another process, skipping`);
+          logger.info(
+            `[SchedulerTaskExecutor] Task ${task.id} was already picked up by another process, skipping`,
+          );
           return {
             success: false,
             error: 'Task already running in another process',
@@ -185,7 +196,9 @@ class SchedulerTaskExecutor {
           };
         }
 
-        logger.debug(`[SchedulerTaskExecutor] Task ${task.id} status atomically updated to running`);
+        logger.debug(
+          `[SchedulerTaskExecutor] Task ${task.id} status atomically updated to running`,
+        );
 
         // Use the updated task for the rest of the execution
         task = updatedTask;
@@ -222,27 +235,31 @@ class SchedulerTaskExecutor {
         duration,
         result: typeof result === 'string' ? result : JSON.stringify(result),
       };
-      
+
       try {
         const currentExecution = await getSchedulerExecutionById(executionId, task.user);
         if (currentExecution) {
           const currentVersion = currentExecution.version || 1;
           const updatedExecution = await optimisticUpdateSchedulerExecution(
-            executionId, 
-            task.user, 
-            currentVersion, 
-            successUpdateData
+            executionId,
+            task.user,
+            currentVersion,
+            successUpdateData,
           );
-          
+
           if (!updatedExecution) {
-            logger.warn(`[SchedulerTaskExecutor] Success update conflict for ${executionId}, using fallback`);
+            logger.warn(
+              `[SchedulerTaskExecutor] Success update conflict for ${executionId}, using fallback`,
+            );
             await updateSchedulerExecution(executionId, task.user, successUpdateData);
           }
         } else {
           await updateSchedulerExecution(executionId, task.user, successUpdateData);
         }
       } catch (updateError) {
-        logger.error(`[SchedulerTaskExecutor] Error during optimistic success update: ${updateError.message}`);
+        logger.error(
+          `[SchedulerTaskExecutor] Error during optimistic success update: ${updateError.message}`,
+        );
         await updateSchedulerExecution(executionId, task.user, successUpdateData);
       }
 
@@ -250,7 +267,9 @@ class SchedulerTaskExecutor {
       if (!isTest) {
         await this.updateTaskAfterSuccess(task, endTime);
       } else {
-        logger.debug(`[SchedulerTaskExecutor] Skipping task status update after success for test execution`);
+        logger.debug(
+          `[SchedulerTaskExecutor] Skipping task status update after success for test execution`,
+        );
       }
 
       // Send all success notifications (don't let notification failures fail the execution)
@@ -286,27 +305,31 @@ class SchedulerTaskExecutor {
         duration,
         error: error.message,
       };
-      
+
       try {
         const currentExecution = await getSchedulerExecutionById(executionId, task.user);
         if (currentExecution) {
           const currentVersion = currentExecution.version || 1;
           const updatedExecution = await optimisticUpdateSchedulerExecution(
-            executionId, 
-            task.user, 
-            currentVersion, 
-            failureUpdateData
+            executionId,
+            task.user,
+            currentVersion,
+            failureUpdateData,
           );
-          
+
           if (!updatedExecution) {
-            logger.warn(`[SchedulerTaskExecutor] Failure update conflict for ${executionId}, using fallback`);
+            logger.warn(
+              `[SchedulerTaskExecutor] Failure update conflict for ${executionId}, using fallback`,
+            );
             await updateSchedulerExecution(executionId, task.user, failureUpdateData);
           }
         } else {
           await updateSchedulerExecution(executionId, task.user, failureUpdateData);
         }
       } catch (updateError) {
-        logger.error(`[SchedulerTaskExecutor] Error during optimistic failure update: ${updateError.message}`);
+        logger.error(
+          `[SchedulerTaskExecutor] Error during optimistic failure update: ${updateError.message}`,
+        );
         await updateSchedulerExecution(executionId, task.user, failureUpdateData);
       }
 
@@ -317,7 +340,9 @@ class SchedulerTaskExecutor {
           last_run: endTime,
         });
       } else {
-        logger.debug(`[SchedulerTaskExecutor] Skipping task status update after failure for test execution`);
+        logger.debug(
+          `[SchedulerTaskExecutor] Skipping task status update after failure for test execution`,
+        );
       }
 
       // Send all failure notifications (don't let notification failures mask the original error)
@@ -658,9 +683,7 @@ class SchedulerTaskExecutor {
       );
 
       if (workflowResult.success) {
-        logger.info(
-          `[SchedulerTaskExecutor] Workflow ${workflowId} executed successfully`,
-        );
+        logger.info(`[SchedulerTaskExecutor] Workflow ${workflowId} executed successfully`);
         return `Workflow "${workflowName}" executed successfully. ${workflowResult.result?.summary || ''}`;
       } else {
         logger.error(
@@ -716,14 +739,16 @@ class SchedulerTaskExecutor {
    */
   async executeWorkflowFromWebhook(options) {
     const { workflowId, triggerKey, triggerEvent, userId, deploymentId } = options;
-    
-    logger.info(`[SchedulerTaskExecutor] Executing workflow ${workflowId} from webhook trigger ${triggerKey}`);
+
+    logger.info(
+      `[SchedulerTaskExecutor] Executing workflow ${workflowId} from webhook trigger ${triggerKey}`,
+    );
 
     try {
       // Get the workflow task from scheduler
       const { getSchedulerTaskById } = require('~/models/SchedulerTask');
       const workflowTask = await getSchedulerTaskById(workflowId, userId);
-      
+
       if (!workflowTask) {
         throw new Error(`Workflow ${workflowId} not found`);
       }
@@ -779,8 +804,14 @@ class SchedulerTaskExecutor {
       logger.info(`[SchedulerTaskExecutor] === WEBHOOK TRIGGER DEBUG ===`);
       logger.info(`[SchedulerTaskExecutor] Creating execution context for workflow ${workflowId}`);
       logger.info(`[SchedulerTaskExecutor] Trigger key: ${triggerKey}`);
-      logger.info(`[SchedulerTaskExecutor] Trigger event data:`, JSON.stringify(triggerEvent, null, 2));
-      logger.info(`[SchedulerTaskExecutor] Full execution context:`, JSON.stringify(executionContext, null, 2));
+      logger.info(
+        `[SchedulerTaskExecutor] Trigger event data:`,
+        JSON.stringify(triggerEvent, null, 2),
+      );
+      logger.info(
+        `[SchedulerTaskExecutor] Full execution context:`,
+        JSON.stringify(executionContext, null, 2),
+      );
       logger.info(`[SchedulerTaskExecutor] === WEBHOOK TRIGGER DEBUG END ===`);
 
       // Load full user object for workflow execution (required for memory loading)
@@ -793,7 +824,7 @@ class SchedulerTaskExecutor {
       const result = await workflowExecutor.executeWorkflow(
         workflow,
         { id: executionId, user: user._id.toString() },
-        executionContext
+        executionContext,
       );
 
       // Update execution record with success
@@ -806,17 +837,19 @@ class SchedulerTaskExecutor {
       });
 
       logger.info(`[SchedulerTaskExecutor] Webhook execution completed for workflow ${workflowId}`);
-      
+
       return {
         success: true,
         executionId,
         workflowId,
         result: result.output || result,
       };
-
     } catch (error) {
-      logger.error(`[SchedulerTaskExecutor] Webhook execution failed for workflow ${workflowId}:`, error);
-      
+      logger.error(
+        `[SchedulerTaskExecutor] Webhook execution failed for workflow ${workflowId}:`,
+        error,
+      );
+
       // Update execution record with failure
       const executionId = `exec_${workflowId}_${Date.now()}`;
       await updateSchedulerExecution(executionId, userId, {

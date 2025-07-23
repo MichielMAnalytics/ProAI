@@ -94,19 +94,19 @@ async function updateSchedulerExecution(id, userId, updateData) {
 async function optimisticUpdateSchedulerExecution(id, userId, expectedVersion, updateData) {
   try {
     const updatedExecution = await SchedulerExecution.findOneAndUpdate(
-      { 
-        id, 
-        user: userId, 
-        version: expectedVersion 
+      {
+        id,
+        user: userId,
+        version: expectedVersion,
       },
-      { 
-        ...updateData, 
+      {
+        ...updateData,
         version: expectedVersion + 1,
-        updatedAt: new Date() 
+        updatedAt: new Date(),
       },
       { new: true },
     ).lean();
-    
+
     return updatedExecution;
   } catch (error) {
     throw new Error(`Error optimistically updating scheduler execution: ${error.message}`);

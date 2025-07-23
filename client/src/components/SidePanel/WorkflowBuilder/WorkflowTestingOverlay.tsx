@@ -1,11 +1,5 @@
 import React, { useState } from 'react';
-import {
-  X,
-  Check,
-  Copy,
-  ChevronUp,
-  ChevronDown,
-} from 'lucide-react';
+import { X, Check, Copy, ChevronUp, ChevronDown } from 'lucide-react';
 
 /**
  * Extract meaningful content from step result object for display
@@ -344,7 +338,9 @@ const WorkflowTestingOverlay: React.FC<WorkflowTestingOverlayProps> = ({
 
                                     // Try to extract meaningful content first
                                     if (step.result) {
-                                      const meaningfulContent = extractMeaningfulContent(step.result);
+                                      const meaningfulContent = extractMeaningfulContent(
+                                        step.result,
+                                      );
                                       if (meaningfulContent) {
                                         copyContent = meaningfulContent;
                                       } else {
@@ -401,7 +397,9 @@ const WorkflowTestingOverlay: React.FC<WorkflowTestingOverlayProps> = ({
                                       <pre className="max-h-32 overflow-y-auto whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300 sm:max-h-64">
                                         {(() => {
                                           // First try to extract meaningful content
-                                          const meaningfulContent = extractMeaningfulContent(step.result);
+                                          const meaningfulContent = extractMeaningfulContent(
+                                            step.result,
+                                          );
                                           if (meaningfulContent) {
                                             return meaningfulContent;
                                           }
@@ -425,7 +423,9 @@ const WorkflowTestingOverlay: React.FC<WorkflowTestingOverlayProps> = ({
                                         {(() => {
                                           // For output, if it's an object, try to extract meaningful content
                                           if (typeof step.output === 'object') {
-                                            const meaningfulContent = extractMeaningfulContent(step.output);
+                                            const meaningfulContent = extractMeaningfulContent(
+                                              step.output,
+                                            );
                                             if (meaningfulContent) {
                                               return meaningfulContent;
                                             }
@@ -569,4 +569,4 @@ const WorkflowTestingOverlay: React.FC<WorkflowTestingOverlayProps> = ({
   );
 };
 
-export default WorkflowTestingOverlay; 
+export default WorkflowTestingOverlay;

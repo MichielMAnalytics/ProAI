@@ -20,14 +20,17 @@ interface WorkflowsTableRowProps {
 const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
   const { showToast } = useToastContext();
   const localize = useLocalize();
-  const { openWorkflowBuilder, closeWorkflowBuilder, workflowId: currentOpenWorkflowId } = useWorkflowBuilder();
+  const {
+    openWorkflowBuilder,
+    closeWorkflowBuilder,
+    workflowId: currentOpenWorkflowId,
+  } = useWorkflowBuilder();
   const { formatDateTime, getTimezoneAbbr } = useTimezone();
   const { navigateToConvo } = useNavigateToConvo();
   const queryClient = useQueryClient();
 
   // Workflow mutations
   const deleteMutation = useDeleteWorkflowMutation();
-
 
   const handleDelete = () => {
     deleteMutation.mutate(workflow.id, {
@@ -36,7 +39,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
         if (currentOpenWorkflowId === workflow.id) {
           closeWorkflowBuilder();
         }
-        
+
         showToast({
           message: 'Workflow deleted successfully',
           severity: NotificationSeverity.SUCCESS,
@@ -54,7 +57,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
 
   const handleView = async () => {
     console.log('Opening workflow in builder for:', workflow);
-    
+
     // If the workflow has an associated conversation, navigate to it
     if (workflow.conversation_id) {
       try {
@@ -62,9 +65,9 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
         // Fetch the conversation data
         const conversation = await queryClient.fetchQuery<TConversation>(
           [QueryKeys.conversation, workflow.conversation_id],
-          () => dataService.getConversationById(workflow.conversation_id as string)
+          () => dataService.getConversationById(workflow.conversation_id as string),
         );
-        
+
         if (conversation) {
           console.log('Navigating to workflow conversation:', conversation);
           // Navigate to the conversation first
@@ -75,7 +78,7 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
         // If we can't fetch the conversation, just open the workflow builder
       }
     }
-    
+
     // Open the workflow builder with this specific workflow ID for editing
     openWorkflowBuilder(workflow.id);
   };
@@ -129,7 +132,6 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
     }).length;
   };
 
-
   return (
     <TableRow className="border-b border-border-light hover:bg-surface-hover">
       <TableCell className="py-2">
@@ -170,12 +172,11 @@ const WorkflowsTableRow: React.FC<WorkflowsTableRowProps> = ({ workflow }) => {
               )}`}
             >
               {workflow.isActive && (
-                <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-green-500"></span>
               )}
               {getStatusText(workflow.isActive, workflow.isDraft)}
             </span>
           </div>
-
 
           {/* Additional details - only visible when sidebar is wider */}
           <div className="hidden min-w-0 space-y-1 lg:block">

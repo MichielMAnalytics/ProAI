@@ -263,24 +263,26 @@ const activateWorkflow = async (req, res) => {
 
     // Check if trigger is 'manual' - if so, execute immediately using same path as cron
     if (workflow.trigger?.type === 'manual') {
-      logger.info(`[WorkflowController] Manual workflow "${workflow.name}" activated - executing immediately via scheduler`);
-      
+      logger.info(
+        `[WorkflowController] Manual workflow "${workflow.name}" activated - executing immediately via scheduler`,
+      );
+
       try {
         // Use SchedulerTaskExecutor to execute the workflow (same as cron execution)
         const SchedulerTaskExecutor = require('~/server/services/Scheduler/SchedulerTaskExecutor');
         const taskExecutor = new SchedulerTaskExecutor();
-        
+
         // Get the scheduler task for this workflow
         const { getSchedulerTaskById } = require('~/models/SchedulerTask');
         const schedulerTask = await getSchedulerTaskById(workflowId, userId);
-        
+
         if (!schedulerTask) {
           throw new Error('Scheduler task not found for workflow');
         }
-        
+
         // Execute using the same method as cron jobs
         const executionResult = await taskExecutor.executeTask(schedulerTask);
-        
+
         res.json({
           success: true,
           message: `Workflow "${workflow.name}" executed successfully`,
@@ -297,8 +299,11 @@ const activateWorkflow = async (req, res) => {
           },
         });
       } catch (executionError) {
-        logger.error(`[WorkflowController] Error executing manual workflow "${workflow.name}":`, executionError);
-        
+        logger.error(
+          `[WorkflowController] Error executing manual workflow "${workflow.name}":`,
+          executionError,
+        );
+
         // Return failure since execution failed
         res.status(500).json({
           success: false,
@@ -392,24 +397,28 @@ const testWorkflow = async (req, res) => {
     const { workflowId } = req.params;
     const { context = {} } = req.body;
 
-    logger.info(`[WorkflowController] Testing workflow "${workflowId}" using SchedulerTaskExecutor (same as manual execution)`);
+    logger.info(
+      `[WorkflowController] Testing workflow "${workflowId}" using SchedulerTaskExecutor (same as manual execution)`,
+    );
 
     try {
       // Use SchedulerTaskExecutor to execute the workflow (same as manual workflow execution)
       const SchedulerTaskExecutor = require('~/server/services/Scheduler/SchedulerTaskExecutor');
       const taskExecutor = new SchedulerTaskExecutor();
-      
+
       // Get the scheduler task for this workflow
       const { getSchedulerTaskById } = require('~/models/SchedulerTask');
       const schedulerTask = await getSchedulerTaskById(workflowId, userId);
-      
+
       if (!schedulerTask) {
-        throw new Error('Scheduler task not found for workflow - workflow may not be properly configured');
+        throw new Error(
+          'Scheduler task not found for workflow - workflow may not be properly configured',
+        );
       }
-      
+
       // Execute using the same method as real manual workflows but with test flag
       const executionResult = await taskExecutor.executeTask(schedulerTask, { isTest: true });
-      
+
       res.json({
         success: true,
         message: 'Workflow test execution completed',
@@ -422,7 +431,7 @@ const testWorkflow = async (req, res) => {
       });
     } catch (executionError) {
       logger.error(`[WorkflowController] Error testing workflow "${workflowId}":`, executionError);
-      
+
       res.status(500).json({
         success: false,
         message: 'Workflow test execution failed',
@@ -491,7 +500,12 @@ const executeWorkflow = async (req, res) => {
     };
 
     const workflowService = new WorkflowService();
-    const result = await workflowService.executeWorkflow(workflowId, userId, enhancedContext, false);
+    const result = await workflowService.executeWorkflow(
+      workflowId,
+      userId,
+      enhancedContext,
+      false,
+    );
 
     res.json({
       success: true,
@@ -533,11 +547,11 @@ const getWorkflowExecutions = async (req, res) => {
       trigger: exec.context?.trigger || { type: 'unknown' },
       result: exec.result,
       error: exec.error,
-      duration: exec.duration || (
-        exec.end_time && exec.start_time
+      duration:
+        exec.duration ||
+        (exec.end_time && exec.start_time
           ? new Date(exec.end_time) - new Date(exec.start_time)
-          : null
-      ),
+          : null),
       startTime: exec.start_time,
       endTime: exec.end_time,
       isTest: exec.context?.isTest || false,
@@ -594,11 +608,11 @@ const getLatestWorkflowExecution = async (req, res) => {
       trigger: latestExecution.context?.trigger || { type: 'unknown' },
       output: latestExecution.output,
       error: latestExecution.error,
-      duration: latestExecution.duration || (
-        latestExecution.end_time && latestExecution.start_time
+      duration:
+        latestExecution.duration ||
+        (latestExecution.end_time && latestExecution.start_time
           ? new Date(latestExecution.end_time) - new Date(latestExecution.start_time)
-          : null
-      ),
+          : null),
       startTime: latestExecution.start_time,
       endTime: latestExecution.end_time,
       isTest: latestExecution.context?.isTest || false,

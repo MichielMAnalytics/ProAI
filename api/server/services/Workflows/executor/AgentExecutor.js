@@ -31,7 +31,7 @@ class WorkflowStepFailureError extends Error {
 /**
  * Create enhanced prompt with AgentChain-style context passing for background execution
  * @param {Object} step - Workflow step
- * @param {Object} context - Execution context  
+ * @param {Object} context - Execution context
  * @param {Array} stepMessages - Previous step messages (HumanMessage objects)
  * @returns {string} Enhanced prompt with proper context
  */
@@ -54,8 +54,10 @@ function createEnhancedPromptWithContext(step, context, stepMessages) {
     // Convert messages to buffer string like AgentChain does
     const bufferString = getBufferString(stepMessages);
     prompt += `PREVIOUS STEPS CONTEXT:\n${bufferString}\n\n`;
-    
-    logger.info(`[WorkflowAgentExecutor] Added ${stepMessages.length} previous step messages as context`);
+
+    logger.info(
+      `[WorkflowAgentExecutor] Added ${stepMessages.length} previous step messages as context`,
+    );
   }
 
   // Critical failure handling instructions
@@ -82,8 +84,12 @@ IMPORTANT: You are running in an automated workflow environment. NEVER ask the u
  * @returns {Promise<Object>} Execution result
  */
 async function executeStepWithAgent(step, stepMessages, context, userId, abortSignal) {
-  logger.info(`[WorkflowAgentExecutor] Executing step "${step.name}" with fresh agent (agent_id: ${step.agent_id || 'ephemeral'})`);
-  logger.info(`[WorkflowAgentExecutor] Using step instruction: "${step.instruction || 'no instruction set'}"`);
+  logger.info(
+    `[WorkflowAgentExecutor] Executing step "${step.name}" with fresh agent (agent_id: ${step.agent_id || 'ephemeral'})`,
+  );
+  logger.info(
+    `[WorkflowAgentExecutor] Using step instruction: "${step.instruction || 'no instruction set'}"`,
+  );
 
   // Check if execution has been cancelled
   if (abortSignal?.aborted) {
@@ -135,7 +141,9 @@ async function executeStepWithAgent(step, stepMessages, context, userId, abortSi
       throw new Error('No response received from agent');
     }
 
-    logger.info(`[WorkflowAgentExecutor] Agent execution completed for step "${step.name}" (agent_id: ${step.agent_id || 'ephemeral'})`);
+    logger.info(
+      `[WorkflowAgentExecutor] Agent execution completed for step "${step.name}" (agent_id: ${step.agent_id || 'ephemeral'})`,
+    );
 
     // Extract response text from agent response
     const responseText = extractResponseText(response);
@@ -145,21 +153,25 @@ async function executeStepWithAgent(step, stepMessages, context, userId, abortSi
       const failureMatch = responseText.match(/WORKFLOW_STEP_FAILED:\s*(.+)/);
       if (failureMatch) {
         const failureReason = failureMatch[1].trim();
-        logger.warn(`[WorkflowAgentExecutor] Workflow step failure detected in step "${step.name}": ${failureReason}`);
+        logger.warn(
+          `[WorkflowAgentExecutor] Workflow step failure detected in step "${step.name}": ${failureReason}`,
+        );
         throw new WorkflowStepFailureError(failureReason, step.name);
       }
     }
 
     // Extract actual tool calls from the client's content parts instead of available tools
     const actualToolCalls = [];
-    
+
     // If the client has contentParts with tool calls, extract them
     if (client && client.contentParts && Array.isArray(client.contentParts)) {
       const { ContentTypes } = require('librechat-data-provider');
-      
+
       for (const part of client.contentParts) {
         if (part.type === ContentTypes.TOOL_CALL && part.tool_call) {
-          actualToolCalls.push(part.tool_call.function?.name || part.tool_call.name || 'unknown_tool');
+          actualToolCalls.push(
+            part.tool_call.function?.name || part.tool_call.name || 'unknown_tool',
+          );
         }
       }
     }
@@ -169,8 +181,8 @@ async function executeStepWithAgent(step, stepMessages, context, userId, abortSi
       message: `Successfully executed step "${step.name}" with fresh agent using ${endpointName}/${configuredModel}`,
       agentResponse: responseText,
       toolsUsed: actualToolCalls, // Only actual tool calls, not available tools
-      mcpToolsCount: actualToolCalls.filter(toolName => 
-        toolName.includes(Constants.mcp_delimiter)
+      mcpToolsCount: actualToolCalls.filter((toolName) =>
+        toolName.includes(Constants.mcp_delimiter),
       ).length,
       modelUsed: configuredModel,
       endpointUsed: endpointName,
@@ -224,14 +236,9 @@ async function createFreshAgent(workflow, step, context) {
         },
       },
     };
-    
-    memoryContent = await loadWorkflowMemory(
-      user, 
-      conversationId, 
-      parentMessageId, 
-      memoryReq
-    );
-    
+
+    memoryContent = await loadWorkflowMemory(user, conversationId, parentMessageId, memoryReq);
+
     if (memoryContent) {
       logger.info(`[WorkflowAgentExecutor] Loaded memory for workflow step "${step.name}"`);
     }
@@ -287,7 +294,6 @@ async function createFreshAgent(workflow, step, context) {
   if (!agent) {
     throw new Error('Failed to load agent for fresh agent creation');
   }
-
 
   logger.info(
     `[WorkflowAgentExecutor] Loaded fresh agent (agent_id: ${agentIdToLoad}) with ${

@@ -21,7 +21,7 @@ export const useWorkflowBuilder = () => {
     setWorkflowId(editWorkflowId);
     setIsOpen(true);
   };
-  
+
   const closeWorkflowBuilder = () => {
     setIsOpen(false);
     setWorkflowId(undefined); // Clear workflow ID when closing

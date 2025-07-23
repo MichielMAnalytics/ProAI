@@ -79,7 +79,7 @@ class PipedreamComponents {
     if (componentType === 'trigger') {
       return {
         fresh: parseInt(process.env.PIPEDREAM_TRIGGERS_CACHE_FRESH_DURATION) || 43200, // 12h
-        stale: parseInt(process.env.PIPEDREAM_TRIGGERS_CACHE_STALE_DURATION) || 172800, // 48h  
+        stale: parseInt(process.env.PIPEDREAM_TRIGGERS_CACHE_STALE_DURATION) || 172800, // 48h
         maxAge: parseInt(process.env.PIPEDREAM_TRIGGERS_CACHE_MAX_AGE) || 604800, // 7d
       };
     } else {
@@ -122,9 +122,9 @@ class PipedreamComponents {
 
       if (cached && cached.length > 0) {
         // Group cached components by type for cache age analysis
-        const actionsCached = cached.filter(c => c.componentType === 'action');
-        const triggersCached = cached.filter(c => c.componentType === 'trigger');
-        
+        const actionsCached = cached.filter((c) => c.componentType === 'action');
+        const triggersCached = cached.filter((c) => c.componentType === 'trigger');
+
         let shouldRefreshActions = false;
         let shouldRefreshTriggers = false;
         let returnCachedActions = actionsCached;
@@ -132,10 +132,12 @@ class PipedreamComponents {
 
         // Analyze cache age for actions
         if (actionsCached.length > 0 && (!type || type === 'actions')) {
-          const actionsAge = Date.now() - new Date(actionsCached[0].updatedAt || actionsCached[0].createdAt).getTime();
+          const actionsAge =
+            Date.now() -
+            new Date(actionsCached[0].updatedAt || actionsCached[0].createdAt).getTime();
           const actionsAgeSeconds = Math.floor(actionsAge / 1000);
           const actionsDurations = this.getCacheDurations('action');
-          
+
           const actionsIsFresh = actionsAgeSeconds < actionsDurations.fresh;
           const actionsIsStale = actionsAgeSeconds > actionsDurations.stale;
           const actionsIsExpired = actionsAgeSeconds > actionsDurations.maxAge;
@@ -150,12 +152,14 @@ class PipedreamComponents {
           }
         }
 
-        // Analyze cache age for triggers  
+        // Analyze cache age for triggers
         if (triggersCached.length > 0 && (!type || type === 'triggers')) {
-          const triggersAge = Date.now() - new Date(triggersCached[0].updatedAt || triggersCached[0].createdAt).getTime();
+          const triggersAge =
+            Date.now() -
+            new Date(triggersCached[0].updatedAt || triggersCached[0].createdAt).getTime();
           const triggersAgeSeconds = Math.floor(triggersAge / 1000);
           const triggersDurations = this.getCacheDurations('trigger');
-          
+
           const triggersIsFresh = triggersAgeSeconds < triggersDurations.fresh;
           const triggersIsStale = triggersAgeSeconds > triggersDurations.stale;
           const triggersIsExpired = triggersAgeSeconds > triggersDurations.maxAge;
@@ -171,11 +175,20 @@ class PipedreamComponents {
         }
 
         // If we have fresh data for requested types, return it
-        const hasValidActions = (!type || type === 'actions') ? returnCachedActions.length > 0 : true;
-        const hasValidTriggers = (!type || type === 'triggers') ? returnCachedTriggers.length > 0 : true;
-        
-        if (hasValidActions && hasValidTriggers && !shouldRefreshActions && !shouldRefreshTriggers) {
-          const result = this.formatCachedComponents([...returnCachedActions, ...returnCachedTriggers], type);
+        const hasValidActions = !type || type === 'actions' ? returnCachedActions.length > 0 : true;
+        const hasValidTriggers =
+          !type || type === 'triggers' ? returnCachedTriggers.length > 0 : true;
+
+        if (
+          hasValidActions &&
+          hasValidTriggers &&
+          !shouldRefreshActions &&
+          !shouldRefreshTriggers
+        ) {
+          const result = this.formatCachedComponents(
+            [...returnCachedActions, ...returnCachedTriggers],
+            type,
+          );
           logger.debug(
             `PipedreamComponents: Returning ${result.actions.length} cached actions, ${result.triggers.length} cached triggers for ${appIdentifier} in ${Date.now() - startTime}ms`,
           );
@@ -183,15 +196,22 @@ class PipedreamComponents {
         }
 
         // If cache is stale but valid, return it and refresh in background
-        if (hasValidActions && hasValidTriggers && (shouldRefreshActions || shouldRefreshTriggers)) {
-          const result = this.formatCachedComponents([...returnCachedActions, ...returnCachedTriggers], type);
-          
+        if (
+          hasValidActions &&
+          hasValidTriggers &&
+          (shouldRefreshActions || shouldRefreshTriggers)
+        ) {
+          const result = this.formatCachedComponents(
+            [...returnCachedActions, ...returnCachedTriggers],
+            type,
+          );
+
           // Refresh in background
           setImmediate(() => {
             if (shouldRefreshActions) this.refreshActionsInBackground(appIdentifier);
             if (shouldRefreshTriggers) this.refreshTriggersInBackground(appIdentifier);
           });
-          
+
           logger.debug(
             `PipedreamComponents: Returning stale cache and refreshing in background for ${appIdentifier}`,
           );
@@ -331,7 +351,7 @@ class PipedreamComponents {
   /**
    * Fetch triggers from Pipedream API for a specific app
    *
-   * @param {string} appIdentifier - App slug or ID  
+   * @param {string} appIdentifier - App slug or ID
    * @returns {Promise<Array>} Array of trigger objects
    */
   async fetchTriggersFromAPI(appIdentifier) {
@@ -363,8 +383,10 @@ class PipedreamComponents {
               );
             });
 
-            logger.debug(`PipedreamComponents: SDK returned ${triggers.length} triggers for ${appIdentifier}`);
-            
+            logger.debug(
+              `PipedreamComponents: SDK returned ${triggers.length} triggers for ${appIdentifier}`,
+            );
+
             // Transform triggers to our standard format
             return triggers.map((trigger) => ({
               id: trigger.id || trigger.key,
@@ -379,7 +401,10 @@ class PipedreamComponents {
             }));
           }
         } catch (sdkError) {
-          logger.warn(`PipedreamComponents: SDK error for triggers ${appIdentifier}:`, sdkError.message);
+          logger.warn(
+            `PipedreamComponents: SDK error for triggers ${appIdentifier}:`,
+            sdkError.message,
+          );
         }
       }
 
@@ -401,8 +426,10 @@ class PipedreamComponents {
 
           if (response.data?.data) {
             const triggers = response.data.data;
-            logger.debug(`PipedreamComponents: Connect API returned ${triggers.length} triggers for ${appIdentifier}`);
-            
+            logger.debug(
+              `PipedreamComponents: Connect API returned ${triggers.length} triggers for ${appIdentifier}`,
+            );
+
             // Transform triggers to our standard format
             return triggers.map((trigger) => ({
               id: trigger.id || trigger.key,
@@ -417,14 +444,20 @@ class PipedreamComponents {
             }));
           }
         } catch (connectError) {
-          logger.warn(`PipedreamComponents: Connect API error for triggers ${appIdentifier}:`, connectError.message);
+          logger.warn(
+            `PipedreamComponents: Connect API error for triggers ${appIdentifier}:`,
+            connectError.message,
+          );
         }
       }
 
       logger.debug(`PipedreamComponents: No triggers found for ${appIdentifier}`);
       return [];
     } catch (error) {
-      logger.error(`PipedreamComponents: Failed to fetch triggers for ${appIdentifier}:`, error.message);
+      logger.error(
+        `PipedreamComponents: Failed to fetch triggers for ${appIdentifier}:`,
+        error.message,
+      );
       throw error;
     }
   }
@@ -438,13 +471,19 @@ class PipedreamComponents {
     const combined = `${name} ${description}`;
 
     if (combined.includes('webhook') || combined.includes('http')) return 'webhook';
-    if (combined.includes('schedule') || combined.includes('timer') || combined.includes('cron')) return 'schedule';
+    if (combined.includes('schedule') || combined.includes('timer') || combined.includes('cron'))
+      return 'schedule';
     if (combined.includes('email') || combined.includes('mail')) return 'email';
-    if (combined.includes('new') && (combined.includes('message') || combined.includes('post') || combined.includes('item'))) return 'new_item';
-    if (combined.includes('update') || combined.includes('change') || combined.includes('modify')) return 'item_updated';
+    if (
+      combined.includes('new') &&
+      (combined.includes('message') || combined.includes('post') || combined.includes('item'))
+    )
+      return 'new_item';
+    if (combined.includes('update') || combined.includes('change') || combined.includes('modify'))
+      return 'item_updated';
     if (combined.includes('delete') || combined.includes('remove')) return 'item_deleted';
     if (combined.includes('file') || combined.includes('upload')) return 'file';
-    
+
     return 'other';
   }
 
@@ -453,32 +492,44 @@ class PipedreamComponents {
    */
   async refreshTriggersInBackground(appIdentifier) {
     try {
-      logger.debug(`PipedreamComponents: Starting background triggers refresh for ${appIdentifier}`);
+      logger.debug(
+        `PipedreamComponents: Starting background triggers refresh for ${appIdentifier}`,
+      );
       const triggers = await this.fetchTriggersFromAPI(appIdentifier);
-      
+
       if (triggers.length > 0) {
         await this.cacheComponents(appIdentifier, triggers, 'trigger');
-        logger.debug(`PipedreamComponents: Background triggers refresh completed for ${appIdentifier}: ${triggers.length} triggers`);
+        logger.debug(
+          `PipedreamComponents: Background triggers refresh completed for ${appIdentifier}: ${triggers.length} triggers`,
+        );
       }
     } catch (error) {
-      logger.error(`PipedreamComponents: Background triggers refresh failed for ${appIdentifier}:`, error.message);
+      logger.error(
+        `PipedreamComponents: Background triggers refresh failed for ${appIdentifier}:`,
+        error.message,
+      );
     }
   }
 
   /**
-   * Refresh actions in background  
+   * Refresh actions in background
    */
   async refreshActionsInBackground(appIdentifier) {
     try {
       logger.debug(`PipedreamComponents: Starting background actions refresh for ${appIdentifier}`);
       const actions = await this.fetchActionsFromAPI(appIdentifier);
-      
+
       if (actions.length > 0) {
         await this.cacheComponents(appIdentifier, actions, 'action');
-        logger.debug(`PipedreamComponents: Background actions refresh completed for ${appIdentifier}: ${actions.length} actions`);
+        logger.debug(
+          `PipedreamComponents: Background actions refresh completed for ${appIdentifier}: ${actions.length} actions`,
+        );
       }
     } catch (error) {
-      logger.error(`PipedreamComponents: Background actions refresh failed for ${appIdentifier}:`, error.message);
+      logger.error(
+        `PipedreamComponents: Background actions refresh failed for ${appIdentifier}:`,
+        error.message,
+      );
     }
   }
 
@@ -638,9 +689,7 @@ class PipedreamComponents {
    * @returns {Promise<Object>} Deployment result
    */
   async deployTrigger(userId, options) {
-    logger.debug(
-      `PipedreamComponents: Deploy trigger requested for user ${userId}`,
-    );
+    logger.debug(`PipedreamComponents: Deploy trigger requested for user ${userId}`);
 
     if (!this.isEnabled()) {
       throw new Error('Pipedream Components service is not enabled');
@@ -660,14 +709,16 @@ class PipedreamComponents {
 
       // Get user integration for authProvisionId
       const { UserIntegration } = require('~/models');
-      const userIntegration = await UserIntegration.findOne({ 
-        userId, 
+      const userIntegration = await UserIntegration.findOne({
+        userId,
         appSlug,
-        isActive: true 
+        isActive: true,
       }).lean();
 
       if (!userIntegration) {
-        throw new Error(`User integration not found for ${appSlug}. Please connect your ${appSlug} account first.`);
+        throw new Error(
+          `User integration not found for ${appSlug}. Please connect your ${appSlug} account first.`,
+        );
       }
 
       if (!userIntegration.credentials?.authProvisionId) {
@@ -676,37 +727,41 @@ class PipedreamComponents {
 
       // Generate unique webhook URL for this trigger
       const webhookUrl = this.generateWebhookUrl(workflowId, triggerKey);
-      
+
       logger.info(`PipedreamComponents: Generated webhook URL: ${webhookUrl}`);
-      logger.info(`PipedreamComponents: Webhook URL components - baseUrl: ${process.env.WEBHOOK_BASE_URL || process.env.DOMAIN_SERVER || 'http://localhost:3080'}, workflowId: ${workflowId}, triggerKey: ${triggerKey}`);
-      logger.debug(`PipedreamComponents: Deploying trigger ${componentId} with webhook URL: ${webhookUrl}`);
+      logger.info(
+        `PipedreamComponents: Webhook URL components - baseUrl: ${process.env.WEBHOOK_BASE_URL || process.env.DOMAIN_SERVER || 'http://localhost:3080'}, workflowId: ${workflowId}, triggerKey: ${triggerKey}`,
+      );
+      logger.debug(
+        `PipedreamComponents: Deploying trigger ${componentId} with webhook URL: ${webhookUrl}`,
+      );
 
       // Prepare configured props according to Pipedream format
       const deploymentProps = {
         // Gmail app connection (required)
         gmail: {
-          authProvisionId: userIntegration.credentials.authProvisionId
+          authProvisionId: userIntegration.credentials.authProvisionId,
         },
-        
-        // Database prop for state maintenance - prevents duplicate triggers  
-        db: "$.service.db",
-        
+
+        // Database prop for state maintenance - prevents duplicate triggers
+        db: '$.service.db',
+
         // Use polling mode (explicit)
-        triggerType: "polling",
-        
+        triggerType: 'polling',
+
         // Configure polling frequency with proper timer format
         timer: {
-          intervalSeconds: 120  // 2 minutes - good balance between responsiveness and API limits
+          intervalSeconds: 120, // 2 minutes - good balance between responsiveness and API limits
         },
-        
+
         // Enhanced payload processing for LLMs
         withTextPayload: true,
-        
+
         // Default to INBOX monitoring for incoming emails only
-        labels: ["INBOX"],
-        
+        labels: ['INBOX'],
+
         // Include user-configured parameters (can override defaults)
-        ...configuredProps
+        ...configuredProps,
       };
 
       const deploymentPayload = {
@@ -716,11 +771,13 @@ class PipedreamComponents {
         webhookUrl: webhookUrl,
       };
 
-      
       logger.info(`PipedreamComponents: Component ID being used: ${componentId}`);
       logger.info(`PipedreamComponents: External user ID: ${userId}`);
       logger.info(`PipedreamComponents: App slug: ${appSlug}, Trigger key: ${triggerKey}`);
-      logger.info(`PipedreamComponents: Full deployment payload:`, JSON.stringify(deploymentPayload, null, 2));
+      logger.info(
+        `PipedreamComponents: Full deployment payload:`,
+        JSON.stringify(deploymentPayload, null, 2),
+      );
 
       // Deploy the trigger using Pipedream Connect API
       logger.info(`PipedreamComponents: Calling client.deployTrigger with payload...`);
@@ -743,17 +800,16 @@ class PipedreamComponents {
         logger.error(`PipedreamComponents: Deployment result is null/undefined:`, deploymentResult);
         throw new Error('Pipedream deployment returned null/undefined response');
       }
-      
+
       // Extract deployment ID from the nested data structure
       const deploymentId = deploymentResult.data?.id || deploymentResult.id;
-      
+
       if (!deploymentId) {
         logger.error(`PipedreamComponents: Deployment result missing ID:`, deploymentResult);
         logger.error(`PipedreamComponents: Available properties:`, Object.keys(deploymentResult));
         logger.error(`PipedreamComponents: Result type:`, typeof deploymentResult);
         throw new Error('Pipedream deployment returned invalid response - missing deployment ID');
       }
-      
 
       // Store trigger deployment info in database
       await this.storeTriggerDeployment({
@@ -769,8 +825,10 @@ class PipedreamComponents {
         deployedAt: new Date(),
       });
 
-      logger.info(`PipedreamComponents: Successfully deployed trigger ${componentId} for user ${userId}`);
-      
+      logger.info(
+        `PipedreamComponents: Successfully deployed trigger ${componentId} for user ${userId}`,
+      );
+
       return {
         success: true,
         deploymentId: deploymentId,
@@ -779,9 +837,11 @@ class PipedreamComponents {
         triggerKey,
         status: 'deployed',
       };
-
     } catch (error) {
-      logger.error(`PipedreamComponents: Failed to deploy trigger for user ${userId}:`, error.message);
+      logger.error(
+        `PipedreamComponents: Failed to deploy trigger for user ${userId}:`,
+        error.message,
+      );
       throw new Error(`Failed to deploy trigger: ${error.message}`);
     }
   }
@@ -795,7 +855,9 @@ class PipedreamComponents {
    * @returns {Promise<Object>} Result
    */
   async pauseTrigger(userId, workflowId, isPaused = true) {
-    logger.debug(`PipedreamComponents: ${isPaused ? 'Pausing' : 'Resuming'} trigger for workflow ${workflowId}`);
+    logger.debug(
+      `PipedreamComponents: ${isPaused ? 'Pausing' : 'Resuming'} trigger for workflow ${workflowId}`,
+    );
 
     try {
       const client = PipedreamConnect.getClient();
@@ -813,22 +875,26 @@ class PipedreamComponents {
       const result = await client.updateTrigger({
         id: deployment.deploymentId,
         externalUserId: userId,
-        active: !isPaused,  // active is opposite of paused
+        active: !isPaused, // active is opposite of paused
       });
 
       // Update deployment status
       await this.updateTriggerDeploymentStatus(workflowId, isPaused ? 'paused' : 'active');
 
-      logger.info(`PipedreamComponents: Successfully ${isPaused ? 'paused' : 'resumed'} trigger for workflow ${workflowId}`);
-      
+      logger.info(
+        `PipedreamComponents: Successfully ${isPaused ? 'paused' : 'resumed'} trigger for workflow ${workflowId}`,
+      );
+
       return {
         success: true,
         workflowId,
         status: isPaused ? 'paused' : 'active',
       };
-
     } catch (error) {
-      logger.error(`PipedreamComponents: Failed to ${isPaused ? 'pause' : 'resume'} trigger:`, error.message);
+      logger.error(
+        `PipedreamComponents: Failed to ${isPaused ? 'pause' : 'resume'} trigger:`,
+        error.message,
+      );
       throw new Error(`Failed to ${isPaused ? 'pause' : 'resume'} trigger: ${error.message}`);
     }
   }
@@ -866,13 +932,12 @@ class PipedreamComponents {
       await this.removeTriggerDeployment(workflowId);
 
       logger.info(`PipedreamComponents: Successfully deleted trigger for workflow ${workflowId}`);
-      
+
       return {
         success: true,
         workflowId,
         status: 'deleted',
       };
-
     } catch (error) {
       logger.error(`PipedreamComponents: Failed to delete trigger:`, error.message);
       throw new Error(`Failed to delete trigger: ${error.message}`);
@@ -887,7 +952,8 @@ class PipedreamComponents {
    * @returns {string} Webhook URL
    */
   generateWebhookUrl(workflowId, triggerKey) {
-    const baseUrl = process.env.WEBHOOK_BASE_URL || process.env.DOMAIN_SERVER || 'http://localhost:3080';
+    const baseUrl =
+      process.env.WEBHOOK_BASE_URL || process.env.DOMAIN_SERVER || 'http://localhost:3080';
     return `${baseUrl}/api/webhooks/trigger/${workflowId}/${triggerKey}`;
   }
 
@@ -900,15 +966,17 @@ class PipedreamComponents {
   async storeTriggerDeployment(deploymentInfo) {
     try {
       const { TriggerDeployment } = require('~/models');
-      
+
       // Remove existing deployment for this workflow
       await TriggerDeployment.deleteMany({ workflowId: deploymentInfo.workflowId });
-      
+
       // Create new deployment record
       const deployment = new TriggerDeployment(deploymentInfo);
       await deployment.save();
-      
-      logger.debug(`PipedreamComponents: Stored trigger deployment for workflow ${deploymentInfo.workflowId}`);
+
+      logger.debug(
+        `PipedreamComponents: Stored trigger deployment for workflow ${deploymentInfo.workflowId}`,
+      );
     } catch (error) {
       logger.error(`PipedreamComponents: Failed to store trigger deployment:`, error.message);
       throw error;
@@ -942,13 +1010,15 @@ class PipedreamComponents {
   async updateTriggerDeploymentStatus(workflowId, status) {
     try {
       const { TriggerDeployment } = require('~/models');
-      await TriggerDeployment.updateOne(
-        { workflowId },
-        { status, updatedAt: new Date() }
+      await TriggerDeployment.updateOne({ workflowId }, { status, updatedAt: new Date() });
+      logger.debug(
+        `PipedreamComponents: Updated trigger deployment status for workflow ${workflowId} to ${status}`,
       );
-      logger.debug(`PipedreamComponents: Updated trigger deployment status for workflow ${workflowId} to ${status}`);
     } catch (error) {
-      logger.error(`PipedreamComponents: Failed to update trigger deployment status:`, error.message);
+      logger.error(
+        `PipedreamComponents: Failed to update trigger deployment status:`,
+        error.message,
+      );
       throw error;
     }
   }

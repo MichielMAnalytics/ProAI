@@ -102,74 +102,80 @@ export interface ISchedulerExecution extends Document {
   updatedAt?: Date;
 }
 
-const workflowExecutionStepSchema = new Schema({
-  id: { type: String, required: true },
-  name: { type: String, required: true },
-  type: { type: String, required: true },
-  instruction: { type: String },
-  agent_id: { type: String },
-  status: {
-    type: String,
-    required: true,
-    enum: ['pending', 'running', 'completed', 'failed', 'skipped'],
-    default: 'pending',
-  },
-  startTime: { type: Date },
-  endTime: { type: Date },
-  duration: { type: Number }, // in milliseconds
-  output: { type: String },
-  error: { type: String },
-  retryCount: { type: Number, default: 0 },
-  toolsUsed: [{ type: String }],
-  mcpToolsCount: { type: Number, default: 0 },
-  modelUsed: { type: String },
-  endpointUsed: { type: String },
-  conversationId: { type: String },
-  responseMessageId: { type: String },
-  metadata: { type: mongoose.Schema.Types.Mixed },
-}, { _id: false });
-
-const workflowExecutionContextSchema = new Schema({
-  isTest: { type: Boolean, default: false },
-  trigger: {
-    type: {
+const workflowExecutionStepSchema = new Schema(
+  {
+    id: { type: String, required: true },
+    name: { type: String, required: true },
+    type: { type: String, required: true },
+    instruction: { type: String },
+    agent_id: { type: String },
+    status: {
       type: String,
-      enum: ['manual', 'schedule', 'webhook', 'email', 'event', 'test', 'app'],
+      required: true,
+      enum: ['pending', 'running', 'completed', 'failed', 'skipped'],
+      default: 'pending',
     },
-    source: { type: String },
-    scheduledTime: { type: Date },
-    parameters: { type: mongoose.Schema.Types.Mixed },
+    startTime: { type: Date },
+    endTime: { type: Date },
+    duration: { type: Number }, // in milliseconds
+    output: { type: String },
+    error: { type: String },
+    retryCount: { type: Number, default: 0 },
+    toolsUsed: [{ type: String }],
+    mcpToolsCount: { type: Number, default: 0 },
+    modelUsed: { type: String },
+    endpointUsed: { type: String },
+    conversationId: { type: String },
+    responseMessageId: { type: String },
+    metadata: { type: mongoose.Schema.Types.Mixed },
   },
-  workflow: {
-    id: { type: String },
-    name: { type: String },
-    version: { type: Number },
-    description: { type: String },
-    totalSteps: { type: Number },
+  { _id: false },
+);
+
+const workflowExecutionContextSchema = new Schema(
+  {
+    isTest: { type: Boolean, default: false },
+    trigger: {
+      type: {
+        type: String,
+        enum: ['manual', 'schedule', 'webhook', 'email', 'event', 'test', 'app'],
+      },
+      source: { type: String },
+      scheduledTime: { type: Date },
+      parameters: { type: mongoose.Schema.Types.Mixed },
+    },
+    workflow: {
+      id: { type: String },
+      name: { type: String },
+      version: { type: Number },
+      description: { type: String },
+      totalSteps: { type: Number },
+    },
+    execution: {
+      totalDuration: { type: Number },
+      successfulSteps: { type: Number },
+      failedSteps: { type: Number },
+      skippedSteps: { type: Number },
+    },
+    mcp: {
+      available: { type: Boolean },
+      toolCount: { type: Number },
+      serverCount: { type: Number },
+      initializationTime: { type: Number },
+    },
+    environment: {
+      timezone: { type: String },
+      locale: { type: String },
+      platform: { type: String },
+    },
+    performance: {
+      memoryUsed: { type: Number },
+      cpuTime: { type: Number },
+      networkRequests: { type: Number },
+    },
   },
-  execution: {
-    totalDuration: { type: Number },
-    successfulSteps: { type: Number },
-    failedSteps: { type: Number },
-    skippedSteps: { type: Number },
-  },
-  mcp: {
-    available: { type: Boolean },
-    toolCount: { type: Number },
-    serverCount: { type: Number },
-    initializationTime: { type: Number },
-  },
-  environment: {
-    timezone: { type: String },
-    locale: { type: String },
-    platform: { type: String },
-  },
-  performance: {
-    memoryUsed: { type: Number },
-    cpuTime: { type: Number },
-    networkRequests: { type: Number },
-  },
-}, { _id: false });
+  { _id: false },
+);
 
 const schedulerExecutionSchema: Schema<ISchedulerExecution> = new Schema(
   {
@@ -228,25 +234,29 @@ const schedulerExecutionSchema: Schema<ISchedulerExecution> = new Schema(
       type: workflowExecutionContextSchema,
       required: true,
     },
-    logs: [{
-      timestamp: { type: Date, default: Date.now },
-      level: {
-        type: String,
-        enum: ['debug', 'info', 'warn', 'error'],
-        required: true,
+    logs: [
+      {
+        timestamp: { type: Date, default: Date.now },
+        level: {
+          type: String,
+          enum: ['debug', 'info', 'warn', 'error'],
+          required: true,
+        },
+        message: { type: String, required: true },
+        stepId: { type: String },
+        agentId: { type: String },
+        metadata: { type: mongoose.Schema.Types.Mixed },
       },
-      message: { type: String, required: true },
-      stepId: { type: String },
-      agentId: { type: String },
-      metadata: { type: mongoose.Schema.Types.Mixed },
-    }],
-    notifications: [{
-      timestamp: { type: Date, default: Date.now },
-      type: { type: String, required: true },
-      message: { type: String, required: true },
-      sent: { type: Boolean, default: false },
-      details: { type: mongoose.Schema.Types.Mixed },
-    }],
+    ],
+    notifications: [
+      {
+        timestamp: { type: Date, default: Date.now },
+        type: { type: String, required: true },
+        message: { type: String, required: true },
+        sent: { type: Boolean, default: false },
+        details: { type: mongoose.Schema.Types.Mixed },
+      },
+    ],
     version: {
       type: Number,
       default: 1,
@@ -269,12 +279,14 @@ schedulerExecutionSchema.index({ 'steps.id': 1 });
 schedulerExecutionSchema.index({ 'steps.agent_id': 1 });
 
 // Methods for calculating progress
-schedulerExecutionSchema.methods.updateProgress = function() {
+schedulerExecutionSchema.methods.updateProgress = function () {
   if (this.steps && this.steps.length > 0) {
-    const completedSteps = this.steps.filter((step: IWorkflowExecutionStep) => step.status === 'completed').length;
+    const completedSteps = this.steps.filter(
+      (step: IWorkflowExecutionStep) => step.status === 'completed',
+    ).length;
     const totalSteps = this.steps.length;
     const percentage = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
-    
+
     this.progress = {
       completedSteps,
       totalSteps,
@@ -284,14 +296,20 @@ schedulerExecutionSchema.methods.updateProgress = function() {
   return this;
 };
 
-schedulerExecutionSchema.methods.updateDuration = function() {
+schedulerExecutionSchema.methods.updateDuration = function () {
   if (this.start_time && this.end_time) {
     this.duration = this.end_time.getTime() - this.start_time.getTime();
   }
   return this;
 };
 
-schedulerExecutionSchema.methods.addLog = function(level: string, message: string, stepId?: string, agentId?: string, metadata?: Record<string, any>) {
+schedulerExecutionSchema.methods.addLog = function (
+  level: string,
+  message: string,
+  stepId?: string,
+  agentId?: string,
+  metadata?: Record<string, any>,
+) {
   if (!this.logs) {
     this.logs = [];
   }
@@ -306,7 +324,11 @@ schedulerExecutionSchema.methods.addLog = function(level: string, message: strin
   return this;
 };
 
-schedulerExecutionSchema.methods.addNotification = function(type: string, message: string, details?: Record<string, any>) {
+schedulerExecutionSchema.methods.addNotification = function (
+  type: string,
+  message: string,
+  details?: Record<string, any>,
+) {
   if (!this.notifications) {
     this.notifications = [];
   }

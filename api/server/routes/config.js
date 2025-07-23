@@ -67,7 +67,7 @@ router.get('/', async function (req, res) {
           endpoints[normalizedName] = {
             tools: endpoint.tools,
             modelDisplayLabel: endpoint.modelDisplayLabel,
-            iconURL: endpoint.iconURL
+            iconURL: endpoint.iconURL,
           };
         }
       });

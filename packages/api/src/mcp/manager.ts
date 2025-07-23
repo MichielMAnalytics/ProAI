@@ -623,7 +623,7 @@ export class MCPManager {
 
   /**
    * Get user connection optimized for background execution (workflows, cron jobs)
-   * 
+   *
    * This method uses system credentials as the primary strategy instead of attempting
    * user-specific OAuth flows that cannot complete in non-interactive contexts.
    */
@@ -679,7 +679,7 @@ export class MCPManager {
       // Set up system credential OAuth handling for background execution
       connection.on('oauthRequired', async () => {
         logger.info(`${logPrefix} OAuth required in background - using system credentials`);
-        
+
         // Directly use system credentials for Pipedream servers
         if (serverName.includes('pipedream')) {
           try {
@@ -697,9 +697,12 @@ export class MCPManager {
             logger.error(`${logPrefix} Failed to get system credentials:`, error);
           }
         }
-        
+
         // If system credentials fail, emit oauthFailed
-        connection?.emit('oauthFailed', new Error('Background OAuth failed - no system credentials available'));
+        connection?.emit(
+          'oauthFailed',
+          new Error('Background OAuth failed - no system credentials available'),
+        );
       });
 
       const connectTimeout = config.initTimeout ?? 30000;
@@ -726,15 +729,18 @@ export class MCPManager {
       return connection;
     } catch (error) {
       logger.error(`${logPrefix} Background connection failed:`, error);
-      
+
       if (connection) {
         try {
           await connection.disconnect();
         } catch (disconnectError) {
-          logger.warn(`${logPrefix} Failed to disconnect failed background connection:`, disconnectError);
+          logger.warn(
+            `${logPrefix} Failed to disconnect failed background connection:`,
+            disconnectError,
+          );
         }
       }
-      
+
       return null;
     }
   }

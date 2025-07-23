@@ -30,7 +30,8 @@ class WorkflowService {
       }
 
       // Generate unique workflow ID if not provided
-      const workflowId = workflowData.id || `workflow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const workflowId =
+        workflowData.id || `workflow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       // Create scheduler task data with new simplified structure
       const triggerType = workflowData.trigger?.type || 'manual';
@@ -49,20 +50,21 @@ class WorkflowService {
         agent_id: workflowData.agent_id,
         trigger: {
           type: triggerType,
-          config: triggerType === 'manual' 
-            ? {} 
-            : {
-                ...workflowData.trigger?.config,
-                schedule: workflowData.trigger?.config?.schedule || '0 9 * * *'
-              }
+          config:
+            triggerType === 'manual'
+              ? {}
+              : {
+                  ...workflowData.trigger?.config,
+                  schedule: workflowData.trigger?.config?.schedule || '0 9 * * *',
+                },
         },
         metadata: {
-          steps: (workflowData.steps || []).map(step => ({
+          steps: (workflowData.steps || []).map((step) => ({
             id: step.id,
             name: step.name,
             type: step.type,
             instruction: step.config?.parameters?.instruction || step.instruction,
-            agent_id: step.config?.parameters?.agent_id || step.agent_id
+            agent_id: step.config?.parameters?.agent_id || step.agent_id,
           })),
           isDraft: workflowData.isDraft !== undefined ? workflowData.isDraft : true,
         },
@@ -73,13 +75,17 @@ class WorkflowService {
       if (workflowData.isActive && triggerType === 'schedule') {
         const { calculateNextRun } = require('~/server/services/Scheduler/utils/cronUtils');
         const cronExpression = workflowData.trigger?.config?.schedule || '0 9 * * *';
-        
+
         const nextRun = calculateNextRun(cronExpression);
         if (nextRun) {
           schedulerTaskData.next_run = nextRun;
-          logger.info(`[WorkflowService] Calculated next_run for new scheduled workflow ${workflowId}: ${nextRun.toISOString()}`);
+          logger.info(
+            `[WorkflowService] Calculated next_run for new scheduled workflow ${workflowId}: ${nextRun.toISOString()}`,
+          );
         } else {
-          logger.warn(`[WorkflowService] Failed to calculate next_run for new workflow ${workflowId} with cron: ${cronExpression}`);
+          logger.warn(
+            `[WorkflowService] Failed to calculate next_run for new workflow ${workflowId} with cron: ${cronExpression}`,
+          );
           // Don't create workflow if we can't calculate next run for scheduled workflows
           throw new Error(`Invalid cron expression: ${cronExpression}`);
         }
@@ -114,11 +120,9 @@ class WorkflowService {
   async getUserWorkflows(userId, filters = {}) {
     try {
       const allTasks = await getSchedulerTasksByUser(userId);
-      const workflowTasks = allTasks.filter(task => 
-        task.type === 'workflow'
-      );
-      
-      return workflowTasks.map(task => this.schedulerTaskToWorkflow(task));
+      const workflowTasks = allTasks.filter((task) => task.type === 'workflow');
+
+      return workflowTasks.map((task) => this.schedulerTaskToWorkflow(task));
     } catch (error) {
       logger.error(`[WorkflowService] Error getting workflows:`, error);
       throw error;
@@ -134,7 +138,7 @@ class WorkflowService {
   async getWorkflowById(workflowId, userId) {
     try {
       const schedulerTask = await getSchedulerTaskById(workflowId, userId);
-      
+
       if (!schedulerTask || schedulerTask.type !== 'workflow') {
         return null;
       }
@@ -164,7 +168,7 @@ class WorkflowService {
 
       // Prepare update data
       const schedulerUpdateData = {};
-      
+
       if (updateData.name) {
         schedulerUpdateData.name = updateData.name;
       }
@@ -172,12 +176,13 @@ class WorkflowService {
       if (updateData.trigger) {
         schedulerUpdateData.trigger = {
           type: updateData.trigger.type,
-          config: updateData.trigger.type === 'manual' 
-            ? {} 
-            : {
-                ...updateData.trigger.config,
-                schedule: updateData.trigger.config?.schedule || '0 9 * * *'
-              }
+          config:
+            updateData.trigger.type === 'manual'
+              ? {}
+              : {
+                  ...updateData.trigger.config,
+                  schedule: updateData.trigger.config?.schedule || '0 9 * * *',
+                },
         };
 
         // Recalculate next_run if trigger changed and workflow is enabled
@@ -185,19 +190,25 @@ class WorkflowService {
           if (updateData.trigger.type === 'schedule') {
             const { calculateNextRun } = require('~/server/services/Scheduler/utils/cronUtils');
             const cronExpression = updateData.trigger.config?.schedule || '0 9 * * *';
-            
+
             const nextRun = calculateNextRun(cronExpression);
             if (nextRun) {
               schedulerUpdateData.next_run = nextRun;
-              logger.info(`[WorkflowService] Recalculated next_run for updated scheduled workflow ${workflowId}: ${nextRun.toISOString()}`);
+              logger.info(
+                `[WorkflowService] Recalculated next_run for updated scheduled workflow ${workflowId}: ${nextRun.toISOString()}`,
+              );
             } else {
-              logger.warn(`[WorkflowService] Failed to calculate next_run for updated workflow ${workflowId} with cron: ${cronExpression}`);
+              logger.warn(
+                `[WorkflowService] Failed to calculate next_run for updated workflow ${workflowId} with cron: ${cronExpression}`,
+              );
               throw new Error(`Invalid cron expression: ${cronExpression}`);
             }
           } else {
             // For manual workflows, clear next_run
             schedulerUpdateData.next_run = null;
-            logger.info(`[WorkflowService] Cleared next_run for updated manual workflow ${workflowId}`);
+            logger.info(
+              `[WorkflowService] Cleared next_run for updated manual workflow ${workflowId}`,
+            );
           }
         }
       }
@@ -205,20 +216,20 @@ class WorkflowService {
       // Update metadata with simplified structure
       const updatedMetadata = {
         ...currentTask.metadata,
-        ...(updateData.steps && { 
-          steps: updateData.steps.map(step => ({
+        ...(updateData.steps && {
+          steps: updateData.steps.map((step) => ({
             id: step.id,
             name: step.name,
             type: step.type,
             instruction: step.config?.parameters?.instruction || step.instruction,
-            agent_id: step.config?.parameters?.agent_id || step.agent_id
-          }))
+            agent_id: step.config?.parameters?.agent_id || step.agent_id,
+          })),
         }),
         ...(updateData.isDraft !== undefined && { isDraft: updateData.isDraft }),
       };
 
       schedulerUpdateData.metadata = updatedMetadata;
-      
+
       // Increment version
       schedulerUpdateData.version = (currentTask.version || 1) + 1;
 
@@ -248,28 +259,35 @@ class WorkflowService {
       // Get the workflow before deleting to check for triggers
       const { getSchedulerTaskById } = require('~/models/SchedulerTask');
       const workflowTask = await getSchedulerTaskById(workflowId, userId);
-      
+
       // Clean up trigger deployment if it's an app-based trigger
       if (workflowTask && workflowTask.trigger && workflowTask.trigger.type === 'app') {
         try {
           const PipedreamComponents = require('~/server/services/Pipedream/PipedreamComponents');
           await PipedreamComponents.deleteTrigger(userId, workflowId);
-          logger.info(`[WorkflowService] Cleaned up trigger deployment for deleted workflow ${workflowId}`);
+          logger.info(
+            `[WorkflowService] Cleaned up trigger deployment for deleted workflow ${workflowId}`,
+          );
         } catch (error) {
-          logger.warn(`[WorkflowService] Failed to clean up trigger deployment for workflow ${workflowId}:`, error.message);
+          logger.warn(
+            `[WorkflowService] Failed to clean up trigger deployment for workflow ${workflowId}:`,
+            error.message,
+          );
           // Continue with workflow deletion even if trigger cleanup fails
         }
       }
 
       const result = await softDeleteSchedulerTask(workflowId, userId);
-      
+
       if (result) {
         logger.info(`[WorkflowService] Workflow ${workflowId} soft deleted for user ${userId}`);
         await this.notifyWorkflowEvent(userId, 'deleted', { id: workflowId, name: result.name });
         return true;
       }
-      
-      logger.warn(`[WorkflowService] Workflow ${workflowId} not found or already deleted for user ${userId}`);
+
+      logger.warn(
+        `[WorkflowService] Workflow ${workflowId} not found or already deleted for user ${userId}`,
+      );
       return false;
     } catch (error) {
       logger.error(`[WorkflowService] Error deleting workflow:`, error);
@@ -286,13 +304,15 @@ class WorkflowService {
   async permanentlyDeleteWorkflow(workflowId, userId) {
     try {
       const result = await deleteSchedulerTask(workflowId, userId);
-      
+
       if (result.deletedCount > 0) {
-        logger.info(`[WorkflowService] Workflow ${workflowId} permanently deleted for user ${userId}`);
+        logger.info(
+          `[WorkflowService] Workflow ${workflowId} permanently deleted for user ${userId}`,
+        );
         await this.notifyWorkflowEvent(userId, 'permanently_deleted', { id: workflowId });
         return true;
       }
-      
+
       return false;
     } catch (error) {
       logger.error(`[WorkflowService] Error permanently deleting workflow:`, error);
@@ -317,7 +337,7 @@ class WorkflowService {
       // First get the current task to check its trigger and schedule
       const { getSchedulerTaskById } = require('~/models/SchedulerTask');
       const currentTask = await getSchedulerTaskById(workflowId, userId);
-      
+
       if (!currentTask) {
         throw new Error('Workflow not found');
       }
@@ -331,32 +351,40 @@ class WorkflowService {
       if (isActive) {
         if (currentTask.trigger) {
           const triggerType = currentTask.trigger.type;
-          
+
           // Handle scheduled workflows
           if (triggerType === 'schedule') {
             const { calculateNextRun } = require('~/server/services/Scheduler/utils/cronUtils');
-            
+
             // Support both legacy 'schedule' field and new 'trigger.config.schedule' field
             const cronExpression = currentTask.trigger.config?.schedule || currentTask.schedule;
-            
+
             if (cronExpression) {
               const nextRun = calculateNextRun(cronExpression);
               if (nextRun) {
                 updateData.next_run = nextRun;
-                logger.info(`[WorkflowService] Calculated next_run for scheduled workflow ${workflowId}: ${nextRun.toISOString()}`);
+                logger.info(
+                  `[WorkflowService] Calculated next_run for scheduled workflow ${workflowId}: ${nextRun.toISOString()}`,
+                );
               } else {
-                logger.warn(`[WorkflowService] Failed to calculate next_run for workflow ${workflowId} with cron: ${cronExpression}`);
+                logger.warn(
+                  `[WorkflowService] Failed to calculate next_run for workflow ${workflowId} with cron: ${cronExpression}`,
+                );
                 // If we can't calculate next run, don't activate the workflow
                 throw new Error(`Invalid cron expression: ${cronExpression}`);
               }
             } else {
-              logger.warn(`[WorkflowService] No cron expression found for scheduled workflow ${workflowId}`);
+              logger.warn(
+                `[WorkflowService] No cron expression found for scheduled workflow ${workflowId}`,
+              );
               throw new Error('Scheduled workflow is missing cron expression');
             }
           } else {
             // For manual workflows, explicitly set next_run to null to prevent immediate execution
             updateData.next_run = null;
-            logger.info(`[WorkflowService] Setting next_run to null for manual workflow ${workflowId}`);
+            logger.info(
+              `[WorkflowService] Setting next_run to null for manual workflow ${workflowId}`,
+            );
           }
         }
       } else {
@@ -389,23 +417,27 @@ class WorkflowService {
   async handleTriggerDeployment(workflowTask, userId, isActive) {
     try {
       const PipedreamComponents = require('~/server/services/Pipedream/PipedreamComponents');
-      
+
       if (isActive) {
         // Deploy trigger when activating
         logger.info(`[WorkflowService] Deploying trigger for workflow ${workflowTask.id}`);
-        
+
         // Get the actual component ID from Pipedream triggers
         const componentId = await this.getActualComponentId(
-          workflowTask.trigger.config.appSlug, 
-          workflowTask.trigger.config.triggerKey
+          workflowTask.trigger.config.appSlug,
+          workflowTask.trigger.config.triggerKey,
         );
-        
-        logger.info(`[WorkflowService] Found component ID: ${componentId} for ${workflowTask.trigger.config.appSlug}:${workflowTask.trigger.config.triggerKey}`);
-        
+
+        logger.info(
+          `[WorkflowService] Found component ID: ${componentId} for ${workflowTask.trigger.config.appSlug}:${workflowTask.trigger.config.triggerKey}`,
+        );
+
         if (!componentId) {
-          throw new Error(`Component not found for ${workflowTask.trigger.config.appSlug}:${workflowTask.trigger.config.triggerKey}`);
+          throw new Error(
+            `Component not found for ${workflowTask.trigger.config.appSlug}:${workflowTask.trigger.config.triggerKey}`,
+          );
         }
-        
+
         const deploymentOptions = {
           componentId,
           workflowId: workflowTask.id,
@@ -415,22 +447,28 @@ class WorkflowService {
         };
 
         const deploymentResult = await PipedreamComponents.deployTrigger(userId, deploymentOptions);
-        
+
         if (deploymentResult.success) {
-          logger.info(`[WorkflowService] Successfully deployed trigger for workflow ${workflowTask.id}`);
+          logger.info(
+            `[WorkflowService] Successfully deployed trigger for workflow ${workflowTask.id}`,
+          );
         } else {
           throw new Error(`Failed to deploy trigger: ${deploymentResult.error}`);
         }
       } else {
         // Delete trigger when deactivating
         logger.info(`[WorkflowService] Deleting trigger for workflow ${workflowTask.id}`);
-        
+
         const deleteResult = await PipedreamComponents.deleteTrigger(userId, workflowTask.id);
-        
+
         if (deleteResult.success) {
-          logger.info(`[WorkflowService] Successfully deleted trigger for workflow ${workflowTask.id}`);
+          logger.info(
+            `[WorkflowService] Successfully deleted trigger for workflow ${workflowTask.id}`,
+          );
         } else {
-          logger.warn(`[WorkflowService] Failed to delete trigger for workflow ${workflowTask.id}: ${deleteResult.error}`);
+          logger.warn(
+            `[WorkflowService] Failed to delete trigger for workflow ${workflowTask.id}: ${deleteResult.error}`,
+          );
           // Don't throw error for delete failures - workflow can still be deactivated
         }
       }
@@ -449,41 +487,52 @@ class WorkflowService {
   async getActualComponentId(appSlug, triggerKey) {
     try {
       const PipedreamComponents = require('~/server/services/Pipedream/PipedreamComponents');
-      
+
       logger.info(`[WorkflowService] Looking up component ID for ${appSlug}:${triggerKey}`);
-      
+
       // Get triggers for the app
       const appComponents = await PipedreamComponents.getAppComponents(appSlug, 'triggers');
-      
-      logger.info(`[WorkflowService] Found ${appComponents.triggers?.length || 0} triggers for ${appSlug}`);
-      
+
+      logger.info(
+        `[WorkflowService] Found ${appComponents.triggers?.length || 0} triggers for ${appSlug}`,
+      );
+
       if (!appComponents.triggers || appComponents.triggers.length === 0) {
         logger.warn(`[WorkflowService] No triggers found for app ${appSlug}`);
         return null;
       }
-      
+
       // Log all available triggers for debugging
-      logger.info(`[WorkflowService] Available triggers for ${appSlug}:`, 
-        appComponents.triggers.map(t => ({ key: t.key, id: t.id, name: t.name }))
+      logger.info(
+        `[WorkflowService] Available triggers for ${appSlug}:`,
+        appComponents.triggers.map((t) => ({ key: t.key, id: t.id, name: t.name })),
       );
-      
+
       // Find the trigger with matching key
-      const trigger = appComponents.triggers.find(t => t.key === triggerKey);
-      
+      const trigger = appComponents.triggers.find((t) => t.key === triggerKey);
+
       if (!trigger) {
         logger.warn(`[WorkflowService] Trigger ${triggerKey} not found for app ${appSlug}`);
-        logger.warn(`[WorkflowService] Available trigger keys:`, appComponents.triggers.map(t => t.key));
+        logger.warn(
+          `[WorkflowService] Available trigger keys:`,
+          appComponents.triggers.map((t) => t.key),
+        );
         return null;
       }
-      
+
       // Return the actual component ID (could be trigger.id or trigger.key)
       const componentId = trigger.id || trigger.key;
-      logger.info(`[WorkflowService] Found component ID ${componentId} for ${appSlug}:${triggerKey}`);
+      logger.info(
+        `[WorkflowService] Found component ID ${componentId} for ${appSlug}:${triggerKey}`,
+      );
       logger.debug(`[WorkflowService] Full trigger object:`, trigger);
-      
+
       return componentId;
     } catch (error) {
-      logger.error(`[WorkflowService] Error getting component ID for ${appSlug}:${triggerKey}:`, error);
+      logger.error(
+        `[WorkflowService] Error getting component ID for ${appSlug}:${triggerKey}:`,
+        error,
+      );
       return null;
     }
   }
@@ -546,7 +595,7 @@ class WorkflowService {
       // Create execution record
       const { createSchedulerExecution } = require('~/models/SchedulerExecution');
       const executionId = `exec_${workflowId}_${Date.now()}`;
-      
+
       const execution = await createSchedulerExecution({
         id: executionId,
         task_id: workflowId,
@@ -579,7 +628,7 @@ class WorkflowService {
       const result = await workflowExecutor.executeWorkflow(
         workflow,
         { id: executionId, user: userId },
-        executionContext
+        executionContext,
       );
 
       logger.info(`[WorkflowService] Workflow ${workflowId} execution completed successfully`);

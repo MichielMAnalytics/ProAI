@@ -3,93 +3,96 @@ const mongoose = require('mongoose');
 /**
  * Schema for storing Pipedream trigger deployment information
  */
-const triggerDeploymentSchema = new mongoose.Schema({
-  // User who deployed the trigger
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-    index: true,
+const triggerDeploymentSchema = new mongoose.Schema(
+  {
+    // User who deployed the trigger
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+
+    // Workflow this trigger belongs to
+    workflowId: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+    },
+
+    // Pipedream component information
+    componentId: {
+      type: String,
+      required: true,
+    },
+
+    // Trigger key (e.g., 'new_email_received')
+    triggerKey: {
+      type: String,
+      required: true,
+    },
+
+    // App slug (e.g., 'gmail')
+    appSlug: {
+      type: String,
+      required: true,
+    },
+
+    // Generated webhook URL
+    webhookUrl: {
+      type: String,
+      required: true,
+    },
+
+    // Pipedream deployment ID
+    deploymentId: {
+      type: String,
+      required: true,
+    },
+
+    // Configured properties for the trigger
+    configuredProps: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+
+    // Deployment status
+    status: {
+      type: String,
+      enum: ['deployed', 'active', 'paused', 'failed', 'deleted'],
+      default: 'deployed',
+      index: true,
+    },
+
+    // Deployment timestamp
+    deployedAt: {
+      type: Date,
+      default: Date.now,
+    },
+
+    // Last update timestamp
+    updatedAt: {
+      type: Date,
+      default: Date.now,
+    },
+
+    // Error information (if deployment failed)
+    error: {
+      type: String,
+      default: null,
+    },
+
+    // Metadata
+    metadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
   },
-  
-  // Workflow this trigger belongs to
-  workflowId: {
-    type: String,
-    required: true,
-    unique: true,
-    index: true,
+  {
+    timestamps: true,
   },
-  
-  // Pipedream component information
-  componentId: {
-    type: String,
-    required: true,
-  },
-  
-  // Trigger key (e.g., 'new_email_received')
-  triggerKey: {
-    type: String,
-    required: true,
-  },
-  
-  // App slug (e.g., 'gmail')
-  appSlug: {
-    type: String,
-    required: true,
-  },
-  
-  // Generated webhook URL
-  webhookUrl: {
-    type: String,
-    required: true,
-  },
-  
-  // Pipedream deployment ID
-  deploymentId: {
-    type: String,
-    required: true,
-  },
-  
-  // Configured properties for the trigger
-  configuredProps: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {},
-  },
-  
-  // Deployment status
-  status: {
-    type: String,
-    enum: ['deployed', 'active', 'paused', 'failed', 'deleted'],
-    default: 'deployed',
-    index: true,
-  },
-  
-  // Deployment timestamp
-  deployedAt: {
-    type: Date,
-    default: Date.now,
-  },
-  
-  // Last update timestamp
-  updatedAt: {
-    type: Date,
-    default: Date.now,
-  },
-  
-  // Error information (if deployment failed)
-  error: {
-    type: String,
-    default: null,
-  },
-  
-  // Metadata
-  metadata: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {},
-  },
-}, {
-  timestamps: true,
-});
+);
 
 // Indexes for efficient querying
 triggerDeploymentSchema.index({ userId: 1, workflowId: 1 });
@@ -153,7 +156,7 @@ async function updateTriggerDeployment(workflowId, updateData) {
     return await TriggerDeployment.findOneAndUpdate(
       { workflowId },
       { ...updateData, updatedAt: new Date() },
-      { new: true }
+      { new: true },
     ).lean();
   } catch (error) {
     throw new Error(`Error updating trigger deployment: ${error.message}`);
@@ -171,7 +174,7 @@ async function updateTriggerDeploymentStatus(workflowId, status) {
     return await TriggerDeployment.findOneAndUpdate(
       { workflowId },
       { status, updatedAt: new Date() },
-      { new: true }
+      { new: true },
     ).lean();
   } catch (error) {
     throw new Error(`Error updating trigger deployment status: ${error.message}`);
@@ -210,8 +213,8 @@ async function deleteTriggerDeploymentsByUser(userId) {
  */
 async function getActiveTriggerDeployments() {
   try {
-    return await TriggerDeployment.find({ 
-      status: { $in: ['deployed', 'active'] } 
+    return await TriggerDeployment.find({
+      status: { $in: ['deployed', 'active'] },
     }).lean();
   } catch (error) {
     throw new Error(`Error fetching active trigger deployments: ${error.message}`);

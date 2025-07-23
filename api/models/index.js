@@ -112,7 +112,7 @@ module.exports = {
   UserIntegration,
   AvailableIntegration,
   AppComponents,
-  
+
   // Trigger deployment models
   TriggerDeployment,
   createTriggerDeployment,

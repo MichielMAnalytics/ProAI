@@ -114,15 +114,15 @@ async function softDeleteSchedulerTask(id, userId) {
   try {
     return await SchedulerTask.findOneAndUpdate(
       { id, user: userId, deleted: { $ne: true } }, // Only delete non-deleted tasks
-      { 
-        deleted: true, 
+      {
+        deleted: true,
         deleted_at: new Date(),
         deleted_by: userId,
         enabled: false, // Disable when deleted
         status: 'disabled',
-        updatedAt: new Date() 
+        updatedAt: new Date(),
       },
-      { new: true }
+      { new: true },
     ).lean();
   } catch (error) {
     throw new Error(`Error soft deleting scheduler task: ${error.message}`);
@@ -156,15 +156,15 @@ async function deleteSchedulerTask(id, userId) {
 async function atomicUpdateTaskStatus(id, userId, expectedStatus, newStatus, additionalData = {}) {
   try {
     return await SchedulerTask.findOneAndUpdate(
-      { 
-        id, 
-        user: userId, 
-        status: expectedStatus  // ← This is the "compare" part of compare-and-swap
+      {
+        id,
+        user: userId,
+        status: expectedStatus, // ← This is the "compare" part of compare-and-swap
       },
-      { 
-        status: newStatus,      // ← This is the "swap" part 
+      {
+        status: newStatus, // ← This is the "swap" part
         updatedAt: new Date(),
-        ...additionalData 
+        ...additionalData,
       },
       { new: true },
     ).lean();
@@ -293,14 +293,14 @@ async function restoreSchedulerTask(id, userId) {
   try {
     return await SchedulerTask.findOneAndUpdate(
       { id, user: userId, deleted: true }, // Only restore deleted tasks
-      { 
+      {
         deleted: false,
         deleted_at: null,
         deleted_by: null,
         status: 'pending', // Set to pending when restored
-        updatedAt: new Date() 
+        updatedAt: new Date(),
       },
-      { new: true }
+      { new: true },
     ).lean();
   } catch (error) {
     throw new Error(`Error restoring scheduler task: ${error.message}`);

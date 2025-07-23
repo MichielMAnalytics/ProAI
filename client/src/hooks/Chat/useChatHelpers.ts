@@ -623,7 +623,10 @@ export default function useChatHelpers(index = 0, paramId?: string) {
             console.log('[SchedulerSSE] 🎯 Opening workflow builder for editing via notification');
             const createdWorkflowId = data.workflowData?.createdWorkflowId;
             if (createdWorkflowId) {
-              console.log('[SchedulerSSE] 🎯 Opening workflow builder to edit workflow:', createdWorkflowId);
+              console.log(
+                '[SchedulerSSE] 🎯 Opening workflow builder to edit workflow:',
+                createdWorkflowId,
+              );
               openWorkflowBuilder(createdWorkflowId);
             } else {
               console.warn('[SchedulerSSE] ⚠️ No workflow ID provided for editing');

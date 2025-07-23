@@ -23,10 +23,7 @@ import {
   useFocusChatEffect,
   useEndpoints,
 } from '~/hooks';
-import {
-  useGetStartupConfig,
-  useGetEndpointsQuery,
-} from '~/data-provider';
+import { useGetStartupConfig, useGetEndpointsQuery } from '~/data-provider';
 import { mainTextareaId, BadgeItem } from '~/common';
 import AttachFileChat from './Files/AttachFileChat';
 import FileFormChat from './Files/FileFormChat';
@@ -151,11 +148,11 @@ const ChatForm = memo(
 
     const agentData = useMemo(() => {
       if (!conversation || !endpoint) return { name: '', icon: null };
-      
+
       // Check if this is actually an agent conversation by agent_id presence
       const hasAgentId = Boolean(conversation?.agent_id);
       const hasAssistantId = Boolean(conversation?.assistant_id);
-      
+
       const { entity, isAgent, isAssistant } = getEntity({
         endpoint: hasAgentId ? 'agents' : hasAssistantId ? 'assistants' : endpoint,
         agentsMap,
@@ -163,49 +160,51 @@ const ChatForm = memo(
         agent_id: conversation?.agent_id,
         assistant_id: conversation?.assistant_id,
       });
-      
+
       if (entity?.name) {
         // For agents, try to get avatar; for assistants, try iconURL
-        const iconURL = (isAgent || hasAgentId)
-          ? (entity as any).avatar?.filepath 
-          : (isAssistant || hasAssistantId)
-            ? conversation?.iconURL 
-            : undefined;
-        
-        return { 
+        const iconURL =
+          isAgent || hasAgentId
+            ? (entity as any).avatar?.filepath
+            : isAssistant || hasAssistantId
+              ? conversation?.iconURL
+              : undefined;
+
+        return {
           name: entity.name,
-          icon: iconURL ? iconURL : null
+          icon: iconURL ? iconURL : null,
         };
       }
-      
+
       if (isAgent || hasAgentId) {
-        return { 
+        return {
           name: localize('com_ui_agent'),
-          icon: null
+          icon: null,
         };
       }
-      
+
       if (isAssistant || hasAssistantId) {
-        return { 
+        return {
           name: localize('com_ui_assistant'),
-          icon: conversation?.iconURL || null
+          icon: conversation?.iconURL || null,
         };
       }
-      
+
       // For custom endpoints, use conversation.endpoint to get the actual endpoint name
-      const actualEndpoint = conversation?.endpointType === EModelEndpoint.custom 
-        ? conversation?.endpoint 
-        : endpoint;
-      
+      const actualEndpoint =
+        conversation?.endpointType === EModelEndpoint.custom ? conversation?.endpoint : endpoint;
+
       // Get display name and icon from mapped endpoints
       if (actualEndpoint) {
-        const mappedEndpoint = mappedEndpoints?.find(e => e.value === actualEndpoint);
-        return { 
-          name: mappedEndpoint?.label || actualEndpoint.charAt(0).toUpperCase() + actualEndpoint.slice(1),
-          icon: mappedEndpoint?.icon || null
+        const mappedEndpoint = mappedEndpoints?.find((e) => e.value === actualEndpoint);
+        return {
+          name:
+            mappedEndpoint?.label ||
+            actualEndpoint.charAt(0).toUpperCase() + actualEndpoint.slice(1),
+          icon: mappedEndpoint?.icon || null,
         };
       }
-      
+
       return { name: '', icon: null };
     }, [conversation, endpoint, agentsMap, assistantMap, localize, mappedEndpoints]);
 
@@ -233,10 +232,13 @@ const ChatForm = memo(
     }, []);
 
     // Wrapper for newConversation that resets badge visibility when user selects via @mention
-    const newConversationWithBadgeReset = useCallback((template?: any) => {
-      setIsBadgeHidden(false);
-      return newConversation(template);
-    }, [newConversation]);
+    const newConversationWithBadgeReset = useCallback(
+      (template?: any) => {
+        setIsBadgeHidden(false);
+        return newConversation(template);
+      },
+      [newConversation],
+    );
 
     useAutoSave({
       files,
@@ -307,9 +309,9 @@ const ChatForm = memo(
             setBadgeWidth(entry.contentRect.width);
           }
         });
-        
+
         resizeObserver.observe(badgeRef.current);
-        
+
         return () => resizeObserver.disconnect();
       } else {
         setBadgeWidth(0);
@@ -396,8 +398,8 @@ const ChatForm = memo(
               {endpoint && (
                 <div className={cn('relative flex', isRTL ? 'flex-row-reverse' : 'flex-row')}>
                   {shouldShowBadge && (
-                    <div ref={badgeRef} className="absolute top-2.5 left-3 z-10 flex items-center">
-                      <AgentBadge 
+                    <div ref={badgeRef} className="absolute left-3 top-2.5 z-10 flex items-center">
+                      <AgentBadge
                         agentName={agentData.name}
                         agentIcon={agentData.icon}
                         onRemove={handleRemoveBadge}
@@ -428,11 +430,11 @@ const ChatForm = memo(
                     }}
                     onBlur={setIsTextAreaFocused.bind(null, false)}
                     onClick={handleFocusOrClick}
-                    style={{ 
-                      height: 44, 
+                    style={{
+                      height: 44,
                       overflowY: 'auto',
                       textIndent: shouldShowBadge && badgeWidth ? `${badgeWidth + 12}px` : '0',
-                      paddingLeft: shouldShowBadge ? '0.75rem' : undefined
+                      paddingLeft: shouldShowBadge ? '0.75rem' : undefined,
                     }}
                     className={cn(
                       baseClasses,
@@ -440,7 +442,7 @@ const ChatForm = memo(
                       'transition-[max-height] duration-200 disabled:cursor-not-allowed',
                     )}
                   />
-                  <div className="flex flex-col items-start justify-start pt-1.5 pr-3">
+                  <div className="flex flex-col items-start justify-start pr-3 pt-1.5">
                     <CollapseChat
                       isCollapsed={isCollapsed}
                       isScrollable={isMoreThanThreeRows}
@@ -459,27 +461,28 @@ const ChatForm = memo(
                   <AttachFileChat disableInputs={disableInputs} />
                 </div>
                 <BadgeRow
-                  showEphemeralBadges={
-                    (() => {
-                      const isAgentEndpoint = isAgentsEndpoint(endpoint);
-                      const isAssistantEndpoint = isAssistantsEndpoint(endpoint);
-                      
-                      // Also check if this is an agent conversation by agent_id presence
-                      const hasAgentId = Boolean(conversation?.agent_id);
-                      const hasAssistantId = Boolean(conversation?.assistant_id);
-                      
-                      // Don't show ephemeral badges for agents or assistants
-                      if (isAgentEndpoint || isAssistantEndpoint || hasAgentId || hasAssistantId) {
-                        return false;
-                      }
-                      
-                      // For custom endpoints, use conversation.endpoint instead of the generic 'custom'
-                      const actualEndpoint = conversation?.endpointType === EModelEndpoint.custom 
-                        ? conversation?.endpoint 
+                  showEphemeralBadges={(() => {
+                    const isAgentEndpoint = isAgentsEndpoint(endpoint);
+                    const isAssistantEndpoint = isAssistantsEndpoint(endpoint);
+
+                    // Also check if this is an agent conversation by agent_id presence
+                    const hasAgentId = Boolean(conversation?.agent_id);
+                    const hasAssistantId = Boolean(conversation?.assistant_id);
+
+                    // Don't show ephemeral badges for agents or assistants
+                    if (isAgentEndpoint || isAssistantEndpoint || hasAgentId || hasAssistantId) {
+                      return false;
+                    }
+
+                    // For custom endpoints, use conversation.endpoint instead of the generic 'custom'
+                    const actualEndpoint =
+                      conversation?.endpointType === EModelEndpoint.custom
+                        ? conversation?.endpoint
                         : endpoint;
-                      return Boolean(actualEndpoint && startupConfig?.endpoints?.[actualEndpoint]?.tools !== false);
-                    })()
-                  }
+                    return Boolean(
+                      actualEndpoint && startupConfig?.endpoints?.[actualEndpoint]?.tools !== false,
+                    );
+                  })()}
                   conversationId={conversationId}
                   onChange={setBadges}
                   isInChat={
@@ -520,10 +523,10 @@ const ChatForm = memo(
                 </div>
               </div>
               {TextToSpeech && automaticPlayback && <StreamAudio index={index} />}
-              <MCPServerIcons 
-                agentTools={agentTools} 
+              <MCPServerIcons
+                agentTools={agentTools}
                 size="lg"
-                className="absolute bottom-3 left-1/2 -translate-x-1/2 transform sm:bottom-2" 
+                className="absolute bottom-3 left-1/2 -translate-x-1/2 transform sm:bottom-2"
                 showBackground={true}
               />
             </div>

@@ -66,7 +66,8 @@ export default function useTextarea({
 
   const isNotAppendable =
     ((((latestMessage?.unfinished ?? false) && !isSubmitting) || (latestMessage?.error ?? false)) &&
-    !isAssistant) || isEnhancing;
+      !isAssistant) ||
+    isEnhancing;
 
   useEffect(() => {
     const prompt = activePrompt ?? '';
@@ -170,7 +171,7 @@ export default function useTextarea({
         const scrollable = checkIfScrollable(textAreaRef.current);
         scrollable && setIsScrollable(scrollable);
       }
-      
+
       // Handle badge removal with backspace when input is empty
       if (e.key === 'Backspace' && shouldShowBadge && onRemoveBadge && textAreaRef.current) {
         const currentValue = textAreaRef.current.value;
@@ -180,7 +181,7 @@ export default function useTextarea({
           return;
         }
       }
-      
+
       if (e.key === 'Enter' && isSubmitting) {
         return;
       }

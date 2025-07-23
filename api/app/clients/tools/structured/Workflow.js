@@ -5,6 +5,7 @@ const { logger } = require('~/config');
 const WorkflowService = require('~/server/services/Workflows/WorkflowService');
 const UserMCPService = require('~/server/services/UserMCPService');
 const PipedreamUserIntegrations = require('~/server/services/Pipedream/PipedreamUserIntegrations');
+const PipedreamComponents = require('~/server/services/Pipedream/PipedreamComponents');
 const { EModelEndpoint, Constants } = require('librechat-data-provider');
 
 class WorkflowTool extends Tool {
@@ -51,32 +52,53 @@ class WorkflowTool extends Tool {
          "agent_id": "agent_Jmkl3bFgY1rr6esZ1iSKX"
        }
     
-    2. Create Complete Workflow:
+    2. Create Scheduled Workflow:
        {
          "action": "create_workflow",
-         "workflow_name": "Customer Support Automation",
+         "workflow_name": "Daily Report Generation",
          "trigger_type": "schedule",
          "schedule_config": "0 9 * * *",
          "workflow_steps": [
            {
-             "step_name": "Email Monitoring",
-             "agent_id": "agent_email_monitor_123",
-             "task_instruction": "Monitor customer support inbox and categorize incoming emails by priority and type"
+             "step_name": "Data Collection",
+             "agent_id": "agent_data_collector_123",
+             "task_instruction": "Collect and analyze daily metrics from various sources"
            },
            {
-             "step_name": "Response Generation", 
-             "agent_id": "agent_response_gen_456",
-             "task_instruction": "Generate appropriate responses for each categorized email based on company policies"
-           },
-           {
-             "step_name": "Quality Review",
-             "agent_id": "agent_qa_reviewer_789",
-             "task_instruction": "Review generated responses for accuracy and tone before sending"
+             "step_name": "Report Generation", 
+             "agent_id": "agent_report_gen_456",
+             "task_instruction": "Generate comprehensive daily report with insights and recommendations"
            }
          ]
        }
     
-    3. Update Workflow Trigger:
+    3. Create Gmail-Triggered Workflow:
+       {
+         "action": "create_workflow",
+         "workflow_name": "Gmail Auto-Response System",
+         "trigger_type": "app",
+         "app_slug": "gmail",
+         "trigger_key": "gmail-new-email-received",
+         "trigger_config": {
+           "labels": ["INBOX"],
+           "from": "important@company.com"
+         },
+         "pass_trigger_to_first_step": true,
+         "workflow_steps": [
+           {
+             "step_name": "Email Analysis",
+             "agent_id": "agent_email_analyzer_123",
+             "task_instruction": "Analyze the incoming email content and determine appropriate response type"
+           },
+           {
+             "step_name": "Response Generation",
+             "agent_id": "agent_response_writer_456", 
+             "task_instruction": "Generate personalized response based on email content and sender information"
+           }
+         ]
+       }
+    
+    4. Update Workflow Trigger:
        {
          "action": "update_workflow",
          "workflow_id": "workflow_123456789",
@@ -85,7 +107,7 @@ class WorkflowTool extends Tool {
          "schedule_config": "0 14 * * 1-5"
        }
     
-    4. Update Workflow Steps:
+    5. Update Workflow Steps:
        {
          "action": "update_workflow",
          "workflow_id": "workflow_123456789",
@@ -111,7 +133,7 @@ class WorkflowTool extends Tool {
          ]
        }
     
-    5. Update Workflow Metadata:
+    6. Update Workflow Metadata:
        {
          "action": "update_workflow",
          "workflow_id": "workflow_123456789",
@@ -136,60 +158,110 @@ class WorkflowTool extends Tool {
         .string()
         .optional()
         .describe('Name for the workflow (required for create_workflow action)'),
-      
+
       trigger_type: z
-        .enum(['manual', 'schedule'])
+        .enum(['manual', 'schedule', 'app'])
         .optional()
         .default('manual')
         .describe('How the workflow should be triggered'),
-      
+
       schedule_config: z
         .string()
         .optional()
         .describe('Cron expression for scheduled workflows (e.g., "0 9 * * *" for daily at 9 AM)'),
-      
+
+      app_slug: z
+        .string()
+        .optional()
+        .describe(
+          'App slug for app-based triggers (e.g., "gmail", "slack") - required when trigger_type is "app"',
+        ),
+
+      trigger_key: z
+        .string()
+        .optional()
+        .describe(
+          'Specific trigger key within the app (e.g., "gmail-new-email-received") - required when trigger_type is "app"',
+        ),
+
+      trigger_config: z
+        .record(z.any())
+        .optional()
+        .describe(
+          'Configuration parameters specific to the trigger (e.g., {"labels": ["INBOX"], "filterBySender": "email@domain.com"})',
+        ),
+
+      pass_trigger_to_first_step: z
+        .boolean()
+        .optional()
+        .default(true)
+        .describe(
+          'Whether to pass trigger output data to the first workflow step (useful for app triggers)',
+        ),
+
       workflow_steps: z
         .array(
           z.object({
             step_name: z.string().describe('Human-readable name for this step'),
             agent_id: z.string().describe('ID of the agent that will execute this step'),
-            task_instruction: z.string().describe('Detailed instructions for what this agent should do in this step')
-          })
+            task_instruction: z
+              .string()
+              .describe('Detailed instructions for what this agent should do in this step'),
+          }),
         )
         .optional()
-        .describe('Array of workflow steps with agent assignments and instructions (required for create_workflow action)'),
-      
+        .describe(
+          'Array of workflow steps with agent assignments and instructions (required for create_workflow action)',
+        ),
+
       // Workflow update fields
       workflow_id: z
         .string()
         .optional()
         .describe('ID of the workflow to update (required for update_workflow action)'),
-      
+
       update_type: z
         .enum(['trigger', 'steps', 'metadata', 'batch'])
         .optional()
         .describe('Type of update to perform (required for update_workflow action)'),
-      
+
       step_operations: z
         .array(
           z.object({
-            operation: z.enum(['add', 'update', 'delete', 'reorder']).describe('Operation to perform on the step'),
-            step_index: z.number().optional().describe('Index of existing step to update/delete (0-based)'),
-            position: z.number().optional().describe('Position to insert new step or move existing step to (0-based)'),
-            step_data: z.object({
-              step_name: z.string().optional().describe('Human-readable name for this step'),
-              agent_id: z.string().optional().describe('ID of the agent that will execute this step'),
-              task_instruction: z.string().optional().describe('Detailed instructions for what this agent should do in this step')
-            }).optional().describe('Step data for add/update operations')
-          })
+            operation: z
+              .enum(['add', 'update', 'delete', 'reorder'])
+              .describe('Operation to perform on the step'),
+            step_index: z
+              .number()
+              .optional()
+              .describe('Index of existing step to update/delete (0-based)'),
+            position: z
+              .number()
+              .optional()
+              .describe('Position to insert new step or move existing step to (0-based)'),
+            step_data: z
+              .object({
+                step_name: z.string().optional().describe('Human-readable name for this step'),
+                agent_id: z
+                  .string()
+                  .optional()
+                  .describe('ID of the agent that will execute this step'),
+                task_instruction: z
+                  .string()
+                  .optional()
+                  .describe('Detailed instructions for what this agent should do in this step'),
+              })
+              .optional()
+              .describe('Step data for add/update operations'),
+          }),
         )
         .optional()
         .describe('Array of step operations to perform (required for steps update_type)'),
-      
+
       description: z
         .string()
         .optional()
-        .describe('Updated description for the workflow (for metadata updates)')
+        .describe('Updated description for the workflow (for metadata updates)'),
     });
   }
 
@@ -280,24 +352,167 @@ class WorkflowTool extends Tool {
   }
 
   /**
+   * Map user-provided trigger parameter names to frontend-expected parameter names
+   * @param {string} appSlug - App slug (e.g., 'gmail', 'slack')
+   * @param {Object} triggerConfig - User-provided trigger configuration
+   * @returns {Object} Mapped trigger configuration with frontend-expected parameter names
+   */
+  mapTriggerParameters(appSlug, triggerConfig) {
+    const mappedConfig = { ...triggerConfig };
+
+    switch (appSlug) {
+      case 'gmail':
+        // Map Gmail-specific parameters to frontend expected names
+        if (triggerConfig.from) {
+          mappedConfig.fromEmail = triggerConfig.from;
+          delete mappedConfig.from;
+        }
+        if (triggerConfig.filterBySender) {
+          mappedConfig.fromEmail = triggerConfig.filterBySender;
+          delete mappedConfig.filterBySender;
+        }
+        break;
+
+      // Add mappings for other apps as needed
+      case 'slack':
+        // Future: Add Slack parameter mappings
+        break;
+
+      default:
+        // No special mapping needed for other apps
+        break;
+    }
+
+    return mappedConfig;
+  }
+
+  /**
+   * Create trigger configuration based on trigger type
+   * @param {string} triggerType - Type of trigger ('manual', 'schedule', or 'app')
+   * @param {string} scheduleConfig - Cron expression for scheduled workflows
+   * @param {string} appSlug - App slug for app-based triggers
+   * @param {string} triggerKey - Specific trigger key within the app
+   * @param {Object} triggerConfig - Configuration parameters specific to the trigger
+   * @param {boolean} passTriggerToFirstStep - Whether to pass trigger output to first step
+   * @returns {Object} Trigger configuration object
+   */
+  createTriggerConfig(
+    triggerType,
+    scheduleConfig,
+    appSlug,
+    triggerKey,
+    triggerConfig,
+    passTriggerToFirstStep,
+  ) {
+    const baseConfig = {
+      type: triggerType || 'manual',
+      config: {},
+    };
+
+    switch (triggerType) {
+      case 'schedule':
+        if (scheduleConfig) {
+          baseConfig.config.schedule = scheduleConfig;
+        }
+        break;
+
+      case 'app': {
+        // Map user-provided parameter names to frontend-expected parameter names
+        const mappedTriggerConfig = this.mapTriggerParameters(appSlug, triggerConfig || {});
+        
+        baseConfig.config = {
+          appSlug,
+          triggerKey,
+          parameters: {
+            ...mappedTriggerConfig,
+            passTriggerToFirstStep: passTriggerToFirstStep ?? true,
+          },
+        };
+        break;
+      }
+
+      case 'manual':
+      default:
+        // Manual triggers don't need additional config
+        break;
+    }
+
+    return baseConfig;
+  }
+
+  /**
    * Create a complete workflow with multiple steps assigned to specific agents
    * @param {string} userId - User ID
    * @param {string} workflowName - Name for the workflow
-   * @param {string} triggerType - How the workflow should be triggered ('manual' or 'schedule')
+   * @param {string} triggerType - How the workflow should be triggered ('manual', 'schedule', or 'app')
    * @param {string} scheduleConfig - Cron expression for scheduled workflows
    * @param {Array} workflowSteps - Array of step objects with agent assignments
+   * @param {string} appSlug - App slug for app-based triggers (required when triggerType is 'app')
+   * @param {string} triggerKey - Specific trigger key within the app (required when triggerType is 'app')
+   * @param {Object} triggerConfig - Configuration parameters specific to the trigger
+   * @param {boolean} passTriggerToFirstStep - Whether to pass trigger output to first step
    * @returns {Promise<Object>} Response with created workflow details
    */
-  async createWorkflow(userId, workflowName, triggerType, scheduleConfig, workflowSteps) {
+  async createWorkflow(
+    userId,
+    workflowName,
+    triggerType,
+    scheduleConfig,
+    workflowSteps,
+    appSlug,
+    triggerKey,
+    triggerConfig,
+    passTriggerToFirstStep,
+  ) {
     try {
       // Validate required parameters
       if (!workflowName) {
         throw new Error('workflow_name is required for create_workflow action');
       }
       if (!workflowSteps || !Array.isArray(workflowSteps) || workflowSteps.length === 0) {
-        throw new Error('workflow_steps array is required and must contain at least one step for create_workflow action');
+        throw new Error(
+          'workflow_steps array is required and must contain at least one step for create_workflow action',
+        );
       }
-      
+
+      // Validate app trigger parameters
+      if (triggerType === 'app') {
+        if (!appSlug) {
+          throw new Error('app_slug is required when trigger_type is "app"');
+        }
+        if (!triggerKey) {
+          throw new Error('trigger_key is required when trigger_type is "app"');
+        }
+
+        // Validate user has active integration for this app
+        const { UserIntegration } = require('~/models');
+        const userIntegration = await UserIntegration.findOne({
+          userId,
+          appSlug,
+          isActive: true,
+        }).lean();
+
+        if (!userIntegration) {
+          throw new Error(
+            `User integration not found for ${appSlug}. Please connect your ${appSlug} account first.`,
+          );
+        }
+
+        // Validate trigger exists for this app
+        try {
+          const appComponents = await PipedreamComponents.getAppComponents(appSlug, 'triggers');
+
+          const triggerExists = appComponents.triggers?.some(
+            (trigger) => trigger.key === triggerKey,
+          );
+          if (!triggerExists) {
+            throw new Error(`Trigger "${triggerKey}" not found for app "${appSlug}"`);
+          }
+        } catch (error) {
+          throw new Error(`Failed to validate trigger: ${error.message}`);
+        }
+      }
+
       // Validate each workflow step
       for (let i = 0; i < workflowSteps.length; i++) {
         const step = workflowSteps[i];
@@ -310,14 +525,14 @@ class WorkflowTool extends Tool {
         if (!step.task_instruction) {
           throw new Error(`Step ${i + 1} is missing task_instruction`);
         }
-        
+
         // Verify that the agent exists and user has access
         const { getAgent } = require('~/models/Agent');
         const agent = await getAgent({ id: step.agent_id });
         if (!agent) {
           throw new Error(`Agent with ID ${step.agent_id} not found for step "${step.step_name}"`);
         }
-        
+
         // Check access (same logic as retrieveAgentDetails)
         let hasAccess = false;
         if (agent.author.toString() === userId) {
@@ -326,35 +541,40 @@ class WorkflowTool extends Tool {
           try {
             const { getProjectByName } = require('~/models/Project');
             const { Constants } = require('librechat-data-provider');
-            const globalProject = await getProjectByName(Constants.GLOBAL_PROJECT_NAME, ['agentIds']);
-            if (globalProject && globalProject.agentIds && globalProject.agentIds.includes(step.agent_id)) {
+            const globalProject = await getProjectByName(Constants.GLOBAL_PROJECT_NAME, [
+              'agentIds',
+            ]);
+            if (
+              globalProject &&
+              globalProject.agentIds &&
+              globalProject.agentIds.includes(step.agent_id)
+            ) {
               hasAccess = true;
             }
           } catch (error) {
             // Continue with access denied
           }
         }
-        
+
         if (!hasAccess) {
-          throw new Error(`Access denied to agent ${step.agent_id} ("${agent.name}") for step "${step.step_name}"`);
+          throw new Error(
+            `Access denied to agent ${step.agent_id} ("${agent.name}") for step "${step.step_name}"`,
+          );
         }
       }
 
-      logger.info(
-        `[WorkflowTool] Creating complete workflow for user ${userId}`,
-        {
-          workflowName,
-          triggerType,
-          scheduleConfig,
-          stepCount: workflowSteps.length,
-        },
-      );
+      logger.info(`[WorkflowTool] Creating complete workflow for user ${userId}`, {
+        workflowName,
+        triggerType,
+        scheduleConfig,
+        stepCount: workflowSteps.length,
+      });
 
       // No need to get calling agent - we're creating steps with specified agents
 
       // Generate a unique workflow ID
       const workflowId = `workflow_${Date.now()}`;
-      
+
       // Create all workflow steps from the provided array
       const createdSteps = workflowSteps.map((stepData, index) => ({
         id: `step_${Date.now()}_${index}`,
@@ -368,10 +588,14 @@ class WorkflowTool extends Tool {
       const workflowData = {
         id: workflowId,
         name: workflowName,
-        trigger: {
-          type: triggerType || 'manual',
-          config: triggerType === 'schedule' && scheduleConfig ? { schedule: scheduleConfig } : {},
-        },
+        trigger: this.createTriggerConfig(
+          triggerType,
+          scheduleConfig,
+          appSlug,
+          triggerKey,
+          triggerConfig,
+          passTriggerToFirstStep,
+        ),
         steps: createdSteps,
         isActive: false, // Start inactive by default
         isDraft: false, // Mark as not draft since we're saving
@@ -385,11 +609,11 @@ class WorkflowTool extends Tool {
         const WorkflowService = require('~/server/services/Workflows/WorkflowService');
         const workflowService = new WorkflowService();
         const createdWorkflow = await workflowService.createWorkflow(workflowData, userId);
-        
+
         logger.info(
           `[WorkflowTool] Successfully created workflow: ${createdWorkflow.id} (${createdWorkflow.name}) with ${createdSteps.length} steps`,
         );
-        
+
         // Send SSE notification to trigger workflow builder opening with the created workflow ID
         try {
           const SchedulerService = require('~/server/services/Scheduler/SchedulerService');
@@ -407,9 +631,7 @@ class WorkflowTool extends Tool {
             },
           });
         } catch (notificationError) {
-          logger.warn(
-            `[WorkflowTool] Failed to send notification: ${notificationError.message}`,
-          );
+          logger.warn(`[WorkflowTool] Failed to send notification: ${notificationError.message}`);
           // Don't fail the operation if notification fails
         }
 
@@ -473,7 +695,7 @@ class WorkflowTool extends Tool {
       const WorkflowService = require('~/server/services/Workflows/WorkflowService');
       const workflowService = new WorkflowService();
       const existingWorkflow = await workflowService.getWorkflowById(workflowId, userId);
-      
+
       if (!existingWorkflow) {
         throw new Error(`Workflow with ID ${workflowId} not found or access denied`);
       }
@@ -491,11 +713,25 @@ class WorkflowTool extends Tool {
           if (!updateData.trigger_type) {
             throw new Error('trigger_type is required for trigger updates');
           }
-          workflowUpdate.trigger = {
-            type: updateData.trigger_type,
-            config: updateData.trigger_type === 'schedule' && updateData.schedule_config ? 
-              { schedule: updateData.schedule_config } : {},
-          };
+
+          // Validate app trigger parameters if needed
+          if (updateData.trigger_type === 'app') {
+            if (!updateData.app_slug) {
+              throw new Error('app_slug is required when trigger_type is "app"');
+            }
+            if (!updateData.trigger_key) {
+              throw new Error('trigger_key is required when trigger_type is "app"');
+            }
+          }
+
+          workflowUpdate.trigger = this.createTriggerConfig(
+            updateData.trigger_type,
+            updateData.schedule_config,
+            updateData.app_slug,
+            updateData.trigger_key,
+            updateData.trigger_config,
+            updateData.pass_trigger_to_first_step,
+          );
           break;
 
         case 'metadata':
@@ -507,22 +743,22 @@ class WorkflowTool extends Tool {
           }
           break;
 
-        case 'steps':
+        case 'steps': {
           if (!updateData.step_operations || !Array.isArray(updateData.step_operations)) {
             throw new Error('step_operations array is required for steps updates');
           }
-          
+
           // Clone current steps to modify
           let updatedSteps = [...existingWorkflow.steps];
-          
+
           // Process each step operation
           for (const operation of updateData.step_operations) {
             switch (operation.operation) {
-              case 'add':
+              case 'add': {
                 if (!operation.step_data) {
                   throw new Error('step_data is required for add operations');
                 }
-                
+
                 // Validate agent access for new steps
                 if (operation.step_data.agent_id) {
                   const { getAgent } = require('~/models/Agent');
@@ -530,7 +766,7 @@ class WorkflowTool extends Tool {
                   if (!agent) {
                     throw new Error(`Agent with ID ${operation.step_data.agent_id} not found`);
                   }
-                  
+
                   // Check access (same logic as create workflow)
                   let hasAccess = false;
                   if (agent.author.toString() === userId) {
@@ -539,20 +775,28 @@ class WorkflowTool extends Tool {
                     try {
                       const { getProjectByName } = require('~/models/Project');
                       const { Constants } = require('librechat-data-provider');
-                      const globalProject = await getProjectByName(Constants.GLOBAL_PROJECT_NAME, ['agentIds']);
-                      if (globalProject && globalProject.agentIds && globalProject.agentIds.includes(operation.step_data.agent_id)) {
+                      const globalProject = await getProjectByName(Constants.GLOBAL_PROJECT_NAME, [
+                        'agentIds',
+                      ]);
+                      if (
+                        globalProject &&
+                        globalProject.agentIds &&
+                        globalProject.agentIds.includes(operation.step_data.agent_id)
+                      ) {
                         hasAccess = true;
                       }
                     } catch (error) {
                       // Continue with access denied
                     }
                   }
-                  
+
                   if (!hasAccess) {
-                    throw new Error(`Access denied to agent ${operation.step_data.agent_id} (\"${agent.name}\")`);
+                    throw new Error(
+                      `Access denied to agent ${operation.step_data.agent_id} ("${agent.name}")`,
+                    );
                   }
                 }
-                
+
                 const newStep = {
                   id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
                   name: operation.step_data.step_name || `Step ${updatedSteps.length + 1}`,
@@ -560,19 +804,27 @@ class WorkflowTool extends Tool {
                   instruction: operation.step_data.task_instruction,
                   agent_id: operation.step_data.agent_id,
                 };
-                
-                const insertPosition = operation.position !== undefined ? operation.position : updatedSteps.length;
+
+                const insertPosition =
+                  operation.position !== undefined ? operation.position : updatedSteps.length;
                 updatedSteps.splice(insertPosition, 0, newStep);
                 break;
-                
-              case 'update':
-                if (operation.step_index === undefined || operation.step_index < 0 || operation.step_index >= updatedSteps.length) {
-                  throw new Error(`Invalid step_index ${operation.step_index} for update operation`);
+              }
+
+              case 'update': {
+                if (
+                  operation.step_index === undefined ||
+                  operation.step_index < 0 ||
+                  operation.step_index >= updatedSteps.length
+                ) {
+                  throw new Error(
+                    `Invalid step_index ${operation.step_index} for update operation`,
+                  );
                 }
                 if (!operation.step_data) {
                   throw new Error('step_data is required for update operations');
                 }
-                
+
                 const stepToUpdate = updatedSteps[operation.step_index];
                 if (operation.step_data.step_name) {
                   stepToUpdate.name = operation.step_data.step_name;
@@ -590,42 +842,59 @@ class WorkflowTool extends Tool {
                   stepToUpdate.agent_id = operation.step_data.agent_id;
                 }
                 break;
-                
-              case 'delete':
-                if (operation.step_index === undefined || operation.step_index < 0 || operation.step_index >= updatedSteps.length) {
-                  throw new Error(`Invalid step_index ${operation.step_index} for delete operation`);
+              }
+
+              case 'delete': {
+                if (
+                  operation.step_index === undefined ||
+                  operation.step_index < 0 ||
+                  operation.step_index >= updatedSteps.length
+                ) {
+                  throw new Error(
+                    `Invalid step_index ${operation.step_index} for delete operation`,
+                  );
                 }
                 updatedSteps.splice(operation.step_index, 1);
                 break;
-                
-              case 'reorder':
+              }
+
+              case 'reorder': {
                 if (operation.step_index === undefined || operation.position === undefined) {
-                  throw new Error('Both step_index and position are required for reorder operations');
+                  throw new Error(
+                    'Both step_index and position are required for reorder operations',
+                  );
                 }
                 if (operation.step_index < 0 || operation.step_index >= updatedSteps.length) {
-                  throw new Error(`Invalid step_index ${operation.step_index} for reorder operation`);
+                  throw new Error(
+                    `Invalid step_index ${operation.step_index} for reorder operation`,
+                  );
                 }
-                
+
                 const [stepToMove] = updatedSteps.splice(operation.step_index, 1);
                 updatedSteps.splice(operation.position, 0, stepToMove);
                 break;
-                
+              }
+
               default:
                 throw new Error(`Unknown step operation: ${operation.operation}`);
             }
           }
-          
+
           workflowUpdate.steps = updatedSteps;
           break;
+        }
 
         case 'batch':
           // Allow multiple update types in one operation
           if (updateData.trigger_type) {
-            workflowUpdate.trigger = {
-              type: updateData.trigger_type,
-              config: updateData.trigger_type === 'schedule' && updateData.schedule_config ? 
-                { schedule: updateData.schedule_config } : {},
-            };
+            workflowUpdate.trigger = this.createTriggerConfig(
+              updateData.trigger_type,
+              updateData.schedule_config,
+              updateData.app_slug,
+              updateData.trigger_key,
+              updateData.trigger_config,
+              updateData.pass_trigger_to_first_step,
+            );
           }
           if (updateData.workflow_name) {
             workflowUpdate.name = updateData.workflow_name;
@@ -642,12 +911,16 @@ class WorkflowTool extends Tool {
 
       // Perform the workflow update
       try {
-        const updatedWorkflow = await workflowService.updateWorkflow(workflowId, userId, workflowUpdate);
-        
+        const updatedWorkflow = await workflowService.updateWorkflow(
+          workflowId,
+          userId,
+          workflowUpdate,
+        );
+
         logger.info(
           `[WorkflowTool] Successfully updated workflow: ${updatedWorkflow.id} (${updatedWorkflow.name})`,
         );
-        
+
         // Send SSE notification about the update
         try {
           const SchedulerService = require('~/server/services/Scheduler/SchedulerService');
@@ -727,15 +1000,14 @@ class WorkflowTool extends Tool {
             data.trigger_type,
             data.schedule_config,
             data.workflow_steps,
+            data.app_slug,
+            data.trigger_key,
+            data.trigger_config,
+            data.pass_trigger_to_first_step,
           );
 
         case 'update_workflow':
-          return await this.updateWorkflow(
-            userId,
-            data.workflow_id,
-            data.update_type,
-            data,
-          );
+          return await this.updateWorkflow(userId, data.workflow_id, data.update_type, data);
 
         default:
           throw new Error(`Unknown action: ${action}`);

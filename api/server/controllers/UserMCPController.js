@@ -320,7 +320,6 @@ const connectMCPServer = async (req, res) => {
         MCPInitializer.updateAppLevelCaches(req.app, userId, serverName, result.connectedTools, []);
       }
 
-
       res.json({
         success: true,
         message: `Successfully connected to MCP server '${serverName}'`,
@@ -427,7 +426,6 @@ const disconnectMCPServer = async (req, res) => {
         );
         // Don't fail the disconnect operation if cleanup fails
       }
-
 
       res.json({
         success: true,

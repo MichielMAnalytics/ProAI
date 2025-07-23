@@ -210,24 +210,28 @@ export default function ModelPanel({
           />
         </div>
       </div>
-      
+
       {/* Advanced Parameters Toggle */}
       {parameters && parameters.length > 0 && (
-        <div className="px-2 mb-4">
+        <div className="mb-4 px-2">
           <button
             type="button"
             onClick={() => setShowAdvancedParams(!showAdvancedParams)}
             className="btn btn-neutral flex w-full items-center justify-center gap-2 px-4 py-2 text-sm"
           >
-            {showAdvancedParams ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {showAdvancedParams ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
             {localize('com_ui_advanced_params')}
           </button>
         </div>
       )}
-      
+
       {/* Model Parameters */}
       {parameters && showAdvancedParams && (
-        <div className="h-auto max-w-full overflow-x-hidden p-2 mt-2">
+        <div className="mt-2 h-auto max-w-full overflow-x-hidden p-2">
           <div className="grid grid-cols-2 gap-4">
             {/* This is the parent element containing all settings */}
             {/* Below is an example of an applied dynamic setting, each be contained by a div with the column span specified */}
@@ -258,7 +262,7 @@ export default function ModelPanel({
       )}
       {/* Reset Parameters Button */}
       {showAdvancedParams && (
-        <div className="px-2 mt-2">
+        <div className="mt-2 px-2">
           <button
             type="button"
             onClick={handleResetParameters}

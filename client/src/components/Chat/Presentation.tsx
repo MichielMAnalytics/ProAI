@@ -72,10 +72,10 @@ export default function Presentation({ children }: { children: React.ReactNode }
               <Artifacts />
             </EditorProvider>
           ) : isWorkflowBuilderOpen ? (
-            <WorkflowBuilder 
-              key={workflowId || 'new-workflow'} 
-              onClose={closeWorkflowBuilder} 
-              workflowId={workflowId} 
+            <WorkflowBuilder
+              key={workflowId || 'new-workflow'}
+              onClose={closeWorkflowBuilder}
+              workflowId={workflowId}
             />
           ) : null
         }
