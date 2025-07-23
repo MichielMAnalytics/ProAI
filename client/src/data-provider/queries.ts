@@ -654,7 +654,7 @@ export const useAppComponentsQuery = (
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       refetchOnMount: false,
-      select: (data: any) => data.data,
+      // Remove the double data extraction - data service already extracts response.data
       ...config,
     },
   );
