@@ -11,12 +11,11 @@ import { useAgentsMapContext } from '~/Providers/AgentsMapContext';
 import { mainTextareaId } from '~/common';
 import ConversationStarters from './Input/ConversationStarters';
 import DefaultPrompts from './Input/DefaultPrompts';
-import AgentSelectModal from './AgentSelectModal';
 import { useGetMessagesByConvoId, useGetAgentByIdQuery } from '~/data-provider';
 import MessagesView from './Messages/MessagesView';
 import { Spinner } from '~/components/svg';
 import Presentation from './Presentation';
-import { buildTree, cn, getEntity } from '~/utils';
+import { buildTree, cn } from '~/utils';
 import ChatForm from './Input/ChatForm';
 import Landing from './Landing';
 import Header from './Header';
@@ -48,7 +47,6 @@ function ChatView({ index = 0 }: { index?: number }) {
   const centerFormOnLanding = useRecoilValue(store.centerFormOnLanding);
 
   const [isMcpChecking, setIsMcpChecking] = useState(false);
-  const [showAgentSelectModal, setShowAgentSelectModal] = useState(false);
 
   const fileMap = useFileMapContext();
   const agentsMap = useAgentsMapContext();
@@ -91,42 +89,7 @@ function ChatView({ index = 0 }: { index?: number }) {
     }
   };
 
-  // Check if we need to show agent select modal
-  const shouldShowAgentModal = (() => {
-    const { conversation } = chatHelpers;
-    if (!conversation) return false;
 
-    const endpoint = conversation.endpointType ?? conversation.endpoint;
-    const currentAgentId = conversation.agent_id ?? '';
-
-    // Check if we're on an agent endpoint and need to select an agent
-    if (isAgentsEndpoint(endpoint)) {
-      // Don't show modal if agentsMap is not loaded yet to prevent flash
-      if (!agentsMap) return false;
-
-      const { isAgent } = getEntity({
-        endpoint,
-        agentsMap,
-        assistantMap: {},
-        agent_id: currentAgentId,
-        assistant_id: undefined,
-      });
-
-      // Show modal if it's an agent endpoint but no valid agent is selected
-      return isAgent && (!currentAgentId || !agentsMap[currentAgentId]);
-    }
-
-    return false;
-  })();
-
-  // Auto-show modal when agent selection is needed
-  useEffect(() => {
-    if (shouldShowAgentModal && !showAgentSelectModal) {
-      setShowAgentSelectModal(true);
-    } else if (!shouldShowAgentModal && showAgentSelectModal) {
-      setShowAgentSelectModal(false);
-    }
-  }, [shouldShowAgentModal, showAgentSelectModal]);
 
   // Simplified useEffect for handling MCP connection checks - we don't need to show connect buttons anymore
   useEffect(() => {
@@ -176,10 +139,7 @@ function ChatView({ index = 0 }: { index?: number }) {
         <AddedChatContext.Provider value={addedChatHelpers}>
           <Presentation>
             <div
-              className={cn(
-                'flex h-full w-full flex-col',
-                shouldShowAgentModal && 'pointer-events-none blur-sm',
-              )}
+              className="flex h-full w-full flex-col"
             >
               {!isLoading && <Header />}
               <>
@@ -218,7 +178,7 @@ function ChatView({ index = 0 }: { index?: number }) {
                       <ChatForm
                         index={index}
                         isMcpChecking={isMcpChecking}
-                        disabled={shouldShowAgentModal}
+                        disabled={false}
                         agentTools={agentData?.tools || []}
                       />
                     </div>
@@ -236,11 +196,6 @@ function ChatView({ index = 0 }: { index?: number }) {
               </>
             </div>
 
-            {/* Agent Select Modal */}
-            <AgentSelectModal
-              isOpen={showAgentSelectModal}
-              onClose={() => setShowAgentSelectModal(false)}
-            />
           </Presentation>
         </AddedChatContext.Provider>
       </ChatContext.Provider>
