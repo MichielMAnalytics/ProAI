@@ -419,57 +419,75 @@ class WorkflowService {
       const PipedreamComponents = require('~/server/services/Pipedream/PipedreamComponents');
 
       if (isActive) {
-        // Deploy trigger when activating
-        logger.info(`[WorkflowService] Deploying trigger for workflow ${workflowTask.id}`);
-
-        // Get the actual component ID from Pipedream triggers
-        const componentId = await this.getActualComponentId(
-          workflowTask.trigger.config.appSlug,
-          workflowTask.trigger.config.triggerKey,
-        );
-
-        logger.info(
-          `[WorkflowService] Found component ID: ${componentId} for ${workflowTask.trigger.config.appSlug}:${workflowTask.trigger.config.triggerKey}`,
-        );
-
-        if (!componentId) {
-          throw new Error(
-            `Component not found for ${workflowTask.trigger.config.appSlug}:${workflowTask.trigger.config.triggerKey}`,
-          );
-        }
-
-        const deploymentOptions = {
-          componentId,
-          workflowId: workflowTask.id,
-          configuredProps: workflowTask.trigger.config.parameters || {},
-          appSlug: workflowTask.trigger.config.appSlug,
-          triggerKey: workflowTask.trigger.config.triggerKey,
-        };
-
-        const deploymentResult = await PipedreamComponents.deployTrigger(userId, deploymentOptions);
-
-        if (deploymentResult.success) {
-          logger.info(
-            `[WorkflowService] Successfully deployed trigger for workflow ${workflowTask.id}`,
-          );
+        // Check if trigger deployment already exists
+        const existingDeployment = await PipedreamComponents.getTriggerDeployment(workflowTask.id);
+        
+        if (existingDeployment) {
+          // Resume existing trigger
+          logger.info(`[WorkflowService] Resuming existing trigger for workflow ${workflowTask.id}`);
+          
+          const resumeResult = await PipedreamComponents.pauseTrigger(userId, workflowTask.id, false);
+          
+          if (resumeResult.success) {
+            logger.info(
+              `[WorkflowService] Successfully resumed trigger for workflow ${workflowTask.id}`,
+            );
+          } else {
+            throw new Error(`Failed to resume trigger: ${resumeResult.error}`);
+          }
         } else {
-          throw new Error(`Failed to deploy trigger: ${deploymentResult.error}`);
+          // Deploy new trigger when activating for the first time
+          logger.info(`[WorkflowService] Deploying new trigger for workflow ${workflowTask.id}`);
+
+          // Get the actual component ID from Pipedream triggers
+          const componentId = await this.getActualComponentId(
+            workflowTask.trigger.config.appSlug,
+            workflowTask.trigger.config.triggerKey,
+          );
+
+          logger.info(
+            `[WorkflowService] Found component ID: ${componentId} for ${workflowTask.trigger.config.appSlug}:${workflowTask.trigger.config.triggerKey}`,
+          );
+
+          if (!componentId) {
+            throw new Error(
+              `Component not found for ${workflowTask.trigger.config.appSlug}:${workflowTask.trigger.config.triggerKey}`,
+            );
+          }
+
+          const deploymentOptions = {
+            componentId,
+            workflowId: workflowTask.id,
+            configuredProps: workflowTask.trigger.config.parameters || {},
+            appSlug: workflowTask.trigger.config.appSlug,
+            triggerKey: workflowTask.trigger.config.triggerKey,
+          };
+
+          const deploymentResult = await PipedreamComponents.deployTrigger(userId, deploymentOptions);
+
+          if (deploymentResult.success) {
+            logger.info(
+              `[WorkflowService] Successfully deployed trigger for workflow ${workflowTask.id}`,
+            );
+          } else {
+            throw new Error(`Failed to deploy trigger: ${deploymentResult.error}`);
+          }
         }
       } else {
-        // Delete trigger when deactivating
-        logger.info(`[WorkflowService] Deleting trigger for workflow ${workflowTask.id}`);
+        // Pause trigger when deactivating
+        logger.info(`[WorkflowService] Pausing trigger for workflow ${workflowTask.id}`);
 
-        const deleteResult = await PipedreamComponents.deleteTrigger(userId, workflowTask.id);
+        const pauseResult = await PipedreamComponents.pauseTrigger(userId, workflowTask.id, true);
 
-        if (deleteResult.success) {
+        if (pauseResult.success) {
           logger.info(
-            `[WorkflowService] Successfully deleted trigger for workflow ${workflowTask.id}`,
+            `[WorkflowService] Successfully paused trigger for workflow ${workflowTask.id}`,
           );
         } else {
           logger.warn(
-            `[WorkflowService] Failed to delete trigger for workflow ${workflowTask.id}: ${deleteResult.error}`,
+            `[WorkflowService] Failed to pause trigger for workflow ${workflowTask.id}: ${pauseResult.error}`,
           );
-          // Don't throw error for delete failures - workflow can still be deactivated
+          // Don't throw error for pause failures - workflow can still be deactivated
         }
       }
     } catch (error) {
