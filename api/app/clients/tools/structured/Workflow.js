@@ -475,6 +475,9 @@ class WorkflowTool extends Tool {
         );
       }
 
+      // Track app connection status for messaging
+      let isAppConnected = true;
+
       // Validate app trigger parameters
       if (triggerType === 'app') {
         if (!appSlug) {
@@ -484,7 +487,7 @@ class WorkflowTool extends Tool {
           throw new Error('trigger_key is required when trigger_type is "app"');
         }
 
-        // Validate user has active integration for this app
+        // Check if user has active integration for this app
         const { UserIntegration } = require('~/models');
         const userIntegration = await UserIntegration.findOne({
           userId,
@@ -492,11 +495,8 @@ class WorkflowTool extends Tool {
           isActive: true,
         }).lean();
 
-        if (!userIntegration) {
-          throw new Error(
-            `User integration not found for ${appSlug}. Please connect your ${appSlug} account first.`,
-          );
-        }
+        // Store connection status for later messaging, but don't block workflow creation
+        isAppConnected = !!userIntegration;
 
         // Validate trigger exists for this app
         try {
@@ -635,10 +635,16 @@ class WorkflowTool extends Tool {
           // Don't fail the operation if notification fails
         }
 
+        // Create success message with connection guidance if needed
+        let successMessage = `Complete workflow "${workflowName}" created successfully with ${createdSteps.length} steps`;
+        if (triggerType === 'app' && !isAppConnected) {
+          successMessage += `\n\n⚠️ Note: Your ${appSlug} account is not connected. To activate this workflow, please connect your ${appSlug} account by clicking on the app icon in the workflow builder or visiting the Apps section.`;
+        }
+
         return {
           success: true,
           action: 'workflow_created',
-          message: `Complete workflow "${workflowName}" created successfully with ${createdSteps.length} steps`,
+          message: successMessage,
           data: {
             type: 'workflow_builder',
             title: 'Workflow Builder',

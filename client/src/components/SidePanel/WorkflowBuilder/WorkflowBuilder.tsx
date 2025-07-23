@@ -211,7 +211,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
   const [currentRunningStepId, setCurrentRunningStepId] = useState<string | null>(null);
   const [completedStepIds, setCompletedStepIds] = useState<Set<string>>(new Set());
   const [testingWorkflows, setTestingWorkflows] = useRecoilState(store.testingWorkflows);
-  const currentWorkflowId = initialWorkflowId;
+  const [currentWorkflowId, setCurrentWorkflowId] = useState(initialWorkflowId);
 
   // Store the original sidebar state when component mounts
   const [originalHideSidePanel] = useState(hideSidePanel);
@@ -924,6 +924,9 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
 
           const result = await createMutation.mutateAsync(workflowData);
 
+          // Update the current workflow ID so test/activate buttons become available
+          setCurrentWorkflowId(result.id);
+
           if (showNotification) {
             showToast({
               message: `Workflow "${result.name}" created successfully!`,
@@ -960,6 +963,8 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
       refetchWorkflow,
       selectedAppSlug,
       selectedTrigger,
+      setCurrentWorkflowId,
+      triggerParameters,
     ],
   );
 
