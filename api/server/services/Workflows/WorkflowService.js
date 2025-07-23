@@ -185,6 +185,61 @@ class WorkflowService {
                 },
         };
 
+        // Clean up paused deployed triggers when switching away from app triggers
+        if (currentTask.trigger?.type === 'app' && 
+            (updateData.trigger.type === 'manual' || updateData.trigger.type === 'schedule')) {
+          try {
+            const PipedreamComponents = require('~/server/services/Pipedream/PipedreamComponents');
+            
+            logger.info(
+              `[WorkflowService] Checking for deployed trigger for workflow ${workflowId} due to trigger type change from app to ${updateData.trigger.type}`
+            );
+            
+            const existingDeployment = await PipedreamComponents.getTriggerDeployment(workflowId);
+            
+            if (existingDeployment) {
+              logger.info(
+                `[WorkflowService] Found existing deployment for workflow ${workflowId}: isPaused=${existingDeployment.isPaused}, status=${existingDeployment.status}`
+              );
+              
+              // Delete any existing deployed trigger when switching away from app triggers
+              // The trigger becomes orphaned regardless of its status (paused or deployed)
+              logger.info(
+                `[WorkflowService] Attempting to delete deployed trigger for workflow ${workflowId} (status: ${existingDeployment.status})`
+              );
+              
+              const deleteResult = await PipedreamComponents.deleteTrigger(userId, workflowId);
+              
+              logger.info(
+                `[WorkflowService] Delete trigger result for workflow ${workflowId}:`,
+                deleteResult
+              );
+              
+              if (deleteResult && deleteResult.success) {
+                logger.info(
+                  `[WorkflowService] Successfully cleaned up deployed trigger for workflow ${workflowId} after trigger type change from app to ${updateData.trigger.type}`
+                );
+              } else {
+                logger.warn(
+                  `[WorkflowService] Delete trigger returned unsuccessful result for workflow ${workflowId}:`,
+                  deleteResult
+                );
+              }
+            } else {
+              logger.info(
+                `[WorkflowService] No existing deployed trigger found for workflow ${workflowId}, no cleanup needed`
+              );
+            }
+          } catch (error) {
+            logger.warn(
+              `[WorkflowService] Failed to clean up deployed trigger for workflow ${workflowId}:`,
+              error.message,
+              error.stack
+            );
+            // Continue with workflow update even if trigger cleanup fails
+          }
+        }
+
         // Recalculate next_run if trigger changed and workflow is enabled
         if (currentTask.enabled) {
           if (updateData.trigger.type === 'schedule') {
