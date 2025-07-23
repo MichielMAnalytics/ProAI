@@ -751,7 +751,7 @@ class PipedreamComponents {
 
         // Configure polling frequency with proper timer format
         timer: {
-          intervalSeconds: 120, // 2 minutes - good balance between responsiveness and API limits
+          intervalSeconds: 30, // 2 minutes - good balance between responsiveness and API limits
         },
 
         // Enhanced payload processing for LLMs

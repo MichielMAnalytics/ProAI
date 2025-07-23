@@ -44,6 +44,8 @@ class WorkflowTool extends Tool {
     - create_workflow: Create a complete workflow with multiple steps, each assigned to specific agents
     - update_workflow: Update existing workflows with support for trigger changes, step modifications, and metadata updates
     
+    IMPORTANT: When creating workflows, always start the workflow_name with an appropriate emoji that represents the workflow's purpose or main function.
+    
     Usage Examples:
     
     1. Get Agent Details:
@@ -55,7 +57,7 @@ class WorkflowTool extends Tool {
     2. Create Scheduled Workflow:
        {
          "action": "create_workflow",
-         "workflow_name": "Daily Report Generation",
+         "workflow_name": "📊 Daily Report Generation",
          "trigger_type": "schedule",
          "schedule_config": "0 9 * * *",
          "workflow_steps": [
@@ -75,7 +77,7 @@ class WorkflowTool extends Tool {
     3. Create Gmail-Triggered Workflow:
        {
          "action": "create_workflow",
-         "workflow_name": "Gmail Auto-Response System",
+         "workflow_name": "📧 Gmail Auto-Response System",
          "trigger_type": "app",
          "app_slug": "gmail",
          "trigger_key": "gmail-new-email-received",
@@ -138,7 +140,7 @@ class WorkflowTool extends Tool {
          "action": "update_workflow",
          "workflow_id": "workflow_123456789",
          "update_type": "metadata",
-         "workflow_name": "Enhanced Customer Support Automation",
+         "workflow_name": "💬 Enhanced Customer Support Automation",
          "description": "Improved automation with additional validation steps"
        }`;
 
