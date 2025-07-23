@@ -382,7 +382,48 @@ class WorkflowExecutor {
     const executionId = execution.id;
     const userId = execution.user;
     let executionContext = null; // Initialize here to ensure it's in scope for error handling
-    let stepMessages = []; // Initialize here to ensure it's in scope for error handling
+    
+    // Initialize step messages array with trigger context if user enabled it
+    let stepMessages = [];
+    
+    logger.info(`[WorkflowExecutor] === TRIGGER CONTEXT DEBUG START ===`);
+    logger.info(`[WorkflowExecutor] Full context object:`, JSON.stringify(context, null, 2));
+    logger.info(`[WorkflowExecutor] Full workflow.trigger object:`, JSON.stringify(workflow.trigger, null, 2));
+    logger.info(`[WorkflowExecutor] Checking trigger context conditions:`, {
+      triggerType: context.trigger?.type,
+      triggerKey: context.trigger?.key,
+      passTriggerEnabled: workflow.trigger?.config?.parameters?.passTriggerToFirstStep,
+      hasEvent: !!context.trigger?.event,
+      eventKeys: context.trigger?.event ? Object.keys(context.trigger.event) : null
+    });
+    
+    if ((context.trigger?.type === 'webhook' || context.trigger?.type === 'polling') && 
+        workflow.trigger?.config?.parameters?.passTriggerToFirstStep === true) {
+      
+      logger.info(`[WorkflowExecutor] Trigger context conditions MET - proceeding to format trigger context`);
+      logger.info(`[WorkflowExecutor] Raw trigger event data:`, JSON.stringify(context.trigger.event, null, 2));
+      
+      const triggerContext = this.formatTriggerContext(
+        context.trigger.key, 
+        context.trigger.event
+      );
+      
+      if (triggerContext) {
+        stepMessages.push(new HumanMessage(`TRIGGER CONTEXT:\n${triggerContext}`));
+        logger.info(`[WorkflowExecutor] ✅ Successfully added ${context.trigger.key} trigger context to first step`);
+        logger.info(`[WorkflowExecutor] Trigger context content (first 500 chars): ${triggerContext.substring(0, 500)}...`);
+        logger.info(`[WorkflowExecutor] stepMessages array now has ${stepMessages.length} messages`);
+      } else {
+        logger.error(`[WorkflowExecutor] ❌ No trigger context generated for ${context.trigger.key}`);
+        logger.error(`[WorkflowExecutor] Event data that failed to format:`, JSON.stringify(context.trigger.event, null, 2));
+      }
+    } else {
+      logger.warn(`[WorkflowExecutor] ❌ Trigger context conditions NOT met:`);
+      logger.warn(`[WorkflowExecutor] - Trigger type: ${context.trigger?.type} (expected: 'webhook' or 'polling')`);
+      logger.warn(`[WorkflowExecutor] - passTriggerToFirstStep: ${workflow.trigger?.config?.parameters?.passTriggerToFirstStep} (expected: true)`);
+    }
+    logger.info(`[WorkflowExecutor] === TRIGGER CONTEXT DEBUG END ===`);
+    logger.info(`[WorkflowExecutor] Final stepMessages array length: ${stepMessages.length}`);
 
     try {
       logger.info(`[WorkflowExecutor] Starting workflow execution: ${workflowId}`);
@@ -757,6 +798,16 @@ class WorkflowExecutor {
           steps: context.steps, // Keep the structured step results for metadata
         };
 
+        logger.info(`[WorkflowExecutor] === STEP INPUT DEBUG for step "${step.name}" ===`);
+        logger.info(`[WorkflowExecutor] stepMessages array length: ${stepMessages.length}`);
+        logger.info(`[WorkflowExecutor] stepMessages contents:`, stepMessages.map(msg => ({
+          type: msg.constructor.name,
+          content: msg.content.substring(0, 300) + (msg.content.length > 300 ? '...' : '')
+        })));
+        logger.info(`[WorkflowExecutor] Buffer string being passed to agent (first 500 chars): ${bufferString.substring(0, 500)}...`);
+        logger.info(`[WorkflowExecutor] Full buffer string length: ${bufferString.length} characters`);
+        logger.info(`[WorkflowExecutor] === STEP INPUT DEBUG END ===`);
+        
         logger.debug(
           `[WorkflowExecutor] Passing accumulated output to step ${step.name}: ${bufferString.substring(0, 200)}...`,
         );
@@ -1220,6 +1271,125 @@ class WorkflowExecutor {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
       logger.debug('[WorkflowExecutor] Memory cleanup interval stopped');
+    }
+  }
+
+  /**
+   * Format trigger context based on trigger key and event data
+   * @param {string} triggerKey - The trigger key (e.g. 'gmail')
+   * @param {Object} event - The trigger event data
+   * @returns {string|null} Formatted trigger context
+   */
+  formatTriggerContext(triggerKey, event) {
+    if (!triggerKey || !event) {
+      return null;
+    }
+
+    try {
+      // Route to specific formatter based on trigger key
+      switch (triggerKey) {
+        case 'gmail':
+          return this.formatGmailTriggerContext(event);
+        default:
+          return this.formatGenericTriggerContext(triggerKey, event);
+      }
+    } catch (error) {
+      logger.warn(`[WorkflowExecutor] Error formatting trigger context for ${triggerKey}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Format Gmail-specific trigger context with email details
+   * @param {Object} event - Gmail event data from webhook
+   * @returns {string} Formatted Gmail trigger context
+   */
+  formatGmailTriggerContext(event) {
+    logger.info(`[WorkflowExecutor] === GMAIL FORMATTER DEBUG START ===`);
+    logger.info(`[WorkflowExecutor] Raw event data received:`, JSON.stringify(event, null, 2));
+    
+    try {
+      // Extract email details from Gmail webhook event
+      const emailData = event?.data || event;
+      logger.info(`[WorkflowExecutor] Extracted email data:`, JSON.stringify(emailData, null, 2));
+      logger.info(`[WorkflowExecutor] Available email data keys:`, Object.keys(emailData));
+      
+      let context = 'Gmail Email Received:\n';
+      
+      if (emailData.subject) {
+        context += `Subject: ${emailData.subject}\n`;
+        logger.info(`[WorkflowExecutor] Found subject: ${emailData.subject}`);
+      }
+      
+      if (emailData.from) {
+        context += `From: ${emailData.from}\n`;
+        logger.info(`[WorkflowExecutor] Found from: ${emailData.from}`);
+      }
+      
+      if (emailData.to) {
+        context += `To: ${emailData.to}\n`;
+        logger.info(`[WorkflowExecutor] Found to: ${emailData.to}`);
+      }
+      
+      if (emailData.date) {
+        context += `Date: ${emailData.date}\n`;
+        logger.info(`[WorkflowExecutor] Found date: ${emailData.date}`);
+      }
+      
+      if (emailData.snippet || emailData.body || emailData.payload) {
+        const contentPreview = emailData.snippet || emailData.body?.substring(0, 300) || emailData.payload?.substring(0, 300) || '';
+        context += `Content Preview: ${contentPreview}\n`;
+        logger.info(`[WorkflowExecutor] Found content preview (${contentPreview.length} chars): ${contentPreview.substring(0, 100)}...`);
+      }
+      
+      // Check for message ID in different possible field names
+      if (emailData.messageId || emailData.id) {
+        const messageId = emailData.messageId || emailData.id;
+        context += `Message ID: ${messageId}\n`;
+        logger.info(`[WorkflowExecutor] Found messageId: ${messageId}`);
+      }
+      
+      if (emailData.threadId) {
+        context += `Thread ID: ${emailData.threadId}\n`;
+        logger.info(`[WorkflowExecutor] Found threadId: ${emailData.threadId}`);
+      }
+      
+      // Log any additional fields that might be useful
+      const additionalFields = ['labelIds', 'historyId', 'internalDate', 'sizeEstimate'];
+      additionalFields.forEach(field => {
+        if (emailData[field]) {
+          logger.info(`[WorkflowExecutor] Found additional field ${field}:`, emailData[field]);
+          if (field === 'labelIds' && Array.isArray(emailData[field])) {
+            context += `Labels: ${emailData[field].join(', ')}\n`;
+          }
+        }
+      });
+
+      const finalContext = context.trim();
+      logger.info(`[WorkflowExecutor] Generated Gmail trigger context (${finalContext.length} chars): ${finalContext.substring(0, 300)}...`);
+      logger.info(`[WorkflowExecutor] === GMAIL FORMATTER DEBUG END ===`);
+      return finalContext;
+    } catch (error) {
+      logger.error('[WorkflowExecutor] Error formatting Gmail trigger context:', error);
+      logger.info(`[WorkflowExecutor] === GMAIL FORMATTER DEBUG END (ERROR) ===`);
+      return this.formatGenericTriggerContext('gmail', event);
+    }
+  }
+
+  /**
+   * Generic fallback formatter for any trigger type
+   * @param {string} triggerKey - The trigger key
+   * @param {Object} event - The trigger event data
+   * @returns {string} Formatted generic trigger context
+   */
+  formatGenericTriggerContext(triggerKey, event) {
+    try {
+      let context = `Trigger: ${triggerKey}\n`;
+      context += `Event Data:\n${JSON.stringify(event, null, 2)}`;
+      return context;
+    } catch (error) {
+      logger.warn(`[WorkflowExecutor] Error formatting generic trigger context for ${triggerKey}:`, error);
+      return `Trigger: ${triggerKey}\nEvent: [Unable to format event data]`;
     }
   }
 

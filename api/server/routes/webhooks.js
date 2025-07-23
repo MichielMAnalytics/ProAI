@@ -109,7 +109,7 @@ router.post('/trigger/:workflowId/:triggerKey', async (req, res) => {
         deploymentId: deployment.deploymentId,
       });
       
-      logger.info(`[Webhook] Workflow ${workflowId} queued successfully:`, {
+      logger.info(`[Webhook] Workflow ${workflowId} executed successfully:`, {
         executionId: result?.executionId,
         success: result?.success,
       });

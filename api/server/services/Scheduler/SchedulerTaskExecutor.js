@@ -776,6 +776,13 @@ class SchedulerTaskExecutor {
         agentsConfig: config?.endpoints?.agents || {},
       };
 
+      logger.info(`[SchedulerTaskExecutor] === WEBHOOK TRIGGER DEBUG ===`);
+      logger.info(`[SchedulerTaskExecutor] Creating execution context for workflow ${workflowId}`);
+      logger.info(`[SchedulerTaskExecutor] Trigger key: ${triggerKey}`);
+      logger.info(`[SchedulerTaskExecutor] Trigger event data:`, JSON.stringify(triggerEvent, null, 2));
+      logger.info(`[SchedulerTaskExecutor] Full execution context:`, JSON.stringify(executionContext, null, 2));
+      logger.info(`[SchedulerTaskExecutor] === WEBHOOK TRIGGER DEBUG END ===`);
+
       // Load full user object for workflow execution (required for memory loading)
       const user = await User.findById(userId).lean();
       if (!user) {
