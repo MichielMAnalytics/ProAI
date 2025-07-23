@@ -35,7 +35,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '~/components/u
 import MessageIcon from '~/components/Share/MessageIcon';
 import { CircleHelpIcon, Spinner } from '~/components/svg';
 import { useAgentsMapContext } from '~/Providers';
-import { useLocalize, useMediaQuery, useAuthContext } from '~/hooks';
+import { useLocalize, useMediaQuery, useAuthContext, useMCPConnection } from '~/hooks';
 import { ESide } from '~/common';
 import {
   useDeleteWorkflowMutation,
@@ -56,6 +56,7 @@ import { TooltipAnchor } from '~/components/ui/Tooltip';
 import WorkflowTestingOverlay from './WorkflowTestingOverlay';
 import MCPServerIcons from '~/components/Chat/Input/MCPServerIcons';
 import ExecutionDashboard from '~/components/SidePanel/WorkflowBuilder/ExecutionDashboard';
+import AppTriggerIndicator from './AppTriggerIndicator';
 import store from '~/store';
 
 interface WorkflowStep {
@@ -174,6 +175,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
   const agentsMap = useAgentsMapContext() || {};
   const { showToast } = useToastContext();
   const isMobile = useMediaQuery('(max-width: 767px)');
+  const { isIntegrationConnected } = useMCPConnection();
   const [hideSidePanel, setHideSidePanel] = useRecoilState(store.hideSidePanel);
   const [workflowName, setWorkflowName] = useState('New Workflow');
   const [triggerType, setTriggerType] = useState<
@@ -424,6 +426,33 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
     if (isDraft) return 'draft';
     return 'inactive';
   };
+
+  // Validation: Check if app trigger is connected when trigger type is 'app'
+  const isAppTriggerConnected = useMemo(() => {
+    if (triggerType !== 'app' || !selectedAppSlug) {
+      return true; // Not an app trigger, so no connection required
+    }
+    return isIntegrationConnected(selectedAppSlug);
+  }, [triggerType, selectedAppSlug, isIntegrationConnected]);
+
+  // Check if workflow can be tested - additional restriction for app triggers with output passing
+  const canTest = useMemo(() => {
+    if (!isAppTriggerConnected) {
+      return false;
+    }
+    
+    // Cannot test app triggers when "pass trigger output to first step" is enabled
+    if (triggerType === 'app' && selectedAppSlug && triggerParameters.passTriggerToFirstStep) {
+      return false;
+    }
+    
+    return true;
+  }, [isAppTriggerConnected, triggerType, selectedAppSlug, triggerParameters.passTriggerToFirstStep]);
+
+  // Check if workflow can be activated - only requires connection
+  const canActivate = useMemo(() => {
+    return isAppTriggerConnected;
+  }, [isAppTriggerConnected]);
 
   // Create trigger options with clean basic options
   const triggerOptions = useMemo(() => {
@@ -1275,39 +1304,40 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                               <label className="mb-2 block text-sm font-medium text-text-primary">
                                 Select Trigger
                               </label>
-                              <ControlCombobox
-                                isCollapsed={false}
-                                ariaLabel="Select trigger"
-                                selectedValue={selectedTrigger?.key || ''}
-                                setValue={(triggerKey) => {
-                                  const trigger = appTriggersData?.triggers?.find(
-                                    (t) => t.key === triggerKey,
-                                  );
-                                  if (trigger) {
-                                    setSelectedTrigger(trigger);
-                                    setTriggerParameters({ passTriggerToFirstStep: true }); // Clear parameters when trigger changes
-                                  }
-                                }}
-                                selectPlaceholder="Select trigger"
-                                searchPlaceholder="Search triggers"
-                                items={filteredAppTriggers.map((trigger) => ({
-                                  label: trigger.name,
-                                  value: trigger.key,
-                                  icon: TRIGGER_CATEGORY_ICONS[trigger.category || 'other'] || (
-                                    <Activity size={16} />
-                                  ),
-                                }))}
-                                displayValue={selectedTrigger?.name || ''}
-                                SelectIcon={
-                                  selectedTrigger && (
-                                    <HoverCard>
-                                      <HoverCardTrigger asChild>
-                                        <div
-                                          className="cursor-pointer text-text-secondary hover:text-text-primary"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <Info size={14} />
-                                        </div>
+                              <div className="relative">
+                                <ControlCombobox
+                                  isCollapsed={false}
+                                  ariaLabel="Select trigger"
+                                  selectedValue={selectedTrigger?.key || ''}
+                                  setValue={(triggerKey) => {
+                                    const trigger = appTriggersData?.triggers?.find(
+                                      (t) => t.key === triggerKey,
+                                    );
+                                    if (trigger) {
+                                      setSelectedTrigger(trigger);
+                                      setTriggerParameters({ passTriggerToFirstStep: true }); // Clear parameters when trigger changes
+                                    }
+                                  }}
+                                  selectPlaceholder="Select trigger"
+                                  searchPlaceholder="Search triggers"
+                                  items={filteredAppTriggers.map((trigger) => ({
+                                    label: trigger.name,
+                                    value: trigger.key,
+                                    icon: TRIGGER_CATEGORY_ICONS[trigger.category || 'other'] || (
+                                      <Activity size={16} />
+                                    ),
+                                  }))}
+                                  displayValue={selectedTrigger?.name || ''}
+                                  SelectIcon={
+                                    selectedTrigger && (
+                                      <HoverCard>
+                                        <HoverCardTrigger asChild>
+                                          <div
+                                            className="cursor-pointer text-text-secondary hover:text-text-primary"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <Info size={14} />
+                                          </div>
                                       </HoverCardTrigger>
                                       <HoverCardPortal>
                                         <HoverCardContent className="w-80 p-4">
@@ -1355,6 +1385,27 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                                 className="h-8 w-full border-border-heavy text-sm sm:h-10"
                                 disabled={isTesting}
                               />
+                              {selectedAppSlug && selectedTrigger && (
+                                <div
+                                  className="pointer-events-none absolute top-1/2 -translate-y-1/2"
+                                  style={{
+                                    left: `calc(40px + ${(selectedTrigger?.name ?? '').length * 0.65}ch + 16px)`,
+                                  }}
+                                >
+                                  <div
+                                    className="pointer-events-auto"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <AppTriggerIndicator
+                                      appSlug={selectedAppSlug}
+                                      size="sm"
+                                      disabled={isTesting}
+                                      className="flex-shrink-0"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                              </div>
                             </div>
 
                             {/* Gmail-specific configuration */}
@@ -1763,16 +1814,20 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                   description={
                     !currentWorkflowId
                       ? 'Save workflow first to test'
-                      : isWorkflowTesting
-                        ? 'Stop workflow test'
-                        : 'Test workflow'
+                      : !isAppTriggerConnected
+                        ? 'Connect the app trigger to test the workflow'
+                        : !canTest
+                          ? 'Cannot test app triggers with output passing enabled'
+                          : isWorkflowTesting
+                            ? 'Stop workflow test'
+                            : 'Test workflow'
                   }
                   side="top"
                   className="flex-1"
                 >
                   <button
                     className={`btn flex h-9 w-full items-center justify-center gap-1 px-2 text-sm font-medium ${
-                      !currentWorkflowId
+                      !currentWorkflowId || !canTest
                         ? 'border border-gray-300 bg-gray-100 text-gray-400'
                         : isWorkflowTesting
                           ? 'border border-red-500/60 bg-gradient-to-r from-red-500 to-red-600 text-white hover:border-red-500 hover:from-red-600 hover:to-red-700'
@@ -1781,6 +1836,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                     onClick={handleTestWorkflow}
                     disabled={
                       !currentWorkflowId ||
+                      !canTest ||
                       (!isWorkflowTesting ? testMutation.isLoading : stopMutation.isLoading)
                     }
                   >
@@ -1805,16 +1861,18 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                   description={
                     !currentWorkflowId
                       ? 'Save workflow first to activate'
-                      : isWorkflowActive
-                        ? 'Deactivate workflow'
-                        : 'Activate workflow'
+                      : !canActivate
+                        ? 'Connect the app trigger to activate the workflow'
+                        : isWorkflowActive
+                          ? 'Deactivate workflow'
+                          : 'Activate workflow'
                   }
                   side="top"
                   className="flex-1"
                 >
                   <button
                     className={`btn flex h-9 w-full items-center justify-center gap-1 px-2 text-sm font-medium ${
-                      !currentWorkflowId
+                      !currentWorkflowId || !canActivate
                         ? 'border border-gray-300 bg-gray-100 text-gray-400'
                         : isWorkflowActive
                           ? 'border border-amber-500/60 bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:border-amber-500 hover:from-amber-600 hover:to-orange-700'
@@ -1823,6 +1881,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                     onClick={handleToggleWorkflow}
                     disabled={
                       !currentWorkflowId ||
+                      !canActivate ||
                       toggleMutation.isLoading ||
                       isWorkflowTesting ||
                       isTesting
