@@ -10,7 +10,7 @@ interface UseWorkflowStateProps {
 }
 
 export const useWorkflowState = ({ currentWorkflowData, userTimezone }: UseWorkflowStateProps) => {
-  const [workflowName, setWorkflowName] = useState('New Workflow');
+  const [workflowName, setWorkflowName] = useState('⚡ New Workflow');
   const [triggerType, setTriggerType] = useState<
     'manual' | 'schedule' | 'webhook' | 'email' | 'event' | 'app'
   >('manual');
@@ -46,7 +46,7 @@ export const useWorkflowState = ({ currentWorkflowData, userTimezone }: UseWorkf
   useEffect(() => {
     if (currentWorkflowData) {
       // Populate form fields with existing workflow data
-      setWorkflowName(currentWorkflowData.name || 'New Workflow');
+      setWorkflowName(currentWorkflowData.name || '⚡ New Workflow');
       setTriggerType(currentWorkflowData.trigger?.type || 'manual');
 
       const existingSchedule = currentWorkflowData.trigger?.config?.schedule || '';

@@ -57,7 +57,7 @@ const WorkflowsTable: React.FC<WorkflowsTableProps> = ({ workflows }) => {
               // Create a new conversation with the workflow agent
               const newConversation: TConversation = {
                 conversationId: String(Constants.NEW_CONVO),
-                title: 'New Workflow',
+                title: '⚡ New Workflow',
                 endpoint: EModelEndpoint.agents,
                 endpointType: EModelEndpoint.agents,
                 agent_id: WORKFLOW_AGENT_ID,
