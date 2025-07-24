@@ -6,7 +6,7 @@ import type { TMessage } from 'librechat-data-provider';
 import type { OptionWithIcon } from '~/common';
 import MessageIcon from '~/components/Share/MessageIcon';
 import { Spinner } from '~/components/svg';
-import { useAgentsMapContext } from '~/Providers';
+import { useAgentsMapContext, useTimezoneContext } from '~/Providers';
 import { useMediaQuery, useMCPConnection } from '~/hooks';
 import {
   useDeleteWorkflowMutation,
@@ -44,6 +44,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
 }) => {
   const agentsMap = useAgentsMapContext() || {};
   const { showToast } = useToastContext();
+  const { timezone } = useTimezoneContext();
   const isMobile = useMediaQuery('(max-width: 767px)');
   const { isIntegrationConnected } = useMCPConnection();
   const [hideSidePanel, setHideSidePanel] = useRecoilState(store.hideSidePanel);
@@ -99,6 +100,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
   // Initialize state with workflow data
   const workflowState = useWorkflowState({
     currentWorkflowData,
+    userTimezone: timezone,
   });
 
   // Fetch triggers for selected app - MOVED HERE so we can access workflowState
@@ -158,6 +160,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
     setCurrentRunningStepId: workflowState.setCurrentRunningStepId,
     setCompletedStepIds: workflowState.setCompletedStepIds,
     clearExecutionResult: () => {}, // Will be provided by notifications hook
+    userTimezone: timezone,
   });
 
   // Check if we should show loading state for existing workflows
@@ -205,10 +208,11 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
         workflowState.scheduleTime,
         workflowState.scheduleDays,
         workflowState.scheduleDate,
+        timezone,
       );
       workflowState.setScheduleConfig(newCron);
     }
-  }, [workflowState.triggerType, workflowState.scheduleType, workflowState.scheduleTime, workflowState.scheduleDays, workflowState.scheduleDate]);
+  }, [workflowState.triggerType, workflowState.scheduleType, workflowState.scheduleTime, workflowState.scheduleDays, workflowState.scheduleDate, timezone]);
 
   // Agents and selectable agents
   const agents = useMemo(() => Object.values(agentsMap), [agentsMap]);
@@ -521,6 +525,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                 isLoadingTriggers={isLoadingTriggers}
                 filteredAppTriggers={filteredAppTriggers}
                 isIntegrationConnected={isIntegrationConnected}
+                userTimezone={timezone}
               />
 
               {/* Workflow Steps */}

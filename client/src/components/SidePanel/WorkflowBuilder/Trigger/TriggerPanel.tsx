@@ -40,6 +40,7 @@ interface TriggerPanelProps {
   isLoadingTriggers: boolean;
   filteredAppTriggers: AppTriggerType[];
   isIntegrationConnected: (appSlug: string) => boolean;
+  userTimezone?: string;
 }
 
 const TriggerPanel: React.FC<TriggerPanelProps> = ({
@@ -73,6 +74,7 @@ const TriggerPanel: React.FC<TriggerPanelProps> = ({
   isLoadingTriggers,
   filteredAppTriggers,
   isIntegrationConnected,
+  userTimezone,
 }) => {
   return (
     <div className="space-y-3">
@@ -112,6 +114,7 @@ const TriggerPanel: React.FC<TriggerPanelProps> = ({
               scheduleConfig={scheduleConfig}
               setScheduleConfig={setScheduleConfig}
               isTesting={isTesting}
+              userTimezone={userTimezone}
             />
           )}
 

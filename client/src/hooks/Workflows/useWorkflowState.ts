@@ -6,9 +6,10 @@ import { parseCronExpression } from '~/components/SidePanel/WorkflowBuilder/util
 interface UseWorkflowStateProps {
   currentWorkflowData?: any;
   appTriggersData?: { triggers?: AppTrigger[] };
+  userTimezone?: string;
 }
 
-export const useWorkflowState = ({ currentWorkflowData }: UseWorkflowStateProps) => {
+export const useWorkflowState = ({ currentWorkflowData, userTimezone }: UseWorkflowStateProps) => {
   const [workflowName, setWorkflowName] = useState('New Workflow');
   const [triggerType, setTriggerType] = useState<
     'manual' | 'schedule' | 'webhook' | 'email' | 'event' | 'app'
@@ -59,7 +60,7 @@ export const useWorkflowState = ({ currentWorkflowData }: UseWorkflowStateProps)
 
       // Parse existing cron expression to user-friendly format
       if (existingSchedule && currentWorkflowData.trigger?.type === 'schedule') {
-        const parsed = parseCronExpression(existingSchedule);
+        const parsed = parseCronExpression(existingSchedule, userTimezone);
         setScheduleType(parsed.type);
         setScheduleTime(parsed.time);
         setScheduleDays(parsed.days);
@@ -84,7 +85,7 @@ export const useWorkflowState = ({ currentWorkflowData }: UseWorkflowStateProps)
         setSteps([]);
       }
     }
-  }, [currentWorkflowData]);
+  }, [currentWorkflowData, userTimezone]);
 
   // This effect is now handled in the main component
 

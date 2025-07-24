@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ScheduleType } from '../types';
+import { getTimezoneAbbreviation } from '~/utils/timezone';
 
 interface ScheduleTriggerProps {
   scheduleType: ScheduleType;
@@ -13,6 +14,7 @@ interface ScheduleTriggerProps {
   scheduleConfig: string;
   setScheduleConfig: (config: string) => void;
   isTesting: boolean;
+  userTimezone?: string;
 }
 
 const ScheduleTrigger: React.FC<ScheduleTriggerProps> = ({
@@ -27,7 +29,9 @@ const ScheduleTrigger: React.FC<ScheduleTriggerProps> = ({
   scheduleConfig,
   setScheduleConfig,
   isTesting,
+  userTimezone,
 }) => {
+  const timezoneAbbr = userTimezone ? getTimezoneAbbreviation(userTimezone) : '';
   return (
     <div className="space-y-3">
       {/* Schedule Type Selection */}
@@ -58,7 +62,7 @@ const ScheduleTrigger: React.FC<ScheduleTriggerProps> = ({
       {scheduleType !== 'custom' && (
         <div>
           <label className="mb-2 block text-sm font-medium text-text-primary">
-            What time?
+            What time? {timezoneAbbr && <span className="text-xs text-text-secondary">({timezoneAbbr})</span>}
           </label>
           <input
             type="time"
@@ -69,6 +73,11 @@ const ScheduleTrigger: React.FC<ScheduleTriggerProps> = ({
               isTesting ? 'cursor-not-allowed opacity-50' : ''
             }`}
           />
+          {userTimezone && (
+            <p className="mt-1 text-xs text-text-secondary">
+              This workflow will run at {scheduleTime} in your timezone ({userTimezone})
+            </p>
+          )}
         </div>
       )}
 
@@ -141,7 +150,7 @@ const ScheduleTrigger: React.FC<ScheduleTriggerProps> = ({
       {scheduleType === 'custom' && (
         <div>
           <label className="mb-2 block text-sm font-medium text-text-primary">
-            Cron expression
+            Cron expression (UTC)
           </label>
           <input
             type="text"

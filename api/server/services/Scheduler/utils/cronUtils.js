@@ -274,6 +274,7 @@ function getTimeUntilExecution(nextRun) {
 
 module.exports = {
   calculateNextRun,
+  convertTimeToUTC,
   validateCronExpression,
   getOverdueTime,
   getTimeUntilExecution,

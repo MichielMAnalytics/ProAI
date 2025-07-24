@@ -32,6 +32,7 @@ interface UseWorkflowActionsProps {
   setCurrentRunningStepId: (value: string | null) => void;
   setCompletedStepIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   clearExecutionResult: (workflowId: string) => void;
+  userTimezone?: string;
 }
 
 export const useWorkflowActions = ({
@@ -62,6 +63,7 @@ export const useWorkflowActions = ({
   setCurrentRunningStepId,
   setCompletedStepIds,
   clearExecutionResult,
+  userTimezone,
 }: UseWorkflowActionsProps) => {
   // Step management
   const removeStep = useCallback((stepId: string) => {
@@ -133,6 +135,7 @@ export const useWorkflowActions = ({
                               scheduleTime,
                               scheduleDays,
                               scheduleDate,
+                              userTimezone,
                             ),
                     }
                   : triggerType === 'app'
@@ -188,6 +191,7 @@ export const useWorkflowActions = ({
                               scheduleTime,
                               scheduleDays,
                               scheduleDate,
+                              userTimezone,
                             ),
                     }
                   : triggerType === 'app'

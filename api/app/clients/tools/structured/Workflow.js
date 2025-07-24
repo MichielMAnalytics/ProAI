@@ -477,6 +477,49 @@ class WorkflowTool extends Tool {
         );
       }
 
+      // Get user's timezone for schedule conversion
+      let userTimezone = 'UTC'; // Default to UTC
+      try {
+        const { User } = require('~/db/models');
+        const user = await User.findById(userId).select('timezone').lean();
+        if (user && user.timezone) {
+          userTimezone = user.timezone;
+          logger.debug(`[WorkflowTool] Using user timezone: ${userTimezone} for user ${userId}`);
+        }
+      } catch (error) {
+        logger.warn(`[WorkflowTool] Could not get user timezone for ${userId}, using UTC:`, error);
+      }
+
+      // Convert schedule from user timezone to UTC if needed
+      if (triggerType === 'schedule' && scheduleConfig && userTimezone !== 'UTC') {
+        try {
+          const { convertTimeToUTC } = require('~/server/services/Scheduler/utils/cronUtils');
+          
+          // Parse the cron expression (assumes format: minute hour day month weekday)
+          const parts = scheduleConfig.trim().split(/\s+/);
+          if (parts.length === 5) {
+            const [minute, hour, day, month, weekday] = parts;
+            
+            // Only convert if hour and minute are specific values (not wildcards)
+            if (hour !== '*' && minute !== '*' && !hour.includes('/') && !minute.includes('/')) {
+              const hourNum = parseInt(hour);
+              const minuteNum = parseInt(minute);
+              
+              if (!isNaN(hourNum) && !isNaN(minuteNum)) {
+                // Convert to UTC using the same function as frontend
+                const { hour: utcHour, minute: utcMinute } = convertTimeToUTC(hourNum, minuteNum, userTimezone);
+                scheduleConfig = `${utcMinute} ${utcHour} ${day} ${month} ${weekday}`;
+                
+                logger.info(`[WorkflowTool] Converted schedule from ${userTimezone} to UTC: ${hour}:${minute} -> ${utcHour}:${utcMinute}`);
+              }
+            }
+          }
+        } catch (error) {
+          logger.error(`[WorkflowTool] Error converting schedule to UTC:`, error);
+          // Continue with original schedule if conversion fails
+        }
+      }
+
       // Track app connection status for messaging
       let isAppConnected = true;
 

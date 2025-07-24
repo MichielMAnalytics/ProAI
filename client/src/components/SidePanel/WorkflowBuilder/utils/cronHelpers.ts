@@ -1,12 +1,24 @@
 import type { ScheduleType } from '../types';
+import { convertTimeToUTC, convertTimeFromUTC } from '~/utils/timezone';
 
 export const generateCronExpression = (
   type: string,
   time: string,
   days: number[],
   date: number,
+  userTimezone?: string,
 ): string => {
-  const [hour, minute] = time.split(':');
+  const [localHour, localMinute] = time.split(':').map(Number);
+  
+  // Convert local time to UTC if timezone is provided
+  let hour = localHour;
+  let minute = localMinute;
+  
+  if (userTimezone) {
+    const utcTime = convertTimeToUTC(localHour, localMinute, userTimezone);
+    hour = utcTime.hour;
+    minute = utcTime.minute;
+  }
 
   switch (type) {
     case 'daily':
@@ -23,6 +35,7 @@ export const generateCronExpression = (
 
 export const parseCronExpression = (
   cron: string,
+  userTimezone?: string,
 ): { type: ScheduleType; time: string; days: number[]; date: number } => {
   const parts = cron.trim().split(' ');
   if (parts.length !== 5) {
@@ -30,7 +43,19 @@ export const parseCronExpression = (
   }
 
   const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
-  const time = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+  
+  // Parse UTC time from cron
+  let displayHour = parseInt(hour) || 0;
+  let displayMinute = parseInt(minute) || 0;
+  
+  // Convert UTC time to user's local time if timezone is provided
+  if (userTimezone) {
+    const localTime = convertTimeFromUTC(displayHour, displayMinute, userTimezone);
+    displayHour = localTime.hour;
+    displayMinute = localTime.minute;
+  }
+  
+  const time = `${displayHour.toString().padStart(2, '0')}:${displayMinute.toString().padStart(2, '0')}`;
 
   if (dayOfWeek !== '*') {
     // Weekly schedule
