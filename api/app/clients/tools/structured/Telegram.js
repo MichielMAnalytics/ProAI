@@ -12,6 +12,9 @@ class TelegramSessionPool {
   static currentIndex = 0;
   static sessionKeys = [];
   static lastReuseLog = 0; // Track when we last logged reuse to reduce noise
+  static idleTimeout = 5 * 60 * 1000; // 5 minutes idle timeout
+  static cleanupInterval = null;
+  static invalidatedSessions = new Set(); // Permanently invalid sessions (AUTH_KEY_DUPLICATED)
 
   static initialize() {
     // Discover available session strings
@@ -43,24 +46,44 @@ class TelegramSessionPool {
 
     // PHASE 1: Try to reuse any existing connected client first (most efficient)
     for (const [sessionKey, clientInfo] of this.clients.entries()) {
-      if (clientInfo && clientInfo.client && clientInfo.client.connected) {
-        clientInfo.lastUsed = Date.now();
-        // Only log reuse occasionally to reduce noise
-        const now = Date.now();
-        if (!this.lastReuseLog || now - this.lastReuseLog > 30000) {
-          console.log(`♻️ Reusing session: ${sessionKey}`);
-          this.lastReuseLog = now;
+      // Skip invalidated sessions
+      if (this.invalidatedSessions.has(sessionKey)) {
+        continue;
+      }
+      
+      if (clientInfo && clientInfo.client) {
+        // Check if client is actually connected and healthy
+        try {
+          if (clientInfo.client.connected) {
+            clientInfo.lastUsed = Date.now();
+            // Only log reuse occasionally to reduce noise
+            const now = Date.now();
+            if (!this.lastReuseLog || now - this.lastReuseLog > 30000) {
+              console.log(`♻️ Reusing healthy session: ${sessionKey}`);
+              this.lastReuseLog = now;
+            }
+            return clientInfo.client;
+          } else {
+            // Client exists but not connected, clean it up
+            console.log(`🔧 Cleaning up disconnected client: ${sessionKey}`);
+            this.clients.delete(sessionKey);
+          }
+        } catch (error) {
+          // Client is in bad state, clean it up
+          console.log(`🔧 Cleaning up unhealthy client: ${sessionKey} - ${error.message}`);
+          this.clients.delete(sessionKey);
         }
-        return clientInfo.client;
       }
     }
 
     // PHASE 2: Wait for any connecting sessions to complete (avoid duplicate connections)
     const connectingSessions = Array.from(this.clients.entries()).filter(
-      ([_, clientInfo]) => clientInfo && clientInfo.isConnecting,
+      ([sessionKey, clientInfo]) => clientInfo && clientInfo.isConnecting && !this.invalidatedSessions.has(sessionKey),
     );
 
     if (connectingSessions.length > 0) {
+      console.log(`⏳ Waiting for ${connectingSessions.length} session(s) to finish connecting...`);
+      
       // Wait up to 10 seconds for any connection to complete
       const maxWaitTime = 10000;
       const checkInterval = 100;
@@ -70,42 +93,96 @@ class TelegramSessionPool {
         await new Promise((resolve) => setTimeout(resolve, checkInterval));
         waitTime += checkInterval;
 
-        // Check if ANY session has connected successfully
+        // Check if ANY valid session has connected successfully
         for (const [sessionKey, clientInfo] of this.clients.entries()) {
-          if (clientInfo && clientInfo.client && clientInfo.client.connected) {
+          if (!this.invalidatedSessions.has(sessionKey) && clientInfo && clientInfo.client && clientInfo.client.connected) {
             clientInfo.lastUsed = Date.now();
+            console.log(`✅ Connected session became available: ${sessionKey}`);
             return clientInfo.client;
           }
         }
 
         // Check if all connecting sessions have finished (success or failure)
         const stillConnecting = Array.from(this.clients.entries()).some(
-          ([_, clientInfo]) => clientInfo && clientInfo.isConnecting,
+          ([sessionKey, clientInfo]) => clientInfo && clientInfo.isConnecting && !this.invalidatedSessions.has(sessionKey),
         );
 
         if (!stillConnecting) {
           break;
         }
       }
+      
+      console.log(`⏱️ Finished waiting after ${waitTime}ms`);
     }
 
-    // PHASE 3: Create new connection with proper locking to prevent AUTH_KEY_DUPLICATED
+    // PHASE 3: Create new connection with smart session selection
     const maxAttempts = this.sessionKeys.length * 2;
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const sessionKey = this.sessionKeys[this.currentIndex];
-      this.currentIndex = (this.currentIndex + 1) % this.sessionKeys.length;
+    // Check if we have any permanently invalidated sessions
+    if (this.invalidatedSessions.size > 0) {
+      console.log(`⚠️ WARNING: ${this.invalidatedSessions.size} session(s) permanently invalidated: ${Array.from(this.invalidatedSessions).join(', ')}`);
+      console.log(`⚠️ These sessions need to be regenerated. Please update your .env file with new session strings.`);
+    }
+
+    // Filter out permanently invalidated sessions
+    const validSessionKeys = this.sessionKeys.filter(sessionKey => !this.invalidatedSessions.has(sessionKey));
+    
+    if (validSessionKeys.length === 0) {
+      throw new Error('All Telegram sessions have been invalidated (AUTH_KEY_DUPLICATED). Please regenerate your session strings.');
+    }
+
+    // First, try to find unused sessions (prioritize fresh sessions)
+    const unusedSessions = validSessionKeys.filter(sessionKey => !this.clients.has(sessionKey));
+    const usedSessions = validSessionKeys.filter(sessionKey => this.clients.has(sessionKey));
+    
+    // Create session priority list: unused first, then used (oldest failures first)
+    const sessionPriorityList = [
+      ...unusedSessions,
+      ...usedSessions.sort((a, b) => {
+        const clientA = this.clients.get(a);
+        const clientB = this.clients.get(b);
+        const failTimeA = clientA?.failedAt || 0;
+        const failTimeB = clientB?.failedAt || 0;
+        return failTimeA - failTimeB; // Older failures first
+      })
+    ];
+
+    console.log(`🎯 Session priority order: [${sessionPriorityList.join(', ')}] (${unusedSessions.length} unused, ${usedSessions.length} used, ${this.invalidatedSessions.size} invalid)`);
+
+    for (let attempt = 0; attempt < maxAttempts && attempt < sessionPriorityList.length; attempt++) {
+      const sessionKey = sessionPriorityList[attempt];
 
       try {
         const clientInfo = this.clients.get(sessionKey);
 
-        // Skip if this session is already connecting or recently failed
-        if (clientInfo && (clientInfo.isConnecting || clientInfo.failedAt)) {
-          // Clear old failures after 30 seconds
-          if (clientInfo.failedAt && Date.now() - clientInfo.failedAt > 30000) {
-            this.clients.delete(sessionKey);
-          } else {
+        // Skip if this session is currently connecting
+        if (clientInfo && clientInfo.isConnecting) {
+          console.log(`⏭️ Skipping ${sessionKey}: currently connecting`);
+          continue;
+        }
+
+        // For AUTH_KEY_DUPLICATED errors, only skip if failed very recently (5 seconds)
+        // For connection thread errors, retry immediately (likely a race condition)
+        // For other errors, use the longer 30-second timeout
+        const isAuthKeyDuplicated = clientInfo?.lastError?.includes('AUTH_KEY_DUPLICATED');
+        const isThreadError = clientInfo?.lastError?.includes('already being connected');
+        let failureTimeout = 30000; // Default timeout
+        
+        if (isAuthKeyDuplicated) {
+          failureTimeout = 5000; // Short timeout for auth key errors
+        } else if (isThreadError) {
+          failureTimeout = 500; // Very short timeout for thread conflicts
+        }
+        
+        if (clientInfo && clientInfo.failedAt) {
+          if (Date.now() - clientInfo.failedAt < failureTimeout) {
+            const timeSinceFail = Math.ceil((Date.now() - clientInfo.failedAt) / 1000);
+            console.log(`⏭️ Skipping ${sessionKey}: failed ${timeSinceFail}s ago (${isAuthKeyDuplicated ? 'AUTH_KEY_DUPLICATED' : isThreadError ? 'thread conflict' : 'other error'})`);
             continue;
+          } else {
+            // Clear old failure
+            console.log(`🔄 Clearing old failure for ${sessionKey}`);
+            this.clients.delete(sessionKey);
           }
         }
 
@@ -115,10 +192,11 @@ class TelegramSessionPool {
           isConnecting: true,
           lastUsed: Date.now(),
           failedAt: null,
+          lastError: null,
         });
 
         // Create new client
-        console.log(`🔌 Connecting session: ${sessionKey}`);
+        console.log(`🔌 Connecting session: ${sessionKey} (attempt ${attempt + 1}/${maxAttempts})`);
         const client = await this._createClient(sessionKey);
 
         // Update with successful connection
@@ -127,6 +205,7 @@ class TelegramSessionPool {
           isConnecting: false,
           lastUsed: Date.now(),
           failedAt: null,
+          lastError: null,
         });
 
         // Small delay to ensure connection is fully established for reuse
@@ -135,27 +214,47 @@ class TelegramSessionPool {
       } catch (error) {
         console.log(`❌ Failed to create client for ${sessionKey}: ${error.message}`);
 
-        // Mark as failed to prevent immediate retry
+        // Mark as failed with error details
         this.clients.set(sessionKey, {
           client: null,
           isConnecting: false,
           lastUsed: Date.now(),
           failedAt: Date.now(),
+          lastError: error.message,
         });
 
-        // For AUTH_KEY_DUPLICATED errors, add extra delay before trying next session
+        // For AUTH_KEY_DUPLICATED errors, mark session as permanently invalid
         if (error.message.includes('AUTH_KEY_DUPLICATED')) {
-          console.log(`🔄 AUTH_KEY_DUPLICATED detected, waiting 2s before next attempt...`);
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-
-          // After delay, check if another request has already succeeded
+          console.log(`💀 AUTH_KEY_DUPLICATED detected for ${sessionKey} - this session is now permanently invalid!`);
+          
+          // Mark this session as permanently invalidated
+          this.invalidatedSessions.add(sessionKey);
+          
+          // Remove from clients map completely
+          this.clients.delete(sessionKey);
+          
+          console.log(`🚨 Session ${sessionKey} has been invalidated by Telegram and needs to be regenerated.`);
+          console.log(`📊 Status: ${validSessionKeys.length - this.invalidatedSessions.size} valid sessions remaining.`);
+          
+          // Check if another request has already succeeded while we were failing
           for (const [checkSessionKey, checkClientInfo] of this.clients.entries()) {
-            if (checkClientInfo && checkClientInfo.client && checkClientInfo.client.connected) {
+            if (checkClientInfo && checkClientInfo.client && checkClientInfo.client.connected && !this.invalidatedSessions.has(checkSessionKey)) {
               checkClientInfo.lastUsed = Date.now();
+              console.log(`♻️ Found existing connected session: ${checkSessionKey}`);
               return checkClientInfo.client;
             }
           }
+          // Continue immediately to next session
+          continue;
         }
+        
+        // For other errors, add a small delay before continuing
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      
+      // Add a small delay between attempts to prevent race conditions
+      if (attempt < sessionPriorityList.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
     }
 
@@ -164,6 +263,11 @@ class TelegramSessionPool {
 
   static async _createClient(sessionKey) {
     try {
+      // Double-check this session isn't invalidated
+      if (this.invalidatedSessions.has(sessionKey)) {
+        throw new Error(`Session ${sessionKey} is permanently invalidated (AUTH_KEY_DUPLICATED)`);
+      }
+
       const sessionString = getEnvironmentVariable(sessionKey);
       if (!sessionString) {
         throw new Error(`Session string not found: ${sessionKey}`);
@@ -182,7 +286,7 @@ class TelegramSessionPool {
       const client = new TelegramClient(session, parseInt(apiId), apiHash, {
         connectionRetries: 3,
         floodSleepThreshold: 60,
-        autoReconnect: true,
+        autoReconnect: false, // Disable auto-reconnect to prevent parallel connections
         maxConcurrentDownloads: 1,
       });
 
@@ -207,6 +311,33 @@ class TelegramSessionPool {
       // Don't delete from clients here - let getClient handle failure tracking
       throw error;
     }
+  }
+
+  static getSessionStatus() {
+    const status = {
+      total: this.sessionKeys.length,
+      valid: this.sessionKeys.filter(key => !this.invalidatedSessions.has(key)).length,
+      invalidated: Array.from(this.invalidatedSessions),
+      connected: 0,
+      connecting: 0,
+      failed: 0,
+    };
+
+    for (const [sessionKey, clientInfo] of this.clients.entries()) {
+      if (this.invalidatedSessions.has(sessionKey)) continue;
+      
+      if (clientInfo) {
+        if (clientInfo.client && clientInfo.client.connected) {
+          status.connected++;
+        } else if (clientInfo.isConnecting) {
+          status.connecting++;
+        } else if (clientInfo.failedAt) {
+          status.failed++;
+        }
+      }
+    }
+
+    return status;
   }
 
   static async cleanup() {
@@ -835,6 +966,24 @@ class TelegramChannelFetcher extends Tool {
     } catch (error) {
       console.error('❌ Telegram fetch error:', error.message);
 
+      // Check session pool status for AUTH_KEY_DUPLICATED issues
+      const sessionStatus = TelegramSessionPool.getSessionStatus();
+      if (sessionStatus.invalidated.length > 0) {
+        console.error('🚨 Session pool status:', sessionStatus);
+        
+        if (sessionStatus.valid === 0) {
+          throw new Error(
+            `All Telegram sessions have been invalidated. Please regenerate your session strings. ` +
+            `Invalidated sessions: ${sessionStatus.invalidated.join(', ')}`
+          );
+        } else {
+          console.error(
+            `⚠️ ${sessionStatus.invalidated.length} session(s) invalidated: ${sessionStatus.invalidated.join(', ')}. ` +
+            `${sessionStatus.valid} session(s) still valid.`
+          );
+        }
+      }
+
       // Don't expose internal errors to users, provide helpful guidance instead
       if (error.message.includes('timeout')) {
         throw new Error(
@@ -846,6 +995,8 @@ class TelegramChannelFetcher extends Tool {
         );
       } else if (error.message.includes('Rate limit')) {
         throw error; // Pass through rate limit errors as-is
+      } else if (error.message.includes('All Telegram sessions')) {
+        throw error; // Pass through session invalidation errors
       } else {
         throw new Error(
           `Failed to fetch messages from ${channel_name}. Please try again or contact support if the issue persists.`,
