@@ -85,11 +85,11 @@ class SchedulerExecutionService {
         return true;
       });
 
-      if (filteredTasks.length !== allReadyTasks.length) {
-        logger.info(
-          `[SchedulerExecutionService] Filtered ${allReadyTasks.length - filteredTasks.length} app-triggered workflows from execution`,
-        );
-      }
+      // if (filteredTasks.length !== allReadyTasks.length) {
+      //   logger.info(
+      //     `[SchedulerExecutionService] Filtered ${allReadyTasks.length - filteredTasks.length} app-triggered workflows from execution`,
+      //   );
+      // }
 
       return filteredTasks;
     } catch (error) {
