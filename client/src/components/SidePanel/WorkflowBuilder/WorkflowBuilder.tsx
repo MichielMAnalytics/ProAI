@@ -88,20 +88,20 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
     },
   );
 
-  // Query the latest execution result for step outputs
-  const { data: latestExecutionData, refetch: refetchLatestExecution } =
-    useLatestWorkflowExecutionQuery(currentWorkflowId || '', {
-      enabled: !!currentWorkflowId,
-      refetchOnWindowFocus: false,
-      refetchInterval: false,
-      staleTime: 10000,
-    });
-
   // Initialize state with workflow data
   const workflowState = useWorkflowState({
     currentWorkflowData,
     userTimezone: timezone,
   });
+
+  // Query the latest execution result for step outputs
+  const { data: latestExecutionData, refetch: refetchLatestExecution } =
+    useLatestWorkflowExecutionQuery(currentWorkflowId || '', {
+      enabled: !!currentWorkflowId,
+      refetchOnWindowFocus: false,
+      refetchInterval: workflowState.isTesting ? 1000 : false, // Poll every 1s during testing
+      staleTime: workflowState.isTesting ? 0 : 10000, // Fresh data during testing
+    });
 
   // Fetch triggers for selected app - MOVED HERE so we can access workflowState
   const {
@@ -186,9 +186,21 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
               setTestingWorkflows((prev) => new Set(prev).add(testWorkflowId));
             }
           },
-          onStepUpdate: (testWorkflowId) => {
+          onStepUpdate: (testWorkflowId, stepData) => {
             if (testWorkflowId === currentWorkflowId) {
-              // Handle step updates
+              // Map step name to step ID
+              const step = workflowState.steps.find((s) => s.name === stepData.stepName);
+              
+              if (step) {
+                if (stepData.status === 'running') {
+                  workflowState.setCurrentRunningStepId(step.id);
+                } else if (stepData.status === 'completed') {
+                  workflowState.setCurrentRunningStepId(null);
+                  workflowState.setCompletedStepIds((prev) => new Set(prev).add(step.id));
+                } else if (stepData.status === 'failed') {
+                  workflowState.setCurrentRunningStepId(null);
+                }
+              }
             }
           },
           onTestComplete: (testWorkflowId) => {
@@ -438,11 +450,12 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
     });
   };
 
-  // Get step status for styling
+  // Get step status for styling - restored original logic
   const getStepStatus = (stepId: string) => {
     if (!workflowState.isTesting) return 'idle';
     if (workflowState.completedStepIds.has(stepId)) return 'completed';
 
+    // Check if this step is currently running by matching name from execution data
     const step = workflowState.steps.find((s) => s.id === stepId);
     const actualExecutionData = latestExecutionData as any;
     const currentExecStep = actualExecutionData?.steps?.find((s: any) => s.name === step?.name);

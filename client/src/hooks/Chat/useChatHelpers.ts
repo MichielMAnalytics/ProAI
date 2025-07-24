@@ -518,6 +518,28 @@ export default function useChatHelpers(index = 0, paramId?: string) {
           queryClient.invalidateQueries([QueryKeys.schedulerTasks]);
         } else if (data.type === 'task_status_update' || data.type === 'task_notification') {
           console.log('[SchedulerSSE] 📋 Processing task status update:', data);
+          
+          // Check if this is a workflow task and convert to workflow notification
+          if (data.taskId && data.taskId.startsWith('workflow_')) {
+            const workflowNotificationData = {
+              type: 'workflow_status_update',
+              workflowId: data.taskId,
+              notificationType: data.notificationType === 'started' ? 'test_started' : 
+                              data.notificationType === 'completed' ? 'execution_completed' :
+                              data.notificationType === 'failed' ? 'execution_failed' : 
+                              data.notificationType,
+              details: data.details,
+              timestamp: data.timestamp,
+              taskName: data.taskName
+            };
+            
+            // Dispatch as workflow notification
+            const workflowEvent = new CustomEvent('workflowNotification', { 
+              detail: workflowNotificationData 
+            });
+            window.dispatchEvent(workflowEvent);
+          }
+          
           // Handle task status updates (started, failed, cancelled, etc.)
           // These don't necessarily create new messages but do update task status
           queryClient.invalidateQueries([QueryKeys.schedulerTasks]);
