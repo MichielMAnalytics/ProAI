@@ -503,69 +503,68 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
           />
 
           {/* Main Content */}
-          <div className="relative flex-1 overflow-auto p-3 sm:p-4">
-            <div className="space-y-4 sm:space-y-6">
-              
-              {/* Trigger Configuration */}
-              <TriggerPanel
-                triggerType={workflowState.triggerType}
-                isTriggerExpanded={workflowState.isTriggerExpanded}
-                setIsTriggerExpanded={workflowState.setIsTriggerExpanded}
-                isTesting={workflowState.isTesting}
-                handleTriggerTypeChange={handleTriggerTypeChange}
-                getTriggerDisplayValue={getTriggerDisplayValue}
-                getTriggerIcon={getTriggerIcon}
-                triggerOptions={triggerOptions}
-                scheduleType={workflowState.scheduleType}
-                setScheduleType={workflowState.setScheduleType}
-                scheduleTime={workflowState.scheduleTime}
-                setScheduleTime={workflowState.setScheduleTime}
-                scheduleDays={workflowState.scheduleDays}
-                setScheduleDays={workflowState.setScheduleDays}
-                scheduleDate={workflowState.scheduleDate}
-                setScheduleDate={workflowState.setScheduleDate}
-                scheduleConfig={workflowState.scheduleConfig}
-                setScheduleConfig={workflowState.setScheduleConfig}
-                selectedAppSlug={workflowState.selectedAppSlug}
-                setSelectedAppSlug={workflowState.setSelectedAppSlug}
-                selectedTrigger={workflowState.selectedTrigger}
-                setSelectedTrigger={workflowState.setSelectedTrigger}
-                triggerParameters={workflowState.triggerParameters}
-                setTriggerParameters={workflowState.setTriggerParameters}
-                setShowRequestTriggerModal={workflowState.setShowRequestTriggerModal}
-                availableIntegrations={availableIntegrations}
-                appTriggersData={appTriggersData}
-                isLoadingTriggers={isLoadingTriggers}
-                filteredAppTriggers={filteredAppTriggers}
-                isIntegrationConnected={isIntegrationConnected}
-                userTimezone={timezone}
-              />
+          <div className="relative flex-1 overflow-hidden">
+            {workflowState.showDashboard && currentWorkflowId ? (
+              <ExecutionDashboard workflowId={currentWorkflowId} />
+            ) : (
+              <div className="h-full overflow-auto p-3 sm:p-4">
+                <div className="space-y-4 sm:space-y-6">
+                  
+                  {/* Trigger Configuration */}
+                  <TriggerPanel
+                    triggerType={workflowState.triggerType}
+                    isTriggerExpanded={workflowState.isTriggerExpanded}
+                    setIsTriggerExpanded={workflowState.setIsTriggerExpanded}
+                    isTesting={workflowState.isTesting}
+                    handleTriggerTypeChange={handleTriggerTypeChange}
+                    getTriggerDisplayValue={getTriggerDisplayValue}
+                    getTriggerIcon={getTriggerIcon}
+                    triggerOptions={triggerOptions}
+                    scheduleType={workflowState.scheduleType}
+                    setScheduleType={workflowState.setScheduleType}
+                    scheduleTime={workflowState.scheduleTime}
+                    setScheduleTime={workflowState.setScheduleTime}
+                    scheduleDays={workflowState.scheduleDays}
+                    setScheduleDays={workflowState.setScheduleDays}
+                    scheduleDate={workflowState.scheduleDate}
+                    setScheduleDate={workflowState.setScheduleDate}
+                    scheduleConfig={workflowState.scheduleConfig}
+                    setScheduleConfig={workflowState.setScheduleConfig}
+                    selectedAppSlug={workflowState.selectedAppSlug}
+                    setSelectedAppSlug={workflowState.setSelectedAppSlug}
+                    selectedTrigger={workflowState.selectedTrigger}
+                    setSelectedTrigger={workflowState.setSelectedTrigger}
+                    triggerParameters={workflowState.triggerParameters}
+                    setTriggerParameters={workflowState.setTriggerParameters}
+                    setShowRequestTriggerModal={workflowState.setShowRequestTriggerModal}
+                    availableIntegrations={availableIntegrations}
+                    appTriggersData={appTriggersData}
+                    isLoadingTriggers={isLoadingTriggers}
+                    filteredAppTriggers={filteredAppTriggers}
+                    isIntegrationConnected={isIntegrationConnected}
+                    userTimezone={timezone}
+                  />
 
-              {/* Workflow Steps */}
-              <StepsPanel
-                steps={workflowState.steps}
-                setSteps={workflowState.setSteps}
-                newStepAgentId={workflowState.newStepAgentId}
-                setNewStepAgentId={workflowState.setNewStepAgentId}
-                expandedSteps={workflowState.expandedSteps}
-                expandedOutputs={workflowState.expandedOutputs}
-                agentsMap={agentsMap}
-                selectableAgents={selectableAgents}
-                latestExecutionData={latestExecutionData}
-                isTesting={workflowState.isTesting}
-                removeStep={actions.removeStep}
-                updateStep={actions.updateStep}
-                toggleStepExpanded={actions.toggleStepExpanded}
-                toggleOutputExpanded={actions.toggleOutputExpanded}
-                getStepStatus={getStepStatus}
-                getAgentDetails={getAgentDetails}
-              />
-            </div>
-
-            {/* Execution Dashboard */}
-            {currentWorkflowId && workflowState.showDashboard && (
-              <div className="absolute inset-0 z-50 bg-surface-primary">
-                <ExecutionDashboard workflowId={currentWorkflowId} />
+                  {/* Workflow Steps */}
+                  <StepsPanel
+                    steps={workflowState.steps}
+                    setSteps={workflowState.setSteps}
+                    newStepAgentId={workflowState.newStepAgentId}
+                    setNewStepAgentId={workflowState.setNewStepAgentId}
+                    expandedSteps={workflowState.expandedSteps}
+                    expandedOutputs={workflowState.expandedOutputs}
+                    agentsMap={agentsMap}
+                    selectableAgents={selectableAgents}
+                    latestExecutionData={latestExecutionData}
+                    isTesting={workflowState.isTesting}
+                    removeStep={actions.removeStep}
+                    updateStep={actions.updateStep}
+                    toggleStepExpanded={actions.toggleStepExpanded}
+                    toggleOutputExpanded={actions.toggleOutputExpanded}
+                    getStepStatus={getStepStatus}
+                    getAgentDetails={getAgentDetails}
+                  />
+                </div>
               </div>
             )}
           </div>
