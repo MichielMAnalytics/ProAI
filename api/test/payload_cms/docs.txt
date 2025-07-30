@@ -1,0 +1,11 @@
+- payload CMS
+ https://payloadcms.com/docs/v2/rest-api/overview#auth-operations
+
+- Pipedream Custom Tool
+https://pipedream.com/docs/connect/components/custom-tools#overview 
+
+- Pipedream Component API
+https://pipedream.com/docs/components/contributing/api
+
+- Pipedream Contribution guidelines
+https://pipedream.com/docs/components/contributing/guidelines
