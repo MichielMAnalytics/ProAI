@@ -185,8 +185,11 @@ class WorkflowService {
                 },
         };
 
-        // Clean up paused deployed triggers when switching away from app triggers
+        // Clean up paused deployed triggers when explicitly switching away from app triggers
+        // Only delete if we have explicit trigger type change in updateData
         if (currentTask.trigger?.type === 'app' && 
+            updateData.trigger && updateData.trigger.type && 
+            updateData.trigger.type !== 'app' &&
             (updateData.trigger.type === 'manual' || updateData.trigger.type === 'schedule')) {
           try {
             const PipedreamComponents = require('~/server/services/Pipedream/PipedreamComponents');
@@ -434,6 +437,12 @@ class WorkflowService {
               );
               throw new Error('Scheduled workflow is missing cron expression');
             }
+          } else if (triggerType === 'app') {
+            // For app-based triggers, set next_run to null as they are event-driven
+            updateData.next_run = null;
+            logger.info(
+              `[WorkflowService] Setting next_run to null for app-triggered workflow ${workflowId}`,
+            );
           } else {
             // For manual workflows, explicitly set next_run to null to prevent immediate execution
             updateData.next_run = null;

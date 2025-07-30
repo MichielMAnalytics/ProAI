@@ -9,23 +9,53 @@
  * Usage: node api/test/trigger-inspector.js [userId] [--delete-all]
  */
 
-const path = require('path');
-const mongoose = require('mongoose');
+//RUN INSPECTOR LIKE THIS
+//node api/test/trigger-inspector.js 68627669a4d589b864fbaabc --inspect production 
 
-// Set up proper paths for LibreChat
-process.chdir(path.join(__dirname, '..', '..'));
-require('dotenv').config();
+const path = require('path');
+
+// Disable MeiliSearch and other services BEFORE loading anything
+process.env.SEARCH = 'false';
+process.env.MEILI_NO_SYNC = 'true';
+process.env.DISABLE_MEILI = 'true';
+process.env.NODE_ENV = 'test';
+
+// Remove MeiliSearch environment variables completely
+delete process.env.MEILI_HOST;
+delete process.env.MEILI_MASTER_KEY;
+delete process.env.MEILI_HTTP_ADDR;
+
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
+
+// Force disable after dotenv loads (in case .env sets them)
+process.env.SEARCH = 'false';
+process.env.MEILI_NO_SYNC = 'true';
+process.env.DISABLE_MEILI = 'true';
+process.env.NODE_ENV = 'test';
+delete process.env.MEILI_HOST;
+delete process.env.MEILI_MASTER_KEY;
+delete process.env.MEILI_HTTP_ADDR;
+
+// Suppress uncaught promise rejections from MeiliSearch
+process.on('unhandledRejection', (reason, promise) => {
+  if (reason && typeof reason === 'object' && 
+      (reason.name === 'MeiliSearchCommunicationError' || 
+       reason.message?.includes('MeiliSearch') ||
+       reason.message?.includes('fetch failed'))) {
+    // Suppress MeiliSearch errors silently
+    return;
+  }
+  // Re-throw other unhandled rejections
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+const { connectDb } = require('../db/connect');
+const mongoose = require('mongoose');
 
 const { createBackendClient } = require('@pipedream/sdk/server');
 
-// Initialize MongoDB connection
-async function connectDB() {
-  if (mongoose.connection.readyState === 0) {
-    await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/LibreChat');
-  }
-}
-
-// Import TriggerDeployment model directly
+// Define TriggerDeployment schema directly (since it's not in @librechat/data-schemas)
 const TriggerDeploymentSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, required: true },
@@ -45,28 +75,93 @@ const TriggerDeploymentSchema = new mongoose.Schema(
 
 const TriggerDeployment = mongoose.model('TriggerDeployment', TriggerDeploymentSchema);
 
-// Initialize Pipedream client
+// Initialize Pipedream client (match PipedreamConnect.js exactly)
 const client = createBackendClient({
   environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
-  projectId: process.env.PIPEDREAM_PROJECT_ID,
   credentials: {
     clientId: process.env.PIPEDREAM_CLIENT_ID,
     clientSecret: process.env.PIPEDREAM_CLIENT_SECRET,
   },
+  projectId: process.env.PIPEDREAM_PROJECT_ID,
 });
 
+// Debug client configuration (silent)
+
 /**
- * Fetch all deployed triggers for a user
+ * Fetch all deployed triggers for a user using direct HTTP API call
  */
-async function fetchUserTriggers(userId) {
+async function fetchUserTriggers(userId, environment = 'development') {
   console.log(`\n=== FETCHING DEPLOYED TRIGGERS FOR USER ${userId} ===`);
 
   try {
+    // Get OAuth token for API access
+    const axios = require('axios');
+    const baseURL = process.env.PIPEDREAM_API_BASE_URL || 'https://api.pipedream.com/v1';
+    
+    // Get OAuth token using client credentials
+    const tokenResponse = await axios.post(
+      `${baseURL}/oauth/token`,
+      {
+        grant_type: 'client_credentials',
+        client_id: process.env.PIPEDREAM_CLIENT_ID,
+        client_secret: process.env.PIPEDREAM_CLIENT_SECRET,
+      },
+      {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 10000,
+      }
+    );
+
+    const accessToken = tokenResponse.data.access_token;
+
+    // Make the deployed-triggers API call
+    const triggersResponse = await axios.get(
+      `${baseURL}/connect/${process.env.PIPEDREAM_PROJECT_ID}/deployed-triggers`,
+      {
+        params: {
+          external_user_id: userId,
+          limit: 50,
+        },
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'x-pd-environment': environment,
+          'Content-Type': 'application/json',
+        },
+        timeout: 30000,
+      }
+    );
+
+    const triggers = triggersResponse.data.data || [];
+    console.log(`✓ Found ${triggers.length} deployed triggers in Pipedream`);
+
+    return triggers;
+  } catch (error) {
+    console.error('✗ Error fetching triggers from Pipedream:', error.message);
+    if (error.response?.data) {
+      console.error('Response data:', JSON.stringify(error.response.data, null, 2));
+    }
+    if (error.response?.status) {
+      console.error('Response status:', error.response.status);
+    }
+    return [];
+  }
+}
+
+/**
+ * Fetch ALL deployed triggers (across all users)
+ */
+async function fetchAllTriggers() {
+  console.log(`\n=== FETCHING ALL DEPLOYED TRIGGERS (NO USER FILTER) ===`);
+
+  try {
+    console.log('Making API call with params:', { limit: 50 });
+    
     const triggersResponse = await client.getTriggers({
-      externalUserId: userId,
       limit: 50,
+      // No externalUserId filter - fetch all triggers
     });
 
+    console.log('Full API response:', JSON.stringify(triggersResponse, null, 2));
     console.log(`✓ Found ${triggersResponse.data.length} deployed triggers in Pipedream`);
 
     if (triggersResponse.page_info) {
@@ -207,7 +302,7 @@ async function inspectTriggerWebhooks(triggerId, userId) {
 /**
  * Compare database records with Pipedream deployment
  */
-async function compareDatabaseWithPipedream(userId) {
+async function compareDatabaseWithPipedream(userId, environment = 'development') {
   console.log(`\n=== COMPARING DATABASE WITH PIPEDREAM ===`);
 
   try {
@@ -216,7 +311,7 @@ async function compareDatabaseWithPipedream(userId) {
     console.log(`📁 Database: Found ${dbTriggers.length} trigger deployment records`);
 
     // Get triggers from Pipedream
-    const pipedreamTriggers = await fetchUserTriggers(userId);
+    const pipedreamTriggers = await fetchUserTriggers(userId, environment);
     console.log(`☁️  Pipedream: Found ${pipedreamTriggers.length} deployed triggers`);
 
     console.log('\n🔍 Cross-Reference Analysis:');
@@ -339,15 +434,15 @@ function getHealthEmoji(health) {
 }
 
 /**
- * Delete all triggers for a user
+ * Delete all triggers for a user using direct HTTP API calls
  */
-async function deleteAllTriggers(userId) {
+async function deleteAllTriggers(userId, environment = 'production') {
   console.log('🗑️ DELETING ALL TRIGGERS');
   console.log('========================');
 
   try {
     // Get all triggers from Pipedream
-    const triggers = await fetchUserTriggers(userId);
+    const triggers = await fetchUserTriggers(userId, environment);
 
     if (triggers.length === 0) {
       console.log('✓ No triggers found to delete');
@@ -356,37 +451,61 @@ async function deleteAllTriggers(userId) {
 
     console.log(`⚠️  Found ${triggers.length} triggers to delete`);
 
+    // Get OAuth token for API access
+    const axios = require('axios');
+    const baseURL = process.env.PIPEDREAM_API_BASE_URL || 'https://api.pipedream.com/v1';
+    
+    // Get OAuth token using client credentials
+    const tokenResponse = await axios.post(
+      `${baseURL}/oauth/token`,
+      {
+        grant_type: 'client_credentials',
+        client_id: process.env.PIPEDREAM_CLIENT_ID,
+        client_secret: process.env.PIPEDREAM_CLIENT_SECRET,
+      },
+      {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 10000,
+      }
+    );
+
+    const accessToken = tokenResponse.data.access_token;
+
     // Delete each trigger
     const deleteResults = [];
     for (const trigger of triggers) {
-      console.log(`\n🗑️ Deleting trigger: ${trigger.name} (${trigger.id})`);
-
       try {
-        await client.deleteTrigger({
-          id: trigger.id,
-          externalUserId: userId,
-        });
+        await axios.delete(
+          `${baseURL}/connect/${process.env.PIPEDREAM_PROJECT_ID}/deployed-triggers/${trigger.id}`,
+          {
+            params: {
+              external_user_id: userId,
+            },
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'x-pd-environment': environment,
+              'Content-Type': 'application/json',
+            },
+            timeout: 30000,
+          }
+        );
 
-        console.log(`✅ Successfully deleted trigger ${trigger.id}`);
-        deleteResults.push({ id: trigger.id, success: true });
+        deleteResults.push({ id: trigger.id, name: trigger.name, success: true });
       } catch (error) {
-        console.error(`❌ Failed to delete trigger ${trigger.id}:`, error.message);
-        deleteResults.push({ id: trigger.id, success: false, error: error.message });
+        deleteResults.push({ id: trigger.id, name: trigger.name, success: false, error: error.message });
       }
     }
 
     // Clean up database records
-    console.log('\n🧹 Cleaning up database records...');
     const dbDeleteResult = await TriggerDeployment.deleteMany({ userId });
-    console.log(`✅ Deleted ${dbDeleteResult.deletedCount} database records`);
 
     // Summary
     const successful = deleteResults.filter((r) => r.success).length;
     const failed = deleteResults.filter((r) => !r.success).length;
 
     console.log('\n=== DELETE SUMMARY ===');
-    console.log(`✅ Successfully deleted: ${successful}`);
-    console.log(`❌ Failed to delete: ${failed}`);
+    console.log(`✅ Pipedream triggers deleted: ${successful}`);
+    console.log(`❌ Failed deletions: ${failed}`);
     console.log(`🧹 Database records deleted: ${dbDeleteResult.deletedCount}`);
 
     if (failed > 0) {
@@ -394,7 +513,7 @@ async function deleteAllTriggers(userId) {
       deleteResults
         .filter((r) => !r.success)
         .forEach((r) => {
-          console.log(`   - ${r.id}: ${r.error}`);
+          console.log(`   - ${r.name} (${r.id}): ${r.error}`);
         });
     }
   } catch (error) {
@@ -411,12 +530,32 @@ async function inspectAllTriggers() {
   console.log('===============================');
 
   const userId = process.argv[2];
-  const deleteFlag = process.argv[3];
+  let flag = process.argv[3];
+  let environment = process.argv[4] || 'development'; // Default to development
 
-  if (!userId) {
-    console.error('❌ Please provide a user ID: node trigger-inspector.js <userId> [--delete-all]');
+  // Handle case where second argument is environment for --all
+  if (userId === '--all') {
+    flag = null;
+    environment = process.argv[3] || 'development';
+  }
+
+  if (!userId || (!flag && userId !== '--all')) {
+    console.error('❌ Please provide a user ID with a flag, or --all');
+    console.error('Usage:');
+    console.error('  node trigger-inspector.js <userId> --inspect [environment]   # Inspect triggers for specific user');
+    console.error('  node trigger-inspector.js <userId> --delete-all [environment] # Delete all triggers for user');
+    console.error('  node trigger-inspector.js --all [environment]                 # Inspect ALL triggers');
+    console.error('');
+    console.error('Environment options: development, production (default: development)');
+    console.error('');
+    console.error('Examples:');
+    console.error('  node trigger-inspector.js 68627669a4d589b864fbaabc --inspect production');
+    console.error('  node trigger-inspector.js 68627669a4d589b864fbaabc --delete-all production');
+    console.error('  node trigger-inspector.js --all production');
     process.exit(1);
   }
+
+  console.log(`🌍 Environment: ${environment}`);
 
   if (!client) {
     console.error('❌ Failed to initialize Pipedream client. Check environment variables.');
@@ -426,41 +565,66 @@ async function inspectAllTriggers() {
   try {
     // Connect to database
     console.log('📁 Connecting to MongoDB...');
-    await connectDB();
+    await connectDb();
     console.log('✓ Connected to database');
 
-    // Check if delete-all flag is provided
-    if (deleteFlag === '--delete-all') {
-      await deleteAllTriggers(userId);
+    // Check if fetching all triggers
+    if (userId === '--all') {
+      const allTriggers = await fetchAllTriggers();
+      
+      console.log('\n=== ALL TRIGGERS IN PIPEDREAM ===');
+      if (allTriggers.length === 0) {
+        console.log('No triggers found in Pipedream');
+      } else {
+        for (const trigger of allTriggers) {
+          console.log(`\n📋 Trigger: ${trigger.name || trigger.id}`);
+          console.log(`   ID: ${trigger.id}`);
+          console.log(`   Active: ${trigger.active ? '✅' : '❌'}`);
+          console.log(`   External User ID: ${trigger.external_user_id || 'N/A'}`);
+          console.log(`   Component: ${trigger.component_id}`);
+          if (trigger.endpoint_url) {
+            console.log(`   Endpoint: ${trigger.endpoint_url}`);
+          }
+        }
+      }
       return;
     }
 
-    // 1. Compare database with Pipedream
-    await compareDatabaseWithPipedream(userId);
-
-    // 2. Fetch and inspect all triggers
-    const triggers = await fetchUserTriggers(userId);
-
-    // 3. Detailed inspection of each trigger
-    for (const trigger of triggers) {
-      await inspectTrigger(trigger.id, userId);
-      await testTriggerHealth(trigger.id, userId);
+    // Check if delete-all flag is provided
+    if (flag === '--delete-all') {
+      await deleteAllTriggers(userId, environment);
+      return;
     }
 
-    // 4. Summary
-    console.log('\n=== SUMMARY ===');
-    console.log(`Total Triggers: ${triggers.length}`);
+    // Check if inspect flag is provided (or default behavior)
+    if (flag === '--inspect' || !flag) {
+      // 1. Compare database with Pipedream
+      await compareDatabaseWithPipedream(userId, environment);
 
-    const activeTriggers = triggers.filter((t) => t.active);
-    console.log(`Active: ${activeTriggers.length}`);
-    console.log(`Inactive: ${triggers.length - activeTriggers.length}`);
+      // 2. Fetch and inspect all triggers
+      const triggers = await fetchUserTriggers(userId, environment);
 
-    if (triggers.length === 0) {
-      console.log('\n💡 No triggers found. Try:');
-      console.log('   1. Deploy a workflow with an app trigger');
-      console.log('   2. Check if the user ID is correct');
-      console.log('   3. Verify Pipedream credentials');
+      // 3. Count active/inactive triggers
+      const activeTriggers = triggers.filter((t) => t.active);
+      const inactiveTriggers = triggers.filter((t) => !t.active);
+
+      // 4. Summary
+      console.log('\n=== SUMMARY ===');
+      console.log(`Total Triggers: ${triggers.length}`);
+      console.log(`Active: ${activeTriggers.length}`);
+      console.log(`Inactive: ${inactiveTriggers.length}`);
+
+      if (triggers.length === 0) {
+        console.log('\n💡 No triggers found. Try:');
+        console.log('   1. Deploy a workflow with an app trigger');
+        console.log('   2. Check if the user ID is correct');
+        console.log('   3. Verify Pipedream credentials');
+      }
+      return;
     }
+
+    console.error(`❌ Unknown flag: ${flag}`);
+    process.exit(1);
   } catch (error) {
     console.error('❌ Fatal error during inspection:', error.message);
     process.exit(1);
