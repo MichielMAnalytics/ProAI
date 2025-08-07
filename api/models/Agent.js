@@ -445,6 +445,16 @@ const getListAgents = async (searchParameter) => {
       agent.author = agent.author.toString();
     }
     return agent;
+  }).sort((a, b) => {
+    // Prioritize "Eve - Automation Expert" agent first
+    const isAEve = a.name?.toLowerCase().includes('eve') && a.name?.toLowerCase().includes('automation');
+    const isBEve = b.name?.toLowerCase().includes('eve') && b.name?.toLowerCase().includes('automation');
+    
+    if (isAEve && !isBEve) return -1;
+    if (!isAEve && isBEve) return 1;
+    
+    // For other agents, maintain original order (no change)
+    return 0;
   });
 
   const hasMore = agents.length > 0;
