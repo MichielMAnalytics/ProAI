@@ -226,7 +226,17 @@ const xAIModels = {
   'grok-4': 256000, // 256K context
 };
 
-const aggregateModels = { ...openAIModels, ...googleModels, ...bedrockModels, ...xAIModels };
+const aggregateModels = {
+  ...openAIModels,
+  ...googleModels,
+  ...bedrockModels,
+  ...xAIModels,
+  // misc.
+  kimi: 131000,
+  // GPT-OSS
+  'gpt-oss-20b': 131000,
+  'gpt-oss-120b': 131000,
+};
 
 const maxTokensMap = {
   [EModelEndpoint.azureOpenAI]: openAIModels,
@@ -242,6 +252,8 @@ const modelMaxOutputs = {
   o1: 32268, // -500 from max: 32,768
   'o1-mini': 65136, // -500 from max: 65,536
   'o1-preview': 32268, // -500 from max: 32,768
+  'gpt-oss-20b': 131000,
+  'gpt-oss-120b': 131000,
   system_default: 1024,
 };
 
@@ -460,10 +472,11 @@ const tiktokenModels = new Set([
 ]);
 
 module.exports = {
-  tiktokenModels,
-  maxTokensMap,
   inputSchema,
   modelSchema,
+  maxTokensMap,
+  tiktokenModels,
+  maxOutputTokensMap,
   matchModelName,
   processModelData,
   getModelMaxTokens,
