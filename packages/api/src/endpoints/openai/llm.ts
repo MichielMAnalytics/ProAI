@@ -176,12 +176,17 @@ export function getOpenAIConfig(
 
   // Handle reasoning parameters for Responses API
   if (hasReasoningParams({ reasoning_effort, reasoning_summary })) {
+    const reasoning: Record<string, any> = {};
+    
     if (reasoning_effort != null && reasoning_effort !== ReasoningEffort.none) {
-      modelKwargs.reasoning_effort = reasoning_effort;
-      hasModelKwargs = true;
+      reasoning.effort = reasoning_effort;
     }
     if (reasoning_summary != null && reasoning_summary !== ReasoningSummary.none) {
-      modelKwargs.reasoning_summary = reasoning_summary;
+      reasoning.summary = reasoning_summary;
+    }
+    
+    if (Object.keys(reasoning).length > 0) {
+      modelKwargs.reasoning = reasoning;
       hasModelKwargs = true;
     }
   }

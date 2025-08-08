@@ -213,7 +213,7 @@ const openAIParams: Record<string, SettingDefinition> = {
     description: 'com_endpoint_openai_reasoning_effort',
     descriptionCode: true,
     type: 'enum',
-    default: ReasoningEffort.medium,
+    default: ReasoningEffort.none,
     component: 'slider',
     options: [
       ReasoningEffort.none,

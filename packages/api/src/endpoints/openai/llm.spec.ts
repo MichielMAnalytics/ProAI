@@ -85,12 +85,13 @@ describe('getOpenAIConfig', () => {
       modelOptions: { ...modelOptions, useResponsesApi: true },
     });
 
-    expect(result.llmConfig.reasoning).toEqual({
+    expect(result.llmConfig.modelKwargs?.reasoning).toEqual({
       effort: ReasoningEffort.high,
       summary: ReasoningSummary.detailed,
     });
     expect((result.llmConfig as Record<string, unknown>).reasoning_effort).toBeUndefined();
     expect((result.llmConfig as Record<string, unknown>).reasoning_summary).toBeUndefined();
+    expect(result.llmConfig.reasoning).toBeUndefined();
   });
 
   it('should handle reasoning params without useResponsesApi', () => {

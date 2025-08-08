@@ -9,7 +9,9 @@ const {
 } = require('@librechat/api');
 const {
   Callback,
+  Providers,
   GraphEvents,
+  TitleMethod,
   formatMessage,
   formatAgentMessages,
   formatContentStrings,
@@ -58,6 +60,18 @@ const payloadParser = ({ req, agent, endpoint }) => {
 };
 
 const legacyContentEndpoints = new Set([KnownEndpoints.groq, KnownEndpoints.deepseek]);
+
+const omitTitleOptions = new Set([
+  'stream',
+  'thinking',
+  'streaming',
+  'clientOptions',
+  'thinkingConfig',
+  'thinkingBudget',
+  'includeThoughts',
+  'maxOutputTokens',
+  'additionalModelRequestFields',
+]);
 
 const noSystemModelRegex = [/\b(o1-preview|o1-mini|amazon\.titan-text)\b/gi];
 
@@ -934,6 +948,7 @@ class AgentClient extends BaseClient {
     }
     const { handleLLMEnd, collected: collectedMetadata } = createMetadataAggregator();
     const endpoint = this.options.agent.endpoint;
+    const provider = this.options.agent.provider || endpoint;
     const { req, res } = this.options;
     /** @type {import('@librechat/agents').ClientOptions} */
     let clientOptions = {
