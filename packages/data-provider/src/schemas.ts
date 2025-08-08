@@ -144,6 +144,19 @@ export enum ReasoningEffort {
   high = 'high',
 }
 
+export enum ReasoningSummary {
+  none = '',
+  auto = 'auto',
+  concise = 'concise',
+  detailed = 'detailed',
+}
+
+export enum Verbosity {
+  none = '',
+  low = 'low',
+  medium = 'medium',
+  high = 'high',
+}
 export const imageDetailNumeric = {
   [ImageDetail.low]: 0,
   [ImageDetail.auto]: 1,
@@ -158,6 +171,8 @@ export const imageDetailValue = {
 
 export const eImageDetailSchema = z.nativeEnum(ImageDetail);
 export const eReasoningEffortSchema = z.nativeEnum(ReasoningEffort);
+export const eReasoningSummarySchema = z.nativeEnum(ReasoningSummary);
+export const eVerbositySchema = z.nativeEnum(Verbosity);
 
 export const defaultAssistantFormValues = {
   assistant: '',
@@ -637,8 +652,17 @@ export const tConversationSchema = z.object({
   file_ids: z.array(z.string()).optional(),
   /* vision */
   imageDetail: eImageDetailSchema.optional(),
-  /* OpenAI: o1 only */
-  reasoning_effort: eReasoningEffortSchema.optional(),
+  /* OpenAI: Reasoning models only */
+  reasoning_effort: eReasoningEffortSchema.optional().nullable(),
+  reasoning_summary: eReasoningSummarySchema.optional().nullable(),
+  /* OpenAI: Verbosity control */
+  verbosity: eVerbositySchema.optional().nullable(),
+  /* OpenAI: use Responses API */
+  useResponsesApi: z.boolean().optional(),
+  /* OpenAI Responses API / Anthropic API / Google API */
+  web_search: z.boolean().optional(),
+  /* disable streaming */
+  disableStreaming: z.boolean().optional(),
   /* assistant */
   assistant_id: z.string().optional(),
   /* agents */
@@ -735,6 +759,18 @@ export const tQueryParamsSchema = tConversationSchema
     top_p: true,
     /** @endpoints openAI, custom, azureOpenAI */
     max_tokens: true,
+    /** @endpoints openAI, custom, azureOpenAI */
+    reasoning_effort: true,
+    /** @endpoints openAI, custom, azureOpenAI */
+    reasoning_summary: true,
+    /** @endpoints openAI, custom, azureOpenAI */
+    verbosity: true,
+    /** @endpoints openAI, custom, azureOpenAI */
+    useResponsesApi: true,
+    /** @endpoints openAI, anthropic, google */
+    web_search: true,
+    /** @endpoints openAI, custom, azureOpenAI */
+    disableStreaming: true,
     /** @endpoints google, anthropic, bedrock */
     topP: true,
     /** @endpoints google, anthropic */
@@ -1054,6 +1090,11 @@ export const openAIBaseSchema = tConversationSchema.pick({
   maxContextTokens: true,
   max_tokens: true,
   reasoning_effort: true,
+  reasoning_summary: true,
+  verbosity: true,
+  useResponsesApi: true,
+  web_search: true,
+  disableStreaming: true,
 });
 
 export const openAISchema = openAIBaseSchema

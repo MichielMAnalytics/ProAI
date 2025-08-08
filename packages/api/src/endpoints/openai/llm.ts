@@ -4,6 +4,74 @@ import type * as t from '~/types';
 import { sanitizeModelName, constructAzureURL } from '~/utils/azure';
 import { isEnabled } from '~/utils/common';
 
+export const knownOpenAIParams = new Set([
+  // Constructor/Instance Parameters
+  'model',
+  'modelName',
+  'temperature',
+  'topP',
+  'frequencyPenalty',
+  'presencePenalty',
+  'n',
+  'logitBias',
+  'stop',
+  'stopSequences',
+  'user',
+  'timeout',
+  'stream',
+  'maxTokens',
+  'maxCompletionTokens',
+  'logprobs',
+  'topLogprobs',
+  'apiKey',
+  'organization',
+  'audio',
+  'modalities',
+  'reasoning',
+  'zdrEnabled',
+  'service_tier',
+  'supportsStrictToolCalling',
+  'useResponsesApi',
+  'configuration',
+  // Call-time Options
+  'tools',
+  'tool_choice',
+  'functions',
+  'function_call',
+  'response_format',
+  'seed',
+  'stream_options',
+  'parallel_tool_calls',
+  'strict',
+  'prediction',
+  'promptIndex',
+  // Responses API specific
+  'text',
+  'truncation',
+  'include',
+  'previous_response_id',
+  // LangChain specific
+  '__includeRawResponse',
+  'maxConcurrency',
+  'maxRetries',
+  'verbose',
+  'streaming',
+  'streamUsage',
+  'disableStreaming',
+]);
+
+function hasReasoningParams({
+  reasoning_effort,
+  reasoning_summary,
+}: {
+  reasoning_effort?: string | null;
+  reasoning_summary?: string | null;
+}): boolean {
+  return (
+    (reasoning_effort != null && reasoning_effort !== '') ||
+    (reasoning_summary != null && reasoning_summary !== '')
+  );
+}
 /**
  * Generates configuration options for creating a language model (LLM) instance.
  * @param apiKey - The API key for authentication.
@@ -27,8 +95,10 @@ export function getOpenAIConfig(
     addParams,
     dropParams,
   } = options;
-
-  const llmConfig: Partial<t.ClientOptions> & Partial<t.OpenAIParameters> = Object.assign(
+  const { reasoning_effort, reasoning_summary, verbosity, ...modelOptions } = _modelOptions;
+  const llmConfig: Partial<t.ClientOptions> &
+    Partial<t.OpenAIParameters> &
+    Partial<AzureOpenAIInput> = Object.assign(
     {
       streaming,
       model: modelOptions.model ?? '',
@@ -36,8 +106,23 @@ export function getOpenAIConfig(
     modelOptions,
   );
 
+  const modelKwargs: Record<string, unknown> = {};
+  let hasModelKwargs = false;
+
+  if (verbosity != null && verbosity !== '') {
+    modelKwargs.verbosity = verbosity;
+    hasModelKwargs = true;
+  }
+
   if (addParams && typeof addParams === 'object') {
-    Object.assign(llmConfig, addParams);
+    for (const [key, value] of Object.entries(addParams)) {
+      if (knownOpenAIParams.has(key)) {
+        (llmConfig as Record<string, unknown>)[key] = value;
+      } else {
+        hasModelKwargs = true;
+        modelKwargs[key] = value;
+      }
+    }
   }
 
   // Note: OpenAI Web Search models do not support any known parameters besides `max_tokens`
@@ -71,6 +156,37 @@ export function getOpenAIConfig(
         delete llmConfig[param as keyof t.ClientOptions];
       }
     });
+  }
+
+  // Handle verbosity for Responses API
+  if (modelKwargs.verbosity && llmConfig.useResponsesApi === true) {
+    modelKwargs.text = { verbosity: modelKwargs.verbosity };
+    delete modelKwargs.verbosity;
+  }
+
+  // Handle GPT-5+ models max tokens
+  if (llmConfig.model && /\bgpt-[5-9]\b/i.test(llmConfig.model) && llmConfig.maxTokens != null) {
+    modelKwargs.max_completion_tokens = llmConfig.maxTokens;
+    delete llmConfig.maxTokens;
+    hasModelKwargs = true;
+  }
+
+  // Handle reasoning parameters for Responses API
+  if (hasReasoningParams({ reasoning_effort, reasoning_summary })) {
+    if (reasoning_effort && reasoning_effort !== '') {
+      modelKwargs.reasoning_effort = reasoning_effort;
+      hasModelKwargs = true;
+    }
+    if (reasoning_summary && reasoning_summary !== '') {
+      modelKwargs.reasoning_summary = reasoning_summary;
+      hasModelKwargs = true;
+    }
+  }
+
+  // Add verbosity parameter
+  if (verbosity && verbosity !== '') {
+    modelKwargs.verbosity = verbosity;
+    hasModelKwargs = true;
   }
 
   let useOpenRouter = false;
@@ -149,7 +265,11 @@ export function getOpenAIConfig(
     delete llmConfig.max_tokens;
   }
 
-  return {
+  if (hasModelKwargs) {
+    llmConfig.modelKwargs = modelKwargs;
+  }
+
+  const result: t.LLMConfigResult = {
     llmConfig,
     configOptions,
   };

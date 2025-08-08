@@ -979,6 +979,26 @@ class AgentClient extends BaseClient {
     if (/\b(o\d)\b/i.test(clientOptions.model) && clientOptions.maxTokens != null) {
       delete clientOptions.maxTokens;
     }
+
+    if (/\bgpt-[5-9]\b/i.test(clientOptions.model) && clientOptions.maxTokens != null) {
+      clientOptions.modelKwargs = clientOptions.modelKwargs ?? {};
+      clientOptions.modelKwargs.max_completion_tokens = clientOptions.maxTokens;
+      delete clientOptions.maxTokens;
+    }
+
+    clientOptions = Object.assign(
+      Object.fromEntries(
+        Object.entries(clientOptions).filter(([key]) => !omitTitleOptions.has(key)),
+      ),
+    );
+
+    if (
+      provider === Providers.GOOGLE &&
+      (endpointConfig?.titleMethod === TitleMethod.FUNCTIONS ||
+        endpointConfig?.titleMethod === TitleMethod.STRUCTURED)
+    ) {
+      clientOptions.json = true;
+    }
     try {
       const titleResult = await this.run.generateTitle({
         inputText: text,

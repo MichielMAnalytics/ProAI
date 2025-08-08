@@ -135,4 +135,11 @@ export const conversationPreset = {
   reasoning_effort: {
     type: String,
   },
+  reasoning_summary: {
+    type: String,
+  },
+  /** Verbosity control */
+  verbosity: {
+    type: String,
+  },
 };
