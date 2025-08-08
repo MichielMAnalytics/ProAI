@@ -4,6 +4,7 @@ import type * as a from './types/assistants';
 import type * as s from './schemas';
 import type * as t from './types';
 import { ContentTypes } from './types/runs';
+import { extractEnvVariable } from './utils';
 import {
   openAISchema,
   googleSchema,
