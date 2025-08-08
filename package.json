@@ -145,6 +145,7 @@
     ]
   },
   "dependencies": {
+    "@librechat/agents": "^2.4.72",
     "@pipedream/sdk": "^1.6.3",
     "cron-schedule": "^5.0.4",
     "node-cron": "^4.0.7",

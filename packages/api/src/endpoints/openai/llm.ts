@@ -1,5 +1,5 @@
 import { HttpsProxyAgent } from 'https-proxy-agent';
-import { KnownEndpoints, ReasoningEffort, ReasoningSummary, Verbosity } from 'librechat-data-provider';
+import { KnownEndpoints, ReasoningEffort, ReasoningSummary, Verbosity, removeNullishValues } from 'librechat-data-provider';
 import type { AzureOpenAIInput } from '@langchain/openai';
 import type { BindToolsInput } from '@langchain/core/language_models/chat_models';
 import type { OpenAI } from 'openai';
@@ -161,50 +161,38 @@ export function getOpenAIConfig(
     });
   }
 
-  // Handle verbosity for Responses API
-  if (modelKwargs.verbosity && llmConfig.useResponsesApi === true) {
-    modelKwargs.text = { verbosity: modelKwargs.verbosity };
-    delete modelKwargs.verbosity;
-  }
-
-  // Handle GPT-5+ models max tokens
-  if (llmConfig.model && /\bgpt-[5-9]\b/i.test(llmConfig.model) && llmConfig.maxTokens != null) {
-    modelKwargs.max_completion_tokens = llmConfig.maxTokens;
-    delete llmConfig.maxTokens;
-    hasModelKwargs = true;
-  }
-
-  // Handle reasoning parameters for Responses API
-  if (hasReasoningParams({ reasoning_effort, reasoning_summary })) {
-    const reasoning: Record<string, any> = {};
-    
-    if (reasoning_effort != null && reasoning_effort !== ReasoningEffort.none) {
-      reasoning.effort = reasoning_effort;
-    }
-    if (reasoning_summary != null && reasoning_summary !== ReasoningSummary.none) {
-      reasoning.summary = reasoning_summary;
-    }
-    
-    if (Object.keys(reasoning).length > 0) {
-      modelKwargs.reasoning = reasoning;
-      hasModelKwargs = true;
-    }
-  }
-
-  // Add verbosity parameter
-  if (verbosity != null && verbosity !== Verbosity.none) {
-    modelKwargs.verbosity = verbosity;
-    hasModelKwargs = true;
-  }
-
   let useOpenRouter = false;
-  const configOptions: t.OpenAIConfiguration = {};
-
+  
   if (
     (reverseProxyUrl && reverseProxyUrl.includes(KnownEndpoints.openrouter)) ||
     (endpoint && endpoint.toLowerCase().includes(KnownEndpoints.openrouter))
   ) {
     useOpenRouter = true;
+  }
+
+  // Handle reasoning parameters for Responses API (upstream logic)
+  if (
+    hasReasoningParams({ reasoning_effort, reasoning_summary }) &&
+    (llmConfig.useResponsesApi === true || useOpenRouter)
+  ) {
+    llmConfig.reasoning = removeNullishValues(
+      {
+        effort: reasoning_effort,
+        summary: reasoning_summary,
+      },
+      true,
+    ) as any;
+  } else if (hasReasoningParams({ reasoning_effort })) {
+    llmConfig.reasoning_effort = reasoning_effort;
+  }
+
+  if (llmConfig.max_tokens != null) {
+    llmConfig.maxTokens = llmConfig.max_tokens;
+    delete llmConfig.max_tokens;
+  }
+  const configOptions: t.OpenAIConfiguration = {};
+
+  if (useOpenRouter) {
     llmConfig.include_reasoning = true;
     configOptions.baseURL = reverseProxyUrl;
     configOptions.defaultHeaders = Object.assign(
@@ -282,6 +270,58 @@ export function getOpenAIConfig(
   if (modelOptions.web_search) {
     llmConfig.useResponsesApi = true;
     tools.push({ type: 'web_search_preview' });
+  }
+
+  /**
+   * Note: OpenAI Web Search models do not support any known parameters besides `max_tokens`
+   */
+  if (modelOptions.model && /gpt-4o.*search/.test(modelOptions.model)) {
+    const searchExcludeParams = [
+      'frequency_penalty',
+      'presence_penalty',
+      'reasoning',
+      'reasoning_effort',
+      'temperature',
+      'top_p',
+      'top_k',
+      'stop',
+      'logit_bias',
+      'seed',
+      'response_format',
+      'n',
+      'logprobs',
+      'user',
+    ];
+
+    const updatedDropParams = dropParams || [];
+    const combinedDropParams = [...new Set([...updatedDropParams, ...searchExcludeParams])];
+
+    combinedDropParams.forEach((param) => {
+      if (param in llmConfig) {
+        delete llmConfig[param as keyof t.ClientOptions];
+      }
+    });
+  } else if (dropParams && Array.isArray(dropParams)) {
+    dropParams.forEach((param) => {
+      if (param in llmConfig) {
+        delete llmConfig[param as keyof t.ClientOptions];
+      }
+    });
+  }
+
+  if (modelKwargs.verbosity && llmConfig.useResponsesApi === true) {
+    modelKwargs.text = { verbosity: modelKwargs.verbosity };
+    delete modelKwargs.verbosity;
+  }
+
+  if (llmConfig.model && /\bgpt-[5-9]\b/i.test(llmConfig.model) && llmConfig.maxTokens != null) {
+    modelKwargs.max_completion_tokens = llmConfig.maxTokens;
+    delete llmConfig.maxTokens;
+    hasModelKwargs = true;
+  }
+
+  if (hasModelKwargs) {
+    llmConfig.modelKwargs = modelKwargs;
   }
 
   const result: t.LLMConfigResult = {
