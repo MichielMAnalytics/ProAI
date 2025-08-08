@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { openAISchema, EModelEndpoint } from 'librechat-data-provider';
 import type { TEndpointOption, TAzureConfig, TEndpoint } from 'librechat-data-provider';
 import type { OpenAIClientOptions } from '@librechat/agents';
+import type { BindToolsInput } from '@langchain/core/language_models/chat_models';
 import type { AzureOptions } from './azure';
 
 export type OpenAIParameters = z.infer<typeof openAISchema>;
@@ -9,7 +10,7 @@ export type OpenAIParameters = z.infer<typeof openAISchema>;
 /**
  * Configuration options for the getLLMConfig function
  */
-export interface LLMConfigOptions {
+export interface OpenAIConfigOptions {
   modelOptions?: Partial<OpenAIParameters>;
   reverseProxyUrl?: string;
   defaultQuery?: Record<string, string | undefined>;
@@ -21,7 +22,14 @@ export interface LLMConfigOptions {
   dropParams?: string[];
 }
 
-export type OpenAIConfiguration = OpenAIClientOptions['configuration'];
+export interface LLMConfigOptions extends OpenAIConfigOptions {}
+
+export type OpenAIConfiguration = OpenAIClientOptions['configuration'] & {
+  fetchOptions?: {
+    dispatcher?: any;
+  };
+  httpAgent?: any;
+};
 
 export type ClientOptions = OpenAIClientOptions & {
   include_reasoning?: boolean;
@@ -33,6 +41,8 @@ export type ClientOptions = OpenAIClientOptions & {
 export interface LLMConfigResult {
   llmConfig: ClientOptions;
   configOptions: OpenAIConfiguration;
+  tools?: BindToolsInput[];
+  provider?: string;
 }
 
 /**

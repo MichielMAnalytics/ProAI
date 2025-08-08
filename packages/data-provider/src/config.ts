@@ -936,6 +936,9 @@ export const alternateName = {
 const sharedOpenAIModels = [
   'gpt-4o-mini',
   'gpt-4o',
+  'gpt-5',
+  'gpt-5-mini',
+  'gpt-5-nano',
   'gpt-4.5-preview',
   'gpt-4.5-preview-2025-02-27',
   'gpt-3.5-turbo',

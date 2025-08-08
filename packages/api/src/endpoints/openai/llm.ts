@@ -1,6 +1,8 @@
 import { HttpsProxyAgent } from 'https-proxy-agent';
-import { KnownEndpoints } from 'librechat-data-provider';
-import type { AzureOpenAIInput } from '@langchain/azure-openai';
+import { KnownEndpoints, ReasoningEffort, ReasoningSummary, Verbosity } from 'librechat-data-provider';
+import type { AzureOpenAIInput } from '@langchain/openai';
+import type { BindToolsInput } from '@langchain/core/language_models/chat_models';
+import type { OpenAI } from 'openai';
 import type * as t from '~/types';
 import { sanitizeModelName, constructAzureURL } from '~/utils/azure';
 import { isEnabled } from '~/utils/common';
@@ -82,7 +84,7 @@ function hasReasoningParams({
  */
 export function getOpenAIConfig(
   apiKey: string,
-  options: t.LLMConfigOptions = {},
+  options: t.OpenAIConfigOptions = {},
   endpoint?: string | null,
 ): t.LLMConfigResult {
   const {
@@ -174,18 +176,18 @@ export function getOpenAIConfig(
 
   // Handle reasoning parameters for Responses API
   if (hasReasoningParams({ reasoning_effort, reasoning_summary })) {
-    if (reasoning_effort && reasoning_effort !== '') {
+    if (reasoning_effort != null && reasoning_effort !== ReasoningEffort.none) {
       modelKwargs.reasoning_effort = reasoning_effort;
       hasModelKwargs = true;
     }
-    if (reasoning_summary && reasoning_summary !== '') {
+    if (reasoning_summary != null && reasoning_summary !== ReasoningSummary.none) {
       modelKwargs.reasoning_summary = reasoning_summary;
       hasModelKwargs = true;
     }
   }
 
   // Add verbosity parameter
-  if (verbosity && verbosity !== '') {
+  if (verbosity != null && verbosity !== Verbosity.none) {
     modelKwargs.verbosity = verbosity;
     hasModelKwargs = true;
   }
@@ -256,7 +258,7 @@ export function getOpenAIConfig(
 
   if (useOpenRouter && llmConfig.reasoning_effort != null) {
     llmConfig.reasoning = {
-      effort: llmConfig.reasoning_effort,
+      effort: llmConfig.reasoning_effort as any,
     };
     delete llmConfig.reasoning_effort;
   }
@@ -270,10 +272,22 @@ export function getOpenAIConfig(
     llmConfig.modelKwargs = modelKwargs;
   }
 
+  const tools: BindToolsInput[] = [];
+
+  if (modelOptions.web_search) {
+    llmConfig.useResponsesApi = true;
+    tools.push({ type: 'web_search_preview' });
+  }
+
   const result: t.LLMConfigResult = {
     llmConfig,
     configOptions,
+    tools,
   };
+
+  if (useOpenRouter) {
+    result.provider = 'openrouter';
+  }
 
   return result;
 }
