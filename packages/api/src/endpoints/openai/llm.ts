@@ -1,5 +1,6 @@
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { KnownEndpoints } from 'librechat-data-provider';
+import type { AzureOpenAIInput } from '@langchain/azure-openai';
 import type * as t from '~/types';
 import { sanitizeModelName, constructAzureURL } from '~/utils/azure';
 import { isEnabled } from '~/utils/common';
@@ -85,7 +86,7 @@ export function getOpenAIConfig(
   endpoint?: string | null,
 ): t.LLMConfigResult {
   const {
-    modelOptions = {},
+    modelOptions: _modelOptions = {},
     reverseProxyUrl,
     defaultQuery,
     headers,
@@ -273,4 +274,6 @@ export function getOpenAIConfig(
     llmConfig,
     configOptions,
   };
+
+  return result;
 }
